@@ -1,6 +1,8 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;SelfContained">
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
+    <PublishAot>false</PublishAot>
+    <SelfContained>false</SelfContained>
     <AssemblyName>Gpui.Net.Generators</AssemblyName>
     <RootNamespace>Gpui.Generators</RootNamespace>
     <IsRoslynComponent>true</IsRoslynComponent>
