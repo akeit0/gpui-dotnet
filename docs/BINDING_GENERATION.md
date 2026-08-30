@@ -27,22 +27,29 @@ The managed project runs generation before normal build preparation so schema ed
 
 The schema describes GPUI.NET semantics. It is not a dump of GPUI traits/methods. Keep the surface small, stable, and meaningful from C#.
 
-## Roslyn incremental event generator
+## Roslyn incremental View generator
 
 Project: `dotnet/src/Gpui.Net.Generators`
 
-Input: application source marked with `[GpuiView]` and `[GpuiEvent]`.
+Input: application source marked with `[GpuiView]` and optionally `[GpuiEvent]`.
 
-Output: per-view generated event binding/dispatch source.
+Output per generated View:
 
-Why compile-time generation:
+- `IGeneratedViewFactory<TView>` static implementation used by `ui.Child<TView>()`;
+- `Events.*` accessors when event handlers exist;
+- generated direct event dispatch switch.
 
-- no reflection;
-- no delegate dictionary;
-- no constructor registration;
+The factory is generated in a partial declaration of the View itself, so a private/internal parameterless constructor can be used without reflection. This is compatible with NativeAOT/trimming and avoids requiring public constructors purely for framework activation.
+
+### Why compile-time generation
+
+- no reflection/`Activator.CreateInstance` for normal child Views;
+- no delegate callback dictionary;
+- no callback constructor registration;
 - NativeAOT-friendly;
 - handler signature diagnostics at compile time;
-- deterministic numeric event IDs.
+- deterministic numeric event IDs;
+- one explicit marker (`[GpuiView]`) identifies types eligible for framework-owned child slots.
 
 ### Diagnostics
 
@@ -53,7 +60,12 @@ Current generator diagnostics include:
 - `GPUI003`: unsupported handler signature;
 - `GPUI004`: `async void` handler;
 - `GPUI005`: generated handler ID collision;
-- `GPUI006`: user member conflicts with generated `Events`.
+- `GPUI006`: user member conflicts with generated `Events`;
+- `GPUI007`: overloaded/duplicate generated event accessor name;
+- `GPUI008`: `[GpuiView]` type does not derive from `View`;
+- `GPUI009`: event method uses a generated-reserved name;
+- `GPUI010`: generated View is abstract or lacks a parameterless constructor;
+- `GPUI011`: user member conflicts with generated `CreateGpuiView`.
 
 ## Native ABI generation
 

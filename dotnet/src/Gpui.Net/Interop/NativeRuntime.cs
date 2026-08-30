@@ -51,9 +51,15 @@ public sealed unsafe class NativeRuntime
             );
         }
 
-        if (api->validate_render == null || api->run_application == null || api->notify_view == null)
+        if (
+            api->validate_render == null
+            || api->run_application == null
+            || api->notify_view == null
+        )
         {
-            throw new InvalidOperationException("The native API table is missing required entries.");
+            throw new InvalidOperationException(
+                "The native API table is missing required entries."
+            );
         }
 
         return new NativeRuntime(api);
@@ -254,7 +260,8 @@ public sealed unsafe class NativeRuntime
 
     private sealed class ManagedSession : IViewRenderer
     {
-        private static readonly IEqualityComparer<View> ViewIdentity = ReferenceEqualityComparer.Instance;
+        private static readonly IEqualityComparer<View> ViewIdentity =
+            ReferenceEqualityComparer.Instance;
 
         private readonly NativeRuntime _runtime;
         private readonly ulong _sessionId;
@@ -263,11 +270,7 @@ public sealed unsafe class NativeRuntime
         private readonly Dictionary<uint, View> _viewsByHandle = [];
         private readonly object _renderStateGate = new();
         private readonly Dictionary<View, RetainedViewState> _renderStates = new(ViewIdentity);
-        private readonly Dictionary<View, HashSet<View>> _childrenByParent = new(ViewIdentity);
-        private readonly Dictionary<View, HashSet<View>> _parentsByChild = new(ViewIdentity);
         private readonly HashSet<View> _renderingViews = new(ViewIdentity);
-        private readonly Stack<View> _dirtyStack = new();
-        private readonly HashSet<View> _dirtyVisited = new(ViewIdentity);
         private readonly Stack<View> _snapshotStack = new();
         private readonly HashSet<View> _snapshotVisited = new(ViewIdentity);
         private readonly List<View> _detachCandidates = [];
@@ -343,20 +346,25 @@ public sealed unsafe class NativeRuntime
             try
             {
                 BeginRendering();
-                Attach(RootView);
+                AttachRoot();
                 BeginComposition(RootView);
+                var completed = false;
                 try
                 {
                     var ui = new RenderContext(arena, this, RootView);
                     var element = RootView.RenderCore(ref ui);
                     ManagedValidator.Validate(arena, element);
                     CompleteComposition(RootView);
+                    completed = true;
                     CommitSnapshotTree();
                     return element;
                 }
                 catch
                 {
-                    AbortComposition(RootView);
+                    if (!completed)
+                    {
+                        AbortComposition(RootView);
+                    }
                     throw;
                 }
             }
@@ -421,10 +429,6 @@ public sealed unsafe class NativeRuntime
                     state.Fragment?.Dispose();
                 }
                 _renderStates.Clear();
-                _childrenByParent.Clear();
-                _parentsByChild.Clear();
-                _dirtyStack.Clear();
-                _dirtyVisited.Clear();
             }
 
             _attachedViews.Clear();
@@ -437,26 +441,207 @@ public sealed unsafe class NativeRuntime
             _detachVisited.Clear();
         }
 
-        Element IViewRenderer.RenderChild(View view, View parent, RenderArena* destination)
+        Element IViewRenderer.RenderChild<TView>(
+            View parent,
+            ChildSlot requestedSlot,
+            RenderArena* destination
+        )
         {
-            if (_renderingViews.Contains(view))
+            var child = ResolveFrameworkChild<TView>(parent, requestedSlot);
+            return RenderResolvedChild(child, destination);
+        }
+
+        Element IViewRenderer.RenderChild<TView, TProps>(
+            View parent,
+            ChildSlot requestedSlot,
+            in TProps props,
+            RenderArena* destination
+        )
+        {
+            var child = ResolveFrameworkChild<TView, TProps>(parent, requestedSlot, in props);
+            return RenderResolvedChild(child, destination);
+        }
+
+        Element IViewRenderer.RenderChild(
+            View view,
+            View parent,
+            ChildSlot requestedSlot,
+            RenderArena* destination
+        )
+        {
+            ResolveExplicitChild(view, parent, requestedSlot);
+            return RenderResolvedChild(view, destination);
+        }
+
+        Element IViewRenderer.RenderChild<TProps>(
+            View<TProps> view,
+            View parent,
+            ChildSlot requestedSlot,
+            in TProps props,
+            RenderArena* destination
+        )
+        {
+            ResolveExplicitChild(view, parent, requestedSlot, in props);
+            return RenderResolvedChild(view, destination);
+        }
+
+        private TView ResolveFrameworkChild<TView>(View parent, ChildSlot requestedSlot)
+            where TView : View, IGeneratedViewFactory<TView>
+        {
+            EnsureParentIsRendering(parent);
+            var parentState = GetRenderState(parent);
+            var slot = NormalizeSlot(parentState, requestedSlot);
+            EnsureSlotUnused(parentState, slot);
+
+            if (TryGetFrameworkChild<TView>(parentState, slot, out var existing))
             {
-                throw new InvalidOperationException("Managed views cannot recursively render themselves.");
+                if (existing.View.RequiresProps)
+                {
+                    throw new InvalidOperationException(
+                        $"{typeof(TView).Name} derives from View<TProps>; render it with the props overload."
+                    );
+                }
+                RegisterWorkingChild(parentState, slot, existing);
+                return (TView)existing.View;
             }
-            if (!_renderingViews.Contains(parent))
+
+            var child = CreateFrameworkView<TView>();
+            if (child.RequiresProps)
             {
                 throw new InvalidOperationException(
-                    "A child view can only be rendered while its parent is rendering."
+                    $"{typeof(TView).Name} derives from View<TProps>; render it with the props overload."
                 );
             }
 
-            if (!GetRenderState(parent).PendingChildren.Add(view))
+            AttachResolvedCandidate(child, parent, parentState, slot, ChildOwnership.Framework);
+            return child;
+        }
+
+        private TView ResolveFrameworkChild<TView, TProps>(
+            View parent,
+            ChildSlot requestedSlot,
+            in TProps props
+        )
+            where TView : View<TProps>, IGeneratedViewFactory<TView>
+        {
+            EnsureParentIsRendering(parent);
+            var parentState = GetRenderState(parent);
+            var slot = NormalizeSlot(parentState, requestedSlot);
+            EnsureSlotUnused(parentState, slot);
+
+            if (TryGetFrameworkChild<TView>(parentState, slot, out var existing))
+            {
+                var child = (TView)existing.View;
+                if (child.ApplyProps(in props))
+                {
+                    MarkViewFragmentDirty(child);
+                }
+                RegisterWorkingChild(parentState, slot, existing);
+                return child;
+            }
+
+            var created = CreateFrameworkView<TView>();
+            _ = created.ApplyProps(in props);
+            AttachResolvedCandidate(created, parent, parentState, slot, ChildOwnership.Framework);
+            return created;
+        }
+
+        private void ResolveExplicitChild(View child, View parent, ChildSlot requestedSlot)
+        {
+            if (child.RequiresProps)
             {
                 throw new InvalidOperationException(
-                    "The same managed child View instance cannot be rendered more than once by one parent."
+                    $"{child.GetType().Name} derives from View<TProps>; render it with the props overload."
                 );
             }
-            Attach(view);
+
+            EnsureParentIsRendering(parent);
+            EnsureNotRecursive(child);
+            var parentState = GetRenderState(parent);
+            var slot = NormalizeSlot(parentState, requestedSlot);
+            EnsureSlotUnused(parentState, slot);
+            if (TryGetExplicitChild(parentState, slot, child, out var existing))
+            {
+                RegisterWorkingChild(parentState, slot, existing);
+                return;
+            }
+
+            AttachResolvedCandidate(child, parent, parentState, slot, ChildOwnership.Explicit);
+        }
+
+        private void ResolveExplicitChild<TProps>(
+            View<TProps> child,
+            View parent,
+            ChildSlot requestedSlot,
+            in TProps props
+        )
+        {
+            EnsureParentIsRendering(parent);
+            EnsureNotRecursive(child);
+            var parentState = GetRenderState(parent);
+            var slot = NormalizeSlot(parentState, requestedSlot);
+            EnsureSlotUnused(parentState, slot);
+            if (TryGetExplicitChild(parentState, slot, child, out var existing))
+            {
+                if (child.ApplyProps(in props))
+                {
+                    MarkViewFragmentDirty(child);
+                }
+                RegisterWorkingChild(parentState, slot, existing);
+                return;
+            }
+
+            _ = child.ApplyProps(in props);
+            AttachResolvedCandidate(child, parent, parentState, slot, ChildOwnership.Explicit);
+        }
+
+        private static TView CreateFrameworkView<TView>()
+            where TView : View, IGeneratedViewFactory<TView>
+        {
+            var child = TView.CreateGpuiView();
+            return child
+                ?? throw new InvalidOperationException(
+                    $"The generated factory for {typeof(TView).FullName} returned null."
+                );
+        }
+
+        private void AttachResolvedCandidate(
+            View child,
+            View parent,
+            RetainedViewState parentState,
+            ChildSlot slot,
+            ChildOwnership ownership
+        )
+        {
+            EnsureNotRecursive(child);
+            var childState = PrepareOwnership(child, parent);
+            try
+            {
+                Attach(child);
+            }
+            catch
+            {
+                RollBackPreparedOwnership(child, childState, parent);
+                throw;
+            }
+
+            var entry = new ChildEntry(child, ownership);
+            GetCandidates(parentState)[slot] = entry;
+            RegisterWorkingChild(parentState, slot, entry);
+        }
+
+        private void EnsureNotRecursive(View child)
+        {
+            if (_renderingViews.Contains(child))
+            {
+                throw new InvalidOperationException(
+                    "Managed views cannot recursively render themselves."
+                );
+            }
+        }
+
+        private Element RenderResolvedChild(View view, RenderArena* destination)
+        {
             var state = GetRenderState(view);
             long requiredVersion;
             lock (_renderStateGate)
@@ -490,6 +675,162 @@ public sealed unsafe class NativeRuntime
             return ArenaWriter.AppendFragment(destination, state.Fragment.NativeArena, state.Root);
         }
 
+        private static bool TryGetFrameworkChild<TView>(
+            RetainedViewState parentState,
+            ChildSlot slot,
+            out ChildEntry entry
+        )
+            where TView : View
+        {
+            if (
+                parentState.Candidates is not null
+                && parentState.Candidates.TryGetValue(slot, out entry)
+                && entry.Ownership == ChildOwnership.Framework
+                && entry.View.GetType() == typeof(TView)
+            )
+            {
+                return true;
+            }
+
+            if (
+                parentState.Children is not null
+                && parentState.Children.TryGetValue(slot, out entry)
+                && entry.Ownership == ChildOwnership.Framework
+                && entry.View.GetType() == typeof(TView)
+            )
+            {
+                return true;
+            }
+
+            entry = default;
+            return false;
+        }
+
+        private static bool TryGetExplicitChild(
+            RetainedViewState parentState,
+            ChildSlot slot,
+            View requested,
+            out ChildEntry entry
+        )
+        {
+            if (
+                parentState.Candidates is not null
+                && parentState.Candidates.TryGetValue(slot, out entry)
+                && entry.Ownership == ChildOwnership.Explicit
+                && ReferenceEquals(entry.View, requested)
+            )
+            {
+                return true;
+            }
+
+            if (
+                parentState.Children is not null
+                && parentState.Children.TryGetValue(slot, out entry)
+                && entry.Ownership == ChildOwnership.Explicit
+                && ReferenceEquals(entry.View, requested)
+            )
+            {
+                return true;
+            }
+
+            entry = default;
+            return false;
+        }
+
+        private RetainedViewState PrepareOwnership(View child, View parent)
+        {
+            lock (_renderStateGate)
+            {
+                var childState = GetRenderState(child);
+                if (childState.Parent is not null && !ReferenceEquals(childState.Parent, parent))
+                {
+                    throw new InvalidOperationException(
+                        $"Managed View '{child.GetType().Name}' is already owned by "
+                            + $"'{childState.Parent.GetType().Name}'. A View instance may have only one parent."
+                    );
+                }
+                childState.Parent = parent;
+                return childState;
+            }
+        }
+
+        private void RollBackPreparedOwnership(
+            View child,
+            RetainedViewState childState,
+            View parent
+        )
+        {
+            lock (_renderStateGate)
+            {
+                if (
+                    !_attachedViews.Contains(child)
+                    && ReferenceEquals(childState.Parent, parent)
+                    && (childState.Children is null || childState.Children.Count == 0)
+                    && (childState.Candidates is null || childState.Candidates.Count == 0)
+                    && !childState.HasStagedComposition
+                )
+                {
+                    childState.Parent = null;
+                    if (_renderStates.Remove(child, out var removed))
+                    {
+                        removed.Fragment?.Dispose();
+                    }
+                }
+            }
+        }
+
+        private static ChildSlot NormalizeSlot(RetainedViewState state, ChildSlot requestedSlot)
+        {
+            if (!requestedSlot.IsAuto)
+            {
+                return requestedSlot;
+            }
+
+            if (state.WorkingNextPosition == uint.MaxValue)
+            {
+                throw new InvalidOperationException(
+                    "The managed child positional slot space was exhausted."
+                );
+            }
+
+            return ChildSlot.Positional(state.WorkingNextPosition++);
+        }
+
+        private static void EnsureSlotUnused(RetainedViewState parentState, ChildSlot slot)
+        {
+            if (parentState.WorkingChildren?.ContainsKey(slot) == true)
+            {
+                throw new InvalidOperationException(
+                    $"Managed child slot '{slot}' was rendered more than once in a single Render()."
+                );
+            }
+        }
+
+        private static void RegisterWorkingChild(
+            RetainedViewState parentState,
+            ChildSlot slot,
+            ChildEntry entry
+        )
+        {
+            if (!GetWorkingViews(parentState).Add(entry.View))
+            {
+                throw new InvalidOperationException(
+                    "The same managed child View instance cannot be rendered in multiple slots of one parent."
+                );
+            }
+            GetWorkingChildren(parentState).Add(slot, entry);
+        }
+
+        private void EnsureParentIsRendering(View parent)
+        {
+            if (!_renderingViews.Contains(parent))
+            {
+                throw new InvalidOperationException(
+                    "A child view can only be rendered while its parent is rendering."
+                );
+            }
+        }
+
         internal void DispatchClick(ulong eventToken, ClickEvent clickEvent)
         {
             var viewHandle = (uint)(eventToken >> 32);
@@ -511,8 +852,7 @@ public sealed unsafe class NativeRuntime
                 //_ = ObserveEventTaskAsync(pending);
             }
         }
-        // TODO: use direct ConfigureAwait(false) UnsafeOncompleted, and cache delegate for efficiency.
-        // Commented out because await is not allowed in unsafe context.
+
         // private async Task ObserveEventTaskAsync(ValueTask pending)
         // {
         //     try
@@ -543,6 +883,21 @@ public sealed unsafe class NativeRuntime
         //     }
         // }
 
+        private void AttachRoot()
+        {
+            lock (_renderStateGate)
+            {
+                var rootState = GetRenderState(RootView);
+                if (rootState.Parent is not null)
+                {
+                    throw new InvalidOperationException(
+                        "The root View cannot be owned by another View."
+                    );
+                }
+            }
+            Attach(RootView);
+        }
+
         private void Attach(View view)
         {
             if (!_attachedViews.Add(view))
@@ -560,8 +915,8 @@ public sealed unsafe class NativeRuntime
             _viewsByHandle.Add(handle, view);
             try
             {
-                view.AttachRuntime(handle, Post, Invalidate);
                 _ = GetRenderState(view);
+                view.AttachRuntime(handle, Post, Invalidate);
             }
             catch
             {
@@ -573,8 +928,6 @@ public sealed unsafe class NativeRuntime
                     {
                         failedState.Fragment?.Dispose();
                     }
-                    _childrenByParent.Remove(view);
-                    _parentsByChild.Remove(view);
                 }
                 throw;
             }
@@ -604,31 +957,8 @@ public sealed unsafe class NativeRuntime
                 {
                     if (_renderStates.Remove(view, out var state))
                     {
+                        state.Parent = null;
                         state.Fragment?.Dispose();
-                        foreach (var child in state.Children)
-                        {
-                            if (_parentsByChild.TryGetValue(child, out var parents))
-                            {
-                                parents.Remove(view);
-                                if (parents.Count == 0)
-                                {
-                                    _parentsByChild.Remove(child);
-                                }
-                            }
-                        }
-                    }
-
-                    _childrenByParent.Remove(view);
-                    if (_parentsByChild.Remove(view, out var oldParents))
-                    {
-                        foreach (var parent in oldParents)
-                        {
-                            if (_renderStates.TryGetValue(parent, out var parentState))
-                            {
-                                parentState.Children.Remove(view);
-                                parentState.PendingChildren.Remove(view);
-                            }
-                        }
                     }
                 }
             }
@@ -645,7 +975,7 @@ public sealed unsafe class NativeRuntime
             {
                 if (!_renderStates.TryGetValue(view, out var state))
                 {
-                    state = new RetainedViewState(ViewIdentity);
+                    state = new RetainedViewState();
                     _renderStates.Add(view, state);
                 }
                 return state;
@@ -661,30 +991,26 @@ public sealed unsafe class NativeRuntime
                     return;
                 }
 
-                _dirtyStack.Clear();
-                _dirtyVisited.Clear();
-                _dirtyStack.Push(view);
-                while (_dirtyStack.TryPop(out var current))
+                View? current = view;
+                while (current is not null)
                 {
-                    if (!_dirtyVisited.Add(current))
-                    {
-                        continue;
-                    }
-
                     if (!_renderStates.TryGetValue(current, out var state))
                     {
-                        state = new RetainedViewState(ViewIdentity);
-                        _renderStates.Add(current, state);
+                        return;
                     }
                     state.RequiredVersion++;
+                    current = state.Parent;
+                }
+            }
+        }
 
-                    if (_parentsByChild.TryGetValue(current, out var parents))
-                    {
-                        foreach (var parent in parents)
-                        {
-                            _dirtyStack.Push(parent);
-                        }
-                    }
+        private void MarkViewFragmentDirty(View view)
+        {
+            lock (_renderStateGate)
+            {
+                if (_renderStates.TryGetValue(view, out var state))
+                {
+                    state.RequiredVersion++;
                 }
             }
         }
@@ -693,70 +1019,52 @@ public sealed unsafe class NativeRuntime
         {
             if (!_renderingViews.Add(view))
             {
-                throw new InvalidOperationException("Managed views cannot recursively render themselves.");
+                throw new InvalidOperationException(
+                    "Managed views cannot recursively render themselves."
+                );
             }
-            GetRenderState(view).PendingChildren.Clear();
+
+            var state = GetRenderState(view);
+            state.WorkingChildren?.Clear();
+            state.WorkingViews?.Clear();
+            state.WorkingNextPosition = 0;
         }
 
         private void CompleteComposition(View view)
         {
-            _renderingViews.Remove(view);
-            var state = GetRenderState(view);
-
-            lock (_renderStateGate)
+            if (!_renderingViews.Remove(view))
             {
-                // Validate the pending relationship before mutating the committed graph so a
-                // reparenting error cannot leave a half-committed tree behind.
-                foreach (var child in state.PendingChildren)
-                {
-                    if (
-                        _parentsByChild.TryGetValue(child, out var existingParents)
-                        && existingParents.Count != 0
-                        && !existingParents.Contains(view)
-                    )
-                    {
-                        throw new InvalidOperationException(
-                            "A managed child View may have only one parent in a committed tree."
-                        );
-                    }
-                }
-
-                foreach (var child in state.Children)
-                {
-                    if (_parentsByChild.TryGetValue(child, out var parents))
-                    {
-                        parents.Remove(view);
-                        if (parents.Count == 0)
-                        {
-                            _parentsByChild.Remove(child);
-                        }
-                    }
-                }
-
-                (state.Children, state.PendingChildren) = (state.PendingChildren, state.Children);
-                _childrenByParent[view] = state.Children;
-                foreach (var child in state.Children)
-                {
-                    if (!_parentsByChild.TryGetValue(child, out var parents))
-                    {
-                        parents = new HashSet<View>(ViewIdentity);
-                        _parentsByChild.Add(child, parents);
-                    }
-                    parents.Add(view);
-                }
+                throw new InvalidOperationException("Managed view composition was not active.");
             }
+
+            var state = GetRenderState(view);
+            (state.StagedChildren, state.WorkingChildren) = (
+                state.WorkingChildren,
+                state.StagedChildren
+            );
+            state.WorkingChildren?.Clear();
+            state.WorkingViews?.Clear();
+            state.HasStagedComposition = true;
         }
 
         private void AbortComposition(View view)
         {
-            _renderingViews.Remove(view);
-            GetRenderState(view).PendingChildren.Clear();
+            if (!_renderingViews.Remove(view))
+            {
+                return;
+            }
+
+            var state = GetRenderState(view);
+            state.WorkingChildren?.Clear();
+            state.WorkingViews?.Clear();
+            state.WorkingNextPosition = 0;
         }
 
         private void CommitSnapshotTree()
         {
             _snapshotStack.Clear();
             _snapshotVisited.Clear();
+
             lock (_renderStateGate)
             {
                 _snapshotStack.Push(RootView);
@@ -766,12 +1074,48 @@ public sealed unsafe class NativeRuntime
                     {
                         continue;
                     }
-                    if (_childrenByParent.TryGetValue(current, out var children))
+                    if (!_renderStates.TryGetValue(current, out var state))
                     {
-                        foreach (var child in children)
+                        throw new InvalidOperationException(
+                            "The committed managed view tree references a missing render state."
+                        );
+                    }
+
+                    if (state.HasStagedComposition)
+                    {
+                        (state.Children, state.StagedChildren) = (
+                            state.StagedChildren,
+                            state.Children
+                        );
+                        state.StagedChildren?.Clear();
+                        state.HasStagedComposition = false;
+                        state.Candidates?.Clear();
+                    }
+
+                    if (state.Children is null)
+                    {
+                        continue;
+                    }
+
+                    foreach (var entry in state.Children.Values)
+                    {
+                        if (!_renderStates.TryGetValue(entry.View, out var childState))
                         {
-                            _snapshotStack.Push(child);
+                            throw new InvalidOperationException(
+                                "A committed child View is missing its retained render state."
+                            );
                         }
+                        if (
+                            childState.Parent is not null
+                            && !ReferenceEquals(childState.Parent, current)
+                        )
+                        {
+                            throw new InvalidOperationException(
+                                "A managed child View cannot be committed under multiple parents."
+                            );
+                        }
+                        childState.Parent = current;
+                        _snapshotStack.Push(entry.View);
                     }
                 }
             }
@@ -786,8 +1130,7 @@ public sealed unsafe class NativeRuntime
                 catch (Exception exception)
                 {
                     // The new ownership graph is already committed. Cleanup is best-effort here;
-                    // retain the lifecycle error for the final session result instead of leaving
-                    // composition half-published.
+                    // retain lifecycle failures for the final session result.
                     RecordFailure(exception);
                 }
             }
@@ -823,35 +1166,84 @@ public sealed unsafe class NativeRuntime
                         }
 
                         _detachStack.Push((entry.View, true));
-                        if (_childrenByParent.TryGetValue(entry.View, out var children))
+                        if (!_renderStates.TryGetValue(entry.View, out var state))
                         {
-                            foreach (var child in children)
-                            {
-                                if (includeCommittedTree || !_snapshotVisited.Contains(child))
-                                {
-                                    _detachStack.Push((child, false));
-                                }
-                            }
+                            continue;
                         }
+
+                        PushCleanupChildren(state.Children, includeCommittedTree);
+                        if (state.HasStagedComposition)
+                        {
+                            PushCleanupChildren(state.StagedChildren, includeCommittedTree);
+                        }
+                        PushCleanupChildren(state.Candidates, includeCommittedTree);
                     }
                 }
             }
         }
 
-        private sealed class RetainedViewState
+        private void PushCleanupChildren(
+            Dictionary<ChildSlot, ChildEntry>? children,
+            bool includeCommittedTree
+        )
         {
-            internal RetainedViewState(IEqualityComparer<View> comparer)
+            if (children is null)
             {
-                Children = new HashSet<View>(comparer);
-                PendingChildren = new HashSet<View>(comparer);
+                return;
             }
 
+            foreach (var child in children.Values)
+            {
+                if (!includeCommittedTree && _snapshotVisited.Contains(child.View))
+                {
+                    continue;
+                }
+                _detachStack.Push((child.View, false));
+            }
+        }
+
+        private enum ChildOwnership : byte
+        {
+            Framework,
+            Explicit,
+        }
+
+        private readonly struct ChildEntry
+        {
+            internal ChildEntry(View view, ChildOwnership ownership)
+            {
+                View = view;
+                Ownership = ownership;
+            }
+
+            internal View View { get; }
+            internal ChildOwnership Ownership { get; }
+        }
+
+        private static Dictionary<ChildSlot, ChildEntry> GetWorkingChildren(
+            RetainedViewState state
+        ) => state.WorkingChildren ??= [];
+
+        private static Dictionary<ChildSlot, ChildEntry> GetCandidates(RetainedViewState state) =>
+            state.Candidates ??= [];
+
+        private static HashSet<View> GetWorkingViews(RetainedViewState state) =>
+            state.WorkingViews ??= new HashSet<View>(ViewIdentity);
+
+        private sealed class RetainedViewState
+        {
+            internal View? Parent;
             internal RenderArenaOwner? Fragment;
             internal uint Root;
             internal long RequiredVersion = 1;
             internal long RenderedVersion;
-            internal HashSet<View> Children;
-            internal HashSet<View> PendingChildren;
+            internal uint WorkingNextPosition;
+            internal bool HasStagedComposition;
+            internal Dictionary<ChildSlot, ChildEntry>? Children;
+            internal Dictionary<ChildSlot, ChildEntry>? WorkingChildren;
+            internal Dictionary<ChildSlot, ChildEntry>? StagedChildren;
+            internal Dictionary<ChildSlot, ChildEntry>? Candidates;
+            internal HashSet<View>? WorkingViews;
         }
 
         private sealed class GpuiSynchronizationContext(ManagedSession session)

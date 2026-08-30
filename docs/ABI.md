@@ -1,4 +1,6 @@
-# ABI
+# ABI v2
+
+ABI v2 is intentionally incompatible with v1.
 
 ## Discovery
 

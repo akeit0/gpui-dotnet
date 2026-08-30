@@ -1,6 +1,10 @@
 namespace Gpui;
 
-/// <summary>Marks a partial <see cref="View"/> for compile-time event dispatch generation.</summary>
+/// <summary>
+/// Marks a partial <see cref="View"/> for AOT-safe framework child construction and compile-time
+/// event dispatch generation. Generated views use a parameterless constructor; parent inputs belong
+/// in <see cref="View{TProps}"/> props rather than constructor arguments.
+/// </summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public sealed class GpuiViewAttribute : Attribute;
 

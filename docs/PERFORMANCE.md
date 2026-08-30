@@ -19,7 +19,8 @@ After arena warmup:
 - child APIs use `ReadOnlySpan<Element>`;
 - UTF-8 literals copy directly into the arena;
 - interpolated text uses the UTF-8 interpolated-string handler;
-- generated event binding constructs a 64-bit value token, not a delegate/registry entry.
+- generated event binding constructs a 64-bit value token, not a delegate/registry entry;
+- framework child creation uses generated static factories rather than reflection.
 
 Run:
 
@@ -27,7 +28,7 @@ Run:
 dotnet run -c Release --project dotnet/samples/Gpui.Net.Bench
 ```
 
-The key managed metric remains bytes allocated in the measured loop after warmup.
+The key managed metric remains bytes allocated in the measured element-building loop after warmup.
 
 ## Native dirty-render path
 
@@ -45,15 +46,27 @@ They do not create one `Vec` header/allocation per node for operations or childr
 
 `RetainedStrings` swaps its current/previous sets and clears the recycled set, preserving HashSet capacity while retaining only consecutive generations of text.
 
-## Child views
+## Managed child views
 
-Unchanged child views keep managed fragment arenas. A child invalidation dirties its ancestor path; unchanged sibling fragment rendering remains cached.
+Each retained managed View keeps its own fragment arena. A local invalidation increments that View's fragment version and walks one parent pointer per ancestor. The previous multi-parent set traversal is intentionally gone because managed View ownership is a tree.
 
-The current root snapshot still copies cached fragment records into the Rust-owned destination arena. A future native fragment-reference representation can remove that copy for very large clean subtrees if profiling justifies the extra protocol complexity.
+Framework child resolution adds dictionary lookups only for actual managed View boundaries, not for normal render Elements. Prefer Element/helper composition for purely visual decomposition.
+
+Dynamic route replacement is staged. Native root-arena growth reuses already-created candidate Views and successfully-rendered child fragments instead of allocating/remounting them on each retry.
+
+Changed `View<TProps>` props dirty only the child's fragment; unchanged props do not force the child `Render()` to execute.
+
+The root snapshot still copies cached fragment records into the Rust-owned destination arena. A future native fragment-reference representation can remove that copy for very large clean subtrees if profiling justifies the protocol complexity.
+
+## Keys
+
+Use numeric keys for high-volume dynamic collections when convenient. String keys are appropriate for low-count semantic slots such as `"content"` or `"sidebar"`. `ChildKey` itself is a value type; numeric keys do not require boxing.
+
+A framework View is created only when no retained/candidate View of the requested type matches the slot. It is not created once per render.
 
 ## Event path
 
-ABI event dispatch avoids:
+ABI v2 event dispatch avoids:
 
 - process-wide callback ID allocation;
 - per-view delegate dictionaries;
@@ -64,7 +77,9 @@ GPUI still creates its native listener closure as part of element materializatio
 
 ## Render purity is a performance contract
 
-Arena growth retries `Render()`. Side effects in render would make growth behavior semantically observable and force the runtime toward expensive transactional/replay machinery. Keep render pure instead.
+Arena growth retries the root `Render()`. Side effects in render would make growth behavior semantically observable and force the runtime toward expensive transactional/replay machinery. Keep application render logic pure instead.
+
+The child runtime contains staging specifically so framework-owned child creation remains retry-safe, but this is not permission for arbitrary user side effects inside `Render()`.
 
 ## Benchmark before specializing
 
@@ -72,7 +87,8 @@ Prioritize measurements in this order:
 
 1. managed allocations after warmup;
 2. number of managed/native crossings per interaction;
-3. dirty snapshot native allocations;
-4. snapshot decode/materialization time by node count;
-5. large subtree fragment-copy cost;
-6. virtualized data-source batch cost when that layer is added.
+3. managed View fragment cache hit rate and route replacement cost;
+4. dirty snapshot native allocations;
+5. snapshot decode/materialization time by node count;
+6. large subtree fragment-copy cost;
+7. virtualized data-source batch cost when that layer is added.

@@ -2159,7 +2159,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-dotnet-native"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-channel 2.5.0",
  "csbindgen",

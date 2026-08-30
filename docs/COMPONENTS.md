@@ -13,6 +13,29 @@ GPUI.NET should treat components differently based on state ownership.
 
 The current repository implements the first class. The other classes are architectural next work, not simulated with per-keystroke render callbacks.
 
+## Managed View vs render component
+
+Do not turn every visual helper into a managed `View`. Use a managed View when the subtree needs independent C# state, generated event ownership, lifecycle, independent invalidation, or retained native resources. Pure visual decomposition should normally stay as an Element-returning helper or semantic snapshot component.
+
+Normal managed View composition is framework-owned:
+
+```csharp
+ui.Child<ToolbarView>("toolbar")
+```
+
+The child type can change dynamically while the slot key remains stable:
+
+```csharp
+var content = selection switch
+{
+    Selection.List => ui.Child<ListPageView>("content"),
+    Selection.Detail => ui.Child<DetailPageView>("content"),
+    _ => throw new InvalidOperationException(),
+};
+```
+
+Parent inputs belong in `View<TProps>` rather than constructor arguments. Explicit View instances remain supported only when application code intentionally needs an imperative object reference. See `VIEW_LIFECYCLE.md`.
+
 ## Snapshot component schema
 
 A component entry defines protocol semantics:

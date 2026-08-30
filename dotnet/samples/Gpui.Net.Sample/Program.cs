@@ -13,76 +13,94 @@ GpuiApplication.Run(
     }
 );
 
-internal sealed class SampleShellView : View
+internal enum SamplePage
 {
-    private readonly SidebarView _sidebar = new();
-    private readonly DashboardView _dashboard = new();
+    Overview,
+    Activity,
+}
+
+[GpuiView]
+internal sealed partial class SampleShellView : View
+{
+    private SamplePage _page;
+
+    [GpuiEvent]
+    private void ShowOverview()
+    {
+        _page = SamplePage.Overview;
+        Invalidate();
+    }
+
+    [GpuiEvent]
+    private void ShowActivity()
+    {
+        _page = SamplePage.Activity;
+        Invalidate();
+    }
 
     protected override Element Render(ref RenderContext ui)
     {
-        var sidebar = RenderView(_sidebar, ref ui);
-        var dashboard = RenderView(_dashboard, ref ui);
+        var sidebar = RenderSidebar(ref ui);
+
+        // "content" is the retained slot identity. The View type is the current value of that
+        // slot, so switching routes replaces DashboardView <-> ActivityView without parent fields.
+        var page = _page switch
+        {
+            SamplePage.Overview => ui.Child<DashboardView>("content"),
+            SamplePage.Activity => ui.Child<ActivityView>("content"),
+            _ => throw new InvalidOperationException("Unknown sample page."),
+        };
+
+        var routeProps = new RouteHeaderProps(
+            _page == SamplePage.Overview ? "Overview" : "Activity",
+            _page == SamplePage.Overview ? "retained child slots" : "dynamic View replacement"
+        );
+        var routeHeader = ui.Child<RouteHeaderView, RouteHeaderProps>(
+            "route-header",
+            in routeProps
+        );
 
         var topBar = ui.HStack(
-                ui.VStack(
-                        ui.Text("GPUI.NET COMPONENT GALLERY"u8)
-                            .FontSize(Px(18))
-                            .TextColor(Rgb(15, 23, 42)),
-                        ui.Text("generated events · retained native snapshot · managed state"u8)
-                            .FontSize(Px(12))
-                            .TextColor(Rgb(100, 116, 139))
-                    )
-                    .Gap(Px(3)),
+                routeHeader,
                 ui.Spacer(),
-                ui.Badge(ui.Text("ABI"u8))
+                ui.Badge(ui.Text("ABI V2"u8))
                     .Background(Rgb(224, 231, 255))
                     .TextColor(Rgb(67, 56, 202))
                     .Padding(Px(7))
             )
             .ItemsCenter();
 
-        var content = ui.VStack(topBar, ui.Divider(), dashboard).Gap(Px(14)).Padding(Px(22)).Grow();
+        var content = ui.VStack(topBar, ui.Divider(), page).Gap(Px(14)).Padding(Px(22)).Grow();
 
         return ui.HStack(sidebar, content)
             .Width(Percent(100))
             .Height(Percent(100))
             .Background(Rgb(241, 245, 249));
     }
-}
 
-[GpuiView]
-internal sealed partial class SidebarView : View
-{
-    private bool _activitySelected;
-
-    [GpuiEvent]
-    private void ShowOverview() => SelectActivity(false);
-
-    [GpuiEvent]
-    private void ShowActivity() => SelectActivity(true);
-
-    protected override Element Render(ref RenderContext ui)
+    private Element RenderSidebar(ref RenderContext ui)
     {
-        var selected = _activitySelected ? "Activity" : "Overview";
+        var activitySelected = _page == SamplePage.Activity;
+        var selected = activitySelected ? "Activity" : "Overview";
 
         return ui.VStack(
-                ui.Text("SIDEBAR VIEW"u8).FontSize(Px(11)).TextColor(Rgb(148, 163, 184)),
+                ui.Text("SIDEBAR"u8).FontSize(Px(11)).TextColor(Rgb(148, 163, 184)),
                 ui.Divider().Background(Rgb(51, 65, 85)),
                 ui.Button("show-overview", "Overview")
                     .OnClick(Events.ShowOverview)
                     .Padding(Px(10))
-                    .Background(_activitySelected ? Rgb(15, 23, 42) : Rgb(51, 65, 85))
-                    .BorderColor(_activitySelected ? Rgb(51, 65, 85) : Rgb(99, 102, 241))
+                    .Background(activitySelected ? Rgb(15, 23, 42) : Rgb(79, 70, 229))
+                    .BorderColor(activitySelected ? Rgb(51, 65, 85) : Rgb(129, 140, 248))
                     .TextColor(Rgb(255, 255, 255)),
                 ui.Button("show-activity", "Activity")
                     .OnClick(Events.ShowActivity)
                     .Padding(Px(10))
-                    .Background(_activitySelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
-                    .BorderColor(_activitySelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
+                    .Background(activitySelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
+                    .BorderColor(activitySelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
                     .TextColor(Rgb(255, 255, 255)),
                 ui.Spacer(),
                 ui.Text($"Selected: {selected}").FontSize(Px(12)).TextColor(Rgb(148, 163, 184)),
-                ui.Text("Callbacks are generated; no constructor registration exists."u8)
+                ui.Text("The right pane is a keyed, framework-owned dynamic View."u8)
                     .FontSize(Px(11))
                     .TextColor(Rgb(100, 116, 139))
             )
@@ -92,19 +110,24 @@ internal sealed partial class SidebarView : View
             .Height(Percent(100))
             .Background(Rgb(15, 23, 42));
     }
-
-    private void SelectActivity(bool selected)
-    {
-        _activitySelected = selected;
-        Invalidate();
-    }
 }
 
-internal sealed class DashboardView : View
-{
-    private readonly CounterCardView _counter = new();
-    private readonly PreferencesView _preferences = new();
+internal readonly record struct RouteHeaderProps(string Title, string Detail);
 
+[GpuiView]
+internal sealed partial class RouteHeaderView : View<RouteHeaderProps>
+{
+    protected override Element Render(ref RenderContext ui) =>
+        ui.VStack(
+                ui.Text(Props.Title).FontSize(Px(18)).TextColor(Rgb(15, 23, 42)),
+                ui.Text(Props.Detail).FontSize(Px(12)).TextColor(Rgb(100, 116, 139))
+            )
+            .Gap(Px(3));
+}
+
+[GpuiView]
+internal sealed partial class DashboardView : View
+{
     protected override Element Render(ref RenderContext ui)
     {
         var architecture = ui.VStack(
@@ -125,12 +148,53 @@ internal sealed class DashboardView : View
 
         return ui.VStack(
                 architecture,
-                ui.HStack(RenderView(_counter, ref ui), RenderView(_preferences, ref ui))
+                ui.HStack(
+                        ui.Child<CounterCardView>("counter"),
+                        ui.Child<PreferencesView>("preferences")
+                    )
                     .Gap(Px(14))
             )
             .Gap(Px(14))
             .Grow();
     }
+}
+
+[GpuiView]
+internal sealed partial class ActivityView : View
+{
+    private int _mountNumber;
+
+    protected override void OnMounted(ref ViewContext context)
+    {
+        _mountNumber++;
+        Console.WriteLine("activity route mounted");
+    }
+
+    protected override void OnUnmounted(ref ViewContext context) =>
+        Console.WriteLine("activity route unmounted");
+
+    protected override Element Render(ref RenderContext ui) =>
+        ui.VStack(
+                ui.Badge(ui.Text("DYNAMIC ROUTE"u8))
+                    .Background(Rgb(220, 252, 231))
+                    .TextColor(Rgb(21, 128, 61)),
+                ui.Text("The same \"content\" slot now owns ActivityView."u8)
+                    .FontSize(Px(20))
+                    .TextColor(Rgb(15, 23, 42)),
+                ui.Text($"Mount count for this instance: {_mountNumber}")
+                    .FontSize(Px(13))
+                    .TextColor(Rgb(100, 116, 139)),
+                ui.Text("Switching back commits DashboardView and unmounts this instance."u8)
+                    .FontSize(Px(12))
+                    .TextColor(Rgb(100, 116, 139))
+            )
+            .Gap(Px(14))
+            .Padding(Px(22))
+            .Grow()
+            .Background(Rgb(255, 255, 255))
+            .BorderWidth(Px(1))
+            .BorderColor(Rgb(226, 232, 240))
+            .Radius(Px(12));
 }
 
 [GpuiView]
@@ -147,7 +211,7 @@ internal sealed partial class CounterCardView : View
     [GpuiEvent]
     private async ValueTask Increment(ClickEvent _)
     {
-        await Task.Delay(100);
+        await Task.Delay(100, Lifetime);
         _count++;
         Invalidate();
     }

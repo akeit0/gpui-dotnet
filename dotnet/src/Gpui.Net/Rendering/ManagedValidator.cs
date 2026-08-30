@@ -23,7 +23,9 @@ internal static unsafe class ManagedValidator
             ref readonly var node = ref arena->Nodes[i];
             if (node.Flags != 0)
             {
-                throw new InvalidOperationException($"Node {i} uses reserved flags 0x{node.Flags:X4}.");
+                throw new InvalidOperationException(
+                    $"Node {i} uses reserved flags 0x{node.Flags:X4}."
+                );
             }
 
             if (!SemanticRegistry.IsKnownComponent((ComponentId)node.Component))
@@ -70,12 +72,16 @@ internal static unsafe class ManagedValidator
 
             if (expectedKind == ValueKind.None && operation.A != 0)
             {
-                throw new InvalidOperationException($"Operation {i} has a payload for a no-value operation.");
+                throw new InvalidOperationException(
+                    $"Operation {i} has a payload for a no-value operation."
+                );
             }
 
             if (expectedKind is ValueKind.F32 or ValueKind.U32 && (operation.A >> 32) != 0)
             {
-                throw new InvalidOperationException($"Operation {i} has non-canonical scalar payload bits.");
+                throw new InvalidOperationException(
+                    $"Operation {i} has non-canonical scalar payload bits."
+                );
             }
 
             var component = (ComponentId)arena->Nodes[operation.Node].Component;
@@ -113,12 +119,11 @@ internal static unsafe class ManagedValidator
             for (var i = 0; i < arena->ChildLength; i++)
             {
                 ref readonly var edge = ref arena->Children[i];
-                if (
-                    edge.Parent >= (uint)arena->NodeLength
-                    || edge.Child >= (uint)arena->NodeLength
-                )
+                if (edge.Parent >= (uint)arena->NodeLength || edge.Child >= (uint)arena->NodeLength)
                 {
-                    throw new InvalidOperationException($"Child edge {i} references an invalid node.");
+                    throw new InvalidOperationException(
+                        $"Child edge {i} references an invalid node."
+                    );
                 }
 
                 // Flags are reserved-zero on the wire. Borrow bit 0 only while validating to

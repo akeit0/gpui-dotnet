@@ -21,23 +21,102 @@ public readonly unsafe ref partial struct RenderContext
 
     internal RenderArena* NativeArena => _arena;
 
-    internal Element RenderView(View view)
-    {
-        if (_views is null)
-        {
-            var ui = this;
-            return view.RenderCore(ref ui);
-        }
+    /// <summary>
+    /// Renders a framework-owned child in the next positional child slot. The instance is created
+    /// once per retained slot and reused while the slot continues to request the same view type.
+    /// </summary>
+    public Element Child<TView>()
+        where TView : View, IGeneratedViewFactory<TView> =>
+        RenderManagedChild<TView>(ChildSlot.Auto);
 
-        return _views.RenderChild(
-            view,
-            _owner
-                ?? throw new InvalidOperationException(
-                    "A retained child view requires an owning managed view."
-                ),
-            _arena
-        );
+    /// <summary>
+    /// Renders a framework-owned child in a stable keyed slot. If the same key later requests a
+    /// different view type, the old view is unmounted after the new tree commits and the slot is
+    /// replaced.
+    /// </summary>
+    public Element Child<TView>(ChildKey key)
+        where TView : View, IGeneratedViewFactory<TView> =>
+        RenderManagedChild<TView>(ChildSlot.Keyed(key));
+
+    /// <summary>Renders a framework-owned child with parent-supplied props.</summary>
+    public Element Child<TView, TProps>(in TProps props)
+        where TView : View<TProps>, IGeneratedViewFactory<TView> =>
+        RenderManagedChild<TView, TProps>(ChildSlot.Auto, in props);
+
+    /// <summary>Renders a keyed framework-owned child with parent-supplied props.</summary>
+    public Element Child<TView, TProps>(ChildKey key, in TProps props)
+        where TView : View<TProps>, IGeneratedViewFactory<TView> =>
+        RenderManagedChild<TView, TProps>(ChildSlot.Keyed(key), in props);
+
+    /// <summary>
+    /// Renders an explicitly owned View instance in the next positional slot. Use this escape hatch
+    /// when the parent intentionally needs an imperative reference to the child.
+    /// </summary>
+    public Element Child(View view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        return RenderExplicitChild(view, ChildSlot.Auto);
     }
+
+    /// <summary>Renders an explicitly owned View instance in a stable keyed slot.</summary>
+    public Element Child(View view, ChildKey key)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        return RenderExplicitChild(view, ChildSlot.Keyed(key));
+    }
+
+    /// <summary>Renders an explicitly owned props View in the next positional slot.</summary>
+    public Element Child<TProps>(View<TProps> view, in TProps props)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        return RenderExplicitChild(view, ChildSlot.Auto, in props);
+    }
+
+    /// <summary>Renders an explicitly owned props View in a stable keyed slot.</summary>
+    public Element Child<TProps>(View<TProps> view, ChildKey key, in TProps props)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        return RenderExplicitChild(view, ChildSlot.Keyed(key), in props);
+    }
+
+    private Element RenderManagedChild<TView>(ChildSlot slot)
+        where TView : View, IGeneratedViewFactory<TView>
+    {
+        var renderer = _views ?? throw ChildRuntimeRequired();
+        var owner = _owner ?? throw ChildOwnerRequired();
+        return renderer.RenderChild<TView>(owner, slot, _arena);
+    }
+
+    private Element RenderManagedChild<TView, TProps>(ChildSlot slot, in TProps props)
+        where TView : View<TProps>, IGeneratedViewFactory<TView>
+    {
+        var renderer = _views ?? throw ChildRuntimeRequired();
+        var owner = _owner ?? throw ChildOwnerRequired();
+        return renderer.RenderChild<TView, TProps>(owner, slot, in props, _arena);
+    }
+
+    private Element RenderExplicitChild(View view, ChildSlot slot)
+    {
+        var renderer = _views ?? throw ChildRuntimeRequired();
+        var owner = _owner ?? throw ChildOwnerRequired();
+        return renderer.RenderChild(view, owner, slot, _arena);
+    }
+
+    private Element RenderExplicitChild<TProps>(View<TProps> view, ChildSlot slot, in TProps props)
+    {
+        var renderer = _views ?? throw ChildRuntimeRequired();
+        var owner = _owner ?? throw ChildOwnerRequired();
+        return renderer.RenderChild(view, owner, slot, in props, _arena);
+    }
+
+    private static InvalidOperationException ChildRuntimeRequired() =>
+        new(
+            "Managed child views require a running GPUI managed session. "
+                + "RenderArenaOwner.BeginRender() is intended for element-only tests and benchmarks."
+        );
+
+    private static InvalidOperationException ChildOwnerRequired() =>
+        new("A retained child view requires an owning managed View.");
 
     public uint Generation => _arena->Generation;
 
