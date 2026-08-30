@@ -1,94 +1,63 @@
 # Performance contract
 
-The primary objective is not “FFI is fast”; it is **avoid unnecessary crossings and allocations altogether**.
+The objective is not merely “FFI is fast”; it is to avoid crossings and allocations that do not need to exist.
 
-## Crossing budget
+## Root rendering
 
-A dirty view snapshot should normally require one Rust → managed render callback plus event/control transitions that actually occurred.
-
-Do not create APIs that perform one P/Invoke for each style property, child, row, frame, pointer move, or text-edit operation.
-
-Clean GPUI repaints must not call managed `Render()`.
-
-## Managed hot path
+A dirty managed tree normally requires one Rust → managed render callback. Clean GPUI repaints reuse the decoded snapshot and do not call managed `Render()`.
 
 After arena warmup:
 
 - `RenderContext` is stack-only;
-- `Element<TTag>` is a small value type;
-- child APIs use `ReadOnlySpan<Element>`;
-- UTF-8 literals copy directly into the arena;
-- interpolated text uses the UTF-8 interpolated-string handler;
-- generated event binding constructs a 64-bit value token, not a delegate/registry entry;
-- framework child creation uses generated static factories rather than reflection.
+- `Element<TTag>` is a small value;
+- child APIs accept spans;
+- generated event/list tokens are values rather than delegate registry entries;
+- framework View activation uses generated factories;
+- native snapshot ops/children use flat ranges and reusable scratch buffers.
 
-Run:
+## Scroll
 
-```powershell
-dotnet run -c Release --project dotnet/samples/Gpui.Net.Bench
-```
+Wheel/trackpad movement updates `ScrollHandle` entirely in Rust. C# is involved only when:
 
-The key managed metric remains bytes allocated in the measured element-building loop after warmup.
+- the owning managed View is dirty for another reason;
+- an explicit `ScrollController` command is issued.
 
-## Native dirty-render path
+Do not add per-scroll-delta reverse callbacks to the default component.
 
-Decoded snapshots use:
+Native resource commands use a lossless queue. Ordinary managed invalidation notifications are atomically coalesced to at most one pending queue entry, so repeated `Invalidate()` calls do not grow the native message queue while a frame is already pending.
+
+## Virtual list crossing budget
+
+GPUI's List item closure may request individual indices, but that must not become one FFI callback per row. A cache miss is aligned to the configured managed batch size (default 48):
 
 ```text
-Vec<SnapshotNode>
-Vec<OpRecord>     with per-node start/length ranges
-Vec<u32> children with per-node start/length ranges
+GPUI index requests: 4200, 4201, ...
+Rust cache miss:     batch 4176..4223
+Managed crossings:  1
 ```
 
-They do not create one `Vec` header/allocation per node for operations or children.
+At most four batches are retained per List resource. Clean scrolling within cached batches requires no managed callback. Scrolling into a missing batch requires one `list_render_range` call regardless of how many rows in that batch are subsequently materialized.
 
-`SnapshotScratch` is retained by the native managed view and reuses parent tables, visitation buffers, grouping counts/cursors, and grouped child memory at their high-water capacities.
+A successful managed root snapshot conservatively invalidates managed row snapshot batches because arbitrary View state can affect row output. `ListState` remains retained so scroll/viewport state is not lost.
 
-`RetainedStrings` swaps its current/previous sets and clears the recycled set, preserving HashSet capacity while retaining only consecutive generations of text.
+## Row rendering
 
-## Managed child views
+A `[GpuiListItem]` method is called once per requested managed item in the batch, but all rows are written to one arena and returned through one ABI call. It must remain synchronous and side-effect-free because arena growth can retry the entire batch.
 
-Each retained managed View keeps its own fragment arena. A local invalidation increments that View's fragment version and walks one parent pointer per ancestor. The previous multi-parent set traversal is intentionally gone because managed View ownership is a tree.
+Avoid creating managed View objects per datasource row. If a list contains 100,000 models, only visible/overdraw row snapshots should exist natively.
 
-Framework child resolution adds dictionary lookups only for actual managed View boundaries, not for normal render Elements. Prefer Element/helper composition for purely visual decomposition.
+## Event payloads
 
-Dynamic route replacement is staged. Native root-arena growth reuses already-created candidate Views and successfully-rendered child fragments instead of allocating/remounting them on each retry.
+Use the callback `ulong payload` for row/model identity rather than allocating a closure per item. The payload travels in `OpRecord.B` and through the native click callback unchanged.
 
-Changed `View<TProps>` props dirty only the child's fragment; unchanged props do not force the child `Render()` to execute.
+## Measurement benchmark targets
 
-The root snapshot still copies cached fragment records into the Rust-owned destination arena. A future native fragment-reference representation can remove that copy for very large clean subtrees if profiling justifies the protocol complexity.
+Track at least:
 
-## Keys
-
-Use numeric keys for high-volume dynamic collections when convenient. String keys are appropriate for low-count semantic slots such as `"content"` or `"sidebar"`. `ChildKey` itself is a value type; numeric keys do not require boxing.
-
-A framework View is created only when no retained/candidate View of the requested type matches the slot. It is not created once per render.
-
-## Event path
-
-ABI v2 event dispatch avoids:
-
-- process-wide callback ID allocation;
-- per-view delegate dictionaries;
-- per-snapshot callback owner registration;
-- closure allocation for user handler registration.
-
-GPUI still creates its native listener closure as part of element materialization, which is appropriate on the Rust side.
-
-## Render purity is a performance contract
-
-Arena growth retries the root `Render()`. Side effects in render would make growth behavior semantically observable and force the runtime toward expensive transactional/replay machinery. Keep application render logic pure instead.
-
-The child runtime contains staging specifically so framework-owned child creation remains retry-safe, but this is not permission for arbitrary user side effects inside `Render()`.
-
-## Benchmark before specializing
-
-Prioritize measurements in this order:
-
-1. managed allocations after warmup;
-2. number of managed/native crossings per interaction;
-3. managed View fragment cache hit rate and route replacement cost;
-4. dirty snapshot native allocations;
-5. snapshot decode/materialization time by node count;
-6. large subtree fragment-copy cost;
-7. virtualized data-source batch cost when that layer is added.
+- dirty root render time/allocations;
+- clean repaint managed callback count (must be zero);
+- Scroll wheel managed callback count (must be zero);
+- List crossings while scrolling a fixed viewport;
+- range batch size/cache hit rate;
+- row arena high-water capacities;
+- `ListState` reset/splice behavior after model mutation.

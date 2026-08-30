@@ -1,8 +1,9 @@
 use std::{
     collections::HashMap,
+    rc::Rc,
     sync::{
         Arc, Mutex, OnceLock,
-        atomic::{AtomicI32, Ordering},
+        atomic::{AtomicBool, AtomicI32, Ordering},
     },
 };
 
@@ -15,6 +16,7 @@ use gpui::{
 use crate::{
     abi::ManagedCallbacks,
     arena::OwnedRenderArena,
+    resources::{ResourceCommand, ResourceStore},
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
 };
 
@@ -26,13 +28,26 @@ pub(crate) struct ManagedView {
     snapshot: ValidatedSnapshot,
     snapshot_scratch: SnapshotScratch,
     has_snapshot: bool,
+    pub(crate) snapshot_revision: u64,
     dirty: bool,
     pub(crate) error: Option<String>,
+    pub(crate) resources: Rc<ResourceStore>,
 }
 
-static VIEW_NOTIFIERS: OnceLock<Mutex<HashMap<u64, Sender<()>>>> = OnceLock::new();
+enum ViewMessage {
+    Invalidate,
+    ResourceCommand(ResourceCommand),
+}
 
-fn view_notifiers() -> &'static Mutex<HashMap<u64, Sender<()>>> {
+#[derive(Clone)]
+struct ViewNotifier {
+    sender: Sender<ViewMessage>,
+    invalidate_pending: Arc<AtomicBool>,
+}
+
+static VIEW_NOTIFIERS: OnceLock<Mutex<HashMap<u64, ViewNotifier>>> = OnceLock::new();
+
+fn view_notifiers() -> &'static Mutex<HashMap<u64, ViewNotifier>> {
     VIEW_NOTIFIERS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -41,12 +56,12 @@ struct ViewRegistration {
 }
 
 impl ViewRegistration {
-    fn new(view_id: u64, sender: Sender<()>) -> Result<Self, i32> {
+    fn new(view_id: u64, notifier: ViewNotifier) -> Result<Self, i32> {
         let mut notifiers = view_notifiers().lock().map_err(|_| -32)?;
         if notifiers.contains_key(&view_id) {
             return Err(-30);
         }
-        notifiers.insert(view_id, sender);
+        notifiers.insert(view_id, notifier);
         Ok(Self { view_id })
     }
 }
@@ -60,16 +75,47 @@ impl Drop for ViewRegistration {
 }
 
 pub(crate) fn notify(view_id: u64) -> i32 {
-    let Ok(notifiers) = view_notifiers().lock() else {
-        return -32;
-    };
-    let Some(sender) = notifiers.get(&view_id) else {
-        return -30;
+    let notifier = {
+        let Ok(notifiers) = view_notifiers().lock() else {
+            return -32;
+        };
+        let Some(notifier) = notifiers.get(&view_id) else {
+            return -30;
+        };
+        notifier.clone()
     };
 
-    match sender.try_send(()) {
-        Ok(()) | Err(TrySendError::Full(())) => 0,
-        Err(TrySendError::Closed(())) => -31,
+    if notifier.invalidate_pending.swap(true, Ordering::AcqRel) {
+        return 0;
+    }
+
+    match notifier.sender.try_send(ViewMessage::Invalidate) {
+        Ok(()) => 0,
+        Err(TrySendError::Full(_)) => {
+            notifier.invalidate_pending.store(false, Ordering::Release);
+            -33
+        }
+        Err(TrySendError::Closed(_)) => {
+            notifier.invalidate_pending.store(false, Ordering::Release);
+            -31
+        }
+    }
+}
+
+pub(crate) fn dispatch_command(view_id: u64, command: ResourceCommand) -> i32 {
+    let sender = {
+        let Ok(notifiers) = view_notifiers().lock() else {
+            return -32;
+        };
+        let Some(notifier) = notifiers.get(&view_id) else {
+            return -30;
+        };
+        notifier.sender.clone()
+    };
+    match sender.try_send(ViewMessage::ResourceCommand(command)) {
+        Ok(()) => 0,
+        Err(TrySendError::Full(_)) => -33,
+        Err(TrySendError::Closed(_)) => -31,
     }
 }
 
@@ -83,8 +129,10 @@ impl ManagedView {
             snapshot: ValidatedSnapshot::default(),
             snapshot_scratch: SnapshotScratch::default(),
             has_snapshot: false,
+            snapshot_revision: 0,
             dirty: true,
             error: None,
+            resources: Rc::new(ResourceStore::new(view_id, callbacks)),
         }
     }
 
@@ -117,7 +165,11 @@ impl ManagedView {
             &mut self.retained_strings,
             &mut self.snapshot_scratch,
         ) {
-            Ok(()) => self.has_snapshot = true,
+            Ok(()) => {
+                self.has_snapshot = true;
+                self.snapshot_revision = self.snapshot_revision.wrapping_add(1).max(1);
+                self.resources.retain_snapshot(&self.snapshot);
+            },
             Err(status) => {
                 self.error = Some(format!(
                     "Render snapshot validation failed with status {status}."
@@ -169,8 +221,13 @@ impl Render for ManagedView {
 
 pub fn run(view_id: u64, callbacks: ManagedCallbacks, title: &str, width: f32, height: f32) -> i32 {
     let title = title.to_owned();
-    let (sender, receiver) = async_channel::bounded(1);
-    let Ok(_registration) = ViewRegistration::new(view_id, sender) else {
+    let (sender, receiver) = async_channel::unbounded();
+    let invalidate_pending = Arc::new(AtomicBool::new(false));
+    let notifier = ViewNotifier {
+        sender,
+        invalidate_pending: Arc::clone(&invalidate_pending),
+    };
+    let Ok(_registration) = ViewRegistration::new(view_id, notifier) else {
         return -30;
     };
 
@@ -203,7 +260,7 @@ pub fn run(view_id: u64, callbacks: ManagedCallbacks, title: &str, width: f32, h
                 }),
                 ..Default::default()
             },
-            move |_, cx| create_managed_view(cx, view_id, callbacks, receiver),
+            move |_, cx| create_managed_view(cx, view_id, callbacks, receiver, invalidate_pending),
         )
         .expect("failed to open the GPUI window");
         cx.activate(true);
@@ -216,15 +273,29 @@ fn create_managed_view(
     cx: &mut App,
     view_id: u64,
     callbacks: ManagedCallbacks,
-    receiver: Receiver<()>,
+    receiver: Receiver<ViewMessage>,
+    invalidate_pending: Arc<AtomicBool>,
 ) -> gpui::Entity<ManagedView> {
     let view = cx.new(|_| ManagedView::new(view_id, callbacks));
     let weak_view = view.downgrade();
 
     cx.spawn(async move |cx| {
-        while receiver.recv().await.is_ok() {
+        while let Ok(message) = receiver.recv().await {
             if weak_view
-                .update(cx, |view, cx| view.invalidate(cx))
+                .update(cx, |view, cx| match message {
+                    ViewMessage::Invalidate => {
+                        invalidate_pending.store(false, Ordering::Release);
+                        view.invalidate(cx);
+                    },
+                    ViewMessage::ResourceCommand(command) => {
+                        let notify_native_only = command.resource_kind == 1
+                            || (command.resource_kind == 2 && command.command == 10);
+                        view.resources.dispatch(command);
+                        if notify_native_only {
+                            cx.notify();
+                        }
+                    }
+                })
                 .is_err()
             {
                 break;
@@ -243,13 +314,25 @@ mod tests {
     #[test]
     fn notifications_are_coalesced_and_registration_is_scoped() {
         let view_id = u64::MAX;
-        let (sender, receiver) = async_channel::bounded(1);
-        let registration = ViewRegistration::new(view_id, sender).unwrap();
+        let (sender, receiver) = async_channel::unbounded();
+        let pending = Arc::new(AtomicBool::new(false));
+        let registration = ViewRegistration::new(
+            view_id,
+            ViewNotifier {
+                sender,
+                invalidate_pending: Arc::clone(&pending),
+            },
+        )
+        .unwrap();
 
         assert_eq!(notify(view_id), 0);
         assert_eq!(notify(view_id), 0);
-        assert_eq!(receiver.try_recv(), Ok(()));
+        assert!(matches!(receiver.try_recv(), Ok(ViewMessage::Invalidate)));
         assert!(receiver.try_recv().is_err());
+
+        pending.store(false, Ordering::Release);
+        assert_eq!(notify(view_id), 0);
+        assert!(matches!(receiver.try_recv(), Ok(ViewMessage::Invalidate)));
 
         drop(registration);
         assert_eq!(notify(view_id), -30);

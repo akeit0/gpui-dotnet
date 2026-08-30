@@ -1,129 +1,78 @@
-# Components
+# Components and retained resources
 
 ## Component classes
 
-GPUI.NET should treat components differently based on state ownership.
-
-| Class | Examples | Transport |
+| Class | Examples | Transport/state |
 |---|---|---|
-| Snapshot component | div, badge, button chrome | render IR |
-| Retained native component | input/editor/select | native entity handle + render reference |
-| Data-source component | virtual list/table/tree | native entity + batched managed datasource calls |
-| App/window service | dialogs, clipboard, notifications | control-plane commands |
+| Snapshot component | div, badge, button | render IR |
+| Retained container | Scroll | render IR reference + native state keyed by View/key |
+| Virtualized datasource | List | retained native state + batched managed row renderer |
+| Native entity component | future input/editor/select | opaque native handle + commands/events |
+| App/window service | future dialogs/clipboard/notifications | control commands |
 
-The current repository implements the first class. The other classes are architectural next work, not simulated with per-keystroke render callbacks.
+Do not force all classes into one ABI shape.
 
-## Managed View vs render component
+## Snapshot component adapters
 
-Do not turn every visual helper into a managed `View`. Use a managed View when the subtree needs independent C# state, generated event ownership, lifecycle, independent invalidation, or retained native resources. Pure visual decomposition should normally stay as an Element-returning helper or semantic snapshot component.
+A normal semantic component is declared in `bindings/schema.json`, generated into C#/Rust metadata and mapped by a handwritten Rust adapter. C# depends on semantic operations, not GPUI trait names or concrete Rust types.
 
-Normal managed View composition is framework-owned:
+## Scroll
 
-```csharp
-ui.Child<ToolbarView>("toolbar")
-```
-
-The child type can change dynamically while the slot key remains stable:
+`ui.Scroll(key, axis, children)` is a normal render-tree parent plus a retained native `ScrollHandle`.
 
 ```csharp
-var content = selection switch
-{
-    Selection.List => ui.Child<ListPageView>("content"),
-    Selection.Detail => ui.Child<DetailPageView>("content"),
-    _ => throw new InvalidOperationException(),
-};
+ui.Scroll("main", ScrollAxis.Vertical, content)
+    .Grow()
+    .Height(Percent(100));
 ```
 
-Parent inputs belong in `View<TProps>` rather than constructor arguments. Explicit View instances remain supported only when application code intentionally needs an imperative object reference. See `VIEW_LIFECYCLE.md`.
+The key is local to the owning managed View. Use `ScrollController` only for imperative offset commands. Scroll input itself remains native.
 
-## Snapshot component schema
+## List
 
-A component entry defines protocol semantics:
+`ui.List` is intentionally **not** a parent receiving all item elements:
 
-```json
-{
-  "id": 3,
-  "name": "button",
-  "csharp": "Button",
-  "data": "utf8",
-  "dataRequired": true,
-  "children": true,
-  "managedFactory": "idContainer",
-  "capabilities": ["styled", "parent", "interactive"],
-  "nativeAdapter": "button"
-}
+```csharp
+ui.List("files", files.Count, Rows.File, options)
 ```
 
-### Capabilities
+The render IR carries:
 
-Capabilities are the public semantic surface, not GPUI Rust traits.
+- resource owner View handle;
+- local resource key;
+- item count;
+- generated renderer token;
+- managed batch size;
+- overdraw pixels;
+- top/bottom alignment.
 
-- `styled`: width, height, color, padding, border, typography, etc.;
-- `parent`: can own child render nodes;
-- `layout`: can receive layout-mode operations such as HStack/VStack;
-- `interactive`: can receive generated event operations;
-- `checkable`: supports checked state.
+Rust owns `ListState` and calls managed `list_render_range` only for missing aligned batches.
 
-C# tags implement generated marker interfaces. This changes style API generation from `components × operations` overloads into a small set of capability-constrained generic methods.
+### Row renderer restrictions
 
-## NativeAdapter
+Rows are pure Element renderers, not retained managed View roots. `RenderContext` for a list range intentionally has no managed child resolver and no native resource owner. `ui.Child`, retained `ui.Scroll`, and nested retained `ui.List` therefore fail rather than creating ambiguous lifetimes.
 
-`nativeAdapter` is generated into Rust `ComponentMetadata`. `materializer.rs` performs generic tree/style/event handling, while `components.rs` owns GPUI-specific defaults.
+If item-scoped managed state is needed in the future, implement a dedicated virtualized-item state mechanism instead of silently reusing normal View slots.
 
-This is the intended adaptation boundary:
+### Events
+
+Repeated row shapes often reuse a local element id such as `"row"`. Rust namespaces stateful GPUI IDs by:
 
 ```text
-C# semantic API
-      │
-      ▼
-schema component + operations
-      │
-      ▼
-generated NativeAdapter
-      │
-      ▼
-components.rs handwritten GPUI code
-      │
-      ▼
-GPUI API
+list owner View + list key + item index + local element id
 ```
 
-If GPUI changes how a button is constructed, change the Rust adapter without changing C# unless the semantic behavior changes.
-
-## Adding a snapshot component
-
-1. Choose a stable semantic name and non-zero component ID.
-2. Decide whether it is payload-only, a container, keyed container, or leaf.
-3. Assign capabilities.
-4. Add a `nativeAdapter` name.
-5. Add semantic operations only for behavior that is meaningful and stable for C# callers.
-6. Run the binding generator.
-7. Add/extend the adapter match in `native/gpui-dotnet-native/src/components.rs`.
-8. Add validator tests for component-specific wire values.
-9. Add a sample and a dirty-render benchmark if the component is non-trivial.
-
-Do not auto-reflect GPUI methods into C#. An explicit semantic schema is intentional insulation against GPUI's pre-1.0 API changes.
-
-## Stateful component rule
-
-Do not implement an editor or virtualized list by serializing all internal state into the snapshot or calling managed code every GPUI frame.
-
-The intended future shape is:
+Rows can bind payloads without per-item closures:
 
 ```csharp
-private NativeEntity<InputState> _input;
-
-protected override void OnMounted(ref ViewContext context)
-{
-    _input = context.CreateInput(...);
-}
-
-protected override Element Render(ref RenderContext ui) =>
-    ui.Input(_input).OnChanged(Events.NameChanged);
+ui.Button("row", label)
+    .OnClick(Events.Open, (ulong)index);
 ```
 
-Rust would own `Entity<InputState>` behind an opaque generational handle. The render node would carry the handle and semantic presentation properties. Text editing, selection, IME, scrolling, and focus remain native/high-frequency.
+The handler receives `ClickEvent.Payload`.
 
-## Data-source components
+### Structural changes
 
-Virtual lists/tables should request visible ranges in batches. One reverse call should fill many row snapshots/payloads. Avoid one managed object or FFI call per visible cell when a contiguous batch can express the same work.
+When model order/count changes, provide a `ListController.Splice` hint rather than throwing away all measurement state. Use `Refresh` when content/height changes without a structural change, and `Reset` when the whole datasource is replaced.
+
+Structural hints are transactional with the next managed snapshot revision: they are queued on the Rust side, the controller invalidates the owning View, and the sequence is applied only when the new declarative `itemCount` arrives. If the sequence and snapshot disagree, the declarative snapshot is authoritative and native measurements are fully reset.

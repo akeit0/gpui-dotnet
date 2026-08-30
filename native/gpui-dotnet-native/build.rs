@@ -16,8 +16,9 @@ fn main() {
             "ChildRecord",
             "RenderArena",
             "NativeClickEvent",
+            "NativeResourceCommand",
             "ManagedCallbacks",
-            "GpuiDotnetApiV2",
+            "GpuiDotnetApiV3",
         ])
         .generate_csharp_file("../../dotnet/src/Gpui.Net/Interop/NativeMethods.g.cs")
         .expect("failed to generate C# native bindings");

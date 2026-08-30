@@ -23,6 +23,7 @@ public abstract class View
     private readonly object _runtimeGate = new();
     private Action<Action>? _post;
     private Action<View>? _invalidate;
+    private Action<View, ResourceCommand>? _resourceCommand;
     private CancellationTokenSource? _mountLifetime;
     private uint _runtimeViewHandle;
     private int _mounted;
@@ -62,9 +63,7 @@ public abstract class View
     {
         var invalidate =
             Volatile.Read(ref _invalidate)
-            ?? throw new InvalidOperationException(
-                "The view is not mounted in a GPUI application."
-            );
+            ?? throw new InvalidOperationException("The view is not mounted in a GPUI application.");
         invalidate(this);
     }
 
@@ -91,29 +90,70 @@ public abstract class View
         return new Callback<ClickEvent>(((ulong)viewHandle << 32) | handlerId);
     }
 
+
+    /// <summary>
+    /// Binds a generated list-item renderer id to this mounted view. The token is consumed by
+    /// native virtualization and is never a managed delegate.
+    /// </summary>
+    protected ListItemRenderer BindListRenderer(uint rendererId)
+    {
+        if (rendererId == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(rendererId), "Renderer id 0 is reserved.");
+        }
+
+        var viewHandle = Volatile.Read(ref _runtimeViewHandle);
+        if (viewHandle == 0 || Volatile.Read(ref _mounted) == 0)
+        {
+            throw new InvalidOperationException(
+                "Generated list renderers can only be materialized while the view is mounted. "
+                    + "Use Rows.<renderer> from Render(), not from a constructor or field initializer."
+            );
+        }
+
+        return new ListItemRenderer(((ulong)viewHandle << 32) | rendererId);
+    }
+
     /// <summary>
     /// Generated views override this with a switch over compile-time handler ids. The base
     /// implementation is intentionally strict so stale or malformed event tokens fail loudly.
     /// </summary>
     protected virtual ValueTask DispatchClickAsync(uint handlerId, ClickEvent clickEvent) =>
         ValueTask.FromException(
-            new InvalidOperationException(
-                $"Generated click handler 0x{handlerId:X8} is not defined."
-            )
+            new InvalidOperationException($"Generated click handler 0x{handlerId:X8} is not defined.")
+        );
+
+    /// <summary>
+    /// Generated views override this for [GpuiListItem] methods. List item rendering is synchronous
+    /// and element-only; retained child View composition is intentionally not available inside a
+    /// virtualized row batch.
+    /// </summary>
+    protected virtual Element RenderListItem(uint rendererId, int index, ref RenderContext ui) =>
+        throw new InvalidOperationException(
+            $"Generated list renderer 0x{rendererId:X8} is not defined on {GetType().Name}."
         );
 
     protected abstract Element Render(ref RenderContext ui);
 
     internal Element RenderCore(ref RenderContext ui) => Render(ref ui);
 
+    internal Element RenderListItemCore(uint rendererId, int index, ref RenderContext ui) =>
+        RenderListItem(rendererId, index, ref ui);
+
     internal ValueTask DispatchClickCore(uint handlerId, ClickEvent clickEvent) =>
         DispatchClickAsync(handlerId, clickEvent);
 
     internal uint RuntimeViewHandle => Volatile.Read(ref _runtimeViewHandle);
+    internal bool IsMountedCore => Volatile.Read(ref _mounted) != 0;
 
     internal virtual bool RequiresProps => false;
 
-    internal void AttachRuntime(uint viewHandle, Action<Action> post, Action<View> invalidate)
+    internal void AttachRuntime(
+        uint viewHandle,
+        Action<Action> post,
+        Action<View> invalidate,
+        Action<View, ResourceCommand> resourceCommand
+    )
     {
         if (viewHandle == 0)
         {
@@ -121,6 +161,7 @@ public abstract class View
         }
         ArgumentNullException.ThrowIfNull(post);
         ArgumentNullException.ThrowIfNull(invalidate);
+        ArgumentNullException.ThrowIfNull(resourceCommand);
 
         var lifetime = new CancellationTokenSource();
         lock (_runtimeGate)
@@ -133,6 +174,7 @@ public abstract class View
 
             _post = post;
             _invalidate = invalidate;
+            _resourceCommand = resourceCommand;
             _mountLifetime = lifetime;
             _runtimeViewHandle = viewHandle;
             Volatile.Write(ref _mounted, 1);
@@ -162,6 +204,7 @@ public abstract class View
                     _runtimeViewHandle = 0;
                     _mountLifetime = null;
                     _invalidate = null;
+                    _resourceCommand = null;
                     _post = null;
                 }
                 lifetime.Dispose();
@@ -214,6 +257,7 @@ public abstract class View
                 _runtimeViewHandle = 0;
                 _mountLifetime = null;
                 _invalidate = null;
+                _resourceCommand = null;
                 _post = null;
             }
             lifetime?.Dispose();
@@ -233,14 +277,28 @@ public abstract class View
         }
     }
 
+    internal void DispatchResourceCommand(ResourceCommand command)
+    {
+        var dispatch =
+            Volatile.Read(ref _resourceCommand)
+            ?? throw new InvalidOperationException("The view is not mounted in a GPUI application.");
+        dispatch(this, command);
+    }
+
+    internal void InvalidateFromController()
+    {
+        var invalidate =
+            Volatile.Read(ref _invalidate)
+            ?? throw new InvalidOperationException("The view is not mounted in a GPUI application.");
+        invalidate(this);
+    }
+
     internal void Post(Action callback)
     {
         ArgumentNullException.ThrowIfNull(callback);
         var post =
             Volatile.Read(ref _post)
-            ?? throw new InvalidOperationException(
-                "The view is not mounted in a GPUI application."
-            );
+            ?? throw new InvalidOperationException("The view is not mounted in a GPUI application.");
         post(callback);
     }
 }
@@ -294,7 +352,12 @@ internal unsafe interface IViewRenderer
     )
         where TView : View<TProps>, IGeneratedViewFactory<TView>;
 
-    Element RenderChild(View view, View parent, ChildSlot slot, Interop.RenderArena* destination);
+    Element RenderChild(
+        View view,
+        View parent,
+        ChildSlot slot,
+        Interop.RenderArena* destination
+    );
 
     Element RenderChild<TProps>(
         View<TProps> view,

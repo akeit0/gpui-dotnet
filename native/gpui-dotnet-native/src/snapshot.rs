@@ -4,7 +4,11 @@ use gpui::SharedString;
 
 use crate::{
     abi::{OpRecord, RenderArena},
-    semantic::{DataKind, OP_CHECKED, ValueKind, component_metadata, operation_metadata},
+    semantic::{
+        DataKind, OP_CHECKED, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_OVERDRAW_PX,
+        OP_ON_CLICK, OP_RESOURCE_OWNER, OP_SCROLL_AXIS, ValueKind, component_metadata,
+        operation_metadata,
+    },
 };
 
 #[derive(Clone)]
@@ -229,7 +233,7 @@ fn validate_with_scratch(
         if op.value_kind != metadata.value_kind as u16 {
             return Err(-16);
         }
-        if op.b != 0 {
+        if op.b != 0 && op.code != OP_ON_CLICK {
             return Err(-23);
         }
         match metadata.value_kind {
@@ -248,6 +252,21 @@ fn validate_with_scratch(
         }
         if op.code == OP_CHECKED && op.a > 1 {
             return Err(-21);
+        }
+        if op.code == OP_RESOURCE_OWNER && op.a == 0 {
+            return Err(-25);
+        }
+        if op.code == OP_SCROLL_AXIS && op.a > 2 {
+            return Err(-26);
+        }
+        if op.code == OP_LIST_BATCH_SIZE && !(1..=512).contains(&(op.a as u32)) {
+            return Err(-27);
+        }
+        if op.code == OP_LIST_ALIGNMENT && op.a > 1 {
+            return Err(-28);
+        }
+        if op.code == OP_LIST_OVERDRAW_PX && f32::from_bits(op.a as u32) < 0.0 {
+            return Err(-29);
         }
     }
 

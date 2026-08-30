@@ -2,195 +2,91 @@
 
 ## Ownership boundary
 
-GPUI.NET deliberately avoids a one-to-one Rust API binding.
+GPUI.NET deliberately does not mirror GPUI's Rust API one-to-one.
 
 ### C# owns
 
-- application/domain state;
-- managed `View` state and declarative composition;
-- event handler logic;
-- render IR construction.
+- domain/application state;
+- managed `View` state and retained child-slot composition;
+- generated event/list-renderer logic;
+- dirty render IR construction.
 
 ### Rust owns
 
-- `gpui::Application`, windows and GPUI entities;
-- writable render arena memory lent to C#;
+- `gpui::Application`, windows and frame lifecycle;
+- render-arena backing memory;
 - validation and retained decoded snapshots;
-- native component materialization;
-- high-frequency interaction state and GPUI repaint behavior.
+- semantic component materialization;
+- `ScrollHandle` and `ListState`;
+- virtual-list viewport/measurement state and row batch cache;
+- high-frequency wheel/trackpad/scrollbar behavior.
 
-The rule is: **cross the ABI for state transitions, not for every builder call or frame operation.**
+The boundary rule is: **cross the ABI for state transitions or coarse data batches, never for each builder call, frame, style property or list row.**
 
-## Render plane
+## Three planes
 
-A dirty render is one reverse call from Rust into C#:
+### Render plane
 
-```text
-Rust owns arena capacity
-       │
-       ▼
-managed Render(ref RenderContext)
-       │ writes directly
-       ▼
-NodeRecord[] / OpRecord[] / ChildRecord[] / UTF-8
-       │
-       ▼
-Rust validate + decode
-       │
-       ▼
-flat ValidatedSnapshot
-```
+Managed `Render()` writes one arena containing nodes, operations, child edges and UTF-8. Rust validates and decodes it into flat ranges. A clean native repaint reuses that snapshot without calling .NET.
 
-A clean GPUI repaint uses `ValidatedSnapshot` and never enters .NET.
+### Retained resource/control plane
 
-### Arena growth
-
-Rust owns production render buffers. If managed writing discovers insufficient capacity it records required capacity and returns the grow-required status. Rust grows geometrically and calls `Render()` again.
-
-Therefore `Render()` is retryable and must be pure.
-
-## Managed View composition
-
-A managed child View owns local C# state and a retained managed render fragment. It is appropriate when the subtree needs independent state, lifecycle, invalidation, events, or future native entities. Pure visual decomposition should remain an Element/helper rather than automatically becoming a View.
-
-### Framework-owned children
-
-Framework ownership is the default:
-
-```csharp
-ui.Child<SidebarView>()
-ui.Child<CounterView>("counter")
-```
-
-`[GpuiView]` generates an AOT-safe static factory. The parent runtime retains the created View by child slot; application code does not need a field.
-
-A parent has exactly one ownership edge to each child View. A child instance has at most one parent. This makes invalidation propagation a direct parent-pointer walk rather than a general graph traversal.
-
-### Slot identity is separate from View type
+Some UI state must survive independently of a managed render snapshot. A resource is keyed by:
 
 ```text
-Parent View
- ├─ slot key:"sidebar"  -> SidebarView
- └─ slot key:"content"  -> DashboardView
+(managed View handle, local string key, resource kind)
 ```
 
-The next render may produce:
+The render snapshot declares that a resource is active. Imperative controllers send commands through the ABI; wheel/trackpad operations remain native.
+
+Current retained resources:
+
+- Scroll → `gpui::ScrollHandle`;
+- List → `gpui::ListState` plus managed row-batch cache.
+
+This same plane is intended to host future input/editor/select native state rather than forcing high-frequency text/focus state through C# renders.
+
+### Batched datasource plane
+
+A virtualized List is not a normal parent component containing every item. GPUI owns the list state and invokes a Rust item closure for visible/overdraw indices. The Rust bridge maps a cache miss to an aligned managed range request:
 
 ```text
-Parent View
- ├─ slot key:"sidebar"  -> SidebarView     (same instance)
- └─ slot key:"content"  -> SettingsView    (replacement)
-```
-
-The key identifies the location; the requested type is the value occupying that location. Same slot + same framework View type retains the existing instance. Same slot + different type creates a replacement and makes the old subtree unreachable after commit.
-
-Unkeyed children use positional View slots. Keyed and unkeyed slots are distinct. Use keys whenever relative child order can change or identity matters independently of call position.
-
-### Dynamic route/tab content
-
-Runtime selection among different View types is ordinary composition:
-
-```csharp
-var page = _route switch
-{
-    Route.Home => ui.Child<HomeView>("content"),
-    Route.Settings => ui.Child<SettingsView>("content"),
-    Route.Editor => ui.Child<EditorView>("content"),
-    _ => throw new InvalidOperationException(),
-};
-```
-
-The View graph is therefore not statically fixed even though each factory is source-generated.
-
-### Explicit ownership
-
-`ui.Child(existingView, key)` is the escape hatch for imperative access. The application keeps the object reference; the framework still controls whether it is mounted based on tree membership. Reusing one View instance under multiple parents is rejected.
-
-## Retained composition staging
-
-Managed child fragments can successfully render before the root native arena later asks for growth. Re-running `OnMounted` or recreating a new child on each growth retry would be incorrect and expensive.
-
-The runtime therefore separates:
-
-```text
-committed children     tree currently owned by the successful snapshot
-candidate children     instances resolved during a render attempt/retry
-working children       slots used by the currently executing Render()
-staged children        composition matching a successfully rendered retained fragment
-```
-
-A newly resolved child may mount before the root commit because its `OnMounted` state can be required by its first `Render()`. Candidates are retained across native arena growth retries, so mount happens once. A successful root validation publishes staged child maps atomically at the managed tree level, then unreachable candidates/old subtrees are unmounted child-first.
-
-Hard render failures terminate the session and normal session cleanup unmounts every attached candidate.
-
-## Props
-
-Constructor parameters are not the normal parent-to-child data path. `View<TProps>` stores the latest parent-supplied inputs:
-
-```text
-parent retained state
-      │
-      │ TProps
-      ▼
-child View<TProps>
-      ├ local retained C# state
-      └ retained render fragment
-```
-
-Props are applied before first mount. For retained children, a props change increments only that child's fragment version. Child invalidation still propagates through its parent chain so ancestors that copy the child fragment rebuild as necessary.
-
-## Event plane
-
-Source-generated handlers remove runtime delegate registration.
-
-```text
-Events.Increment
-      │ BindClick(local handler id)
-      ▼
-64-bit event token
-  high 32: mounted View handle
-  low  32: generated handler id
+GPUI asks index 4200
       │
       ▼
-Render IR OP_ON_CLICK
+Rust batch key = floor(4200 / 48) * 48
+      │ cache miss
+      ▼
+managed list_render_range(4176, 48)  // one reverse FFI
       │
       ▼
-Rust GPUI listener
-      │
-      ▼
-managed click(session, event_token, payload)
-      │
-      ▼
-View.DispatchClickAsync generated switch
+48 row snapshots cached in Rust
 ```
 
-There is no per-snapshot callback-owner dictionary.
+Subsequent indices in that batch are materialized without another managed crossing. The cache retains up to four batches per List resource.
 
-`Task` and `ValueTask` completion is observed. The GPUI synchronization context posts continuations back through the session queue. `async void` handlers are compile-time errors.
+## Managed View tree
 
-## Lifecycle/control plane
+Child View identity is separate from type. The parent owns one child per retained slot. The same slot can change from `HomeView` to `SettingsView`; successful commit installs the new subtree, then unreachable old Views unmount child-first.
 
-`RenderContext` and `ViewContext` intentionally have different jobs.
+Dirty propagation follows the single parent pointer upward. Framework-owned View creation uses source-generated static factories; reflection is not used.
 
-- `RenderContext` is stack-only and writes transient render IR or resolves declarative child slots.
-- `ViewContext` exists only during mount/unmount and is the future home for retained native resources, subscriptions, focus handles, and window services.
+## List rows are not normal Views
 
-Constructors should initialize ordinary managed state only. Child View construction is normally generated and deferred until its slot is first used.
+A `[GpuiListItem]` renderer produces an Element subtree in a list-owned arena. It deliberately has no managed child renderer or native resource owner context. Therefore it cannot create:
 
-## Semantic boundary
+- `ui.Child<T>()`;
+- retained `ui.Scroll()`;
+- nested retained `ui.List()`.
 
-`bindings/schema.json` describes a GPUI.NET semantic vocabulary, not GPUI Rust traits. Components declare capabilities such as `styled`, `parent`, `interactive`, and `checkable`. Operations require a capability.
+This avoids coupling item cache eviction to managed View mount/unmount rules. Interactive row elements remain valid because event tokens target the owning View, and GPUI element IDs are namespaced by list identity + item index.
 
-The repository generator turns that into:
+## Snapshot revisions and list cache correctness
 
-- C# marker-tag constraints, so style APIs are generated once rather than once per component;
-- Rust metadata used by validation;
-- `NativeAdapter` metadata used by Rust materialization.
+Any successful managed root snapshot can reflect arbitrary C# state changes that affect row rendering even when item count and renderer ID did not change. Rust therefore:
 
-This lets the Rust implementation change when GPUI changes without forcing a C# API break unless the semantic behavior itself changes.
+- preserves `ListState` and its viewport/measurement state where structurally valid;
+- drops cached managed row snapshots on managed snapshot revision change;
+- preserves row batches during clean native scroll/repaint.
 
-## Future control plane
-
-Stateful controls such as text editors, virtual lists, docks, or complex tables should not serialize their high-frequency internal state into every render snapshot. They should use generational native handles and a batched command/control ABI while the render IR carries only a handle/reference.
-
-That layer is intentionally not faked in the current vertical slice. See `NEXT_STEPS.md`.
+`ListController.Splice/Refresh/Reset` queues measurement-preservation hints and invalidates the owning View. Rust applies the queued sequence only when the next managed snapshot revision is committed. If the hinted item-count transition does not match the declarative snapshot, managed state wins and the native list falls back to a full measurement reset.

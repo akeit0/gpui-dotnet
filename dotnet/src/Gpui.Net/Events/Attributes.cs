@@ -14,3 +14,11 @@ public sealed class GpuiViewAttribute : Attribute;
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
 public sealed class GpuiEventAttribute : Attribute;
+
+/// <summary>
+/// Marks a synchronous virtualized list-item renderer. The method signature is
+/// Element Method(int index, ref RenderContext ui). The source generator emits an allocation-free
+/// renderer token and dispatch switch used by native range virtualization.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
+public sealed class GpuiListItemAttribute : Attribute;

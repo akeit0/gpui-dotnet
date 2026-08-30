@@ -4,9 +4,9 @@
         <RootNamespace>Gpui</RootNamespace>
         <AssemblyName>Gpui.Net</AssemblyName>
         <PackageId>Gpui.Net</PackageId>
-        <Version>0.3.0</Version>
+        <Version>0.4.0</Version>
         <Authors>GPUI.NET contributors</Authors>
-        <Description>Allocation-conscious .NET frontend for GPUI with retained managed View slots, generated semantic bindings, and source-generated View/event support.</Description>
+        <Description>Allocation-conscious .NET frontend for GPUI with retained managed Views, native Scroll state, virtualized List batching, and source-generated event/data-source dispatch.</Description>
         <PackageTags>gpui;gui;dotnet;csharp;rust</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <!-- <GenerateDocumentationFile>true</GenerateDocumentationFile> -->
@@ -16,21 +16,11 @@
         <NativeCrateDir>$(MSBuildThisFileDirectory)..\..\..\native\gpui-dotnet-native</NativeCrateDir>
         <RepositoryRoot>$(MSBuildThisFileDirectory)..\..\..</RepositoryRoot>
         <NativeBuildScript>$(RepositoryRoot)\eng\build-native.ps1</NativeBuildScript>
-        <NativeBuildCommand Condition="$([MSBuild]::IsOSPlatform('Windows'))"
-            >powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(NativeBuildScript)&quot; -ManifestPath &quot;$(NativeCrateDir)\Cargo.toml&quot; -Configuration $(NativeCargoProfile)</NativeBuildCommand
-        >
-        <NativeBuildCommand Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
-            >pwsh -NoProfile -File &quot;$(NativeBuildScript)&quot; -ManifestPath &quot;$(NativeCrateDir)\Cargo.toml&quot; -Configuration $(NativeCargoProfile)</NativeBuildCommand
-        >
-        <NativeLibraryName Condition="$([MSBuild]::IsOSPlatform('Windows'))"
-            >gpui_dotnet_native.dll</NativeLibraryName
-        >
-        <NativeLibraryName Condition="$([MSBuild]::IsOSPlatform('Linux'))"
-            >libgpui_dotnet_native.so</NativeLibraryName
-        >
-        <NativeLibraryName Condition="$([MSBuild]::IsOSPlatform('OSX'))"
-            >libgpui_dotnet_native.dylib</NativeLibraryName
-        >
+        <NativeBuildCommand Condition="$([MSBuild]::IsOSPlatform('Windows'))">powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(NativeBuildScript)&quot; -ManifestPath &quot;$(NativeCrateDir)\Cargo.toml&quot; -Configuration $(NativeCargoProfile)</NativeBuildCommand>
+        <NativeBuildCommand Condition="!$([MSBuild]::IsOSPlatform('Windows'))">pwsh -NoProfile -File &quot;$(NativeBuildScript)&quot; -ManifestPath &quot;$(NativeCrateDir)\Cargo.toml&quot; -Configuration $(NativeCargoProfile)</NativeBuildCommand>
+        <NativeLibraryName Condition="$([MSBuild]::IsOSPlatform('Windows'))">gpui_dotnet_native.dll</NativeLibraryName>
+        <NativeLibraryName Condition="$([MSBuild]::IsOSPlatform('Linux'))">libgpui_dotnet_native.so</NativeLibraryName>
+        <NativeLibraryName Condition="$([MSBuild]::IsOSPlatform('OSX'))">libgpui_dotnet_native.dylib</NativeLibraryName>
         <NativeLibraryPath>$(NativeCrateDir)\target\$(NativeCargoProfile)\$(NativeLibraryName)</NativeLibraryPath>
         <NativeBuildStamp>$(NativeCrateDir)\target\$(NativeCargoProfile)\.gpui-msbuild.stamp</NativeBuildStamp>
         <NativeBindingsPath>$(MSBuildThisFileDirectory)Interop\NativeMethods.g.cs</NativeBindingsPath>
@@ -42,11 +32,7 @@
 
     <ItemGroup>
         <PackageReference Include="Utf8StringInterpolation" Version="1.3.2" />
-        <ProjectReference
-            Include="$(ViewGeneratorProject)"
-            ReferenceOutputAssembly="false"
-            PrivateAssets="all"
-        />
+        <ProjectReference Include="$(ViewGeneratorProject)" ReferenceOutputAssembly="false" PrivateAssets="all" />
     </ItemGroup>
 
     <ItemGroup>
@@ -71,44 +57,15 @@
         />
 
         <None Include="$(RepositoryRoot)\README.md" Pack="true" PackagePath="\" />
-        <None
-            Include="$(ViewGeneratorAssembly)"
-            Pack="true"
-            PackagePath="analyzers/dotnet/cs"
-            Visible="false"
-        />
+        <None Include="$(ViewGeneratorAssembly)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 
-        <None
-            Include="$(RepositoryRoot)\artifacts\native\win-x64\gpui_dotnet_native.dll"
-            Condition="Exists('$(RepositoryRoot)\artifacts\native\win-x64\gpui_dotnet_native.dll')"
-            Pack="true"
-            PackagePath="runtimes/win-x64/native"
-        />
-        <None
-            Include="$(RepositoryRoot)\artifacts\native\linux-x64\libgpui_dotnet_native.so"
-            Condition="Exists('$(RepositoryRoot)\artifacts\native\linux-x64\libgpui_dotnet_native.so')"
-            Pack="true"
-            PackagePath="runtimes/linux-x64/native"
-        />
-        <None
-            Include="$(RepositoryRoot)\artifacts\native\osx-x64\libgpui_dotnet_native.dylib"
-            Condition="Exists('$(RepositoryRoot)\artifacts\native\osx-x64\libgpui_dotnet_native.dylib')"
-            Pack="true"
-            PackagePath="runtimes/osx-x64/native"
-        />
-        <None
-            Include="$(RepositoryRoot)\artifacts\native\osx-arm64\libgpui_dotnet_native.dylib"
-            Condition="Exists('$(RepositoryRoot)\artifacts\native\osx-arm64\libgpui_dotnet_native.dylib')"
-            Pack="true"
-            PackagePath="runtimes/osx-arm64/native"
-        />
+        <None Include="$(RepositoryRoot)\artifacts\native\win-x64\gpui_dotnet_native.dll" Condition="Exists('$(RepositoryRoot)\artifacts\native\win-x64\gpui_dotnet_native.dll')" Pack="true" PackagePath="runtimes/win-x64/native" />
+        <None Include="$(RepositoryRoot)\artifacts\native\linux-x64\libgpui_dotnet_native.so" Condition="Exists('$(RepositoryRoot)\artifacts\native\linux-x64\libgpui_dotnet_native.so')" Pack="true" PackagePath="runtimes/linux-x64/native" />
+        <None Include="$(RepositoryRoot)\artifacts\native\osx-x64\libgpui_dotnet_native.dylib" Condition="Exists('$(RepositoryRoot)\artifacts\native\osx-x64\libgpui_dotnet_native.dylib')" Pack="true" PackagePath="runtimes/osx-x64/native" />
+        <None Include="$(RepositoryRoot)\artifacts\native\osx-arm64\libgpui_dotnet_native.dylib" Condition="Exists('$(RepositoryRoot)\artifacts\native\osx-arm64\libgpui_dotnet_native.dylib')" Pack="true" PackagePath="runtimes/osx-arm64/native" />
     </ItemGroup>
 
-    <Target
-        Name="GenerateGpuiSemanticBindings"
-        BeforeTargets="PrepareForBuild"
-        Condition="'$(DesignTimeBuild)' != 'true'"
-    >
+    <Target Name="GenerateGpuiSemanticBindings" BeforeTargets="PrepareForBuild" Condition="'$(DesignTimeBuild)' != 'true'">
         <Exec Command="dotnet run --project &quot;$(BindingsGeneratorProject)&quot; --configuration $(Configuration) --no-launch-profile -- generate --root &quot;$(RepositoryRoot)&quot;" />
     </Target>
 
@@ -116,24 +73,12 @@
         <Exec Command="dotnet run --project &quot;$(BindingsGeneratorProject)&quot; --configuration $(Configuration) --no-launch-profile -- verify --root &quot;$(RepositoryRoot)&quot;" />
     </Target>
 
-    <Target
-        Name="GenerateGpuiBindings"
-        Condition="'$(BuildGpuiNative)' == 'true'"
-        Inputs="@(_GpuiBindingInput)"
-        Outputs="$(NativeBindingsPath)"
-    >
+    <Target Name="GenerateGpuiBindings" Condition="'$(BuildGpuiNative)' == 'true'" Inputs="@(_GpuiBindingInput)" Outputs="$(NativeBindingsPath)">
         <Exec Command="$(NativeBuildCommand)" />
         <Touch Files="$(NativeBuildStamp)" AlwaysCreate="true" />
     </Target>
 
-    <Target
-        Name="BuildGpuiNative"
-        BeforeTargets="CoreCompile"
-        DependsOnTargets="GenerateGpuiBindings"
-        Condition="'$(BuildGpuiNative)' == 'true'"
-        Inputs="@(_GpuiNativeInput)"
-        Outputs="$(NativeBuildStamp)"
-    >
+    <Target Name="BuildGpuiNative" BeforeTargets="CoreCompile" DependsOnTargets="GenerateGpuiBindings" Condition="'$(BuildGpuiNative)' == 'true'" Inputs="@(_GpuiNativeInput)" Outputs="$(NativeBuildStamp)">
         <Exec Command="$(NativeBuildCommand)" />
         <Touch Files="$(NativeBuildStamp)" AlwaysCreate="true" />
     </Target>

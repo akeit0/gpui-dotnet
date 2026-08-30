@@ -1,33 +1,32 @@
 # GPUI.NET
 
-GPUI.NET is an experimental .NET frontend for Rust [GPUI](https://gpui.rs/). C# owns durable application state and publishes compact render IR; Rust owns GPUI, native render state, event delivery, and frame-sensitive work.
+GPUI.NET is an experimental .NET frontend for Rust [GPUI](https://gpui.rs/). C# owns durable application state and publishes compact render IR; Rust owns GPUI, native interaction state, virtualization, event delivery, and frame-sensitive work.
 
-The public surface is intentionally semantic rather than a one-to-one mirror of GPUI's Rust API. GPUI can evolve without forcing equivalent churn into every C# application.
+The public API is intentionally semantic rather than a one-to-one mirror of GPUI's Rust API. GPUI can evolve behind native adapters without forcing equivalent churn into every C# application.
 
-## Current architecture
+## Architecture
 
 ```text
 C# View state
-   │
    │ dirty render only
    ▼
 RenderArena (nodes / ops / children / UTF-8)
-   │  ABI v2
+   │ ABI v3
    ▼
 Rust validation + flat retained snapshot
    │
-   ▼
-semantic NativeAdapter
+   ├─ semantic NativeAdapter ─────────────► GPUI elements
    │
-   ▼
-GPUI elements
+   └─ retained native resources
+        ├─ ScrollHandle
+        └─ ListState + managed row batch cache
 ```
 
-Clean GPUI repaints reuse the retained Rust snapshot and do not call managed `Render()`.
+Clean GPUI repaints do not call managed `Render()`. Scroll wheel/trackpad movement stays native. A virtualized list crosses back into managed code only when Rust needs a row batch that is not already cached.
 
-## Views: framework ownership by default
+## Managed Views: framework ownership by default
 
-Normal composition does not require child View fields or constructor ownership.
+Normal composition does not require child View fields:
 
 ```csharp
 [GpuiView]
@@ -40,144 +39,160 @@ internal sealed partial class DashboardView : View
 }
 ```
 
-`[GpuiView]` makes the source generator emit an AOT-safe static factory. The runtime creates one instance for a retained child slot and reuses it while that slot continues to request the same View type. There is no reflection or `Activator.CreateInstance`.
-
-### Dynamic child type
-
-A slot identity and the View type stored in that slot are separate. This is the normal routing/tab pattern:
+`[GpuiView]` makes the source generator emit an AOT-safe factory. A retained slot keeps the same View instance while the requested type is unchanged. A keyed slot may dynamically replace its View type, which is the normal route/tab pattern:
 
 ```csharp
 var content = _page switch
 {
     Page.Home => ui.Child<HomeView>("content"),
     Page.Settings => ui.Child<SettingsView>("content"),
-    Page.Editor => ui.Child<EditorView>("content"),
     _ => throw new InvalidOperationException(),
 };
 ```
 
-`"content"` remains the same slot. If the requested type changes, the new View is mounted/rendered, the new tree commits, then the old subtree is unmounted child-first. If the type stays the same, its managed state and retained fragment are preserved.
+When the type changes, the new subtree is rendered and committed before the old subtree is unmounted child-first. Use `View<TProps>` for parent-supplied render inputs instead of constructor model arguments. Explicit `ui.Child(existingInstance, key)` remains an escape hatch when the parent intentionally needs an imperative reference.
 
-Unkeyed `ui.Child<T>()` uses positional View slots. Use explicit keys when child order can change, for route/tab content, and for collections.
+## Scroll
 
-### Props instead of constructor model arguments
-
-Parent-supplied inputs belong in `View<TProps>` rather than child constructors:
+A scroll container is declarative while its offset is retained in Rust:
 
 ```csharp
-internal readonly record struct UserCardProps(long UserId, string Name);
-
-[GpuiView]
-internal sealed partial class UserCardView : View<UserCardProps>
-{
-    protected override Element Render(ref RenderContext ui) =>
-        ui.Text(Props.Name);
-}
-
-// parent Render()
-var props = new UserCardProps(user.Id, user.Name);
-return ui.Child<UserCardView, UserCardProps>(user.Id, in props);
+return ui.Scroll(
+        "document",
+        ScrollAxis.Vertical,
+        RenderDocument(ref ui))
+    .Grow()
+    .Height(Percent(100));
 ```
 
-Props are applied before a newly-created child receives `OnMounted`. Existing children rerender only when `EqualityComparer<TProps>.Default` reports a props change or the child invalidates itself.
+The resource identity is `(managed View handle, key)`, so different Views may safely use the same local key. Wheel/trackpad updates do not invoke managed code.
 
-### Explicit child ownership remains an escape hatch
-
-Sometimes the parent intentionally needs an imperative reference. Keep the instance yourself only in that case:
+Create a controller only when imperative access is required:
 
 ```csharp
-private readonly EditorView _editor = new();
+private ScrollController _scroll;
 
-protected override Element Render(ref RenderContext ui) =>
-    ui.Child(_editor, "editor");
+protected override void OnMounted(ref ViewContext context) =>
+    _scroll = context.CreateScrollController("document");
+
+[GpuiEvent]
+private void ToTop() => _scroll.ScrollToTop();
 ```
 
-The framework still owns mount/unmount while the instance is in the tree; the field only keeps the managed object reachable for imperative access or later reinsertion.
+`ScrollController` also supports `ScrollTo(x, y)` and `ScrollToBottom()`.
 
-## Generated events
+## Virtualized List
 
-Event fields and constructor registration are gone. Mark a partial view and its handlers; the Roslyn incremental generator emits stable local handler IDs, allocation-free `Events.*` bindings, direct dispatch code, and the framework child factory.
+List virtualization is not implemented as thousands of managed child Views. Rust owns `gpui::ListState`, viewport/measurement state, and a small cache of managed row batches. C# supplies only requested rows.
 
 ```csharp
 [GpuiView]
-internal sealed partial class CounterView : View
+internal sealed partial class ActivityView : View
 {
-    private int _count;
+    private const int Count = 20_000;
+    private ListController _list;
+
+    protected override void OnMounted(ref ViewContext context) =>
+        _list = context.CreateListController("activity");
+
+    [GpuiListItem]
+    private Element ActivityRow(int index, ref RenderContext ui) =>
+        ui.Button("row", $"Row {index:N0}")
+            .OnClick(Events.SelectRow, checked((ulong)index));
 
     [GpuiEvent]
-    private async ValueTask Increment(ClickEvent _)
+    private void SelectRow(ClickEvent e)
     {
-        await Task.Delay(100, Lifetime);
-        _count++;
+        var index = checked((int)e.Payload);
+        // update model/state...
         Invalidate();
     }
 
     protected override Element Render(ref RenderContext ui) =>
-        ui.VStack(
-                ui.Text($"Count: {_count}"),
-                ui.Button("increment", "Increment")
-                    .OnClick(Events.Increment)
-                    .Padding(Px(10)))
-            .Gap(Px(16));
+        ui.List(
+                "activity",
+                Count,
+                Rows.ActivityRow,
+                new ListOptions(batchSize: 48, overdraw: 320))
+            .Grow()
+            .Height(Percent(100));
 }
 ```
 
-Generated callbacks are materialized only while a view is mounted. Do not create them in constructors or field initializers. Use `Events.Handler` inside `Render()`.
-
-Lifecycle-specific work belongs in `OnMounted` / `OnUnmounted`, not in constructors or `Render()`:
+`[GpuiListItem]` methods are synchronous, allocation-free dispatch targets with signature:
 
 ```csharp
-protected override void OnMounted(ref ViewContext context)
+Element Method(int index, ref RenderContext ui)
+```
+
+The source generator emits `Rows.Method`, which contains a 64-bit renderer token (`ViewHandle | RendererId`). GPUI may ask its Rust item-render closure for individual indices, but Rust aligns those requests into coarse batches before crossing the ABI. The default batch size is 48 and at most four native row batches are retained per List resource.
+
+List row renderers are intentionally **Element-only**. They cannot create managed child Views, nested retained `Scroll`, or nested `List` resources. This keeps virtualization lifetime independent from the normal managed View tree. Row events remain supported; `OnClick(callback, payload)` stores an unmanaged `ulong` payload directly in the render IR.
+
+Optional `ListController` operations:
+
+- `ScrollToItem(index)` keeps scrolling native;
+- `Splice(start, removed, inserted)` preserves GPUI measurements across a structural model change;
+- `Refresh(start, count)` invalidates measurements for a stable range whose content/height changed;
+- `Reset(itemCount)` declares a wholesale datasource replacement.
+
+Structural commands are queued as measurement hints and committed together with the next managed snapshot revision. The managed snapshot remains authoritative; a hint/count mismatch falls back to a safe full native reset.
+
+After a managed snapshot changes, native `ListState` is retained but managed row snapshot batches are conservatively dropped because arbitrary C# View state may affect row output. Clean scrolling between managed renders keeps those batches and crosses into C# only for missing ranges.
+
+## Generated events
+
+Constructor-time callback registration is not used. `[GpuiEvent]` emits stable handler IDs, `Events.*` bindings and direct dispatch code. `Task`/`ValueTask` completion is observed; `async void` is rejected.
+
+```csharp
+[GpuiEvent]
+private async ValueTask Increment(ClickEvent _)
 {
-    // Retained native entities, subscriptions, focus resources, etc.
+    await Task.Delay(100, Lifetime);
+    _count++;
+    Invalidate();
 }
 ```
 
-`Render()` is a pure description function. Arena growth can retry it, so it must not mutate view state, start tasks, perform I/O, register handlers, or call `Invalidate()`.
+`ClickEvent.Payload` is optional unmanaged event context. Normal bindings use zero; virtualized rows can bind an index/model ID without creating a managed closure.
 
-## ABI v2
+`Render()` remains a pure description function. Arena growth may retry it. Do not mutate View state, start tasks, perform I/O, register handlers, or call `Invalidate()` from `Render()` or a `[GpuiListItem]` renderer.
 
-- click callbacks carry a 64-bit event token: high 32 bits = mounted view handle, low 32 bits = generated handler ID;
-- no managed callback dictionary or snapshot callback-owner rebuild;
-- async `Task` / `ValueTask` handlers are observed by the runtime; `async void` is rejected by the generator;
-- managed children use single-parent retained slots with framework-created or explicitly-owned instances;
-- dynamic slot replacement detaches unreachable subtrees after successful tree commit;
-- the semantic schema is capability-based (`styled`, `parent`, `interactive`, etc.);
-- Rust snapshots store flat op/child ranges and reuse validation/grouping scratch buffers;
-- Rust component behavior is selected by generated `NativeAdapter` metadata.
+## ABI v3
 
-There is no compatibility layer for previous managed child composition APIs.
+ABI v3 is intentionally incompatible with previous revisions. It adds:
+
+- a 64-bit callback payload in addition to the generated event token;
+- retained Scroll/List resource commands;
+- a batched Rust → managed `list_render_range` callback;
+- semantic Scroll/List render operations and resource owner IDs;
+- shutdown callback before native application teardown;
+- flat native snapshots and reusable validation scratch storage.
+
+Managed startup validates both ABI version and semantic schema hash (`0x6B12E9E3CDC65D8C`). See [docs/ABI.md](docs/ABI.md).
 
 ## Build
 
 Prerequisites:
 
-- .NET 10 SDK (pinned in `global.json`)
+- .NET SDK `10.0.303` (pinned in `global.json`)
 - current Rust toolchain with Cargo
-- platform prerequisites required by GPUI
+- GPUI platform prerequisites
 
 ```powershell
 dotnet build gpui-dotnet.slnx
 dotnet run --project dotnet/samples/Gpui.Net.Sample
 ```
 
-The sample includes a Sidebar-style route switch where the keyed right pane changes between two different managed View types.
-
-To force native arena growth/retry:
+The sample contains a retained Scroll route and a 20,000-row variable-height virtualized List route. To force native-owned render-arena growth/retry:
 
 ```powershell
 dotnet run --project dotnet/samples/Gpui.Net.Sample -- --stress-growth
 ```
 
-Allocation probe:
-
-```powershell
-dotnet run -c Release --project dotnet/samples/Gpui.Net.Bench
-```
-
 ## Binding generation
 
-`bindings/schema.json` is the semantic render protocol source of truth. It generates both:
+`bindings/schema.json` is the semantic render protocol source of truth and generates:
 
 - `dotnet/src/Gpui.Net/Rendering/Semantic.g.cs`
 - `native/gpui-dotnet-native/src/semantic.g.rs`
@@ -187,24 +202,11 @@ dotnet run --project tools/Gpui.Bindings.Generator -- generate
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
 ```
 
-This repository generator is separate from `Gpui.Net.Generators`, the Roslyn incremental generator that compiles `[GpuiView]` classes into child factories and `[GpuiEvent]` methods into event dispatch code.
-
-## Adding a Rust-side component
-
-For a snapshot component:
-
-1. add its semantic component entry to `bindings/schema.json`;
-2. assign capabilities and a `nativeAdapter` name;
-3. regenerate semantic bindings;
-4. implement the adapter branch in `native/gpui-dotnet-native/src/components.rs`;
-5. add only semantic operations that C# should depend on;
-6. test validation/materialization and benchmark the dirty-render path.
-
-Do not expose GPUI trait/layout details directly through the ABI. See [docs/COMPONENTS.md](docs/COMPONENTS.md).
+`Gpui.Net.Generators` is a separate Roslyn incremental generator for `[GpuiView]`, `[GpuiEvent]`, and `[GpuiListItem]`.
 
 ## Packaging
 
-The intended distribution is one managed NuGet containing the source generator plus RID-specific native assets:
+The intended distribution is one managed NuGet containing the source generator and RID-specific native assets:
 
 ```text
 Gpui.Net.nupkg
@@ -216,15 +218,4 @@ Gpui.Net.nupkg
   runtimes/osx-arm64/native/libgpui_dotnet_native.dylib
 ```
 
-CI builds each native RID independently, stages artifacts with `eng/stage-native.ps1`, then creates the package with `eng/pack.ps1`.
-
-## Documentation
-
-- [Architecture](docs/ARCHITECTURE.md)
-- [ABI](docs/ABI.md)
-- [Components](docs/COMPONENTS.md)
-- [View lifecycle, child slots, props and generated events](docs/VIEW_LIFECYCLE.md)
-- [Binding generation](docs/BINDING_GENERATION.md)
-- [Performance contract](docs/PERFORMANCE.md)
-- [Packaging](docs/PACKAGING.md)
-- [Next steps](docs/NEXT_STEPS.md)
+See `docs/` for architecture, ABI, component/resource authoring, lifecycle, performance, generation and packaging details.

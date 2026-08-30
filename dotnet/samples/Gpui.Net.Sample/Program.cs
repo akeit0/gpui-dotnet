@@ -7,9 +7,9 @@ GpuiApplication.Run(
     stressGrowth ? new ArenaGrowthView() : new SampleShellView(),
     new GpuiApplicationOptions
     {
-        Title = stressGrowth ? "GPUI.NET Arena Growth" : "GPUI.NET Component Gallery",
-        Width = 920,
-        Height = 620,
+        Title = stressGrowth ? "GPUI.NET Arena Growth" : "GPUI.NET Scroll + Virtual List",
+        Width = 1040,
+        Height = 700,
     }
 );
 
@@ -41,36 +41,37 @@ internal sealed partial class SampleShellView : View
     protected override Element Render(ref RenderContext ui)
     {
         var sidebar = RenderSidebar(ref ui);
-
-        // "content" is the retained slot identity. The View type is the current value of that
-        // slot, so switching routes replaces DashboardView <-> ActivityView without parent fields.
         var page = _page switch
         {
             SamplePage.Overview => ui.Child<DashboardView>("content"),
             SamplePage.Activity => ui.Child<ActivityView>("content"),
             _ => throw new InvalidOperationException("Unknown sample page."),
         };
+        var pageSlot = ui.VStack(page).Grow().Height(Percent(100));
 
         var routeProps = new RouteHeaderProps(
             _page == SamplePage.Overview ? "Overview" : "Activity",
-            _page == SamplePage.Overview ? "retained child slots" : "dynamic View replacement"
+            _page == SamplePage.Overview
+                ? "retained ScrollHandle; wheel scrolling stays native"
+                : "20,000 variable-height rows; managed rendering is range-batched"
         );
-        var routeHeader = ui.Child<RouteHeaderView, RouteHeaderProps>(
-            "route-header",
-            in routeProps
-        );
+        var routeHeader = ui.Child<RouteHeaderView, RouteHeaderProps>("route-header", in routeProps);
 
         var topBar = ui.HStack(
                 routeHeader,
                 ui.Spacer(),
-                ui.Badge(ui.Text("ABI V2"u8))
+                ui.Badge(ui.Text("ABI V3"u8))
                     .Background(Rgb(224, 231, 255))
                     .TextColor(Rgb(67, 56, 202))
                     .Padding(Px(7))
             )
             .ItemsCenter();
 
-        var content = ui.VStack(topBar, ui.Divider(), page).Gap(Px(14)).Padding(Px(22)).Grow();
+        var content = ui.VStack(topBar, ui.Divider(), pageSlot)
+            .Gap(Px(14))
+            .Padding(Px(22))
+            .Grow()
+            .Height(Percent(100));
 
         return ui.HStack(sidebar, content)
             .Width(Percent(100))
@@ -81,26 +82,23 @@ internal sealed partial class SampleShellView : View
     private Element RenderSidebar(ref RenderContext ui)
     {
         var activitySelected = _page == SamplePage.Activity;
-        var selected = activitySelected ? "Activity" : "Overview";
-
         return ui.VStack(
                 ui.Text("SIDEBAR"u8).FontSize(Px(11)).TextColor(Rgb(148, 163, 184)),
                 ui.Divider().Background(Rgb(51, 65, 85)),
-                ui.Button("show-overview", "Overview")
+                ui.Button("show-overview", "Scroll view")
                     .OnClick(Events.ShowOverview)
                     .Padding(Px(10))
                     .Background(activitySelected ? Rgb(15, 23, 42) : Rgb(79, 70, 229))
                     .BorderColor(activitySelected ? Rgb(51, 65, 85) : Rgb(129, 140, 248))
                     .TextColor(Rgb(255, 255, 255)),
-                ui.Button("show-activity", "Activity")
+                ui.Button("show-activity", "Virtual list")
                     .OnClick(Events.ShowActivity)
                     .Padding(Px(10))
                     .Background(activitySelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
                     .BorderColor(activitySelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
                     .TextColor(Rgb(255, 255, 255)),
                 ui.Spacer(),
-                ui.Text($"Selected: {selected}").FontSize(Px(12)).TextColor(Rgb(148, 163, 184)),
-                ui.Text("The right pane is a keyed, framework-owned dynamic View."u8)
+                ui.Text("The keyed content slot replaces its View type when the route changes."u8)
                     .FontSize(Px(11))
                     .TextColor(Rgb(100, 116, 139))
             )
@@ -128,85 +126,135 @@ internal sealed partial class RouteHeaderView : View<RouteHeaderProps>
 [GpuiView]
 internal sealed partial class DashboardView : View
 {
+    private ScrollController _scroll;
+
+    protected override void OnMounted(ref ViewContext context)
+    {
+        _scroll = context.CreateScrollController("overview-scroll");
+    }
+
+    [GpuiEvent]
+    private void ScrollTop() => _scroll.ScrollToTop();
+
+    [GpuiEvent]
+    private void ScrollBottom() => _scroll.ScrollToBottom();
+
     protected override Element Render(ref RenderContext ui)
     {
-        var architecture = ui.VStack(
-                ui.Badge(ui.Text("RUNTIME"u8))
+        var controls = ui.HStack(
+                ui.Button("scroll-top", "Top").OnClick(Events.ScrollTop),
+                ui.Button("scroll-bottom", "Bottom").OnClick(Events.ScrollBottom),
+                ui.Spacer(),
+                ui.Badge(ui.Text("native ScrollHandle"u8))
                     .Background(Rgb(219, 234, 254))
-                    .TextColor(Rgb(30, 41, 59)),
-                ui.Text("C# state → render IR → Rust GPUI"u8)
-                    .FontSize(Px(16))
-                    .TextColor(Rgb(15, 23, 42))
+                    .TextColor(Rgb(30, 64, 175))
             )
             .Gap(Px(8))
-            .Padding(Px(14))
-            .Grow()
-            .Background(Rgb(255, 255, 255))
-            .BorderWidth(Px(1))
-            .BorderColor(Rgb(226, 232, 240))
-            .Radius(Px(10));
+            .ItemsCenter();
 
-        return ui.VStack(
-                architecture,
-                ui.HStack(
-                        ui.Child<CounterCardView>("counter"),
-                        ui.Child<PreferencesView>("preferences")
-                    )
-                    .Gap(Px(14))
-            )
-            .Gap(Px(14))
-            .Grow();
+        Span<Element> cards = stackalloc Element[36];
+        for (var index = 0; index < cards.Length; index++)
+        {
+            cards[index] = ui.VStack(
+                    ui.Text($"Scrollable card {index + 1:D2}")
+                        .FontSize(Px(16))
+                        .TextColor(Rgb(15, 23, 42)),
+                    ui.Text("Wheel/trackpad updates the Rust-owned offset without a managed callback."u8)
+                        .FontSize(Px(12))
+                        .TextColor(Rgb(100, 116, 139))
+                )
+                .Gap(Px(6))
+                .Padding(Px(16))
+                .Background(Rgb(255, 255, 255))
+                .BorderWidth(Px(1))
+                .BorderColor(Rgb(226, 232, 240))
+                .Radius(Px(10));
+        }
+
+        var body = ui.VStack(cards).Gap(Px(10)).Padding(Px(4));
+        var scroll = ui.Scroll("overview-scroll", ScrollAxis.Vertical, body)
+            .Grow()
+            .Width(Percent(100));
+
+        return ui.VStack(controls, scroll).Gap(Px(10)).Grow();
     }
 }
 
 [GpuiView]
 internal sealed partial class ActivityView : View
 {
-    private int _mountNumber;
+    private const int ItemCount = 20_000;
+    private ListController _list;
+    private int _selected = -1;
 
     protected override void OnMounted(ref ViewContext context)
     {
-        _mountNumber++;
-        Console.WriteLine("activity route mounted");
+        _list = context.CreateListController("activity-list");
     }
 
-    protected override void OnUnmounted(ref ViewContext context) =>
-        Console.WriteLine("activity route unmounted");
+    [GpuiEvent]
+    private void JumpToMiddle() => _list.ScrollToItem(ItemCount / 2);
 
-    protected override Element Render(ref RenderContext ui) =>
-        ui.VStack(
-                ui.Badge(ui.Text("DYNAMIC ROUTE"u8))
-                    .Background(Rgb(220, 252, 231))
-                    .TextColor(Rgb(21, 128, 61)),
-                ui.Text("The same \"content\" slot now owns ActivityView."u8)
-                    .FontSize(Px(20))
-                    .TextColor(Rgb(15, 23, 42)),
-                ui.Text($"Mount count for this instance: {_mountNumber}")
-                    .FontSize(Px(13))
-                    .TextColor(Rgb(100, 116, 139)),
-                ui.Text("Switching back commits DashboardView and unmounts this instance."u8)
-                    .FontSize(Px(12))
-                    .TextColor(Rgb(100, 116, 139))
+    [GpuiEvent]
+    private void SelectRow(ClickEvent e)
+    {
+        var next = checked((int)e.Payload);
+        var previous = _selected;
+        _selected = next;
+
+        // The item count and ordering did not change. Refresh only the affected measurements;
+        // the controller also invalidates this View so the row content is regenerated.
+        if (previous >= 0)
+        {
+            _list.Refresh(previous, 1);
+        }
+        _list.Refresh(next, 1);
+    }
+
+    [GpuiListItem]
+    private Element ActivityRow(int index, ref RenderContext ui)
+    {
+        var selected = index == _selected;
+        var heightHint = index % 7 == 0 ? "variable height" : "normal row";
+
+        return ui.Button("activity-row", $"#{index:N0}  •  {heightHint}")
+            .OnClick(Events.SelectRow, checked((ulong)index))
+            .Padding(Px(selected ? 18 : index % 7 == 0 ? 14 : 9))
+            .Background(selected ? Rgb(224, 231, 255) : Rgb(255, 255, 255))
+            .BorderColor(selected ? Rgb(99, 102, 241) : Rgb(226, 232, 240))
+            .TextColor(selected ? Rgb(55, 48, 163) : Rgb(30, 41, 59));
+    }
+
+    protected override Element Render(ref RenderContext ui)
+    {
+        var header = ui.HStack(
+                ui.Text($"{ItemCount:N0} virtual rows")
+                    .FontSize(Px(14))
+                    .TextColor(Rgb(30, 41, 59)),
+                ui.Spacer(),
+                ui.Button("jump-middle", "Jump to 10,000")
+                    .OnClick(Events.JumpToMiddle)
+                    .Padding(Px(8))
             )
-            .Gap(Px(14))
-            .Padding(Px(22))
+            .ItemsCenter();
+
+        var list = ui.List(
+                "activity-list",
+                ItemCount,
+                Rows.ActivityRow,
+                new ListOptions(batchSize: 48, overdraw: 320)
+            )
             .Grow()
-            .Background(Rgb(255, 255, 255))
-            .BorderWidth(Px(1))
-            .BorderColor(Rgb(226, 232, 240))
-            .Radius(Px(12));
+            .Width(Percent(100));
+
+        return ui.VStack(header, list).Gap(Px(10)).Grow();
+    }
 }
 
 [GpuiView]
 internal sealed partial class CounterCardView : View
 {
     private int _count;
-
-    protected override void OnMounted(ref ViewContext context) =>
-        Console.WriteLine("counter mounted on GPUI UI thread");
-
-    protected override void OnUnmounted(ref ViewContext context) =>
-        Console.WriteLine("counter unmounted");
 
     [GpuiEvent]
     private async ValueTask Increment(ClickEvent _)
@@ -216,102 +264,14 @@ internal sealed partial class CounterCardView : View
         Invalidate();
     }
 
-    protected override Element Render(ref RenderContext ui)
-    {
-        var button = ui.Button("increment", "Async increment")
-            .OnClick(Events.Increment)
-            .Padding(Px(10))
-            .Background(Rgb(37, 99, 235))
-            .BorderColor(Rgb(96, 165, 250))
-            .TextColor(Rgb(255, 255, 255));
-
-        return ui.VStack(
-                ui.Text("COUNTER CARD VIEW"u8).FontSize(Px(11)).TextColor(Rgb(100, 116, 139)),
-                ui.Text($"{_count:N0}").FontSize(Px(42)).TextColor(Rgb(15, 23, 42)),
-                ui.Text("ValueTask completion and exceptions are observed by the runtime."u8)
-                    .FontSize(Px(12))
-                    .TextColor(Rgb(100, 116, 139)),
-                ui.Spacer(),
-                button
-            )
-            .Gap(Px(12))
-            .Padding(Px(18))
-            .Width(Px(300))
-            .Height(Px(300))
-            .Background(Rgb(255, 255, 255))
-            .BorderWidth(Px(1))
-            .BorderColor(Rgb(226, 232, 240))
-            .Radius(Px(12));
-    }
-}
-
-[GpuiView]
-internal sealed partial class PreferencesView : View
-{
-    private bool _telemetry = true;
-    private bool _compact;
-
-    [GpuiEvent]
-    private void ToggleTelemetry()
-    {
-        _telemetry = !_telemetry;
-        Invalidate();
-    }
-
-    [GpuiEvent]
-    private void SelectComfortable()
-    {
-        _compact = false;
-        Invalidate();
-    }
-
-    [GpuiEvent]
-    private void SelectCompact()
-    {
-        _compact = true;
-        Invalidate();
-    }
-
     protected override Element Render(ref RenderContext ui) =>
         ui.VStack(
-                ui.Text("PREFERENCES VIEW"u8).FontSize(Px(11)).TextColor(Rgb(100, 116, 139)),
-                ui.Divider(),
-                ui.HStack(
-                        ui.Text("Telemetry"u8).TextColor(Rgb(30, 41, 59)),
-                        ui.Spacer(),
-                        ui.Badge(ui.Text(_telemetry ? "ON"u8 : "OFF"u8))
-                            .Background(_telemetry ? Rgb(220, 252, 231) : Rgb(241, 245, 249))
-                            .TextColor(_telemetry ? Rgb(21, 128, 61) : Rgb(100, 116, 139))
-                    )
-                    .ItemsCenter(),
-                ui.Checkbox("telemetry", "Share anonymous performance counters")
-                    .Checked(_telemetry)
-                    .OnClick(Events.ToggleTelemetry)
-                    .Padding(Px(8))
-                    .Radius(Px(8))
-                    .Background(Rgb(248, 250, 252)),
-                ui.Text("Density"u8).TextColor(Rgb(30, 41, 59)),
-                ui.Radio("comfortable", "Comfortable")
-                    .Checked(!_compact)
-                    .OnClick(Events.SelectComfortable)
-                    .Padding(Px(8)),
-                ui.Radio("compact", "Compact")
-                    .Checked(_compact)
-                    .OnClick(Events.SelectCompact)
-                    .Padding(Px(8)),
-                ui.Spacer(),
-                ui.Text("Render() only describes UI; it does not mutate managed state."u8)
-                    .FontSize(Px(11))
-                    .TextColor(Rgb(100, 116, 139))
+                ui.Text($"Counter: {_count:N0}"),
+                ui.Button("increment", "Async increment")
+                    .OnClick(Events.Increment)
+                    .Padding(Px(10))
             )
-            .Gap(Px(10))
-            .Padding(Px(18))
-            .Grow()
-            .Height(Px(300))
-            .Background(Rgb(255, 255, 255))
-            .BorderWidth(Px(1))
-            .BorderColor(Rgb(226, 232, 240))
-            .Radius(Px(12));
+            .Gap(Px(10));
 }
 
 internal sealed class ArenaGrowthView : View

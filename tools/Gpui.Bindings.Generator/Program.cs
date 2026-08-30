@@ -141,9 +141,7 @@ internal static class BindingGenerator
         }
         if (schema.Capabilities.Count > 64)
         {
-            throw new InvalidOperationException(
-                "The wire metadata supports at most 64 capabilities."
-            );
+            throw new InvalidOperationException("The wire metadata supports at most 64 capabilities.");
         }
 
         EnsureUnique(schema.Capabilities, "capability");
@@ -160,9 +158,7 @@ internal static class BindingGenerator
 
         if (schema.Components.Count == 0 || schema.Operations.Count == 0)
         {
-            throw new InvalidOperationException(
-                "The schema must define components and operations."
-            );
+            throw new InvalidOperationException("The schema must define components and operations.");
         }
 
         var capabilityNames = schema.Capabilities.ToHashSet(StringComparer.Ordinal);
@@ -185,9 +181,7 @@ internal static class BindingGenerator
                     $"Component {component.Name} cannot require data when data is 'none'."
                 );
             }
-            if (
-                component.ManagedFactory is not ("manual" or "container" or "idContainer" or "leaf")
-            )
+            if (component.ManagedFactory is not ("manual" or "container" or "idContainer" or "leaf"))
             {
                 throw new InvalidOperationException(
                     $"Component {component.Name} has unknown managedFactory '{component.ManagedFactory}'."
@@ -198,9 +192,7 @@ internal static class BindingGenerator
             {
                 "manual" => true,
                 "container" => component.Data == "none" && component.Children,
-                "idContainer" => component.Data == "utf8"
-                    && component.DataRequired
-                    && component.Children,
+                "idContainer" => component.Data == "utf8" && component.DataRequired && component.Children,
                 "leaf" => component.Data == "none" && !component.Children,
                 _ => false,
             };
@@ -221,10 +213,7 @@ internal static class BindingGenerator
                     );
                 }
             }
-            if (
-                component.Children
-                && !component.Capabilities.Contains("parent", StringComparer.Ordinal)
-            )
+            if (component.Children && !component.Capabilities.Contains("parent", StringComparer.Ordinal))
             {
                 throw new InvalidOperationException(
                     $"Component {component.Name} allows children but does not have the parent capability."
@@ -249,20 +238,13 @@ internal static class BindingGenerator
                     $"Operation {operation.Name} requires unknown capability '{operation.Requires}'."
                 );
             }
-            if (
-                !schema.Components.Any(component =>
-                    component.Capabilities.Contains(operation.Requires)
-                )
-            )
+            if (!schema.Components.Any(component => component.Capabilities.Contains(operation.Requires)))
             {
                 throw new InvalidOperationException(
                     $"Operation {operation.Name} requires capability '{operation.Requires}' that no component provides."
                 );
             }
-            if (
-                operation.ManagedApi
-                is not (null or "extension" or "pixels" or "color" or "bool" or "click")
-            )
+            if (operation.ManagedApi is not (null or "extension" or "pixels" or "color" or "bool" or "click"))
             {
                 throw new InvalidOperationException(
                     $"Operation {operation.Name} has unknown managedApi '{operation.ManagedApi}'."
@@ -325,9 +307,7 @@ internal static class BindingGenerator
         builder.AppendLine($"        internal const uint SchemaVersion = {schema.SchemaVersion};");
         builder.AppendLine($"        internal const ulong SchemaHash = 0x{hash:X16}UL;");
         builder.AppendLine();
-        builder.AppendLine(
-            "        internal static bool IsKnownComponent(ComponentId component) => component switch"
-        );
+        builder.AppendLine("        internal static bool IsKnownComponent(ComponentId component) => component switch");
         builder.AppendLine("        {");
         foreach (var component in schema.Components)
         {
@@ -336,22 +316,16 @@ internal static class BindingGenerator
         builder.AppendLine("            _ => false,");
         builder.AppendLine("        };");
         builder.AppendLine();
-        builder.AppendLine(
-            "        internal static ValueKind? ExpectedValueKind(OpCode operation) => operation switch"
-        );
+        builder.AppendLine("        internal static ValueKind? ExpectedValueKind(OpCode operation) => operation switch");
         builder.AppendLine("        {");
         foreach (var operation in schema.Operations)
         {
-            builder.AppendLine(
-                $"            OpCode.{Pascal(operation.Name)} => ValueKind.{Pascal(operation.Value)},"
-            );
+            builder.AppendLine($"            OpCode.{Pascal(operation.Name)} => ValueKind.{Pascal(operation.Value)},");
         }
         builder.AppendLine("            _ => null,");
         builder.AppendLine("        };");
         builder.AppendLine();
-        builder.AppendLine(
-            "        private static ulong Capabilities(ComponentId component) => component switch"
-        );
+        builder.AppendLine("        private static ulong Capabilities(ComponentId component) => component switch");
         builder.AppendLine("        {");
         foreach (var component in schema.Components)
         {
@@ -362,9 +336,7 @@ internal static class BindingGenerator
         builder.AppendLine("            _ => 0,");
         builder.AppendLine("        };");
         builder.AppendLine();
-        builder.AppendLine(
-            "        private static ulong RequiredCapability(OpCode operation) => operation switch"
-        );
+        builder.AppendLine("        private static ulong RequiredCapability(OpCode operation) => operation switch");
         builder.AppendLine("        {");
         foreach (var operation in schema.Operations)
         {
@@ -375,14 +347,10 @@ internal static class BindingGenerator
         builder.AppendLine("            _ => 0,");
         builder.AppendLine("        };");
         builder.AppendLine();
-        builder.AppendLine(
-            "        internal static bool IsAllowed(ComponentId component, OpCode operation)"
-        );
+        builder.AppendLine("        internal static bool IsAllowed(ComponentId component, OpCode operation)");
         builder.AppendLine("        {");
         builder.AppendLine("            var required = RequiredCapability(operation);");
-        builder.AppendLine(
-            "            return required != 0 && (Capabilities(component) & required) == required;"
-        );
+        builder.AppendLine("            return required != 0 && (Capabilities(component) & required) == required;");
         builder.AppendLine("        }");
         builder.AppendLine("    }");
         builder.AppendLine("}");
@@ -397,18 +365,12 @@ internal static class BindingGenerator
         foreach (var component in schema.Components)
         {
             var interfaces = string.Join(", ", component.Capabilities.Select(CapabilityInterface));
-            builder.AppendLine(
-                $"    public readonly struct {component.CSharp}Tag : {interfaces} {{ }}"
-            );
+            builder.AppendLine($"    public readonly struct {component.CSharp}Tag : {interfaces} {{ }}");
         }
         builder.AppendLine();
         builder.AppendLine("    public readonly unsafe ref partial struct RenderContext");
         builder.AppendLine("    {");
-        foreach (
-            var component in schema.Components.Where(component =>
-                component.ManagedFactory != "manual"
-            )
-        )
+        foreach (var component in schema.Components.Where(component => component.ManagedFactory != "manual"))
         {
             AppendManagedFactory(builder, component);
         }
@@ -417,9 +379,7 @@ internal static class BindingGenerator
         builder.AppendLine("    public static partial class ElementExtensions");
         builder.AppendLine("    {");
         AppendParentApis(builder);
-        foreach (
-            var operation in schema.Operations.Where(operation => operation.ManagedApi is not null)
-        )
+        foreach (var operation in schema.Operations.Where(operation => operation.ManagedApi is not null))
         {
             AppendManagedApi(builder, operation);
         }
@@ -436,72 +396,52 @@ internal static class BindingGenerator
         switch (component.ManagedFactory)
         {
             case "container":
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(params ReadOnlySpan<Element> children)"
-                );
+                builder.AppendLine($"        public {elementType} {component.CSharp}(params ReadOnlySpan<Element> children)");
                 builder.AppendLine("        {");
-                builder.AppendLine(
-                    $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId});"
-                );
+                builder.AppendLine($"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId});");
                 builder.AppendLine("            ArenaWriter.AddChildren(element.Inner, children);");
                 builder.AppendLine("            return element;");
                 builder.AppendLine("        }");
                 break;
             case "idContainer":
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, params ReadOnlySpan<Element> children)"
-                );
+                builder.AppendLine($"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, params ReadOnlySpan<Element> children)");
                 builder.AppendLine("        {");
-                builder.AppendLine(
-                    $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, id);"
-                );
+                builder.AppendLine($"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, id);");
                 builder.AppendLine("            ArenaWriter.AddChildren(element.Inner, children);");
                 builder.AppendLine("            return element;");
                 builder.AppendLine("        }");
                 builder.AppendLine();
                 builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, params ReadOnlySpan<Element> children)"
-                );
+                builder.AppendLine($"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, params ReadOnlySpan<Element> children)");
                 builder.AppendLine("        {");
-                builder.AppendLine(
-                    $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, utf8Id);"
-                );
+                builder.AppendLine($"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, utf8Id);");
                 builder.AppendLine("            ArenaWriter.AddChildren(element.Inner, children);");
                 builder.AppendLine("            return element;");
                 builder.AppendLine("        }");
                 builder.AppendLine();
                 builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, ReadOnlySpan<char> label)"
-                );
+                builder.AppendLine($"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, ReadOnlySpan<char> label)");
                 builder.AppendLine("        {");
                 builder.AppendLine("            var child = Text(label);");
                 builder.AppendLine($"            return {component.CSharp}(id, child);");
                 builder.AppendLine("        }");
                 builder.AppendLine();
                 builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, ReadOnlySpan<byte> utf8Label)"
-                );
+                builder.AppendLine($"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, ReadOnlySpan<byte> utf8Label)");
                 builder.AppendLine("        {");
                 builder.AppendLine("            var child = Text(utf8Label);");
                 builder.AppendLine($"            return {component.CSharp}(id, child);");
                 builder.AppendLine("        }");
                 builder.AppendLine();
                 builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, ReadOnlySpan<char> label)"
-                );
+                builder.AppendLine($"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, ReadOnlySpan<char> label)");
                 builder.AppendLine("        {");
                 builder.AppendLine("            var child = Text(label);");
                 builder.AppendLine($"            return {component.CSharp}(utf8Id, child);");
                 builder.AppendLine("        }");
                 builder.AppendLine();
                 builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, ReadOnlySpan<byte> utf8Label)"
-                );
+                builder.AppendLine($"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, ReadOnlySpan<byte> utf8Label)");
                 builder.AppendLine("        {");
                 builder.AppendLine("            var child = Text(utf8Label);");
                 builder.AppendLine($"            return {component.CSharp}(utf8Id, child);");
@@ -509,9 +449,7 @@ internal static class BindingGenerator
                 break;
             case "leaf":
                 builder.AppendLine($"        public {elementType} {component.CSharp}() =>");
-                builder.AppendLine(
-                    $"            ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId});"
-                );
+                builder.AppendLine($"            ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId});");
                 break;
             default:
                 throw new InvalidOperationException();
@@ -522,9 +460,7 @@ internal static class BindingGenerator
     private static void AppendParentApis(StringBuilder builder)
     {
         builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-        builder.AppendLine(
-            "        public static Element<TTag> Child<TTag>(this Element<TTag> parent, Element child)"
-        );
+        builder.AppendLine("        public static Element<TTag> Child<TTag>(this Element<TTag> parent, Element child)");
         builder.AppendLine("            where TTag : unmanaged, IParentElementTag");
         builder.AppendLine("        {");
         builder.AppendLine("            Span<Element> one = [child];");
@@ -533,9 +469,7 @@ internal static class BindingGenerator
         builder.AppendLine("        }");
         builder.AppendLine();
         builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-        builder.AppendLine(
-            "        public static Element<TTag> Children<TTag>(this Element<TTag> parent, params ReadOnlySpan<Element> children)"
-        );
+        builder.AppendLine("        public static Element<TTag> Children<TTag>(this Element<TTag> parent, params ReadOnlySpan<Element> children)");
         builder.AppendLine("            where TTag : unmanaged, IParentElementTag");
         builder.AppendLine("        {");
         builder.AppendLine("            ArenaWriter.AddChildren(parent.Inner, children);");
@@ -557,32 +491,22 @@ internal static class BindingGenerator
         var statement = operation.ManagedApi switch
         {
             "extension" => $"ArenaWriter.AddNoArg(element.Inner, OpCode.{Pascal(operation.Name)});",
-            "pixels" =>
-                $"ArenaWriter.AddF32(element.Inner, OpCode.{Pascal(operation.Name)}, value.Value);",
-            "color" =>
-                $"ArenaWriter.AddU32(element.Inner, OpCode.{Pascal(operation.Name)}, color.Rgba);",
-            "bool" =>
-                $"ArenaWriter.AddU32(element.Inner, OpCode.{Pascal(operation.Name)}, value ? 1u : 0u);",
-            "click" =>
-                $"ArenaWriter.AddCallback(element.Inner, OpCode.{Pascal(operation.Name)}, callback.Token);",
+            "pixels" => $"ArenaWriter.AddF32(element.Inner, OpCode.{Pascal(operation.Name)}, value.Value);",
+            "color" => $"ArenaWriter.AddU32(element.Inner, OpCode.{Pascal(operation.Name)}, color.Rgba);",
+            "bool" => $"ArenaWriter.AddU32(element.Inner, OpCode.{Pascal(operation.Name)}, value ? 1u : 0u);",
+            "click" => $"ArenaWriter.AddCallback(element.Inner, OpCode.{Pascal(operation.Name)}, callback.Token);",
             _ => throw new InvalidOperationException(),
         };
 
         builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-        builder.AppendLine(
-            $"        public static Element<TTag> {operation.CSharp}<TTag>(this Element<TTag> element{parameter})"
-        );
-        builder.AppendLine(
-            $"            where TTag : unmanaged, {CapabilityInterface(operation.Requires)}"
-        );
+        builder.AppendLine($"        public static Element<TTag> {operation.CSharp}<TTag>(this Element<TTag> element{parameter})");
+        builder.AppendLine($"            where TTag : unmanaged, {CapabilityInterface(operation.Requires)}");
         builder.AppendLine("        {");
         if (operation.ManagedApi == "click")
         {
             builder.AppendLine("            if (callback.IsDefault)");
             builder.AppendLine("            {");
-            builder.AppendLine(
-                "                throw new ArgumentException(\"Event token 0 is reserved.\", nameof(callback));"
-            );
+            builder.AppendLine("                throw new ArgumentException(\"Event token 0 is reserved.\", nameof(callback));");
             builder.AppendLine("            }");
             builder.AppendLine();
         }
@@ -590,6 +514,23 @@ internal static class BindingGenerator
         builder.AppendLine("            return element;");
         builder.AppendLine("        }");
         builder.AppendLine();
+
+        if (operation.ManagedApi == "click")
+        {
+            builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+            builder.AppendLine($"        public static Element<TTag> {operation.CSharp}<TTag>(this Element<TTag> element, Callback<ClickEvent> callback, ulong payload)");
+            builder.AppendLine($"            where TTag : unmanaged, {CapabilityInterface(operation.Requires)}");
+            builder.AppendLine("        {");
+            builder.AppendLine("            if (callback.IsDefault)");
+            builder.AppendLine("            {");
+            builder.AppendLine("                throw new ArgumentException(\"Event token 0 is reserved.\", nameof(callback));");
+            builder.AppendLine("            }");
+            builder.AppendLine();
+            builder.AppendLine($"            ArenaWriter.AddCallback(element.Inner, OpCode.{Pascal(operation.Name)}, callback.Token, payload);");
+            builder.AppendLine("            return element;");
+            builder.AppendLine("        }");
+            builder.AppendLine();
+        }
     }
 
     private static string GenerateRust(BindingSchema schema, ulong hash)
@@ -602,16 +543,12 @@ internal static class BindingGenerator
         builder.AppendLine();
         foreach (var capability in schema.Capabilities)
         {
-            builder.AppendLine(
-                $"pub const CAPABILITY_{UpperSnake(capability)}: u64 = 0x{CapabilityBit(schema, capability):X16};"
-            );
+            builder.AppendLine($"pub const CAPABILITY_{UpperSnake(capability)}: u64 = 0x{CapabilityBit(schema, capability):X16};");
         }
         builder.AppendLine();
         foreach (var component in schema.Components)
         {
-            builder.AppendLine(
-                $"pub const COMPONENT_{UpperSnake(component.Name)}: u16 = {component.Id};"
-            );
+            builder.AppendLine($"pub const COMPONENT_{UpperSnake(component.Name)}: u16 = {component.Id};");
         }
         builder.AppendLine();
         foreach (var operation in schema.Operations)
@@ -636,11 +573,7 @@ internal static class BindingGenerator
         builder.AppendLine();
         builder.AppendLine("#[derive(Clone, Copy, Debug, Eq, PartialEq)]");
         builder.AppendLine("pub enum NativeAdapter {");
-        foreach (
-            var adapter in schema
-                .Components.Select(component => component.NativeAdapter)
-                .Distinct(StringComparer.Ordinal)
-        )
+        foreach (var adapter in schema.Components.Select(component => component.NativeAdapter).Distinct(StringComparer.Ordinal))
         {
             builder.AppendLine($"    {Pascal(adapter)},");
         }
@@ -668,9 +601,7 @@ internal static class BindingGenerator
         builder.AppendLine("impl OperationMetadata {");
         builder.AppendLine("    pub fn applies_to(self, component: u16) -> bool {");
         builder.AppendLine("        component_metadata(component)");
-        builder.AppendLine(
-            "            .is_some_and(|metadata| metadata.capabilities & self.required_capability == self.required_capability)"
-        );
+        builder.AppendLine("            .is_some_and(|metadata| metadata.capabilities & self.required_capability == self.required_capability)");
         builder.AppendLine("    }");
         builder.AppendLine("}");
         builder.AppendLine();
@@ -681,18 +612,10 @@ internal static class BindingGenerator
             builder.AppendLine($"        id: COMPONENT_{UpperSnake(component.Name)},");
             builder.AppendLine($"        name: \"{component.Name}\",");
             builder.AppendLine($"        data_kind: DataKind::{Pascal(component.Data)},");
-            builder.AppendLine(
-                $"        data_required: {component.DataRequired.ToString().ToLowerInvariant()},"
-            );
-            builder.AppendLine(
-                $"        allows_children: {component.Children.ToString().ToLowerInvariant()},"
-            );
-            builder.AppendLine(
-                $"        capabilities: 0x{CapabilityMask(schema, component.Capabilities):X16},"
-            );
-            builder.AppendLine(
-                $"        adapter: NativeAdapter::{Pascal(component.NativeAdapter)},"
-            );
+            builder.AppendLine($"        data_required: {component.DataRequired.ToString().ToLowerInvariant()},");
+            builder.AppendLine($"        allows_children: {component.Children.ToString().ToLowerInvariant()},");
+            builder.AppendLine($"        capabilities: 0x{CapabilityMask(schema, component.Capabilities):X16},");
+            builder.AppendLine($"        adapter: NativeAdapter::{Pascal(component.NativeAdapter)},");
             builder.AppendLine("    },");
         }
         builder.AppendLine("];");
@@ -704,22 +627,16 @@ internal static class BindingGenerator
             builder.AppendLine($"        id: OP_{UpperSnake(operation.Name)},");
             builder.AppendLine($"        name: \"{operation.Name}\",");
             builder.AppendLine($"        value_kind: ValueKind::{Pascal(operation.Value)},");
-            builder.AppendLine(
-                $"        required_capability: 0x{CapabilityBit(schema, operation.Requires):X16},"
-            );
+            builder.AppendLine($"        required_capability: 0x{CapabilityBit(schema, operation.Requires):X16},");
             builder.AppendLine("    },");
         }
         builder.AppendLine("];");
         builder.AppendLine();
-        builder.AppendLine(
-            "pub fn component_metadata(id: u16) -> Option<&'static ComponentMetadata> {"
-        );
+        builder.AppendLine("pub fn component_metadata(id: u16) -> Option<&'static ComponentMetadata> {");
         builder.AppendLine("    COMPONENTS.iter().find(|metadata| metadata.id == id)");
         builder.AppendLine("}");
         builder.AppendLine();
-        builder.AppendLine(
-            "pub fn operation_metadata(id: u16) -> Option<&'static OperationMetadata> {"
-        );
+        builder.AppendLine("pub fn operation_metadata(id: u16) -> Option<&'static OperationMetadata> {");
         builder.AppendLine("    OPERATIONS.iter().find(|metadata| metadata.id == id)");
         builder.AppendLine("}");
         builder.AppendLine();
@@ -729,20 +646,12 @@ internal static class BindingGenerator
         builder.AppendLine("    use std::collections::HashSet;");
         builder.AppendLine();
         builder.AppendLine("    #[test]");
-        builder.AppendLine(
-            "    fn generated_registry_has_unique_ids_and_resolvable_capabilities() {"
-        );
-        builder.AppendLine(
-            "        let component_ids: HashSet<_> = COMPONENTS.iter().map(|item| item.id).collect();"
-        );
-        builder.AppendLine(
-            "        let operation_ids: HashSet<_> = OPERATIONS.iter().map(|item| item.id).collect();"
-        );
+        builder.AppendLine("    fn generated_registry_has_unique_ids_and_resolvable_capabilities() {");
+        builder.AppendLine("        let component_ids: HashSet<_> = COMPONENTS.iter().map(|item| item.id).collect();");
+        builder.AppendLine("        let operation_ids: HashSet<_> = OPERATIONS.iter().map(|item| item.id).collect();");
         builder.AppendLine("        assert_eq!(component_ids.len(), COMPONENTS.len());");
         builder.AppendLine("        assert_eq!(operation_ids.len(), OPERATIONS.len());");
-        builder.AppendLine(
-            "        assert!(OPERATIONS.iter().all(|operation| COMPONENTS.iter().any(|component| operation.applies_to(component.id))));"
-        );
+        builder.AppendLine("        assert!(OPERATIONS.iter().all(|operation| COMPONENTS.iter().any(|component| operation.applies_to(component.id))));");
         builder.AppendLine("    }");
         builder.AppendLine();
         builder.AppendLine("    #[test]");
@@ -776,16 +685,13 @@ internal static class BindingGenerator
         return result;
     }
 
-    private static string CapabilityInterface(string capability) =>
-        $"I{Pascal(capability)}ElementTag";
+    private static string CapabilityInterface(string capability) => $"I{Pascal(capability)}ElementTag";
 
     private static void ValidateId(int id, string description)
     {
         if (id is <= 0 or > ushort.MaxValue)
         {
-            throw new InvalidOperationException(
-                $"The {description} ID must fit a non-zero ushort."
-            );
+            throw new InvalidOperationException($"The {description} ID must fit a non-zero ushort.");
         }
     }
 
@@ -794,13 +700,7 @@ internal static class BindingGenerator
         if (
             string.IsNullOrWhiteSpace(name)
             || !char.IsAsciiLetterLower(name[0])
-            || name.Any(character =>
-                !(
-                    char.IsAsciiLetterLower(character)
-                    || char.IsAsciiDigit(character)
-                    || character == '_'
-                )
-            )
+            || name.Any(character => !(char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) || character == '_'))
         )
         {
             throw new InvalidOperationException(
@@ -838,13 +738,11 @@ internal static class BindingGenerator
 
     private static string Pascal(string value) =>
         string.Concat(
-            value
-                .Split('_', StringSplitOptions.RemoveEmptyEntries)
+            value.Split('_', StringSplitOptions.RemoveEmptyEntries)
                 .Select(part => char.ToUpperInvariant(part[0]) + part[1..])
         );
 
     private static string UpperSnake(string value) => value.ToUpperInvariant();
-
     private static string Normalize(string value) => value.Replace("\r\n", "\n");
 }
 

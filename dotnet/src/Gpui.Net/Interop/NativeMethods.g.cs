@@ -21,7 +21,7 @@ namespace Gpui.Interop
 
 
         [DllImport(__DllName, EntryPoint = "gpui_dotnet_get_api", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        internal static extern GpuiDotnetApiV2* gpui_dotnet_get_api(uint requested_version);
+        internal static extern GpuiDotnetApiV3* gpui_dotnet_get_api(uint requested_version);
 
 
     }
@@ -85,16 +85,30 @@ namespace Gpui.Interop
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    internal unsafe partial struct NativeResourceCommand
+    {
+        public uint owner_view;
+        public ushort resource_kind;
+        public ushort command;
+        public byte* key;
+        public int key_length;
+        public uint reserved;
+        public ulong a;
+        public ulong b;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     internal unsafe partial struct ManagedCallbacks
     {
         public uint struct_size;
         public delegate* unmanaged[Cdecl]<ulong, RenderArena*, uint*, int> render;
-        public delegate* unmanaged[Cdecl]<ulong, ulong, NativeClickEvent*, int> click;
+        public delegate* unmanaged[Cdecl]<ulong, ulong, ulong, NativeClickEvent*, int> click;
+        public delegate* unmanaged[Cdecl]<ulong, ulong, uint, uint, RenderArena*, uint*, int> list_render_range;
         public delegate* unmanaged[Cdecl]<ulong, int> shutdown;
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    internal unsafe partial struct GpuiDotnetApiV2
+    internal unsafe partial struct GpuiDotnetApiV3
     {
         public uint struct_size;
         public uint abi_version;
@@ -102,6 +116,7 @@ namespace Gpui.Interop
         public delegate* unmanaged[Cdecl]<RenderArena*, uint, int> validate_render;
         public delegate* unmanaged[Cdecl]<ulong, ManagedCallbacks*, byte*, int, float, float, int> run_application;
         public delegate* unmanaged[Cdecl]<ulong, int> notify_view;
+        public delegate* unmanaged[Cdecl]<ulong, NativeResourceCommand*, int> dispatch_command;
     }
 
 

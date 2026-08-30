@@ -1,47 +1,40 @@
 # Next steps
 
-The current repository now has the structural pieces needed before expanding the component surface: ABI v2 event tokens, lifecycle hooks, generated View factories/event dispatch, framework-owned keyed child slots with dynamic type replacement, `View<TProps>`, capability-based schema, native adapters, view detachment, and flat native snapshots.
+The repository now has framework-owned dynamic managed Views, ABI v3 event payloads, retained native Scroll state, virtualized ListState, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
 
-## 1. Retained native entity/control ABI
+## 1. Input/editor native entities
 
-Implement opaque generational handles for native GPUI state. Required primitives should be batch-oriented, for example:
+Use an input/editor as the first opaque native-entity implementation. It must establish the long-lived control ABI for focus, IME, selection, subscriptions and text-change events without a managed callback per keystroke/frame.
 
-```text
-entity_create(type_id, init payload) -> handle
-entity_commands(command arena)
-entity_release(handle)
-```
+## 2. List datasource refinement
 
-Do not expose Rust pointers or `Entity<T>` layout.
+The current List cache is correctness-first: any managed root snapshot revision drops managed row snapshot batches while retaining `ListState`. Future optimization can add an explicit datasource/content revision so unrelated parent renders do not invalidate row snapshots.
 
-Use a text input/editor as the first proof because it forces correct decisions around focus, IME, selection, native subscriptions, and managed change events.
+Also evaluate:
 
-## 2. Virtualized datasource ABI
+- uniform-height fast path behind the same `ui.List` API;
+- stable model-ID payload helpers;
+- batched multi-range invalidation;
+- cache/overscan telemetry;
+- dedicated item-scoped retained state if real applications prove it necessary.
 
-Implement list/table visible-range requests as batches. Rust owns virtualization and scroll state; C# supplies model rows for requested ranges. Event tokens should combine generated handler IDs with unmanaged row payloads rather than creating one managed closure per row.
+Do not expose GPUI's uniform/variable implementation split directly unless it provides durable semantic value.
 
-## 3. Multi-window application model
+## 3. Table/tree
 
-Lift the current one-window startup ABI into an application/session model with explicit window handles. Keep `GpuiApplication.Run(new MainView())` only if a convenience wrapper is desired for the new model; the underlying ownership should be app → windows → managed roots.
+Build Table/Tree on the same coarse datasource principles rather than as thousands of managed child Views. Column/tree metadata can be semantic IR; viewport state and measurement remain native.
 
-## 4. Child composition diagnostics and route registry
+## 4. Multi-window application model
 
-Add analyzers for duplicate/static suspicious child keys and measure whether applications need a type-erased generated `ViewFactory` token for data-driven route registries. Runtime selection among known View types already works through normal switch/branch composition; do not add reflection-based `Child(Type)` activation.
+Move from the single convenience root toward an application abstraction that can create multiple managed windows while retaining app-level native initialization/services.
 
-## 5. Diagnostics/analyzers
+## 5. NativeAOT and package CI
 
-Add semantic analyzers beyond generated handler signatures, especially:
+Add CI gates for:
 
-- suspicious state mutation inside `Render()`;
-- `Invalidate()` from `Render()`;
-- storing `Element` outside render scope where detectable;
-- native entity use before mount or after unmount;
-- duplicate semantic keys where a component requires uniqueness.
-
-## 6. Native fragment references
-
-Profile large child-view trees. If copying retained managed fragments into each root arena becomes material, add a native retained-fragment/reference opcode rather than optimizing blindly.
-
-## 7. Platform/release verification
-
-Run the same integration and performance suite on win-x64, linux-x64, osx-x64, and osx-arm64. Publish a NuGet only after the RID assets are produced from the same source/schema hash and native ABI version.
+- all supported native RID builds;
+- semantic generation verify;
+- managed source-generator sample compilation;
+- NativeAOT smoke applications;
+- NuGet consumer tests without a Rust toolchain;
+- ABI C header/layout assertions.

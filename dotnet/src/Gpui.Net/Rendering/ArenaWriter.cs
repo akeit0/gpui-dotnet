@@ -101,6 +101,26 @@ internal static unsafe class ArenaWriter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void AddChild(Element parent, Element child)
+    {
+        ValidateCurrent(parent);
+        ValidateCurrent(child);
+        if (child.Arena != parent.Arena)
+        {
+            throw new InvalidOperationException(
+                "Parent and child belong to different render arenas."
+            );
+        }
+
+        EnsureChildren(parent.Arena, 1);
+        parent.Arena->Children[parent.Arena->ChildLength++] = new ChildRecord
+        {
+            Parent = parent.Node,
+            Child = child.Node,
+        };
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void AddChildren(Element parent, ReadOnlySpan<Element> children)
     {
         ValidateCurrent(parent);
@@ -145,7 +165,13 @@ internal static unsafe class ArenaWriter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void AddCallback(Element element, OpCode code, ulong eventToken)
     {
-        AddOp(element, code, ValueKind.Callback, eventToken);
+        AddCallback(element, code, eventToken, 0);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void AddCallback(Element element, OpCode code, ulong eventToken, ulong payload)
+    {
+        AddOp(element, code, ValueKind.Callback, eventToken, payload);
     }
 
     internal static Element AppendFragment(
@@ -204,7 +230,13 @@ internal static unsafe class ArenaWriter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void AddOp(Element element, OpCode code, ValueKind valueKind, ulong a)
+    private static void AddOp(
+        Element element,
+        OpCode code,
+        ValueKind valueKind,
+        ulong a,
+        ulong b = 0
+    )
     {
         ValidateCurrent(element);
         EnsureOps(element.Arena, 1);
@@ -215,6 +247,7 @@ internal static unsafe class ArenaWriter
             Code = (ushort)code,
             ValueKind = (ushort)valueKind,
             A = a,
+            B = b,
         };
     }
 

@@ -16,9 +16,9 @@ public sealed unsafe class NativeRuntime
     private static readonly ConcurrentDictionary<ulong, ManagedSession> Sessions = new();
     private static long _nextSessionId;
 
-    private readonly GpuiDotnetApiV2* _api;
+    private readonly GpuiDotnetApiV3* _api;
 
-    private NativeRuntime(GpuiDotnetApiV2* api) => _api = api;
+    private NativeRuntime(GpuiDotnetApiV3* api) => _api = api;
 
     public static NativeRuntime Load()
     {
@@ -30,10 +30,10 @@ public sealed unsafe class NativeRuntime
             );
         }
 
-        if (api->struct_size < (uint)sizeof(GpuiDotnetApiV2))
+        if (api->struct_size < (uint)sizeof(GpuiDotnetApiV3))
         {
             throw new InvalidOperationException(
-                $"Native API table is too small. Managed={sizeof(GpuiDotnetApiV2)}, native={api->struct_size}."
+                $"Native API table is too small. Managed={sizeof(GpuiDotnetApiV3)}, native={api->struct_size}."
             );
         }
 
@@ -55,11 +55,10 @@ public sealed unsafe class NativeRuntime
             api->validate_render == null
             || api->run_application == null
             || api->notify_view == null
+            || api->dispatch_command == null
         )
         {
-            throw new InvalidOperationException(
-                "The native API table is missing required entries."
-            );
+            throw new InvalidOperationException("The native API table is missing required entries.");
         }
 
         return new NativeRuntime(api);
@@ -94,6 +93,7 @@ public sealed unsafe class NativeRuntime
                 struct_size = (uint)sizeof(ManagedCallbacks),
                 render = &Render,
                 click = &Click,
+                list_render_range = &ListRenderRange,
                 shutdown = &Shutdown,
             };
             var title = Encoding.UTF8.GetBytes(options.Title);
@@ -168,7 +168,54 @@ public sealed unsafe class NativeRuntime
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static int Click(ulong sessionId, ulong eventToken, NativeClickEvent* nativeEvent)
+    private static int ListRenderRange(
+        ulong sessionId,
+        ulong rendererToken,
+        uint start,
+        uint count,
+        RenderArena* arena,
+        uint* root
+    )
+    {
+        try
+        {
+            if (
+                arena == null
+                || root == null
+                || count == 0
+                || count > 512
+                || !Sessions.TryGetValue(sessionId, out var session)
+            )
+            {
+                return -105;
+            }
+
+            var previousContext = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
+            try
+            {
+                var element = session.RenderListRange(rendererToken, start, count, arena);
+                *root = element.Node;
+                return 0;
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(previousContext);
+            }
+        }
+        catch (RenderArenaGrowthRequiredException)
+        {
+            return NativeConstants.RenderGrowRequired;
+        }
+        catch (Exception exception)
+        {
+            RecordFailure(sessionId, exception);
+            return -106;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static int Click(ulong sessionId, ulong eventToken, ulong eventPayload, NativeClickEvent* nativeEvent)
     {
         try
         {
@@ -185,6 +232,7 @@ public sealed unsafe class NativeRuntime
                     eventToken,
                     new ClickEvent
                     {
+                        Payload = eventPayload,
                         X = nativeEvent->x,
                         Y = nativeEvent->y,
                         Buttons = nativeEvent->buttons,
@@ -309,6 +357,46 @@ public sealed unsafe class NativeRuntime
             NotifyRenderPending();
         }
 
+        internal void DispatchResourceCommand(View owner, ResourceCommand command)
+        {
+            if (Volatile.Read(ref _stopped) != 0 || owner.RuntimeViewHandle == 0)
+            {
+                return;
+            }
+            if (string.IsNullOrEmpty(command.Key))
+            {
+                throw new ArgumentException("A native resource key cannot be empty.", nameof(command));
+            }
+
+            var utf8 = Encoding.UTF8.GetBytes(command.Key);
+            fixed (byte* key = utf8)
+            {
+                var native = new NativeResourceCommand
+                {
+                    owner_view = owner.RuntimeViewHandle,
+                    resource_kind = (ushort)command.ResourceKind,
+                    command = (ushort)command.Command,
+                    key = key,
+                    key_length = utf8.Length,
+                    reserved = 0,
+                    a = command.A,
+                    b = command.B,
+                };
+                var status = _runtime._api->dispatch_command(_sessionId, &native);
+                if (status is -30 or -31)
+                {
+                    // A controller operation may race normal application teardown.
+                    return;
+                }
+                if (status != 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Native resource command failed with status {status}."
+                    );
+                }
+            }
+        }
+
         internal void Post(Action callback)
         {
             if (Volatile.Read(ref _stopped) != 0)
@@ -367,6 +455,62 @@ public sealed unsafe class NativeRuntime
                     }
                     throw;
                 }
+            }
+            finally
+            {
+                EndRendering();
+            }
+        }
+
+        internal Element RenderListRange(
+            ulong rendererToken,
+            uint start,
+            uint count,
+            RenderArena* arena
+        )
+        {
+            // The token is packed as two independent 32-bit values. Explicitly use unchecked
+            // narrowing conversions so a project-wide checked context cannot reject the packing.
+            var viewHandle = unchecked((uint)(rendererToken >> 32));
+            var rendererId = unchecked((uint)rendererToken);
+            if (viewHandle == 0 || rendererId == 0)
+            {
+                throw new InvalidOperationException("List renderer token 0 is reserved.");
+            }
+            if (!_viewsByHandle.TryGetValue(viewHandle, out var owner) || !owner.IsMountedCore)
+            {
+                throw new InvalidOperationException(
+                    $"List renderer owner View 0x{viewHandle:X8} is no longer mounted."
+                );
+            }
+            if (count is 0 or > 512 || (ulong)start + count > int.MaxValue)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count));
+            }
+
+            Volatile.Write(ref _renderingStarted, 1);
+            if (Interlocked.CompareExchange(ref _renderingManaged, 1, 0) != 0)
+            {
+                throw new InvalidOperationException("Nested managed list rendering is not supported.");
+            }
+            Volatile.Write(ref _notifyAfterRender, 0);
+            try
+            {
+                // List rows are deliberately element-only. Passing no managed-view renderer and no
+                // owner prevents ui.Child(), ui.Scroll(), and nested ui.List() from creating
+                // independent retained lifetimes inside the virtualized cache. Generated event
+                // tokens still work because they are bound to the owning View, not RenderContext.
+                var ui = new RenderContext(arena);
+                var batchRoot = ui.Div();
+                for (uint offset = 0; offset < count; offset++)
+                {
+                    var index = checked((int)(start + offset));
+                    var row = owner.RenderListItemCore(rendererId, index, ref ui);
+                    ArenaWriter.AddChild(batchRoot, row);
+                }
+
+                ManagedValidator.Validate(arena, batchRoot);
+                return batchRoot;
             }
             finally
             {
@@ -542,7 +686,13 @@ public sealed unsafe class NativeRuntime
 
             var created = CreateFrameworkView<TView>();
             _ = created.ApplyProps(in props);
-            AttachResolvedCandidate(created, parent, parentState, slot, ChildOwnership.Framework);
+            AttachResolvedCandidate(
+                created,
+                parent,
+                parentState,
+                slot,
+                ChildOwnership.Framework
+            );
             return created;
         }
 
@@ -634,9 +784,7 @@ public sealed unsafe class NativeRuntime
         {
             if (_renderingViews.Contains(child))
             {
-                throw new InvalidOperationException(
-                    "Managed views cannot recursively render themselves."
-                );
+                throw new InvalidOperationException("Managed views cannot recursively render themselves.");
             }
         }
 
@@ -788,9 +936,7 @@ public sealed unsafe class NativeRuntime
 
             if (state.WorkingNextPosition == uint.MaxValue)
             {
-                throw new InvalidOperationException(
-                    "The managed child positional slot space was exhausted."
-                );
+                throw new InvalidOperationException("The managed child positional slot space was exhausted.");
             }
 
             return ChildSlot.Positional(state.WorkingNextPosition++);
@@ -849,39 +995,49 @@ public sealed unsafe class NativeRuntime
             var pending = owner.DispatchClickCore(handlerId, clickEvent);
             if (!pending.IsCompletedSuccessfully)
             {
-                //_ = ObserveEventTaskAsync(pending);
+                ObserveEventTask(pending);
             }
         }
 
-        // private async Task ObserveEventTaskAsync(ValueTask pending)
-        // {
-        //     try
-        //     {
-        //         await pending;
-        //     }
-        //     catch (OperationCanceledException)
-        //     {
-        //         // Cancellation is a normal event outcome; it must not surface as an unhandled
-        //         // native callback failure.
-        //     }
-        //     catch (Exception exception)
-        //     {
-        //         RecordFailure(exception);
-        //         Interlocked.CompareExchange(
-        //             ref _pendingAsyncFailure,
-        //             ExceptionDispatchInfo.Capture(exception),
-        //             null
-        //         );
-        //         try
-        //         {
-        //             NotifyRenderPending();
-        //         }
-        //         catch (Exception notifyFailure)
-        //         {
-        //             RecordFailure(notifyFailure);
-        //         }
-        //     }
-        // }
+        private void ObserveEventTask(ValueTask pending)
+        {
+            _ = pending.AsTask().ContinueWith(
+                completed => ObserveEventCompletion(completed),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default
+            );
+        }
+
+        private void ObserveEventCompletion(Task pending)
+        {
+            try
+            {
+                pending.GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException)
+            {
+                // Cancellation is a normal event outcome; it must not surface as an unhandled
+                // native callback failure.
+            }
+            catch (Exception exception)
+            {
+                RecordFailure(exception);
+                Interlocked.CompareExchange(
+                    ref _pendingAsyncFailure,
+                    ExceptionDispatchInfo.Capture(exception),
+                    null
+                );
+                try
+                {
+                    NotifyRenderPending();
+                }
+                catch (Exception notifyFailure)
+                {
+                    RecordFailure(notifyFailure);
+                }
+            }
+        }
 
         private void AttachRoot()
         {
@@ -890,9 +1046,7 @@ public sealed unsafe class NativeRuntime
                 var rootState = GetRenderState(RootView);
                 if (rootState.Parent is not null)
                 {
-                    throw new InvalidOperationException(
-                        "The root View cannot be owned by another View."
-                    );
+                    throw new InvalidOperationException("The root View cannot be owned by another View.");
                 }
             }
             Attach(RootView);
@@ -916,7 +1070,7 @@ public sealed unsafe class NativeRuntime
             try
             {
                 _ = GetRenderState(view);
-                view.AttachRuntime(handle, Post, Invalidate);
+                view.AttachRuntime(handle, Post, Invalidate, DispatchResourceCommand);
             }
             catch
             {
@@ -1019,9 +1173,7 @@ public sealed unsafe class NativeRuntime
         {
             if (!_renderingViews.Add(view))
             {
-                throw new InvalidOperationException(
-                    "Managed views cannot recursively render themselves."
-                );
+                throw new InvalidOperationException("Managed views cannot recursively render themselves.");
             }
 
             var state = GetRenderState(view);
@@ -1038,10 +1190,8 @@ public sealed unsafe class NativeRuntime
             }
 
             var state = GetRenderState(view);
-            (state.StagedChildren, state.WorkingChildren) = (
-                state.WorkingChildren,
-                state.StagedChildren
-            );
+            (state.StagedChildren, state.WorkingChildren) =
+                (state.WorkingChildren, state.StagedChildren);
             state.WorkingChildren?.Clear();
             state.WorkingViews?.Clear();
             state.HasStagedComposition = true;
@@ -1083,10 +1233,8 @@ public sealed unsafe class NativeRuntime
 
                     if (state.HasStagedComposition)
                     {
-                        (state.Children, state.StagedChildren) = (
-                            state.StagedChildren,
-                            state.Children
-                        );
+                        (state.Children, state.StagedChildren) =
+                            (state.StagedChildren, state.Children);
                         state.StagedChildren?.Clear();
                         state.HasStagedComposition = false;
                         state.Candidates?.Clear();

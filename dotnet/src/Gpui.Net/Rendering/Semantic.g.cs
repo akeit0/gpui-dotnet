@@ -14,6 +14,8 @@ namespace Gpui.Interop
         Badge = 6,
         Divider = 7,
         Spacer = 8,
+        Scroll = 9,
+        List = 10,
     }
 
     internal enum OpCode : ushort
@@ -38,6 +40,13 @@ namespace Gpui.Interop
         TextRgba = 111,
         FontSizePx = 112,
         OnClick = 200,
+        ResourceOwner = 300,
+        ScrollAxis = 301,
+        ListItemCount = 310,
+        ListRenderer = 311,
+        ListBatchSize = 312,
+        ListOverdrawPx = 313,
+        ListAlignment = 314,
     }
 
     internal enum ValueKind : ushort
@@ -50,8 +59,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 5;
-        internal const ulong SchemaHash = 0xCD0CDB3853CAA4C4UL;
+        internal const uint SchemaVersion = 6;
+        internal const ulong SchemaHash = 0x6B12E9E3CDC65D8CUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -63,6 +72,8 @@ namespace Gpui.Interop
             ComponentId.Badge => true,
             ComponentId.Divider => true,
             ComponentId.Spacer => true,
+            ComponentId.Scroll => true,
+            ComponentId.List => true,
             _ => false,
         };
 
@@ -88,6 +99,13 @@ namespace Gpui.Interop
             OpCode.TextRgba => ValueKind.U32,
             OpCode.FontSizePx => ValueKind.F32,
             OpCode.OnClick => ValueKind.Callback,
+            OpCode.ResourceOwner => ValueKind.U32,
+            OpCode.ScrollAxis => ValueKind.U32,
+            OpCode.ListItemCount => ValueKind.U32,
+            OpCode.ListRenderer => ValueKind.Callback,
+            OpCode.ListBatchSize => ValueKind.U32,
+            OpCode.ListOverdrawPx => ValueKind.F32,
+            OpCode.ListAlignment => ValueKind.U32,
             _ => null,
         };
 
@@ -101,6 +119,8 @@ namespace Gpui.Interop
             ComponentId.Badge => 0x0000000000000003UL,
             ComponentId.Divider => 0x0000000000000001UL,
             ComponentId.Spacer => 0x0000000000000001UL,
+            ComponentId.Scroll => 0x0000000000000067UL,
+            ComponentId.List => 0x00000000000000A1UL,
             _ => 0,
         };
 
@@ -126,6 +146,13 @@ namespace Gpui.Interop
             OpCode.TextRgba => 0x0000000000000001UL,
             OpCode.FontSizePx => 0x0000000000000001UL,
             OpCode.OnClick => 0x0000000000000008UL,
+            OpCode.ResourceOwner => 0x0000000000000020UL,
+            OpCode.ScrollAxis => 0x0000000000000040UL,
+            OpCode.ListItemCount => 0x0000000000000080UL,
+            OpCode.ListRenderer => 0x0000000000000080UL,
+            OpCode.ListBatchSize => 0x0000000000000080UL,
+            OpCode.ListOverdrawPx => 0x0000000000000080UL,
+            OpCode.ListAlignment => 0x0000000000000080UL,
             _ => 0,
         };
 
@@ -144,6 +171,9 @@ namespace Gpui
     public interface ILayoutElementTag { }
     public interface IInteractiveElementTag { }
     public interface ICheckableElementTag { }
+    public interface INativeStateElementTag { }
+    public interface IScrollableElementTag { }
+    public interface IVirtualizedElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
@@ -153,6 +183,8 @@ namespace Gpui
     public readonly struct BadgeTag : IStyledElementTag, IParentElementTag { }
     public readonly struct DividerTag : IStyledElementTag { }
     public readonly struct SpacerTag : IStyledElementTag { }
+    public readonly struct ScrollTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IScrollableElementTag { }
+    public readonly struct ListTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag { }
 
     public readonly unsafe ref partial struct RenderContext
     {
@@ -447,6 +479,19 @@ namespace Gpui
             }
 
             ArenaWriter.AddCallback(element.Inner, OpCode.OnClick, callback.Token);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> OnClick<TTag>(this Element<TTag> element, Callback<ClickEvent> callback, ulong payload)
+            where TTag : unmanaged, IInteractiveElementTag
+        {
+            if (callback.IsDefault)
+            {
+                throw new ArgumentException("Event token 0 is reserved.", nameof(callback));
+            }
+
+            ArenaWriter.AddCallback(element.Inner, OpCode.OnClick, callback.Token, payload);
             return element;
         }
 

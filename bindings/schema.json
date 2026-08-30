@@ -1,6 +1,15 @@
 {
-  "schemaVersion": 5,
-  "capabilities": ["styled", "parent", "layout", "interactive", "checkable"],
+  "schemaVersion": 6,
+  "capabilities": [
+    "styled",
+    "parent",
+    "layout",
+    "interactive",
+    "checkable",
+    "native_state",
+    "scrollable",
+    "virtualized"
+  ],
   "components": [
     {
       "id": 1,
@@ -10,7 +19,11 @@
       "dataRequired": false,
       "children": true,
       "managedFactory": "container",
-      "capabilities": ["styled", "parent", "layout"],
+      "capabilities": [
+        "styled",
+        "parent",
+        "layout"
+      ],
       "nativeAdapter": "div"
     },
     {
@@ -21,7 +34,9 @@
       "dataRequired": false,
       "children": false,
       "managedFactory": "manual",
-      "capabilities": ["styled"],
+      "capabilities": [
+        "styled"
+      ],
       "nativeAdapter": "text"
     },
     {
@@ -32,7 +47,11 @@
       "dataRequired": true,
       "children": true,
       "managedFactory": "idContainer",
-      "capabilities": ["styled", "parent", "interactive"],
+      "capabilities": [
+        "styled",
+        "parent",
+        "interactive"
+      ],
       "nativeAdapter": "button"
     },
     {
@@ -43,7 +62,12 @@
       "dataRequired": true,
       "children": true,
       "managedFactory": "idContainer",
-      "capabilities": ["styled", "parent", "interactive", "checkable"],
+      "capabilities": [
+        "styled",
+        "parent",
+        "interactive",
+        "checkable"
+      ],
       "nativeAdapter": "checkbox"
     },
     {
@@ -54,7 +78,12 @@
       "dataRequired": true,
       "children": true,
       "managedFactory": "idContainer",
-      "capabilities": ["styled", "parent", "interactive", "checkable"],
+      "capabilities": [
+        "styled",
+        "parent",
+        "interactive",
+        "checkable"
+      ],
       "nativeAdapter": "radio"
     },
     {
@@ -65,7 +94,10 @@
       "dataRequired": false,
       "children": true,
       "managedFactory": "container",
-      "capabilities": ["styled", "parent"],
+      "capabilities": [
+        "styled",
+        "parent"
+      ],
       "nativeAdapter": "badge"
     },
     {
@@ -76,7 +108,9 @@
       "dataRequired": false,
       "children": false,
       "managedFactory": "leaf",
-      "capabilities": ["styled"],
+      "capabilities": [
+        "styled"
+      ],
       "nativeAdapter": "divider"
     },
     {
@@ -87,30 +121,254 @@
       "dataRequired": false,
       "children": false,
       "managedFactory": "leaf",
-      "capabilities": ["styled"],
+      "capabilities": [
+        "styled"
+      ],
       "nativeAdapter": "spacer"
+    },
+    {
+      "id": 9,
+      "name": "scroll",
+      "csharp": "Scroll",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "parent",
+        "layout",
+        "native_state",
+        "scrollable"
+      ],
+      "nativeAdapter": "scroll"
+    },
+    {
+      "id": 10,
+      "name": "list",
+      "csharp": "List",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": false,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "native_state",
+        "virtualized"
+      ],
+      "nativeAdapter": "list"
     }
   ],
   "operations": [
-    { "id": 1, "name": "flex", "csharp": "HStack", "value": "none", "requires": "layout" },
-    { "id": 2, "name": "v_stack", "csharp": "VStack", "value": "none", "requires": "layout" },
-    { "id": 3, "name": "items_center", "csharp": "ItemsCenter", "value": "none", "requires": "styled", "managedApi": "extension" },
-    { "id": 4, "name": "justify_center", "csharp": "JustifyCenter", "value": "none", "requires": "styled", "managedApi": "extension" },
-    { "id": 5, "name": "justify_between", "csharp": "JustifyBetween", "value": "none", "requires": "styled", "managedApi": "extension" },
-    { "id": 6, "name": "flex_grow", "csharp": "Grow", "value": "none", "requires": "styled", "managedApi": "extension" },
-    { "id": 100, "name": "gap_px", "csharp": "Gap", "value": "f32", "requires": "styled", "managedApi": "pixels" },
-    { "id": 101, "name": "padding_px", "csharp": "Padding", "value": "f32", "requires": "styled", "managedApi": "pixels" },
-    { "id": 102, "name": "width_px", "csharp": "Width", "value": "f32", "requires": "styled" },
-    { "id": 103, "name": "width_percent", "csharp": "Width", "value": "f32", "requires": "styled" },
-    { "id": 104, "name": "background_rgba", "csharp": "Background", "value": "u32", "requires": "styled", "managedApi": "color" },
-    { "id": 105, "name": "checked", "csharp": "Checked", "value": "u32", "requires": "checkable", "managedApi": "bool" },
-    { "id": 106, "name": "height_px", "csharp": "Height", "value": "f32", "requires": "styled" },
-    { "id": 107, "name": "height_percent", "csharp": "Height", "value": "f32", "requires": "styled" },
-    { "id": 108, "name": "border_rgba", "csharp": "BorderColor", "value": "u32", "requires": "styled", "managedApi": "color" },
-    { "id": 109, "name": "border_width_px", "csharp": "BorderWidth", "value": "f32", "requires": "styled", "managedApi": "pixels" },
-    { "id": 110, "name": "radius_px", "csharp": "Radius", "value": "f32", "requires": "styled", "managedApi": "pixels" },
-    { "id": 111, "name": "text_rgba", "csharp": "TextColor", "value": "u32", "requires": "styled", "managedApi": "color" },
-    { "id": 112, "name": "font_size_px", "csharp": "FontSize", "value": "f32", "requires": "styled", "managedApi": "pixels" },
-    { "id": 200, "name": "on_click", "csharp": "OnClick", "value": "callback", "requires": "interactive", "managedApi": "click" }
+    {
+      "id": 1,
+      "name": "flex",
+      "csharp": "HStack",
+      "value": "none",
+      "requires": "layout"
+    },
+    {
+      "id": 2,
+      "name": "v_stack",
+      "csharp": "VStack",
+      "value": "none",
+      "requires": "layout"
+    },
+    {
+      "id": 3,
+      "name": "items_center",
+      "csharp": "ItemsCenter",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 4,
+      "name": "justify_center",
+      "csharp": "JustifyCenter",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 5,
+      "name": "justify_between",
+      "csharp": "JustifyBetween",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 6,
+      "name": "flex_grow",
+      "csharp": "Grow",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 100,
+      "name": "gap_px",
+      "csharp": "Gap",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 101,
+      "name": "padding_px",
+      "csharp": "Padding",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 102,
+      "name": "width_px",
+      "csharp": "Width",
+      "value": "f32",
+      "requires": "styled"
+    },
+    {
+      "id": 103,
+      "name": "width_percent",
+      "csharp": "Width",
+      "value": "f32",
+      "requires": "styled"
+    },
+    {
+      "id": 104,
+      "name": "background_rgba",
+      "csharp": "Background",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": "color"
+    },
+    {
+      "id": 105,
+      "name": "checked",
+      "csharp": "Checked",
+      "value": "u32",
+      "requires": "checkable",
+      "managedApi": "bool"
+    },
+    {
+      "id": 106,
+      "name": "height_px",
+      "csharp": "Height",
+      "value": "f32",
+      "requires": "styled"
+    },
+    {
+      "id": 107,
+      "name": "height_percent",
+      "csharp": "Height",
+      "value": "f32",
+      "requires": "styled"
+    },
+    {
+      "id": 108,
+      "name": "border_rgba",
+      "csharp": "BorderColor",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": "color"
+    },
+    {
+      "id": 109,
+      "name": "border_width_px",
+      "csharp": "BorderWidth",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 110,
+      "name": "radius_px",
+      "csharp": "Radius",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 111,
+      "name": "text_rgba",
+      "csharp": "TextColor",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": "color"
+    },
+    {
+      "id": 112,
+      "name": "font_size_px",
+      "csharp": "FontSize",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 200,
+      "name": "on_click",
+      "csharp": "OnClick",
+      "value": "callback",
+      "requires": "interactive",
+      "managedApi": "click"
+    },
+    {
+      "id": 300,
+      "name": "resource_owner",
+      "csharp": "ResourceOwner",
+      "value": "u32",
+      "requires": "native_state",
+      "managedApi": null
+    },
+    {
+      "id": 301,
+      "name": "scroll_axis",
+      "csharp": "ScrollAxis",
+      "value": "u32",
+      "requires": "scrollable",
+      "managedApi": null
+    },
+    {
+      "id": 310,
+      "name": "list_item_count",
+      "csharp": "ListItemCount",
+      "value": "u32",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
+      "id": 311,
+      "name": "list_renderer",
+      "csharp": "ListRenderer",
+      "value": "callback",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
+      "id": 312,
+      "name": "list_batch_size",
+      "csharp": "ListBatchSize",
+      "value": "u32",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
+      "id": 313,
+      "name": "list_overdraw_px",
+      "csharp": "ListOverdrawPx",
+      "value": "f32",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
+      "id": 314,
+      "name": "list_alignment",
+      "csharp": "ListAlignment",
+      "value": "u32",
+      "requires": "virtualized",
+      "managedApi": null
+    }
   ]
 }
