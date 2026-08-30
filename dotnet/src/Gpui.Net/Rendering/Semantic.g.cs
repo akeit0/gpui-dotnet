@@ -42,11 +42,14 @@ namespace Gpui.Interop
         OnClick = 200,
         ResourceOwner = 300,
         ScrollAxis = 301,
+        SmoothScroll = 302,
+        ShowScrollbar = 303,
         ListItemCount = 310,
         ListRenderer = 311,
         ListBatchSize = 312,
         ListOverdrawPx = 313,
         ListAlignment = 314,
+        ListEstimatedItemHeightPx = 315,
     }
 
     internal enum ValueKind : ushort
@@ -59,8 +62,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 6;
-        internal const ulong SchemaHash = 0x6B12E9E3CDC65D8CUL;
+        internal const uint SchemaVersion = 7;
+        internal const ulong SchemaHash = 0x1DA61C6A140C87B8UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -101,11 +104,14 @@ namespace Gpui.Interop
             OpCode.OnClick => ValueKind.Callback,
             OpCode.ResourceOwner => ValueKind.U32,
             OpCode.ScrollAxis => ValueKind.U32,
+            OpCode.SmoothScroll => ValueKind.U32,
+            OpCode.ShowScrollbar => ValueKind.U32,
             OpCode.ListItemCount => ValueKind.U32,
             OpCode.ListRenderer => ValueKind.Callback,
             OpCode.ListBatchSize => ValueKind.U32,
             OpCode.ListOverdrawPx => ValueKind.F32,
             OpCode.ListAlignment => ValueKind.U32,
+            OpCode.ListEstimatedItemHeightPx => ValueKind.F32,
             _ => null,
         };
 
@@ -148,11 +154,14 @@ namespace Gpui.Interop
             OpCode.OnClick => 0x0000000000000008UL,
             OpCode.ResourceOwner => 0x0000000000000020UL,
             OpCode.ScrollAxis => 0x0000000000000040UL,
+            OpCode.SmoothScroll => 0x0000000000000020UL,
+            OpCode.ShowScrollbar => 0x0000000000000020UL,
             OpCode.ListItemCount => 0x0000000000000080UL,
             OpCode.ListRenderer => 0x0000000000000080UL,
             OpCode.ListBatchSize => 0x0000000000000080UL,
             OpCode.ListOverdrawPx => 0x0000000000000080UL,
             OpCode.ListAlignment => 0x0000000000000080UL,
+            OpCode.ListEstimatedItemHeightPx => 0x0000000000000080UL,
             _ => 0,
         };
 

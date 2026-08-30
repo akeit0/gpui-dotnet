@@ -23,6 +23,18 @@ GPUI.NET deliberately does not mirror GPUI's Rust API one-to-one.
 
 The boundary rule is: **cross the ABI for state transitions or coarse data batches, never for each builder call, frame, style property or list row.**
 
+## Design reference and dependency policy
+
+[GPUI Component](https://github.com/longbridge/gpui-component), especially its lower-level `gpui-base` architecture, is a project-wide design reference—not only a scrollbar reference. The relevant principles are:
+
+- reusable behavior and the geometry required to keep it correct belong in the native foundation;
+- product presentation, tokens, and final composition remain replaceable;
+- retained controls expose narrow semantic handles rather than leaking concrete GPUI implementation types across the ABI;
+- pointer, keyboard, focus, accessibility, overlay, virtualization, and reduced-motion behavior are part of a component contract;
+- one retained handle represents one logical viewport or control instance.
+
+These principles guide Scroll/List today and future input, editor, select, menu, dialog, tree, table, and notification work. GPUI.NET does not directly depend on `gpui-component`/`gpui-base`: those crates must use the exact same GPUI revision as their consumer, while this repository currently pins crates.io GPUI 0.2.2. Concepts are adapted behind GPUI.NET's semantic ABI instead. Attribution is recorded in the root [NOTICE](../NOTICE).
+
 ## Three planes
 
 ### Render plane

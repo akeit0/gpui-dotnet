@@ -118,6 +118,11 @@ internal static unsafe class ManagedValidator
                 throw new InvalidOperationException($"Operation {i} has an invalid scroll axis.");
             }
 
+            if (code is OpCode.SmoothScroll or OpCode.ShowScrollbar && operation.A > 1)
+            {
+                throw new InvalidOperationException($"Operation {i} has an invalid boolean value.");
+            }
+
             if (code == OpCode.ListBatchSize && operation.A is < 1 or > 512)
             {
                 throw new InvalidOperationException($"Operation {i} has an invalid list batch size.");
@@ -134,6 +139,16 @@ internal static unsafe class ManagedValidator
             )
             {
                 throw new InvalidOperationException($"Operation {i} has a negative list overdraw.");
+            }
+
+            if (
+                code == OpCode.ListEstimatedItemHeightPx
+                && BitConverter.UInt32BitsToSingle((uint)operation.A) <= 0
+            )
+            {
+                throw new InvalidOperationException(
+                    $"Operation {i} has a non-positive estimated list item height."
+                );
             }
         }
 

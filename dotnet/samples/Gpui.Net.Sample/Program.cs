@@ -172,7 +172,12 @@ internal sealed partial class DashboardView : View
         }
 
         var body = ui.VStack(cards).Gap(Px(10)).Padding(Px(4));
-        var scroll = ui.Scroll("overview-scroll", ScrollAxis.Vertical, body)
+        var scroll = ui.Scroll(
+                "overview-scroll",
+                ScrollAxis.Vertical,
+                new ScrollOptions(smoothScrolling: true, showScrollbar: true),
+                body
+            )
             .Grow()
             .Width(Percent(100));
 
@@ -242,7 +247,13 @@ internal sealed partial class ActivityView : View
                 "activity-list",
                 ItemCount,
                 Rows.ActivityRow,
-                new ListOptions(batchSize: 48, overdraw: 320)
+                new ListOptions(
+                    batchSize: 48,
+                    overdraw: 320,
+                    estimatedItemHeight: 40,
+                    smoothScrolling: true,
+                    showScrollbar: true
+                )
             )
             .Grow()
             .Width(Percent(100));

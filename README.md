@@ -4,6 +4,8 @@ GPUI.NET is an experimental .NET frontend for Rust [GPUI](https://gpui.rs/). C# 
 
 The public API is intentionally semantic rather than a one-to-one mirror of GPUI's Rust API. GPUI can evolve behind native adapters without forcing equivalent churn into every C# application.
 
+Native component behavior and architecture are informed by [GPUI Component](https://github.com/longbridge/gpui-component) and its `gpui-base` foundation. It is a design reference across the component system, while GPUI.NET keeps an independent semantic ABI and its pinned GPUI dependency. See [NOTICE](NOTICE) and [Architecture](docs/ARCHITECTURE.md#design-reference-and-dependency-policy).
+
 ## Architecture
 
 ```text
@@ -60,12 +62,13 @@ A scroll container is declarative while its offset is retained in Rust:
 return ui.Scroll(
         "document",
         ScrollAxis.Vertical,
+        new ScrollOptions(smoothScrolling: true, showScrollbar: true),
         RenderDocument(ref ui))
     .Grow()
     .Height(Percent(100));
 ```
 
-The resource identity is `(managed View handle, key)`, so different Views may safely use the same local key. Wheel/trackpad updates do not invoke managed code.
+The resource identity is `(managed View handle, key)`, so different Views may safely use the same local key. Wheel/trackpad updates do not invoke managed code. Smooth wheel scrolling and a draggable overlay scrollbar are enabled by default; pass `new ScrollOptions(false, false)` to disable them.
 
 Create a controller only when imperative access is required:
 
@@ -113,7 +116,12 @@ internal sealed partial class ActivityView : View
                 "activity",
                 Count,
                 Rows.ActivityRow,
-                new ListOptions(batchSize: 48, overdraw: 320))
+                new ListOptions(
+                    batchSize: 48,
+                    overdraw: 320,
+                    estimatedItemHeight: 40,
+                    smoothScrolling: true,
+                    showScrollbar: true))
             .Grow()
             .Height(Percent(100));
 }
@@ -126,6 +134,8 @@ Element Method(int index, ref RenderContext ui)
 ```
 
 The source generator emits `Rows.Method`, which contains a 64-bit renderer token (`ViewHandle | RendererId`). GPUI may ask its Rust item-render closure for individual indices, but Rust aligns those requests into coarse batches before crossing the ABI. The default batch size is 48 and at most four native row batches are retained per List resource.
+
+Lists also use smooth native wheel scrolling and a draggable scrollbar by default. `estimatedItemHeight` keeps the thumb stable and lets dragging jump through an unmeasured virtual list without eagerly rendering every row.
 
 List row renderers are intentionally **Element-only**. They cannot create managed child Views, nested retained `Scroll`, or nested `List` resources. This keeps virtualization lifetime independent from the normal managed View tree. Row events remain supported; `OnClick(callback, payload)` stores an unmanaged `ulong` payload directly in the render IR.
 
@@ -169,7 +179,7 @@ ABI v3 is intentionally incompatible with previous revisions. It adds:
 - shutdown callback before native application teardown;
 - flat native snapshots and reusable validation scratch storage.
 
-Managed startup validates both ABI version and semantic schema hash (`0x6B12E9E3CDC65D8C`). See [docs/ABI.md](docs/ABI.md).
+Managed startup validates both ABI version and semantic schema hash (`0x1DA61C6A140C87B8`). See [docs/ABI.md](docs/ABI.md).
 
 ## Build
 

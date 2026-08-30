@@ -14,6 +14,27 @@ public readonly unsafe ref partial struct RenderContext
         ReadOnlySpan<char> key,
         ScrollAxis axis = ScrollAxis.Vertical,
         params ReadOnlySpan<Element> children
+    ) => Scroll(key, axis, default, children);
+
+    /// <summary>
+    /// Declares a vertical retained native scroll container with explicit scrolling behavior.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Element<ScrollTag> Scroll(
+        ReadOnlySpan<char> key,
+        ScrollOptions options,
+        params ReadOnlySpan<Element> children
+    ) => Scroll(key, ScrollAxis.Vertical, options, children);
+
+    /// <summary>
+    /// Declares a retained native scroll container with explicit scrolling behavior.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Element<ScrollTag> Scroll(
+        ReadOnlySpan<char> key,
+        ScrollAxis axis,
+        ScrollOptions options,
+        params ReadOnlySpan<Element> children
     )
     {
         if (key.IsEmpty)
@@ -28,6 +49,8 @@ public readonly unsafe ref partial struct RenderContext
         var element = ArenaWriter.AddNode<ScrollTag>(_arena, ComponentId.Scroll, key);
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
         ArenaWriter.AddU32(element.Inner, OpCode.ScrollAxis, (uint)axis);
+        ArenaWriter.AddU32(element.Inner, OpCode.SmoothScroll, options.EffectiveSmoothScrolling ? 1u : 0u);
+        ArenaWriter.AddU32(element.Inner, OpCode.ShowScrollbar, options.EffectiveShowScrollbar ? 1u : 0u);
         ArenaWriter.AddChildren(element.Inner, children);
         return element;
     }
@@ -65,6 +88,9 @@ public readonly unsafe ref partial struct RenderContext
         ArenaWriter.AddU32(element.Inner, OpCode.ListBatchSize, checked((uint)options.EffectiveBatchSize));
         ArenaWriter.AddF32(element.Inner, OpCode.ListOverdrawPx, options.EffectiveOverdraw);
         ArenaWriter.AddU32(element.Inner, OpCode.ListAlignment, (uint)options.EffectiveAlignment);
+        ArenaWriter.AddF32(element.Inner, OpCode.ListEstimatedItemHeightPx, options.EffectiveEstimatedItemHeight);
+        ArenaWriter.AddU32(element.Inner, OpCode.SmoothScroll, options.EffectiveSmoothScrolling ? 1u : 0u);
+        ArenaWriter.AddU32(element.Inner, OpCode.ShowScrollbar, options.EffectiveShowScrollbar ? 1u : 0u);
         return element;
     }
 

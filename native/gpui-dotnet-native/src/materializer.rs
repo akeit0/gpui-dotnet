@@ -12,11 +12,13 @@ use crate::{
         CAPABILITY_INTERACTIVE, NativeAdapter, OP_BACKGROUND_RGBA, OP_BORDER_RGBA,
         OP_BORDER_WIDTH_PX, OP_CHECKED, OP_FLEX, OP_FLEX_GROW, OP_FONT_SIZE_PX, OP_GAP_PX,
         OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_ITEMS_CENTER, OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER,
-        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX,
-        OP_LIST_RENDERER, OP_ON_CLICK, OP_PADDING_PX, OP_RADIUS_PX, OP_RESOURCE_OWNER,
-        OP_SCROLL_AXIS, OP_TEXT_RGBA, OP_V_STACK, OP_WIDTH_PERCENT, OP_WIDTH_PX,
+        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
+        OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_ON_CLICK,
+        OP_PADDING_PX, OP_RADIUS_PX, OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR,
+        OP_SMOOTH_SCROLL, OP_TEXT_RGBA, OP_V_STACK, OP_WIDTH_PERCENT, OP_WIDTH_PX,
         component_metadata,
     },
+    scrolling::{list_overlay, scroll_overlay},
     snapshot::{SnapshotNode, ValidatedSnapshot},
 };
 
@@ -98,7 +100,8 @@ impl ManagedView {
         let Some(key) = resource_key(snapshot, node) else {
             return div().child("Scroll resource is missing its owner/key.").into_any_element();
         };
-        let handle = self.resources.scroll_handle(&key);
+        let resource = self.resources.scroll_resource(&key);
+        let handle = resource.handle.clone();
         // Keep the viewport and its content as separate flex boxes. Without a non-shrinking
         // content box, Taffy can size the scroll child to the viewport and GPUI then computes a
         // maximum offset that ends before the actual final child.
@@ -106,24 +109,35 @@ impl ManagedView {
         for child in snapshot.children(node) {
             content = content.child(self.materialize_node(*child, snapshot, cx));
         }
-        let mut element = div().flex().flex_col().child(content);
-        element = apply_styles(element, node, snapshot);
-        element = element.min_h_0();
         let element_id = format!("managed-scroll-{}-{}", key.owner_view, key.key);
-        let stateful = element.id(SharedString::from(element_id));
+        let stateful = div()
+            .flex()
+            .flex_col()
+            .flex_grow()
+            .min_h_0()
+            .min_w_0()
+            .child(content)
+            .id(SharedString::from(element_id));
         let axis = last_op(snapshot, node, OP_SCROLL_AXIS).map_or(0, |op| op.a as u32);
-        match axis {
+        let smooth = last_op(snapshot, node, OP_SMOOTH_SCROLL).is_none_or(|op| op.a != 0);
+        let show_scrollbar =
+            last_op(snapshot, node, OP_SHOW_SCROLLBAR).is_none_or(|op| op.a != 0);
+        let scrollable = match axis {
             1 => stateful.overflow_x_scroll().track_scroll(&handle).into_any_element(),
             2 => stateful.overflow_scroll().track_scroll(&handle).into_any_element(),
             _ => stateful.overflow_y_scroll().track_scroll(&handle).into_any_element(),
-        }
+        };
+        let overlay = scroll_overlay(resource, axis, smooth, show_scrollbar);
+        let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
+        element = element.min_h_0().min_w_0();
+        element.child(scrollable).child(overlay).into_any_element()
     }
 
     fn materialize_list(&self, node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> AnyElement {
         let Some(key) = resource_key(snapshot, node) else {
             return div().child("List resource is missing its owner/key.").into_any_element();
         };
-        let Some((item_count, renderer, batch_size, overdraw, alignment)) =
+        let Some((item_count, renderer, batch_size, overdraw, alignment, estimated_item_height)) =
             list_configuration(snapshot, node)
         else {
             return div().child("List resource is missing virtualization metadata.").into_any_element();
@@ -140,16 +154,27 @@ impl ManagedView {
         let state = resource.borrow().state.clone();
         let resources = self.resources.clone();
         let row_scope = key.clone();
+        let row_resource = resource.clone();
         let list_element = list(state, move |index, _window, _cx| {
-            resource
+            row_resource
                 .borrow_mut()
                 .render_item(index, &resources, &row_scope)
-        });
-        let mut list_element = apply_styles(list_element, node, snapshot);
-        if last_op(snapshot, node, OP_FLEX_GROW).is_some() {
-            list_element = list_element.min_h_0();
-        }
-        list_element.into_any_element()
+        })
+        .flex_grow()
+        .min_h_0()
+        .min_w_0();
+        let smooth = last_op(snapshot, node, OP_SMOOTH_SCROLL).is_none_or(|op| op.a != 0);
+        let show_scrollbar =
+            last_op(snapshot, node, OP_SHOW_SCROLLBAR).is_none_or(|op| op.a != 0);
+        let overlay = list_overlay(
+            resource,
+            estimated_item_height,
+            smooth,
+            show_scrollbar,
+        );
+        let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
+        element = element.min_h_0().min_w_0();
+        element.child(list_element).child(overlay).into_any_element()
     }
 }
 
@@ -283,11 +308,14 @@ fn apply_styles<T: Styled>(
             | OP_ON_CLICK
             | OP_RESOURCE_OWNER
             | OP_SCROLL_AXIS
+            | OP_SMOOTH_SCROLL
+            | OP_SHOW_SCROLLBAR
             | OP_LIST_ITEM_COUNT
             | OP_LIST_RENDERER
             | OP_LIST_BATCH_SIZE
             | OP_LIST_OVERDRAW_PX
-            | OP_LIST_ALIGNMENT => element,
+            | OP_LIST_ALIGNMENT
+            | OP_LIST_ESTIMATED_ITEM_HEIGHT_PX => element,
             _ => element,
         };
     }

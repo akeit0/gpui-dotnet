@@ -15,6 +15,25 @@ public enum ListAlignment : uint
     Bottom = 1,
 }
 
+/// <summary>Native scrolling behavior and presentation.</summary>
+public readonly struct ScrollOptions
+{
+    private readonly bool _initialized;
+
+    public ScrollOptions(bool smoothScrolling = true, bool showScrollbar = true)
+    {
+        SmoothScrolling = smoothScrolling;
+        ShowScrollbar = showScrollbar;
+        _initialized = true;
+    }
+
+    public bool SmoothScrolling { get; }
+    public bool ShowScrollbar { get; }
+
+    internal bool EffectiveSmoothScrolling => !_initialized || SmoothScrolling;
+    internal bool EffectiveShowScrollbar => !_initialized || ShowScrollbar;
+}
+
 /// <summary>
 /// Native virtualization options. List rows may have different heights; GPUI measures visible
 /// rows and retains those measurements. Managed rendering is requested in coarse batches.
@@ -23,7 +42,14 @@ public readonly struct ListOptions
 {
     private readonly bool _initialized;
 
-    public ListOptions(int batchSize = 48, float overdraw = 240, ListAlignment alignment = ListAlignment.Top)
+    public ListOptions(
+        int batchSize = 48,
+        float overdraw = 240,
+        ListAlignment alignment = ListAlignment.Top,
+        float estimatedItemHeight = 40,
+        bool smoothScrolling = true,
+        bool showScrollbar = true
+    )
     {
         if (batchSize is < 1 or > 512)
         {
@@ -37,19 +63,32 @@ public readonly struct ListOptions
         {
             throw new ArgumentOutOfRangeException(nameof(alignment));
         }
+        if (!float.IsFinite(estimatedItemHeight) || estimatedItemHeight <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(estimatedItemHeight));
+        }
         BatchSize = batchSize;
         Overdraw = overdraw;
         Alignment = alignment;
+        EstimatedItemHeight = estimatedItemHeight;
+        SmoothScrolling = smoothScrolling;
+        ShowScrollbar = showScrollbar;
         _initialized = true;
     }
 
     public int BatchSize { get; }
     public float Overdraw { get; }
     public ListAlignment Alignment { get; }
+    public float EstimatedItemHeight { get; }
+    public bool SmoothScrolling { get; }
+    public bool ShowScrollbar { get; }
 
     internal int EffectiveBatchSize => _initialized ? BatchSize : 48;
     internal float EffectiveOverdraw => _initialized ? Overdraw : 240;
     internal ListAlignment EffectiveAlignment => _initialized ? Alignment : ListAlignment.Top;
+    internal float EffectiveEstimatedItemHeight => _initialized ? EstimatedItemHeight : 40;
+    internal bool EffectiveSmoothScrolling => !_initialized || SmoothScrolling;
+    internal bool EffectiveShowScrollbar => !_initialized || ShowScrollbar;
 }
 
 /// <summary>

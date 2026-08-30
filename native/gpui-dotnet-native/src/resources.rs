@@ -1,5 +1,5 @@
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     rc::Rc,
     sync::Arc,
@@ -7,15 +7,16 @@ use std::{
 
 use gpui::{
     AnyElement, IntoElement, ListAlignment, ListOffset, ListState, ParentElement, Pixels,
-    ScrollHandle, SharedString, div, point, px,
+    Point, ScrollHandle, SharedString, div, point, px,
 };
 
 use crate::{
     abi::{ManagedCallbacks, NativeResourceCommand},
     arena::OwnedRenderArena,
     semantic::{
-        NativeAdapter, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_ITEM_COUNT,
-        OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_RESOURCE_OWNER, component_metadata,
+        NativeAdapter, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
+        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX,
+        OP_LIST_RENDERER, OP_RESOURCE_OWNER, component_metadata,
     },
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
 };
@@ -59,7 +60,7 @@ impl ResourceCommand {
 pub(crate) struct ResourceStore {
     session_id: u64,
     callbacks: ManagedCallbacks,
-    scrolls: RefCell<HashMap<ResourceKey, ScrollHandle>>,
+    scrolls: RefCell<HashMap<ResourceKey, Rc<ManagedScrollResource>>>,
     lists: RefCell<HashMap<ResourceKey, Rc<RefCell<ManagedListResource>>>>,
     pending: RefCell<HashMap<(u16, ResourceKey), Vec<ResourceCommand>>>,
     active_scratch: RefCell<HashSet<(u16, ResourceKey)>>,
@@ -77,15 +78,15 @@ impl ResourceStore {
         }
     }
 
-    pub(crate) fn scroll_handle(&self, key: &ResourceKey) -> ScrollHandle {
-        if let Some(handle) = self.scrolls.borrow().get(key) {
-            return handle.clone();
+    pub(crate) fn scroll_resource(&self, key: &ResourceKey) -> Rc<ManagedScrollResource> {
+        if let Some(resource) = self.scrolls.borrow().get(key) {
+            return resource.clone();
         }
 
-        let handle = ScrollHandle::new();
-        self.scrolls.borrow_mut().insert(key.clone(), handle.clone());
+        let resource = Rc::new(ManagedScrollResource::new());
+        self.scrolls.borrow_mut().insert(key.clone(), resource.clone());
         self.apply_pending(1, key);
-        handle
+        resource
     }
 
     pub(crate) fn list_resource(
@@ -158,9 +159,11 @@ impl ResourceStore {
     }
 
     fn apply_scroll_command(&self, command: &ResourceCommand) -> bool {
-        let Some(handle) = self.scrolls.borrow().get(&command.key).cloned() else {
+        let Some(resource) = self.scrolls.borrow().get(&command.key).cloned() else {
             return false;
         };
+        let handle = &resource.handle;
+        resource.interaction.remaining.set(Point::default());
         match command.command {
             1 => {
                 let x = f32::from_bits(command.a as u32);
@@ -216,11 +219,39 @@ impl ResourceStore {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ScrollbarDrag {
+    Vertical { pointer_offset: Pixels },
+    Horizontal { pointer_offset: Pixels },
+}
+
+#[derive(Default)]
+pub(crate) struct ScrollInteraction {
+    pub(crate) remaining: Cell<Point<Pixels>>,
+    pub(crate) animating: Cell<bool>,
+    pub(crate) drag: Cell<Option<ScrollbarDrag>>,
+}
+
+pub(crate) struct ManagedScrollResource {
+    pub(crate) handle: ScrollHandle,
+    pub(crate) interaction: Rc<ScrollInteraction>,
+}
+
+impl ManagedScrollResource {
+    fn new() -> Self {
+        Self {
+            handle: ScrollHandle::new(),
+            interaction: Rc::new(ScrollInteraction::default()),
+        }
+    }
+}
+
 pub(crate) struct ManagedListResource {
     session_id: u64,
     callbacks: ManagedCallbacks,
     pub(crate) state: ListState,
-    item_count: usize,
+    pub(crate) interaction: Rc<ScrollInteraction>,
+    pub(crate) item_count: usize,
     renderer_token: u64,
     batch_size: usize,
     overdraw: Pixels,
@@ -246,6 +277,7 @@ impl ManagedListResource {
             session_id,
             callbacks,
             state: ListState::new(item_count, alignment, overdraw),
+            interaction: Rc::new(ScrollInteraction::default()),
             item_count,
             renderer_token,
             batch_size,
@@ -396,11 +428,10 @@ impl ManagedListResource {
     }
 
     fn scroll_to_item(&mut self, index: usize) {
-        // GPUI's reveal operation can only use measured heights. For a distant item in a
-        // variable-height list, all preceding unmeasured rows have zero height and the request
-        // otherwise lands at the end of the measured prefix. Measure the list on demand, then
-        // place the requested item at the top of the viewport.
-        self.state = self.state.clone().measure_all();
+        self.interaction.remaining.set(Point::default());
+        // Use GPUI's logical list offset directly. Unlike reveal-by-pixel operations, this does
+        // not require preceding variable-height rows to be measured and keeps distant jumps
+        // virtualized.
         self.state.scroll_to(ListOffset {
             item_ix: index,
             offset_in_item: px(0.),
@@ -532,7 +563,7 @@ pub(crate) fn resource_key(snapshot: &ValidatedSnapshot, node: &crate::snapshot:
 pub(crate) fn list_configuration(
     snapshot: &ValidatedSnapshot,
     node: &crate::snapshot::SnapshotNode,
-) -> Option<(usize, u64, usize, Pixels, ListAlignment)> {
+) -> Option<(usize, u64, usize, Pixels, ListAlignment, Pixels)> {
     let item_count = last_u32(snapshot, node, OP_LIST_ITEM_COUNT)? as usize;
     let renderer = snapshot
         .ops(node)
@@ -551,7 +582,20 @@ pub(crate) fn list_configuration(
         1 => ListAlignment::Bottom,
         _ => ListAlignment::Top,
     };
-    Some((item_count, renderer, batch_size, overdraw, alignment))
+    let estimated_item_height = snapshot
+        .ops(node)
+        .iter()
+        .rev()
+        .find(|op| op.code == OP_LIST_ESTIMATED_ITEM_HEIGHT_PX)
+        .map_or(px(40.), |op| px(f32::from_bits(op.a as u32)));
+    Some((
+        item_count,
+        renderer,
+        batch_size,
+        overdraw,
+        alignment,
+        estimated_item_height,
+    ))
 }
 
 fn last_u32(

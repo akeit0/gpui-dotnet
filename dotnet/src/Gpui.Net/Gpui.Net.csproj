@@ -57,6 +57,7 @@
         />
 
         <None Include="$(RepositoryRoot)\README.md" Pack="true" PackagePath="\" />
+        <None Include="$(RepositoryRoot)\NOTICE" Pack="true" PackagePath="\" />
         <None Include="$(ViewGeneratorAssembly)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 
         <None Include="$(RepositoryRoot)\artifacts\native\win-x64\gpui_dotnet_native.dll" Condition="Exists('$(RepositoryRoot)\artifacts\native\win-x64\gpui_dotnet_native.dll')" Pack="true" PackagePath="runtimes/win-x64/native" />

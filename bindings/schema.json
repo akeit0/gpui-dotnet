@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "capabilities": [
     "styled",
     "parent",
@@ -331,6 +331,22 @@
       "managedApi": null
     },
     {
+      "id": 302,
+      "name": "smooth_scroll",
+      "csharp": "SmoothScroll",
+      "value": "u32",
+      "requires": "native_state",
+      "managedApi": null
+    },
+    {
+      "id": 303,
+      "name": "show_scrollbar",
+      "csharp": "ShowScrollbar",
+      "value": "u32",
+      "requires": "native_state",
+      "managedApi": null
+    },
+    {
       "id": 310,
       "name": "list_item_count",
       "csharp": "ListItemCount",
@@ -367,6 +383,14 @@
       "name": "list_alignment",
       "csharp": "ListAlignment",
       "value": "u32",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
+      "id": 315,
+      "name": "list_estimated_item_height_px",
+      "csharp": "ListEstimatedItemHeightPx",
+      "value": "f32",
       "requires": "virtualized",
       "managedApi": null
     }

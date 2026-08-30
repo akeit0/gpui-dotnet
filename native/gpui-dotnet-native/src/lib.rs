@@ -4,6 +4,7 @@ mod arena;
 mod components;
 mod materializer;
 mod resources;
+mod scrolling;
 #[path = "semantic.g.rs"]
 mod semantic;
 mod snapshot;

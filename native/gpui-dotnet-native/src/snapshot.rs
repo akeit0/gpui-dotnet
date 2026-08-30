@@ -5,9 +5,10 @@ use gpui::SharedString;
 use crate::{
     abi::{OpRecord, RenderArena},
     semantic::{
-        DataKind, OP_CHECKED, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_OVERDRAW_PX,
-        OP_ON_CLICK, OP_RESOURCE_OWNER, OP_SCROLL_AXIS, ValueKind, component_metadata,
-        operation_metadata,
+        DataKind, OP_CHECKED, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
+        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_OVERDRAW_PX, OP_ON_CLICK,
+        OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, ValueKind,
+        component_metadata, operation_metadata,
     },
 };
 
@@ -259,6 +260,9 @@ fn validate_with_scratch(
         if op.code == OP_SCROLL_AXIS && op.a > 2 {
             return Err(-26);
         }
+        if matches!(op.code, OP_SMOOTH_SCROLL | OP_SHOW_SCROLLBAR) && op.a > 1 {
+            return Err(-21);
+        }
         if op.code == OP_LIST_BATCH_SIZE && !(1..=512).contains(&(op.a as u32)) {
             return Err(-27);
         }
@@ -266,6 +270,11 @@ fn validate_with_scratch(
             return Err(-28);
         }
         if op.code == OP_LIST_OVERDRAW_PX && f32::from_bits(op.a as u32) < 0.0 {
+            return Err(-29);
+        }
+        if op.code == OP_LIST_ESTIMATED_ITEM_HEIGHT_PX
+            && f32::from_bits(op.a as u32) <= 0.0
+        {
             return Err(-29);
         }
     }

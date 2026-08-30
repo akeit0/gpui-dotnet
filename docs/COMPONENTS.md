@@ -18,7 +18,7 @@ A normal semantic component is declared in `bindings/schema.json`, generated int
 
 ## Scroll
 
-`ui.Scroll(key, axis, children)` is a normal render-tree parent plus a retained native `ScrollHandle`.
+`ui.Scroll(key, axis, options, children)` is a normal render-tree parent plus a retained native `ScrollHandle`. Smooth wheel scrolling and the draggable overlay scrollbar default to enabled.
 
 ```csharp
 ui.Scroll("main", ScrollAxis.Vertical, content)
@@ -45,6 +45,8 @@ The render IR carries:
 - managed batch size;
 - overdraw pixels;
 - top/bottom alignment.
+- estimated item height for stable virtual scrollbar geometry;
+- smooth-scrolling and scrollbar visibility flags.
 
 Rust owns `ListState` and calls managed `list_render_range` only for missing aligned batches.
 
