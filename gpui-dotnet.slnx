@@ -1,0 +1,7 @@
+<Solution>
+    <Project Path="dotnet/src/Gpui.Net/Gpui.Net.csproj" />
+    <Project Path="dotnet/src/Gpui.Net.Generators/Gpui.Net.Generators.csproj" />
+    <Project Path="dotnet/samples/Gpui.Net.Sample/Gpui.Net.Sample.csproj" />
+    <Project Path="dotnet/samples/Gpui.Net.Bench/Gpui.Net.Bench.csproj" />
+    <Project Path="tools/Gpui.Bindings.Generator/Gpui.Bindings.Generator.csproj" />
+</Solution>

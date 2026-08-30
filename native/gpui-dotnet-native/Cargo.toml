@@ -1,0 +1,15 @@
+[package]
+name = "gpui-dotnet-native"
+version = "0.2.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+async-channel = "2"
+gpui = "0.2.2"
+
+[build-dependencies]
+csbindgen = "1.9.8"

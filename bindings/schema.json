@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 5,
+  "capabilities": ["styled", "parent", "layout", "interactive", "checkable"],
+  "components": [
+    {
+      "id": 1,
+      "name": "div",
+      "csharp": "Div",
+      "data": "none",
+      "dataRequired": false,
+      "children": true,
+      "managedFactory": "container",
+      "capabilities": ["styled", "parent", "layout"],
+      "nativeAdapter": "div"
+    },
+    {
+      "id": 2,
+      "name": "text",
+      "csharp": "Text",
+      "data": "utf8",
+      "dataRequired": false,
+      "children": false,
+      "managedFactory": "manual",
+      "capabilities": ["styled"],
+      "nativeAdapter": "text"
+    },
+    {
+      "id": 3,
+      "name": "button",
+      "csharp": "Button",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "idContainer",
+      "capabilities": ["styled", "parent", "interactive"],
+      "nativeAdapter": "button"
+    },
+    {
+      "id": 4,
+      "name": "checkbox",
+      "csharp": "Checkbox",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "idContainer",
+      "capabilities": ["styled", "parent", "interactive", "checkable"],
+      "nativeAdapter": "checkbox"
+    },
+    {
+      "id": 5,
+      "name": "radio",
+      "csharp": "Radio",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "idContainer",
+      "capabilities": ["styled", "parent", "interactive", "checkable"],
+      "nativeAdapter": "radio"
+    },
+    {
+      "id": 6,
+      "name": "badge",
+      "csharp": "Badge",
+      "data": "none",
+      "dataRequired": false,
+      "children": true,
+      "managedFactory": "container",
+      "capabilities": ["styled", "parent"],
+      "nativeAdapter": "badge"
+    },
+    {
+      "id": 7,
+      "name": "divider",
+      "csharp": "Divider",
+      "data": "none",
+      "dataRequired": false,
+      "children": false,
+      "managedFactory": "leaf",
+      "capabilities": ["styled"],
+      "nativeAdapter": "divider"
+    },
+    {
+      "id": 8,
+      "name": "spacer",
+      "csharp": "Spacer",
+      "data": "none",
+      "dataRequired": false,
+      "children": false,
+      "managedFactory": "leaf",
+      "capabilities": ["styled"],
+      "nativeAdapter": "spacer"
+    }
+  ],
+  "operations": [
+    { "id": 1, "name": "flex", "csharp": "HStack", "value": "none", "requires": "layout" },
+    { "id": 2, "name": "v_stack", "csharp": "VStack", "value": "none", "requires": "layout" },
+    { "id": 3, "name": "items_center", "csharp": "ItemsCenter", "value": "none", "requires": "styled", "managedApi": "extension" },
+    { "id": 4, "name": "justify_center", "csharp": "JustifyCenter", "value": "none", "requires": "styled", "managedApi": "extension" },
+    { "id": 5, "name": "justify_between", "csharp": "JustifyBetween", "value": "none", "requires": "styled", "managedApi": "extension" },
+    { "id": 6, "name": "flex_grow", "csharp": "Grow", "value": "none", "requires": "styled", "managedApi": "extension" },
+    { "id": 100, "name": "gap_px", "csharp": "Gap", "value": "f32", "requires": "styled", "managedApi": "pixels" },
+    { "id": 101, "name": "padding_px", "csharp": "Padding", "value": "f32", "requires": "styled", "managedApi": "pixels" },
+    { "id": 102, "name": "width_px", "csharp": "Width", "value": "f32", "requires": "styled" },
+    { "id": 103, "name": "width_percent", "csharp": "Width", "value": "f32", "requires": "styled" },
+    { "id": 104, "name": "background_rgba", "csharp": "Background", "value": "u32", "requires": "styled", "managedApi": "color" },
+    { "id": 105, "name": "checked", "csharp": "Checked", "value": "u32", "requires": "checkable", "managedApi": "bool" },
+    { "id": 106, "name": "height_px", "csharp": "Height", "value": "f32", "requires": "styled" },
+    { "id": 107, "name": "height_percent", "csharp": "Height", "value": "f32", "requires": "styled" },
+    { "id": 108, "name": "border_rgba", "csharp": "BorderColor", "value": "u32", "requires": "styled", "managedApi": "color" },
+    { "id": 109, "name": "border_width_px", "csharp": "BorderWidth", "value": "f32", "requires": "styled", "managedApi": "pixels" },
+    { "id": 110, "name": "radius_px", "csharp": "Radius", "value": "f32", "requires": "styled", "managedApi": "pixels" },
+    { "id": 111, "name": "text_rgba", "csharp": "TextColor", "value": "u32", "requires": "styled", "managedApi": "color" },
+    { "id": 112, "name": "font_size_px", "csharp": "FontSize", "value": "f32", "requires": "styled", "managedApi": "pixels" },
+    { "id": 200, "name": "on_click", "csharp": "OnClick", "value": "callback", "requires": "interactive", "managedApi": "click" }
+  ]
+}
