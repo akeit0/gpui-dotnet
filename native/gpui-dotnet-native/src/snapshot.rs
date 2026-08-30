@@ -5,7 +5,8 @@ use gpui::SharedString;
 use crate::{
     abi::{OpRecord, RenderArena},
     semantic::{
-        DataKind, OP_CHECKED, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_LIST_ALIGNMENT,
+        COMPONENT_INPUT, DataKind, OP_CHECKED, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT,
+        OP_INPUT_DISABLED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT,
         OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_OVERDRAW_PX, OP_ON_CLICK,
         OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, ValueKind,
         component_metadata, operation_metadata,
@@ -213,7 +214,8 @@ fn validate_with_scratch(
         if end > utf8_len as u64 {
             return Err(-5);
         }
-        if std::str::from_utf8(&utf8[node.data_offset as usize..end as usize]).is_err() {
+        let payload = &utf8[node.data_offset as usize..end as usize];
+        if std::str::from_utf8(payload).is_err() {
             return Err(-8);
         }
         let Some(metadata) = component_metadata(node.component) else {
@@ -223,6 +225,15 @@ fn validate_with_scratch(
             || (metadata.data_required && node.data_length == 0)
         {
             return Err(-14);
+        }
+        if node.component == COMPONENT_INPUT {
+            let mut separators = payload.iter().enumerate().filter(|(_, byte)| **byte == 0);
+            let Some((first_separator, _)) = separators.next() else {
+                return Err(-31);
+            };
+            if first_separator == 0 || separators.next().is_none() || separators.next().is_some() {
+                return Err(-31);
+            }
         }
     }
 
@@ -262,7 +273,15 @@ fn validate_with_scratch(
         if op.code == OP_SCROLL_AXIS && op.a > 2 {
             return Err(-26);
         }
-        if matches!(op.code, OP_SMOOTH_SCROLL | OP_SHOW_SCROLLBAR) && op.a > 1 {
+        if matches!(
+            op.code,
+            OP_SMOOTH_SCROLL
+                | OP_SHOW_SCROLLBAR
+                | OP_INPUT_DISABLED
+                | OP_INPUT_READ_ONLY
+                | OP_INPUT_PASSWORD
+        ) && op.a > 1
+        {
             return Err(-21);
         }
         if op.code == OP_IMAGE_GRAYSCALE && op.a > 1 {
@@ -372,8 +391,9 @@ mod tests {
     use crate::{
         abi::{ChildRecord, NodeRecord, OpRecord},
         semantic::{
-            COMPONENT_CHECKBOX, COMPONENT_DIV, COMPONENT_IMAGE, COMPONENT_TEXT, OP_CHECKED,
-            OP_GAP_PX, OP_IMAGE_OBJECT_FIT, OP_ON_CLICK, OP_PADDING_PX,
+            COMPONENT_CHECKBOX, COMPONENT_DIV, COMPONENT_IMAGE, COMPONENT_INPUT, COMPONENT_TEXT,
+            OP_CHECKED, OP_GAP_PX, OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED, OP_ON_CLICK,
+            OP_PADDING_PX,
         },
     };
 
@@ -442,6 +462,7 @@ mod tests {
 
         operation.a = 1.0f32.to_bits() as u64;
         operation.b = 1;
+        let arena = arena_with(&mut node, Some(&mut operation));
         assert_eq!(validate(&arena, 0), Err(-23));
     }
 
@@ -516,6 +537,44 @@ mod tests {
         arena.utf8_length = 1;
         arena.utf8_capacity = 1;
         assert_eq!(validate(&arena, 0), Err(-30));
+    }
+
+    #[test]
+    fn rejects_malformed_input_configuration() {
+        let mut payload = *b"key\0missing-placeholder";
+        let mut node = NodeRecord {
+            component: COMPONENT_INPUT,
+            data_length: payload.len() as u32,
+            ..Default::default()
+        };
+        let mut arena = arena_with(&mut node, None);
+        arena.utf8 = payload.as_mut_ptr();
+        arena.utf8_length = payload.len() as i32;
+        arena.utf8_capacity = payload.len() as i32;
+
+        assert_eq!(validate(&arena, 0), Err(-31));
+    }
+
+    #[test]
+    fn rejects_invalid_input_boolean() {
+        let mut payload = *b"key\0\0placeholder";
+        let mut node = NodeRecord {
+            component: COMPONENT_INPUT,
+            data_length: payload.len() as u32,
+            ..Default::default()
+        };
+        let mut operation = OpRecord {
+            code: OP_INPUT_DISABLED,
+            value_kind: ValueKind::U32 as u16,
+            a: 2,
+            ..Default::default()
+        };
+        let mut arena = arena_with(&mut node, Some(&mut operation));
+        arena.utf8 = payload.as_mut_ptr();
+        arena.utf8_length = payload.len() as i32;
+        arena.utf8_capacity = payload.len() as i32;
+
+        assert_eq!(validate(&arena, 0), Err(-21));
     }
 
     #[test]

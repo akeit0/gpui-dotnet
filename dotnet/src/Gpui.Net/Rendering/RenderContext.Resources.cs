@@ -98,7 +98,7 @@ public readonly unsafe ref partial struct RenderContext
     private uint CurrentResourceOwner()
     {
         var owner = _owner ?? throw new InvalidOperationException(
-            "Scroll/List resources require a mounted managed View. Element-only RenderArenaOwner tests cannot create retained native resources."
+            "Retained native resources require a mounted managed View. Element-only RenderArenaOwner tests cannot create them."
         );
         var handle = owner.RuntimeViewHandle;
         return handle != 0

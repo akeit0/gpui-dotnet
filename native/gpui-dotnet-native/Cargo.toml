@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 async-channel = "2"
 gpui = "0.2.2"
+unicode-segmentation = "1.13.3"
 
 [build-dependencies]
 csbindgen = "1.9.8"

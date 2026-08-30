@@ -5,7 +5,6 @@ namespace Gpui;
 /// the mounted view identity in the high 32 bits and the generated handler id in the low 32 bits.
 /// </summary>
 public readonly struct Callback<TEvent>
-    where TEvent : unmanaged
 {
     internal Callback(ulong token) => Token = token;
 

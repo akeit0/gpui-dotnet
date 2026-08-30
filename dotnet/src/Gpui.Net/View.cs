@@ -2,6 +2,12 @@ using System.Runtime.ExceptionServices;
 
 namespace Gpui;
 
+internal delegate void Utf8InputValueDispatcher(
+    View owner,
+    ReadOnlySpan<byte> utf8Key,
+    ReadOnlySpan<byte> utf8Value
+);
+
 /// <summary>
 /// Implemented by the source generator for every <see cref="GpuiViewAttribute"/> view. The
 /// runtime uses the static factory to create framework-owned children without reflection or
@@ -24,6 +30,7 @@ public abstract class View
     private Action<Action>? _post;
     private Action<View>? _invalidate;
     private Action<View, ResourceCommand>? _resourceCommand;
+    private Utf8InputValueDispatcher? _utf8InputValue;
     private CancellationTokenSource? _mountLifetime;
     private uint _runtimeViewHandle;
     private int _mounted;
@@ -90,6 +97,26 @@ public abstract class View
         return new Callback<ClickEvent>(((ulong)viewHandle << 32) | handlerId);
     }
 
+    /// <summary>Binds a generated input-event handler to this mounted view.</summary>
+    protected Callback<InputEvent> BindInput(uint handlerId)
+    {
+        if (handlerId == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(handlerId), "Handler id 0 is reserved.");
+        }
+
+        var viewHandle = Volatile.Read(ref _runtimeViewHandle);
+        if (viewHandle == 0 || Volatile.Read(ref _mounted) == 0)
+        {
+            throw new InvalidOperationException(
+                "Generated callbacks can only be materialized while the view is mounted. "
+                    + "Use Events.<handler> from Render(), not from a constructor or field initializer."
+            );
+        }
+
+        return new Callback<InputEvent>(((ulong)viewHandle << 32) | handlerId);
+    }
+
 
     /// <summary>
     /// Binds a generated list-item renderer id to this mounted view. The token is consumed by
@@ -123,6 +150,12 @@ public abstract class View
             new InvalidOperationException($"Generated click handler 0x{handlerId:X8} is not defined.")
         );
 
+    /// <summary>Generated views override this with input-event dispatch.</summary>
+    protected virtual ValueTask DispatchInputAsync(uint handlerId, InputEvent inputEvent) =>
+        ValueTask.FromException(
+            new InvalidOperationException($"Generated input handler 0x{handlerId:X8} is not defined.")
+        );
+
     /// <summary>
     /// Generated views override this for [GpuiListItem] methods. List item rendering is synchronous
     /// and element-only; retained child View composition is intentionally not available inside a
@@ -143,6 +176,9 @@ public abstract class View
     internal ValueTask DispatchClickCore(uint handlerId, ClickEvent clickEvent) =>
         DispatchClickAsync(handlerId, clickEvent);
 
+    internal ValueTask DispatchInputCore(uint handlerId, InputEvent inputEvent) =>
+        DispatchInputAsync(handlerId, inputEvent);
+
     internal uint RuntimeViewHandle => Volatile.Read(ref _runtimeViewHandle);
     internal bool IsMountedCore => Volatile.Read(ref _mounted) != 0;
 
@@ -152,7 +188,8 @@ public abstract class View
         uint viewHandle,
         Action<Action> post,
         Action<View> invalidate,
-        Action<View, ResourceCommand> resourceCommand
+        Action<View, ResourceCommand> resourceCommand,
+        Utf8InputValueDispatcher utf8InputValue
     )
     {
         if (viewHandle == 0)
@@ -162,6 +199,7 @@ public abstract class View
         ArgumentNullException.ThrowIfNull(post);
         ArgumentNullException.ThrowIfNull(invalidate);
         ArgumentNullException.ThrowIfNull(resourceCommand);
+        ArgumentNullException.ThrowIfNull(utf8InputValue);
 
         var lifetime = new CancellationTokenSource();
         lock (_runtimeGate)
@@ -175,6 +213,7 @@ public abstract class View
             _post = post;
             _invalidate = invalidate;
             _resourceCommand = resourceCommand;
+            _utf8InputValue = utf8InputValue;
             _mountLifetime = lifetime;
             _runtimeViewHandle = viewHandle;
             Volatile.Write(ref _mounted, 1);
@@ -205,6 +244,7 @@ public abstract class View
                     _mountLifetime = null;
                     _invalidate = null;
                     _resourceCommand = null;
+                    _utf8InputValue = null;
                     _post = null;
                 }
                 lifetime.Dispose();
@@ -258,6 +298,7 @@ public abstract class View
                 _mountLifetime = null;
                 _invalidate = null;
                 _resourceCommand = null;
+                _utf8InputValue = null;
                 _post = null;
             }
             lifetime?.Dispose();
@@ -283,6 +324,17 @@ public abstract class View
             Volatile.Read(ref _resourceCommand)
             ?? throw new InvalidOperationException("The view is not mounted in a GPUI application.");
         dispatch(this, command);
+    }
+
+    internal void DispatchUtf8InputValue(
+        ReadOnlySpan<byte> utf8Key,
+        ReadOnlySpan<byte> utf8Value
+    )
+    {
+        var dispatch =
+            Volatile.Read(ref _utf8InputValue)
+            ?? throw new InvalidOperationException("The view is not mounted in a GPUI application.");
+        dispatch(this, utf8Key, utf8Value);
     }
 
     internal void InvalidateFromController()

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 8,
+  "schemaVersion": 9,
   "capabilities": [
     "styled",
     "parent",
@@ -9,7 +9,8 @@
     "native_state",
     "scrollable",
     "virtualized",
-    "image"
+    "image",
+    "input"
   ],
   "components": [
     {
@@ -172,6 +173,21 @@
         "image"
       ],
       "nativeAdapter": "image"
+    },
+    {
+      "id": 12,
+      "name": "input",
+      "csharp": "Input",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": false,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "native_state",
+        "input"
+      ],
+      "nativeAdapter": "input"
     }
   ],
   "operations": [
@@ -423,6 +439,54 @@
       "csharp": "Grayscale",
       "value": "u32",
       "requires": "image",
+      "managedApi": null
+    },
+    {
+      "id": 500,
+      "name": "input_disabled",
+      "csharp": "InputDisabled",
+      "value": "u32",
+      "requires": "input",
+      "managedApi": null
+    },
+    {
+      "id": 501,
+      "name": "input_read_only",
+      "csharp": "InputReadOnly",
+      "value": "u32",
+      "requires": "input",
+      "managedApi": null
+    },
+    {
+      "id": 502,
+      "name": "input_password",
+      "csharp": "InputPassword",
+      "value": "u32",
+      "requires": "input",
+      "managedApi": null
+    },
+    {
+      "id": 503,
+      "name": "input_on_changed",
+      "csharp": "OnChanged",
+      "value": "callback",
+      "requires": "input",
+      "managedApi": null
+    },
+    {
+      "id": 504,
+      "name": "input_on_submitted",
+      "csharp": "OnSubmitted",
+      "value": "callback",
+      "requires": "input",
+      "managedApi": null
+    },
+    {
+      "id": 505,
+      "name": "input_on_focus_changed",
+      "csharp": "OnFocusChanged",
+      "value": "callback",
+      "requires": "input",
       "managedApi": null
     }
   ]

@@ -16,9 +16,11 @@ public sealed unsafe class NativeRuntime
     private static readonly ConcurrentDictionary<ulong, ManagedSession> Sessions = new();
     private static long _nextSessionId;
 
-    private readonly GpuiDotnetApiV3* _api;
+    private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
-    private NativeRuntime(GpuiDotnetApiV3* api) => _api = api;
+    private readonly GpuiDotnetApiV4* _api;
+
+    private NativeRuntime(GpuiDotnetApiV4* api) => _api = api;
 
     public static NativeRuntime Load()
     {
@@ -30,10 +32,10 @@ public sealed unsafe class NativeRuntime
             );
         }
 
-        if (api->struct_size < (uint)sizeof(GpuiDotnetApiV3))
+        if (api->struct_size < (uint)sizeof(GpuiDotnetApiV4))
         {
             throw new InvalidOperationException(
-                $"Native API table is too small. Managed={sizeof(GpuiDotnetApiV3)}, native={api->struct_size}."
+                $"Native API table is too small. Managed={sizeof(GpuiDotnetApiV4)}, native={api->struct_size}."
             );
         }
 
@@ -94,6 +96,7 @@ public sealed unsafe class NativeRuntime
                 render = &Render,
                 click = &Click,
                 list_render_range = &ListRenderRange,
+                control_event = &ControlEvent,
                 shutdown = &Shutdown,
             };
             var title = Encoding.UTF8.GetBytes(options.Title);
@@ -254,6 +257,60 @@ public sealed unsafe class NativeRuntime
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static int ControlEvent(
+        ulong sessionId,
+        ulong eventToken,
+        NativeControlEvent* nativeEvent
+    )
+    {
+        try
+        {
+            if (
+                nativeEvent == null
+                || nativeEvent->reserved != 0
+                || nativeEvent->reserved2 != 0
+                || nativeEvent->data_length < 0
+                || (nativeEvent->data_length != 0 && nativeEvent->data == null)
+                || nativeEvent->kind is < (ushort)InputEventKind.Changed
+                    or > (ushort)InputEventKind.FocusChanged
+                || (nativeEvent->flags & ~1u) != 0
+                || !Sessions.TryGetValue(sessionId, out var session)
+            )
+            {
+                return -112;
+            }
+
+            var value = nativeEvent->data_length == 0
+                ? Array.Empty<byte>()
+                : new ReadOnlySpan<byte>(nativeEvent->data, nativeEvent->data_length).ToArray();
+            var previousContext = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
+            try
+            {
+                session.DispatchInput(
+                    eventToken,
+                    new InputEvent(
+                        (InputEventKind)nativeEvent->kind,
+                        value,
+                        (nativeEvent->flags & 1) != 0,
+                        nativeEvent->revision
+                    )
+                );
+                return 0;
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(previousContext);
+            }
+        }
+        catch (Exception exception)
+        {
+            RecordFailure(sessionId, exception);
+            return -113;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static int Shutdown(ulong sessionId)
     {
         try
@@ -363,13 +420,17 @@ public sealed unsafe class NativeRuntime
             {
                 return;
             }
-            if (string.IsNullOrEmpty(command.Key))
+            if (command.Utf8Key is null && string.IsNullOrEmpty(command.Key))
             {
                 throw new ArgumentException("A native resource key cannot be empty.", nameof(command));
             }
 
-            var utf8 = Encoding.UTF8.GetBytes(command.Key);
-            fixed (byte* key = utf8)
+            var keyUtf8 = command.Utf8Key ?? Encoding.UTF8.GetBytes(command.Key!);
+            var dataUtf8 = command.Data is null
+                ? Array.Empty<byte>()
+                : Encoding.UTF8.GetBytes(command.Data);
+            fixed (byte* key = keyUtf8)
+            fixed (byte* data = dataUtf8)
             {
                 var native = new NativeResourceCommand
                 {
@@ -377,7 +438,9 @@ public sealed unsafe class NativeRuntime
                     resource_kind = (ushort)command.ResourceKind,
                     command = (ushort)command.Command,
                     key = key,
-                    key_length = utf8.Length,
+                    key_length = keyUtf8.Length,
+                    data = data,
+                    data_length = dataUtf8.Length,
                     reserved = 0,
                     a = command.A,
                     b = command.B,
@@ -392,6 +455,51 @@ public sealed unsafe class NativeRuntime
                 {
                     throw new InvalidOperationException(
                         $"Native resource command failed with status {status}."
+                    );
+                }
+            }
+        }
+
+        internal void DispatchUtf8InputValue(
+            View owner,
+            ReadOnlySpan<byte> utf8Key,
+            ReadOnlySpan<byte> utf8Value
+        )
+        {
+            if (Volatile.Read(ref _stopped) != 0 || owner.RuntimeViewHandle == 0)
+            {
+                return;
+            }
+            if (utf8Key.IsEmpty)
+            {
+                throw new ArgumentException("A native resource key cannot be empty.", nameof(utf8Key));
+            }
+
+            fixed (byte* key = utf8Key)
+            fixed (byte* data = utf8Value)
+            {
+                var native = new NativeResourceCommand
+                {
+                    owner_view = owner.RuntimeViewHandle,
+                    resource_kind = (ushort)ResourceKind.Input,
+                    command = (ushort)ResourceCommandKind.InputSetValue,
+                    key = key,
+                    key_length = utf8Key.Length,
+                    data = data,
+                    data_length = utf8Value.Length,
+                    reserved = 0,
+                    a = 0,
+                    b = 0,
+                };
+                var status = _runtime._api->dispatch_command(_sessionId, &native);
+                if (status is -30 or -31)
+                {
+                    return;
+                }
+                if (status != 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Native input value command failed with status {status}."
                     );
                 }
             }
@@ -999,6 +1107,28 @@ public sealed unsafe class NativeRuntime
             }
         }
 
+        internal void DispatchInput(ulong eventToken, InputEvent inputEvent)
+        {
+            var viewHandle = (uint)(eventToken >> 32);
+            var handlerId = (uint)eventToken;
+            if (viewHandle == 0 || handlerId == 0)
+            {
+                throw new InvalidOperationException("Malformed generated input event token.");
+            }
+            if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
+            {
+                throw new InvalidOperationException(
+                    $"Input event references detached or unknown view handle {viewHandle}."
+                );
+            }
+
+            var pending = owner.DispatchInputCore(handlerId, inputEvent);
+            if (!pending.IsCompletedSuccessfully)
+            {
+                ObserveEventTask(pending);
+            }
+        }
+
         private void ObserveEventTask(ValueTask pending)
         {
             _ = pending.AsTask().ContinueWith(
@@ -1070,7 +1200,13 @@ public sealed unsafe class NativeRuntime
             try
             {
                 _ = GetRenderState(view);
-                view.AttachRuntime(handle, Post, Invalidate, DispatchResourceCommand);
+                view.AttachRuntime(
+                    handle,
+                    Post,
+                    Invalidate,
+                    DispatchResourceCommand,
+                    DispatchUtf8InputValue
+                );
             }
             catch
             {

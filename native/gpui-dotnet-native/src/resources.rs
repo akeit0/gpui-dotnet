@@ -6,17 +6,20 @@ use std::{
 };
 
 use gpui::{
-    AnyElement, IntoElement, ListAlignment, ListOffset, ListState, ParentElement, Pixels,
-    Point, ScrollHandle, SharedString, div, point, px,
+    AnyElement, AppContext, Context, Entity, IntoElement, ListAlignment, ListOffset, ListState,
+    ParentElement, Pixels, Point, ScrollHandle, SharedString, Window, div, point, px,
 };
 
 use crate::{
     abi::{ManagedCallbacks, NativeResourceCommand},
+    app_host::ManagedView,
     arena::OwnedRenderArena,
+    input::{InputBindings, ManagedInput},
     semantic::{
-        NativeAdapter, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
-        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX,
-        OP_LIST_RENDERER, OP_RESOURCE_OWNER, component_metadata,
+        NativeAdapter, OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED,
+        OP_INPUT_ON_SUBMITTED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT,
+        OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT,
+        OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_RESOURCE_OWNER, component_metadata,
     },
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
 };
@@ -40,19 +43,18 @@ pub(crate) struct ResourceCommand {
     pub(crate) command: u16,
     pub(crate) a: u64,
     pub(crate) b: u64,
+    pub(crate) data: SharedString,
 }
 
 impl ResourceCommand {
-    pub(crate) fn from_abi(command: &NativeResourceCommand, key: &str) -> Self {
+    pub(crate) fn from_abi(command: &NativeResourceCommand, key: &str, data: &str) -> Self {
         Self {
-            key: ResourceKey::new(
-                command.owner_view,
-                SharedString::new(Arc::<str>::from(key)),
-            ),
+            key: ResourceKey::new(command.owner_view, SharedString::new(Arc::<str>::from(key))),
             resource_kind: command.resource_kind,
             command: command.command,
             a: command.a,
             b: command.b,
+            data: SharedString::new(Arc::<str>::from(data)),
         }
     }
 }
@@ -62,6 +64,7 @@ pub(crate) struct ResourceStore {
     callbacks: ManagedCallbacks,
     scrolls: RefCell<HashMap<ResourceKey, Rc<ManagedScrollResource>>>,
     lists: RefCell<HashMap<ResourceKey, Rc<RefCell<ManagedListResource>>>>,
+    inputs: RefCell<HashMap<ResourceKey, Entity<ManagedInput>>>,
     pending: RefCell<HashMap<(u16, ResourceKey), Vec<ResourceCommand>>>,
     active_scratch: RefCell<HashSet<(u16, ResourceKey)>>,
 }
@@ -73,6 +76,7 @@ impl ResourceStore {
             callbacks,
             scrolls: RefCell::new(HashMap::new()),
             lists: RefCell::new(HashMap::new()),
+            inputs: RefCell::new(HashMap::new()),
             pending: RefCell::new(HashMap::new()),
             active_scratch: RefCell::new(HashSet::new()),
         }
@@ -84,7 +88,9 @@ impl ResourceStore {
         }
 
         let resource = Rc::new(ManagedScrollResource::new());
-        self.scrolls.borrow_mut().insert(key.clone(), resource.clone());
+        self.scrolls
+            .borrow_mut()
+            .insert(key.clone(), resource.clone());
         self.apply_pending(1, key);
         resource
     }
@@ -129,10 +135,63 @@ impl ResourceStore {
         resource
     }
 
+    pub(crate) fn input_resource(
+        &self,
+        configuration: &InputConfiguration,
+        window: &mut Window,
+        cx: &mut Context<ManagedView>,
+    ) -> Entity<ManagedInput> {
+        let existing = self.inputs.borrow().get(&configuration.key).cloned();
+        let resource = if let Some(existing) = existing {
+            existing
+        } else {
+            let initial_value = configuration.initial_value.clone();
+            let placeholder = configuration.placeholder.clone();
+            let created = cx.new(|cx| {
+                ManagedInput::new(
+                    self.session_id,
+                    self.callbacks,
+                    initial_value.as_ref(),
+                    placeholder.as_ref(),
+                    configuration.disabled,
+                    configuration.read_only,
+                    configuration.password,
+                    configuration.bindings,
+                    cx,
+                )
+            });
+            self.inputs
+                .borrow_mut()
+                .insert(configuration.key.clone(), created.clone());
+            created
+        };
+
+        resource.update(cx, |input, cx| {
+            input.configure(
+                configuration.placeholder.as_ref(),
+                configuration.disabled,
+                configuration.read_only,
+                configuration.password,
+                configuration.bindings,
+                cx,
+            );
+        });
+        let pending = self
+            .pending
+            .borrow_mut()
+            .remove(&(3, configuration.key.clone()))
+            .unwrap_or_default();
+        for command in pending {
+            resource.update(cx, |input, cx| input.apply_command(&command, window, cx));
+        }
+        resource
+    }
+
     pub(crate) fn dispatch(&self, command: ResourceCommand) -> bool {
         let applied = match command.resource_kind {
             1 => self.apply_scroll_command(&command),
             2 => self.apply_list_command(&command),
+            3 => false,
             _ => true,
         };
         if !applied {
@@ -148,7 +207,9 @@ impl ResourceStore {
     fn apply_pending(&self, resource_kind: u16, key: &ResourceKey) {
         let pending_key = (resource_kind, key.clone());
         let commands = self.pending.borrow_mut().remove(&pending_key);
-        let Some(commands) = commands else { return; };
+        let Some(commands) = commands else {
+            return;
+        };
         for command in commands {
             let _ = match command.resource_kind {
                 1 => self.apply_scroll_command(&command),
@@ -194,17 +255,25 @@ impl ResourceStore {
         let mut active = self.active_scratch.borrow_mut();
         active.clear();
         for node in &snapshot.nodes {
-            let Some(metadata) = component_metadata(node.component) else { continue; };
-            if !matches!(metadata.adapter, NativeAdapter::Scroll | NativeAdapter::List) {
+            let Some(metadata) = component_metadata(node.component) else {
+                continue;
+            };
+            if !matches!(
+                metadata.adapter,
+                NativeAdapter::Scroll | NativeAdapter::List | NativeAdapter::Input
+            ) {
                 continue;
             }
-            if let Some(owner) = last_u32(snapshot, node, OP_RESOURCE_OWNER) {
-                let kind = match metadata.adapter {
-                    NativeAdapter::Scroll => 1,
-                    NativeAdapter::List => 2,
-                    _ => continue,
-                };
-                active.insert((kind, ResourceKey::new(owner, node.data.clone())));
+            let active_resource = match metadata.adapter {
+                NativeAdapter::Scroll => resource_key(snapshot, node).map(|key| (1, key)),
+                NativeAdapter::List => resource_key(snapshot, node).map(|key| (2, key)),
+                NativeAdapter::Input => {
+                    input_configuration(snapshot, node).map(|configuration| (3, configuration.key))
+                }
+                _ => None,
+            };
+            if let Some(resource) = active_resource {
+                active.insert(resource);
             }
         }
         self.scrolls
@@ -213,10 +282,23 @@ impl ResourceStore {
         self.lists
             .borrow_mut()
             .retain(|key, _| active.contains(&(2, key.clone())));
+        self.inputs
+            .borrow_mut()
+            .retain(|key, _| active.contains(&(3, key.clone())));
         self.pending
             .borrow_mut()
             .retain(|(kind, key), _| active.contains(&(*kind, key.clone())));
     }
+}
+
+pub(crate) struct InputConfiguration {
+    pub(crate) key: ResourceKey,
+    pub(crate) initial_value: SharedString,
+    pub(crate) placeholder: SharedString,
+    pub(crate) disabled: bool,
+    pub(crate) read_only: bool,
+    pub(crate) password: bool,
+    pub(crate) bindings: InputBindings,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -445,7 +527,9 @@ impl ManagedListResource {
         list_key: &ResourceKey,
     ) -> AnyElement {
         if index >= self.item_count {
-            return div().child("List item index is outside item_count.").into_any_element();
+            return div()
+                .child("List item index is outside item_count.")
+                .into_any_element();
         }
 
         let batch_size = self.batch_size.max(1);
@@ -455,7 +539,9 @@ impl ManagedListResource {
         if !self.batches.contains_key(&start_u32) {
             if let Err(status) = self.load_batch(start_u32) {
                 return div()
-                    .child(format!("Managed list range render failed with status {status}."))
+                    .child(format!(
+                        "Managed list range render failed with status {status}."
+                    ))
                     .into_any_element();
             }
             self.trim_batches();
@@ -464,9 +550,13 @@ impl ManagedListResource {
         let batch = self.batches.get_mut(&start_u32).expect("batch was loaded");
         batch.last_used = self.use_clock;
         let local = index - start;
-        let roots = batch.snapshot.children(&batch.snapshot.nodes[batch.snapshot.root as usize]);
+        let roots = batch
+            .snapshot
+            .children(&batch.snapshot.nodes[batch.snapshot.root as usize]);
         let Some(root) = roots.get(local).copied() else {
-            return div().child("Managed list batch returned the wrong item count.").into_any_element();
+            return div()
+                .child("Managed list batch returned the wrong item count.")
+                .into_any_element();
         };
 
         crate::materializer::materialize_snapshot_node_detached(
@@ -524,7 +614,8 @@ impl ManagedListResource {
     fn trim_batches(&mut self) {
         const MAX_BATCHES: usize = 4;
         while self.batches.len() > MAX_BATCHES {
-            let Some((&oldest, _)) = self.batches.iter().min_by_key(|(_, batch)| batch.last_used) else {
+            let Some((&oldest, _)) = self.batches.iter().min_by_key(|(_, batch)| batch.last_used)
+            else {
                 break;
             };
             self.batches.remove(&oldest);
@@ -552,12 +643,47 @@ impl CachedBatch {
     }
 }
 
-pub(crate) fn resource_key(snapshot: &ValidatedSnapshot, node: &crate::snapshot::SnapshotNode) -> Option<ResourceKey> {
+pub(crate) fn resource_key(
+    snapshot: &ValidatedSnapshot,
+    node: &crate::snapshot::SnapshotNode,
+) -> Option<ResourceKey> {
     let owner = last_u32(snapshot, node, OP_RESOURCE_OWNER)?;
     if owner == 0 || node.data.is_empty() {
         return None;
     }
     Some(ResourceKey::new(owner, node.data.clone()))
+}
+
+pub(crate) fn input_configuration(
+    snapshot: &ValidatedSnapshot,
+    node: &crate::snapshot::SnapshotNode,
+) -> Option<InputConfiguration> {
+    let owner = last_u32(snapshot, node, OP_RESOURCE_OWNER)?;
+    if owner == 0 {
+        return None;
+    }
+
+    let mut fields = node.data.split('\0');
+    let key = fields.next()?;
+    let initial_value = fields.next()?;
+    let placeholder = fields.next()?;
+    if key.is_empty() || fields.next().is_some() {
+        return None;
+    }
+
+    Some(InputConfiguration {
+        key: ResourceKey::new(owner, shared(key)),
+        initial_value: shared(initial_value),
+        placeholder: shared(placeholder),
+        disabled: last_u32(snapshot, node, OP_INPUT_DISABLED).is_some_and(|value| value != 0),
+        read_only: last_u32(snapshot, node, OP_INPUT_READ_ONLY).is_some_and(|value| value != 0),
+        password: last_u32(snapshot, node, OP_INPUT_PASSWORD).is_some_and(|value| value != 0),
+        bindings: InputBindings {
+            changed: last_callback(snapshot, node, OP_INPUT_ON_CHANGED),
+            submitted: last_callback(snapshot, node, OP_INPUT_ON_SUBMITTED),
+            focus_changed: last_callback(snapshot, node, OP_INPUT_ON_FOCUS_CHANGED),
+        },
+    })
 }
 
 pub(crate) fn list_configuration(
@@ -571,7 +697,9 @@ pub(crate) fn list_configuration(
         .rev()
         .find(|op| op.code == OP_LIST_RENDERER)?
         .a;
-    let batch_size = last_u32(snapshot, node, OP_LIST_BATCH_SIZE).unwrap_or(48).clamp(1, 512) as usize;
+    let batch_size = last_u32(snapshot, node, OP_LIST_BATCH_SIZE)
+        .unwrap_or(48)
+        .clamp(1, 512) as usize;
     let overdraw = snapshot
         .ops(node)
         .iter()
@@ -609,4 +737,21 @@ fn last_u32(
         .rev()
         .find(|op| op.code == code)
         .map(|op| op.a as u32)
+}
+
+fn last_callback(
+    snapshot: &ValidatedSnapshot,
+    node: &crate::snapshot::SnapshotNode,
+    code: u16,
+) -> u64 {
+    snapshot
+        .ops(node)
+        .iter()
+        .rev()
+        .find(|op| op.code == code)
+        .map_or(0, |op| op.a)
+}
+
+fn shared(value: &str) -> SharedString {
+    SharedString::new(Arc::<str>::from(value))
 }

@@ -48,4 +48,94 @@ public sealed class SemanticRenderTests
             image.Fit((ImageFit)99)
         );
     }
+
+    [Fact]
+    public void Utf8InputConfigurationPassesManagedValidation()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var input = ui.Input(
+                "検索"u8,
+                new Utf8InputOptions("初期値"u8, "キーワード"u8, password: true)
+            );
+
+            arena.Validate(input);
+
+            var stats = arena.GetStats();
+            Assert.Equal(1, stats.Nodes);
+            Assert.Equal("検索"u8.Length + "初期値"u8.Length + "キーワード"u8.Length + 2, stats.Utf8Bytes);
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void InputEventOwnsUtf8AndDecodesOnlyOnce()
+    {
+        var input = new InputEvent(InputEventKind.Changed, "こんにちは"u8.ToArray(), true, 7);
+
+        Assert.True(input.Utf8Value.Span.SequenceEqual("こんにちは"u8));
+        var first = input.Value;
+        Assert.Same(first, input.Value);
+        Assert.Equal("こんにちは", first);
+        Assert.True(input.IsFocused);
+        Assert.Equal(7UL, input.Revision);
+    }
+
+    [Fact]
+    public void Utf8SetValueDoesNotAllocatePerCommand()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            var controller = new InputController(view, "search");
+            controller.SetValue("warmup"u8);
+
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            controller.SetValue("allocation-free UTF-8"u8);
+            var after = GC.GetAllocatedBytesForCurrentThread();
+
+            Assert.Equal(before, after);
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    private static void Attach(ProbeView view) =>
+        view.AttachRuntime(
+            1,
+            static callback => callback(),
+            static _ => { },
+            static (_, _) => { },
+            static (_, _, _) => { }
+        );
+
+    private sealed class ProbeView : View
+    {
+        protected override Element Render(ref RenderContext ui) => ui.Div();
+    }
+
+    private sealed unsafe class NoopRenderer : IViewRenderer
+    {
+        public Element RenderChild<TView>(View parent, ChildSlot slot, Gpui.Interop.RenderArena* destination)
+            where TView : View, IGeneratedViewFactory<TView> => throw new NotSupportedException();
+
+        public Element RenderChild<TView, TProps>(View parent, ChildSlot slot, in TProps props, Gpui.Interop.RenderArena* destination)
+            where TView : View<TProps>, IGeneratedViewFactory<TView> => throw new NotSupportedException();
+
+        public Element RenderChild(View view, View parent, ChildSlot slot, Gpui.Interop.RenderArena* destination) =>
+            throw new NotSupportedException();
+
+        public Element RenderChild<TProps>(View<TProps> view, View parent, ChildSlot slot, in TProps props, Gpui.Interop.RenderArena* destination) =>
+            throw new NotSupportedException();
+    }
 }

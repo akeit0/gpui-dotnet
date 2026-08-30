@@ -169,7 +169,7 @@ impl ManagedView {
                 self.has_snapshot = true;
                 self.snapshot_revision = self.snapshot_revision.wrapping_add(1).max(1);
                 self.resources.retain_snapshot(&self.snapshot);
-            },
+            }
             Err(status) => {
                 self.error = Some(format!(
                     "Render snapshot validation failed with status {status}."
@@ -194,7 +194,7 @@ impl ManagedView {
 }
 
 impl Render for ManagedView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.refresh_if_dirty();
 
         let content = if let Some(error) = &self.error {
@@ -204,7 +204,7 @@ impl Render for ManagedView {
                 .child(error.clone())
                 .into_any_element()
         } else if self.has_snapshot {
-            self.materialize_node(self.snapshot.root, &self.snapshot, cx)
+            self.materialize_node(self.snapshot.root, &self.snapshot, window, cx)
         } else {
             div()
                 .child("No managed snapshot was published.")
@@ -235,6 +235,7 @@ pub fn run(view_id: u64, callbacks: ManagedCallbacks, title: &str, width: f32, h
     let shutdown_status_in_app = Arc::clone(&shutdown_status);
 
     Application::new().run(move |cx: &mut App| {
+        crate::input::init(cx);
         let shutdown_status = Arc::clone(&shutdown_status_in_app);
         let shutdown_callbacks = callbacks;
         cx.on_window_closed(move |cx| {
@@ -242,7 +243,9 @@ pub fn run(view_id: u64, callbacks: ManagedCallbacks, title: &str, width: f32, h
                 let status = unsafe {
                     shutdown_callbacks
                         .shutdown
-                        .expect("callbacks were validated before application startup")(view_id)
+                        .expect("callbacks were validated before application startup")(
+                        view_id
+                    )
                 };
                 shutdown_status.store(status, Ordering::Release);
                 cx.quit();
@@ -286,9 +289,10 @@ fn create_managed_view(
                     ViewMessage::Invalidate => {
                         invalidate_pending.store(false, Ordering::Release);
                         view.invalidate(cx);
-                    },
+                    }
                     ViewMessage::ResourceCommand(command) => {
                         let notify_native_only = command.resource_kind == 1
+                            || command.resource_kind == 3
                             || (command.resource_kind == 2 && command.command == 10);
                         view.resources.dispatch(command);
                         if notify_native_only {

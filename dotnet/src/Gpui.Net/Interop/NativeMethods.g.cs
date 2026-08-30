@@ -21,7 +21,7 @@ namespace Gpui.Interop
 
 
         [DllImport(__DllName, EntryPoint = "gpui_dotnet_get_api", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        internal static extern GpuiDotnetApiV3* gpui_dotnet_get_api(uint requested_version);
+        internal static extern GpuiDotnetApiV4* gpui_dotnet_get_api(uint requested_version);
 
 
     }
@@ -92,9 +92,23 @@ namespace Gpui.Interop
         public ushort command;
         public byte* key;
         public int key_length;
+        public byte* data;
+        public int data_length;
         public uint reserved;
         public ulong a;
         public ulong b;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal unsafe partial struct NativeControlEvent
+    {
+        public ushort kind;
+        public ushort flags;
+        public uint reserved;
+        public ulong revision;
+        public byte* data;
+        public int data_length;
+        public uint reserved2;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -104,11 +118,12 @@ namespace Gpui.Interop
         public delegate* unmanaged[Cdecl]<ulong, RenderArena*, uint*, int> render;
         public delegate* unmanaged[Cdecl]<ulong, ulong, ulong, NativeClickEvent*, int> click;
         public delegate* unmanaged[Cdecl]<ulong, ulong, uint, uint, RenderArena*, uint*, int> list_render_range;
+        public delegate* unmanaged[Cdecl]<ulong, ulong, NativeControlEvent*, int> control_event;
         public delegate* unmanaged[Cdecl]<ulong, int> shutdown;
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    internal unsafe partial struct GpuiDotnetApiV3
+    internal unsafe partial struct GpuiDotnetApiV4
     {
         public uint struct_size;
         public uint abi_version;

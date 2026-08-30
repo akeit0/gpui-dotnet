@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Gpui;
 
 /// <summary>Scroll direction for a retained native scroll container.</summary>
@@ -214,10 +216,75 @@ public readonly struct ListController
     private string Key => _key ?? throw new InvalidOperationException("Default ListController cannot be used.");
 }
 
+/// <summary>
+/// Imperative handle for a retained native input declared by the same View with ui.Input().
+/// Native user edits do not require controller calls.
+/// </summary>
+public readonly struct InputController
+{
+    private readonly View? _owner;
+    private readonly byte[]? _utf8Key;
+
+    internal InputController(View owner, string key)
+    {
+        _owner = owner;
+        _utf8Key = Encoding.UTF8.GetBytes(key);
+    }
+
+    internal InputController(View owner, ReadOnlySpan<byte> utf8Key)
+    {
+        _owner = owner;
+        _utf8Key = utf8Key.ToArray();
+    }
+
+    public bool IsDefault => _owner is null;
+
+    public void Focus() => Dispatch(ResourceCommandKind.InputFocus);
+
+    public void Blur() => Dispatch(ResourceCommandKind.InputBlur);
+
+    public void SelectAll() => Dispatch(ResourceCommandKind.InputSelectAll);
+
+    /// <summary>Replaces the native value and moves the caret to its end.</summary>
+    public void SetValue(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        Owner.DispatchResourceCommand(
+            new ResourceCommand(
+                ResourceKind.Input,
+                ResourceCommandKind.InputSetValue,
+                null,
+                0,
+                0,
+                value,
+                Utf8KeyArray
+            )
+        );
+    }
+
+    /// <summary>
+    /// Replaces the native value from UTF-8 and moves the caret to its end. The bytes are copied
+    /// so the command remains safe after this call returns.
+    /// </summary>
+    public void SetValue(ReadOnlySpan<byte> utf8Value)
+    {
+        Owner.DispatchUtf8InputValue(Utf8KeyArray, utf8Value);
+    }
+
+    private void Dispatch(ResourceCommandKind command) =>
+        Owner.DispatchResourceCommand(
+            new ResourceCommand(ResourceKind.Input, command, null, 0, 0, null, Utf8KeyArray)
+        );
+
+    private View Owner => _owner ?? throw new InvalidOperationException("Default InputController cannot be used.");
+    private byte[] Utf8KeyArray => _utf8Key ?? throw new InvalidOperationException("Default InputController cannot be used.");
+}
+
 internal enum ResourceKind : ushort
 {
     Scroll = 1,
     List = 2,
+    Input = 3,
 }
 
 internal enum ResourceCommandKind : ushort
@@ -229,12 +296,18 @@ internal enum ResourceCommandKind : ushort
     ListSplice = 11,
     ListReset = 12,
     ListRefresh = 13,
+    InputFocus = 20,
+    InputBlur = 21,
+    InputSetValue = 22,
+    InputSelectAll = 23,
 }
 
 internal readonly record struct ResourceCommand(
     ResourceKind ResourceKind,
     ResourceCommandKind Command,
-    string Key,
+    string? Key,
     ulong A,
-    ulong B
+    ulong B,
+    string? Data = null,
+    byte[]? Utf8Key = null
 );

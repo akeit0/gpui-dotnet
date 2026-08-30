@@ -600,8 +600,9 @@ internal static class BindingGenerator
         builder.AppendLine();
         builder.AppendLine("impl OperationMetadata {");
         builder.AppendLine("    pub fn applies_to(self, component: u16) -> bool {");
-        builder.AppendLine("        component_metadata(component)");
-        builder.AppendLine("            .is_some_and(|metadata| metadata.capabilities & self.required_capability == self.required_capability)");
+        builder.AppendLine("        component_metadata(component).is_some_and(|metadata| {");
+        builder.AppendLine("            metadata.capabilities & self.required_capability == self.required_capability");
+        builder.AppendLine("        })");
         builder.AppendLine("    }");
         builder.AppendLine("}");
         builder.AppendLine();
@@ -651,7 +652,11 @@ internal static class BindingGenerator
         builder.AppendLine("        let operation_ids: HashSet<_> = OPERATIONS.iter().map(|item| item.id).collect();");
         builder.AppendLine("        assert_eq!(component_ids.len(), COMPONENTS.len());");
         builder.AppendLine("        assert_eq!(operation_ids.len(), OPERATIONS.len());");
-        builder.AppendLine("        assert!(OPERATIONS.iter().all(|operation| COMPONENTS.iter().any(|component| operation.applies_to(component.id))));");
+        builder.AppendLine("        assert!(OPERATIONS.iter().all(|operation| {");
+        builder.AppendLine("            COMPONENTS");
+        builder.AppendLine("                .iter()");
+        builder.AppendLine("                .any(|component| operation.applies_to(component.id))");
+        builder.AppendLine("        }));");
         builder.AppendLine("    }");
         builder.AppendLine();
         builder.AppendLine("    #[test]");

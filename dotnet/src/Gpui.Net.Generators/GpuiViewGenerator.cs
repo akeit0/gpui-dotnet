@@ -18,7 +18,7 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
 
     private static readonly DiagnosticDescriptor MustBePartial = Error("GPUI001", "GPUI view must be partial", "'{0}' is marked [GpuiView] and must be declared partial");
     private static readonly DiagnosticDescriptor UnsupportedContainer = Error("GPUI002", "Unsupported generated view declaration", "'{0}' must be a non-generic top-level public or internal class to use generated GPUI view support");
-    private static readonly DiagnosticDescriptor InvalidHandler = Error("GPUI003", "Invalid GPUI event handler", "Handler '{0}' must be an instance, non-generic method with zero parameters or one ClickEvent parameter and return void, Task, or ValueTask");
+    private static readonly DiagnosticDescriptor InvalidHandler = Error("GPUI003", "Invalid GPUI event handler", "Handler '{0}' must be an instance, non-generic method with zero parameters or one ClickEvent/InputEvent parameter and return void, Task, or ValueTask");
     private static readonly DiagnosticDescriptor AsyncVoidHandler = Error("GPUI004", "async void GPUI handler is not supported", "Handler '{0}' is async void; return ValueTask or Task so the runtime can observe completion and exceptions");
     private static readonly DiagnosticDescriptor HandlerCollision = Error("GPUI005", "Generated GPUI handler id collision", "Handlers '{0}' and '{1}' generated the same id; rename one handler");
     private static readonly DiagnosticDescriptor ReservedEventsMember = Error("GPUI006", "Events member is reserved", "'{0}' declares a member named 'Events'; [GpuiView] reserves that name for generated event bindings");
@@ -177,18 +177,32 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
     {
         handler = null!;
         if (method.IsStatic || method.IsGenericMethod || method.MethodKind != MethodKind.Ordinary || method.Parameters.Length > 1) return false;
-        var takesClick = false;
+        var eventKind = HandlerEventKind.Click;
+        var takesEvent = false;
         if (method.Parameters.Length == 1)
         {
             var parameter = method.Parameters[0];
-            if (parameter.RefKind != RefKind.None || !IsNamedType(parameter.Type, "Gpui", "ClickEvent")) return false;
-            takesClick = true;
+            if (parameter.RefKind != RefKind.None) return false;
+            if (IsNamedType(parameter.Type, "Gpui", "ClickEvent"))
+            {
+                eventKind = HandlerEventKind.Click;
+            }
+            else if (IsNamedType(parameter.Type, "Gpui", "InputEvent"))
+            {
+                eventKind = HandlerEventKind.Input;
+            }
+            else
+            {
+                return false;
+            }
+            takesEvent = true;
         }
         var returnKind = GetReturnKind(method.ReturnType);
         if (returnKind == HandlerReturnKind.Unsupported) return false;
-        var signature = view.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "." + method.Name + (takesClick ? "(Gpui.ClickEvent)" : "()") + ":" + returnKind;
+        var eventSignature = eventKind == HandlerEventKind.Input ? "Gpui.InputEvent" : "Gpui.ClickEvent";
+        var signature = view.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + "." + method.Name + (takesEvent ? $"({eventSignature})" : "()") + ":" + returnKind;
         var id = NonZeroFnv(signature);
-        handler = new HandlerModel(method, id, takesClick, returnKind);
+        handler = new HandlerModel(method, id, eventKind, takesEvent, returnKind);
         return true;
     }
 
@@ -287,18 +301,34 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
         builder.AppendLine();
         foreach (var handler in handlers)
         {
-            builder.Append("        internal global::Gpui.Callback<global::Gpui.ClickEvent> ").Append(EscapeIdentifier(handler.Method.Name)).Append(" => _owner.BindClick(0x").Append(handler.Id.ToString("X8")).AppendLine("u);");
+            var eventType = handler.EventKind == HandlerEventKind.Input
+                ? "global::Gpui.InputEvent"
+                : "global::Gpui.ClickEvent";
+            var binder = handler.EventKind == HandlerEventKind.Input ? "BindInput" : "BindClick";
+            builder.Append("        internal global::Gpui.Callback<").Append(eventType).Append("> ").Append(EscapeIdentifier(handler.Method.Name)).Append(" => _owner.").Append(binder).Append("(0x").Append(handler.Id.ToString("X8")).AppendLine("u);");
         }
         builder.AppendLine("    }");
+        AppendEventDispatch(builder, handlers.Where(handler => handler.EventKind == HandlerEventKind.Click).ToArray(), HandlerEventKind.Click);
+        AppendEventDispatch(builder, handlers.Where(handler => handler.EventKind == HandlerEventKind.Input).ToArray(), HandlerEventKind.Input);
+    }
+
+    private static void AppendEventDispatch(StringBuilder builder, IReadOnlyList<HandlerModel> handlers, HandlerEventKind eventKind)
+    {
+        if (handlers.Count == 0) return;
+        var isInput = eventKind == HandlerEventKind.Input;
+        var eventType = isInput ? "global::Gpui.InputEvent" : "global::Gpui.ClickEvent";
+        var eventName = isInput ? "inputEvent" : "clickEvent";
+        var dispatchName = isInput ? "DispatchInputAsync" : "DispatchClickAsync";
+
         builder.AppendLine();
-        builder.AppendLine("    protected override global::System.Threading.Tasks.ValueTask DispatchClickAsync(uint handlerId, global::Gpui.ClickEvent clickEvent)");
+        builder.Append("    protected override global::System.Threading.Tasks.ValueTask ").Append(dispatchName).Append("(uint handlerId, ").Append(eventType).Append(' ').Append(eventName).AppendLine(")");
         builder.AppendLine("    {");
         builder.AppendLine("        switch (handlerId)");
         builder.AppendLine("        {");
         foreach (var handler in handlers)
         {
             builder.Append("            case 0x").Append(handler.Id.ToString("X8")).AppendLine("u:");
-            var call = EscapeIdentifier(handler.Method.Name) + (handler.TakesClickEvent ? "(clickEvent)" : "()");
+            var call = EscapeIdentifier(handler.Method.Name) + (handler.TakesEvent ? $"({eventName})" : "()");
             switch (handler.ReturnKind)
             {
                 case HandlerReturnKind.Void:
@@ -314,7 +344,7 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
             }
         }
         builder.AppendLine("            default:");
-        builder.AppendLine("                return base.DispatchClickAsync(handlerId, clickEvent);");
+        builder.Append("                return base.").Append(dispatchName).Append("(handlerId, ").Append(eventName).AppendLine(");");
         builder.AppendLine("        }");
         builder.AppendLine("    }");
     }
@@ -382,16 +412,18 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
     }
 
     private enum HandlerReturnKind { Unsupported, Void, Task, ValueTask }
+    private enum HandlerEventKind { Click, Input }
 
     private sealed class HandlerModel
     {
-        internal HandlerModel(IMethodSymbol method, uint id, bool takesClickEvent, HandlerReturnKind returnKind)
+        internal HandlerModel(IMethodSymbol method, uint id, HandlerEventKind eventKind, bool takesEvent, HandlerReturnKind returnKind)
         {
-            Method = method; Id = id; TakesClickEvent = takesClickEvent; ReturnKind = returnKind;
+            Method = method; Id = id; EventKind = eventKind; TakesEvent = takesEvent; ReturnKind = returnKind;
         }
         internal IMethodSymbol Method { get; }
         internal uint Id { get; }
-        internal bool TakesClickEvent { get; }
+        internal HandlerEventKind EventKind { get; }
+        internal bool TakesEvent { get; }
         internal HandlerReturnKind ReturnKind { get; }
     }
 

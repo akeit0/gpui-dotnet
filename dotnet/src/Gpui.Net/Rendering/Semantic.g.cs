@@ -17,6 +17,7 @@ namespace Gpui.Interop
         Scroll = 9,
         List = 10,
         Image = 11,
+        Input = 12,
     }
 
     internal enum OpCode : ushort
@@ -53,6 +54,12 @@ namespace Gpui.Interop
         ListEstimatedItemHeightPx = 315,
         ImageObjectFit = 400,
         ImageGrayscale = 401,
+        InputDisabled = 500,
+        InputReadOnly = 501,
+        InputPassword = 502,
+        InputOnChanged = 503,
+        InputOnSubmitted = 504,
+        InputOnFocusChanged = 505,
     }
 
     internal enum ValueKind : ushort
@@ -65,8 +72,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 8;
-        internal const ulong SchemaHash = 0xE5AA02EB154169D1UL;
+        internal const uint SchemaVersion = 9;
+        internal const ulong SchemaHash = 0x64EAD325E7854DAEUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -81,6 +88,7 @@ namespace Gpui.Interop
             ComponentId.Scroll => true,
             ComponentId.List => true,
             ComponentId.Image => true,
+            ComponentId.Input => true,
             _ => false,
         };
 
@@ -118,6 +126,12 @@ namespace Gpui.Interop
             OpCode.ListEstimatedItemHeightPx => ValueKind.F32,
             OpCode.ImageObjectFit => ValueKind.U32,
             OpCode.ImageGrayscale => ValueKind.U32,
+            OpCode.InputDisabled => ValueKind.U32,
+            OpCode.InputReadOnly => ValueKind.U32,
+            OpCode.InputPassword => ValueKind.U32,
+            OpCode.InputOnChanged => ValueKind.Callback,
+            OpCode.InputOnSubmitted => ValueKind.Callback,
+            OpCode.InputOnFocusChanged => ValueKind.Callback,
             _ => null,
         };
 
@@ -134,6 +148,7 @@ namespace Gpui.Interop
             ComponentId.Scroll => 0x0000000000000067UL,
             ComponentId.List => 0x00000000000000A1UL,
             ComponentId.Image => 0x0000000000000101UL,
+            ComponentId.Input => 0x0000000000000221UL,
             _ => 0,
         };
 
@@ -171,6 +186,12 @@ namespace Gpui.Interop
             OpCode.ListEstimatedItemHeightPx => 0x0000000000000080UL,
             OpCode.ImageObjectFit => 0x0000000000000100UL,
             OpCode.ImageGrayscale => 0x0000000000000100UL,
+            OpCode.InputDisabled => 0x0000000000000200UL,
+            OpCode.InputReadOnly => 0x0000000000000200UL,
+            OpCode.InputPassword => 0x0000000000000200UL,
+            OpCode.InputOnChanged => 0x0000000000000200UL,
+            OpCode.InputOnSubmitted => 0x0000000000000200UL,
+            OpCode.InputOnFocusChanged => 0x0000000000000200UL,
             _ => 0,
         };
 
@@ -193,6 +214,7 @@ namespace Gpui
     public interface IScrollableElementTag { }
     public interface IVirtualizedElementTag { }
     public interface IImageElementTag { }
+    public interface IInputElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
@@ -205,6 +227,7 @@ namespace Gpui
     public readonly struct ScrollTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IScrollableElementTag { }
     public readonly struct ListTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag { }
     public readonly struct ImageTag : IStyledElementTag, IImageElementTag { }
+    public readonly struct InputTag : IStyledElementTag, INativeStateElementTag, IInputElementTag { }
 
     public readonly unsafe ref partial struct RenderContext
     {

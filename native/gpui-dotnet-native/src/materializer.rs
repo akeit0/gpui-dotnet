@@ -2,15 +2,15 @@ use std::path::PathBuf;
 
 use gpui::{
     AnyElement, ClickEvent, Context, InteractiveElement, IntoElement, ObjectFit, ParentElement,
-    SharedString, StatefulInteractiveElement, Styled, StyledImage, div, img, list, px, relative,
-    rgba,
+    SharedString, StatefulInteractiveElement, Styled, StyledImage, Window, div, img, list, px,
+    relative, rgba,
 };
 
 use crate::{
     abi::{ManagedCallbacks, NativeClickEvent},
     app_host::ManagedView,
     components,
-    resources::{ResourceStore, list_configuration, resource_key},
+    resources::{ResourceStore, input_configuration, list_configuration, resource_key},
     scrolling::{list_overlay, scroll_overlay},
     semantic::{
         CAPABILITY_INTERACTIVE, NativeAdapter, OP_BACKGROUND_RGBA, OP_BORDER_RGBA,
@@ -30,17 +30,19 @@ impl ManagedView {
         &self,
         node_id: u32,
         snapshot: &ValidatedSnapshot,
-        cx: &Context<Self>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
     ) -> AnyElement {
         let node = &snapshot.nodes[node_id as usize];
         let metadata = component_metadata(node.component)
             .expect("validated snapshots only contain registered components");
 
         match metadata.adapter {
-            NativeAdapter::Scroll => self.materialize_scroll(node_id, node, snapshot, cx),
+            NativeAdapter::Scroll => self.materialize_scroll(node_id, node, snapshot, window, cx),
             NativeAdapter::List => self.materialize_list(node, snapshot),
             NativeAdapter::Image => materialize_image(node, snapshot),
-            _ => self.materialize_regular(node_id, node, snapshot, cx),
+            NativeAdapter::Input => self.materialize_input(node, snapshot, window, cx),
+            _ => self.materialize_regular(node_id, node, snapshot, window, cx),
         }
     }
 
@@ -49,7 +51,8 @@ impl ManagedView {
         node_id: u32,
         node: &SnapshotNode,
         snapshot: &ValidatedSnapshot,
-        cx: &Context<Self>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
     ) -> AnyElement {
         let metadata = component_metadata(node.component).unwrap();
         let mut element = components::apply_defaults(metadata.adapter, div(), node, snapshot);
@@ -58,7 +61,7 @@ impl ManagedView {
             element = element.child(node.data.clone());
         }
         for child in snapshot.children(node) {
-            element = element.child(self.materialize_node(*child, snapshot, cx));
+            element = element.child(self.materialize_node(*child, snapshot, window, cx));
         }
         element = apply_styles(element, node, snapshot);
         if last_op(snapshot, node, OP_FLEX_GROW).is_some() {
@@ -105,7 +108,8 @@ impl ManagedView {
         _node_id: u32,
         node: &SnapshotNode,
         snapshot: &ValidatedSnapshot,
-        cx: &Context<Self>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
     ) -> AnyElement {
         let Some(key) = resource_key(snapshot, node) else {
             return div()
@@ -119,7 +123,7 @@ impl ManagedView {
         // maximum offset that ends before the actual final child.
         let mut content = div().flex().flex_col().flex_shrink_0();
         for child in snapshot.children(node) {
-            content = content.child(self.materialize_node(*child, snapshot, cx));
+            content = content.child(self.materialize_node(*child, snapshot, window, cx));
         }
         let element_id = format!("managed-scroll-{}-{}", key.owner_view, key.key);
         let stateful = div()
@@ -197,6 +201,39 @@ impl ManagedView {
             .child(overlay)
             .into_any_element()
     }
+
+    fn materialize_input(
+        &self,
+        node: &SnapshotNode,
+        snapshot: &ValidatedSnapshot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let Some(configuration) = input_configuration(snapshot, node) else {
+            return div()
+                .child("Input resource is missing its owner or configuration.")
+                .into_any_element();
+        };
+        let disabled = configuration.disabled;
+        let input = self.resources.input_resource(&configuration, window, cx);
+        let mut element = div()
+            .w(px(280.))
+            .h(px(38.))
+            .min_w_0()
+            .px(px(10.))
+            .flex()
+            .items_center()
+            .overflow_hidden()
+            .rounded(px(6.))
+            .border(px(1.))
+            .border_color(rgba(0xCBD5E1FF))
+            .bg(rgba(0xFFFFFFFF))
+            .child(input);
+        if disabled {
+            element = element.opacity(0.55);
+        }
+        apply_styles(element, node, snapshot).into_any_element()
+    }
 }
 
 /// Materialization used by native list batch caches. It deliberately has no ManagedView Context,
@@ -214,11 +251,11 @@ pub(crate) fn materialize_snapshot_node_detached(
     let metadata = component_metadata(node.component).unwrap();
     if matches!(
         metadata.adapter,
-        NativeAdapter::Scroll | NativeAdapter::List
+        NativeAdapter::Scroll | NativeAdapter::List | NativeAdapter::Input
     ) {
         return div()
             .child(
-                "Retained Scroll/List resources inside a virtualized list row are not supported.",
+                "Retained Scroll/List/Input resources inside a virtualized list row are not supported.",
             )
             .into_any_element();
     }

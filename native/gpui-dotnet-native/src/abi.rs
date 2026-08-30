@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-pub const ABI_VERSION: u32 = 3;
+pub const ABI_VERSION: u32 = 4;
 pub const ARENA_FLAG_NATIVE_OWNED: u32 = 1;
 pub const RENDER_GROW_REQUIRED: i32 = 1;
 
@@ -69,15 +69,30 @@ pub struct NativeResourceCommand {
     pub command: u16,
     pub key: *const u8,
     pub key_length: i32,
+    pub data: *const u8,
+    pub data_length: i32,
     pub reserved: u32,
     pub a: u64,
     pub b: u64,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct NativeControlEvent {
+    pub kind: u16,
+    pub flags: u16,
+    pub reserved: u32,
+    pub revision: u64,
+    pub data: *const u8,
+    pub data_length: i32,
+    pub reserved2: u32,
 }
 
 pub type ManagedRenderFn = unsafe extern "C" fn(u64, *mut RenderArena, *mut u32) -> i32;
 pub type ManagedClickFn = unsafe extern "C" fn(u64, u64, u64, *const NativeClickEvent) -> i32;
 pub type ManagedListRenderRangeFn =
     unsafe extern "C" fn(u64, u64, u32, u32, *mut RenderArena, *mut u32) -> i32;
+pub type ManagedControlEventFn = unsafe extern "C" fn(u64, u64, *const NativeControlEvent) -> i32;
 pub type ManagedShutdownFn = unsafe extern "C" fn(u64) -> i32;
 
 #[repr(C)]
@@ -87,6 +102,7 @@ pub struct ManagedCallbacks {
     pub render: Option<ManagedRenderFn>,
     pub click: Option<ManagedClickFn>,
     pub list_render_range: Option<ManagedListRenderRangeFn>,
+    pub control_event: Option<ManagedControlEventFn>,
     pub shutdown: Option<ManagedShutdownFn>,
 }
 
@@ -97,7 +113,7 @@ pub type NotifyViewFn = unsafe extern "C" fn(u64) -> i32;
 pub type DispatchCommandFn = unsafe extern "C" fn(u64, *const NativeResourceCommand) -> i32;
 
 #[repr(C)]
-pub struct GpuiDotnetApiV3 {
+pub struct GpuiDotnetApiV4 {
     pub struct_size: u32,
     pub abi_version: u32,
     pub schema_hash: u64,
@@ -107,7 +123,7 @@ pub struct GpuiDotnetApiV3 {
     pub dispatch_command: Option<DispatchCommandFn>,
 }
 
-impl GpuiDotnetApiV3 {
+impl GpuiDotnetApiV4 {
     pub const fn struct_size() -> u32 {
         size_of::<Self>() as u32
     }

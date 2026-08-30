@@ -42,6 +42,94 @@ internal static unsafe class ArenaWriter
         return new Element<TTag>(new Element(arena, node, arena->Generation));
     }
 
+    /// <summary>
+    /// Adds a node whose component-specific data is three UTF-8 fields separated by NUL bytes.
+    /// This keeps retained resource identity and initial text configuration in one validated node
+    /// payload without introducing arena-relative string pointers into operation records.
+    /// </summary>
+    internal static Element<TTag> AddCompositeNode<TTag>(
+        RenderArena* arena,
+        ComponentId component,
+        ReadOnlySpan<char> first,
+        ReadOnlySpan<char> second,
+        ReadOnlySpan<char> third
+    )
+        where TTag : unmanaged
+    {
+        if (first.Contains('\0') || second.Contains('\0') || third.Contains('\0'))
+        {
+            throw new ArgumentException("Composite render data cannot contain NUL characters.");
+        }
+
+        EnsureNodes(arena, 1);
+        var byteCount = checked(
+            Encoding.UTF8.GetByteCount(first)
+                + Encoding.UTF8.GetByteCount(second)
+                + Encoding.UTF8.GetByteCount(third)
+                + 2
+        );
+        EnsureUtf8(arena, byteCount);
+
+        var offset = arena->Utf8Length;
+        var destination = new Span<byte>(arena->Utf8 + offset, byteCount);
+        var written = Encoding.UTF8.GetBytes(first, destination);
+        destination[written++] = 0;
+        written += Encoding.UTF8.GetBytes(second, destination[written..]);
+        destination[written++] = 0;
+        written += Encoding.UTF8.GetBytes(third, destination[written..]);
+        arena->Utf8Length += written;
+
+        var node = checked((uint)arena->NodeLength);
+        arena->Nodes[arena->NodeLength++] = new NodeRecord
+        {
+            Component = (ushort)component,
+            DataOffset = checked((uint)offset),
+            DataLength = checked((uint)written),
+        };
+        return new Element<TTag>(new Element(arena, node, arena->Generation));
+    }
+
+    /// <summary>Adds three already-encoded UTF-8 fields separated by NUL bytes.</summary>
+    internal static Element<TTag> AddCompositeNode<TTag>(
+        RenderArena* arena,
+        ComponentId component,
+        ReadOnlySpan<byte> first,
+        ReadOnlySpan<byte> second,
+        ReadOnlySpan<byte> third
+    )
+        where TTag : unmanaged
+    {
+        if (first.Contains((byte)0) || second.Contains((byte)0) || third.Contains((byte)0))
+        {
+            throw new ArgumentException("Composite render data cannot contain NUL bytes.");
+        }
+
+        EnsureNodes(arena, 1);
+        var byteCount = checked(first.Length + second.Length + third.Length + 2);
+        EnsureUtf8(arena, byteCount);
+
+        var offset = arena->Utf8Length;
+        var destination = new Span<byte>(arena->Utf8 + offset, byteCount);
+        first.CopyTo(destination);
+        var written = first.Length;
+        destination[written++] = 0;
+        second.CopyTo(destination[written..]);
+        written += second.Length;
+        destination[written++] = 0;
+        third.CopyTo(destination[written..]);
+        written += third.Length;
+        arena->Utf8Length += written;
+
+        var node = checked((uint)arena->NodeLength);
+        arena->Nodes[arena->NodeLength++] = new NodeRecord
+        {
+            Component = (ushort)component,
+            DataOffset = checked((uint)offset),
+            DataLength = checked((uint)written),
+        };
+        return new Element<TTag>(new Element(arena, node, arena->Generation));
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static Element<TTag> AddNode<TTag>(
         RenderArena* arena,

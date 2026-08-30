@@ -19,6 +19,9 @@ public sealed class GeneratorTests
                 [GpuiEvent]
                 private void Save(ClickEvent e) { }
 
+                [GpuiEvent]
+                private void SearchChanged(InputEvent e) { }
+
                 [GpuiListItem]
                 private Element Row(int index, ref RenderContext ui) => ui.Text($"Row {index}");
 
@@ -33,6 +36,8 @@ public sealed class GeneratorTests
         Assert.Contains("CreateGpuiView", generated, StringComparison.Ordinal);
         Assert.Contains("Callback<global::Gpui.ClickEvent> Save", generated, StringComparison.Ordinal);
         Assert.Contains("DispatchClickAsync", generated, StringComparison.Ordinal);
+        Assert.Contains("Callback<global::Gpui.InputEvent> SearchChanged", generated, StringComparison.Ordinal);
+        Assert.Contains("DispatchInputAsync", generated, StringComparison.Ordinal);
         Assert.Contains("ListItemRenderer Row", generated, StringComparison.Ordinal);
     }
 

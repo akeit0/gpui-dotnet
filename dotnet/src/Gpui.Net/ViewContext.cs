@@ -34,12 +34,38 @@ public readonly ref struct ViewContext
         return new ListController(_view, key);
     }
 
+    /// <summary>Creates an imperative controller for a ui.Input() resource owned by this View.</summary>
+    public InputController CreateInputController(string key)
+    {
+        ValidateResourceKey(key);
+        return new InputController(_view, key);
+    }
+
+    /// <summary>Creates an input controller whose retained resource key is already UTF-8.</summary>
+    public InputController CreateInputController(ReadOnlySpan<byte> utf8Key)
+    {
+        ValidateResourceKey(utf8Key);
+        return new InputController(_view, utf8Key);
+    }
+
     private static void ValidateResourceKey(string key)
     {
         ArgumentNullException.ThrowIfNull(key);
         if (key.Length == 0)
         {
             throw new ArgumentException("A native resource key cannot be empty.", nameof(key));
+        }
+    }
+
+    private static void ValidateResourceKey(ReadOnlySpan<byte> utf8Key)
+    {
+        if (utf8Key.IsEmpty)
+        {
+            throw new ArgumentException("A native resource key cannot be empty.", nameof(utf8Key));
+        }
+        if (utf8Key.Contains((byte)0))
+        {
+            throw new ArgumentException("A native resource key cannot contain NUL.", nameof(utf8Key));
         }
     }
 }

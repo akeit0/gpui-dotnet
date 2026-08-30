@@ -37,6 +37,28 @@ internal static unsafe class ManagedValidator
             {
                 throw new InvalidOperationException($"Node {i} has invalid UTF-8 range.");
             }
+
+            if ((ComponentId)node.Component == ComponentId.Input)
+            {
+                var payload = new ReadOnlySpan<byte>(
+                    arena->Utf8 + node.DataOffset,
+                    checked((int)node.DataLength)
+                );
+                var firstSeparator = payload.IndexOf((byte)0);
+                var secondSeparator = firstSeparator < 0
+                    ? -1
+                    : payload[(firstSeparator + 1)..].IndexOf((byte)0);
+                if (
+                    firstSeparator <= 0
+                    || secondSeparator < 0
+                    || payload[(firstSeparator + secondSeparator + 2)..].Contains((byte)0)
+                )
+                {
+                    throw new InvalidOperationException(
+                        $"Input node {i} must contain a non-empty key, initial value, and placeholder."
+                    );
+                }
+            }
         }
 
         for (var i = 0; i < arena->OpLength; i++)
@@ -118,7 +140,15 @@ internal static unsafe class ManagedValidator
                 throw new InvalidOperationException($"Operation {i} has an invalid scroll axis.");
             }
 
-            if (code is OpCode.SmoothScroll or OpCode.ShowScrollbar && operation.A > 1)
+            if (
+                code
+                    is OpCode.SmoothScroll
+                        or OpCode.ShowScrollbar
+                        or OpCode.InputDisabled
+                        or OpCode.InputReadOnly
+                        or OpCode.InputPassword
+                && operation.A > 1
+            )
             {
                 throw new InvalidOperationException($"Operation {i} has an invalid boolean value.");
             }

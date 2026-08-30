@@ -2164,6 +2164,7 @@ dependencies = [
  "async-channel 2.5.0",
  "csbindgen",
  "gpui",
+ "unicode-segmentation",
 ]
 
 [[package]]
