@@ -8,4 +8,7 @@
         <ProjectReference Include="../../src/Gpui.Net/Gpui.Net.csproj" />
         <ProjectReference Include="../../src/Gpui.Net.Generators/Gpui.Net.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
+    <ItemGroup>
+        <None Update="Assets/gpui-net.svg" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 </Project>

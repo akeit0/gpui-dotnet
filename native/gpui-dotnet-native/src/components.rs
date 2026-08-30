@@ -30,7 +30,11 @@ pub(crate) fn apply_defaults(
             .text_xs(),
         NativeAdapter::Divider => element.h(px(1.)).w_full().bg(rgba(0xE2E8F0FF)),
         NativeAdapter::Spacer => element.flex_grow(),
-        NativeAdapter::Div | NativeAdapter::Text | NativeAdapter::Scroll | NativeAdapter::List => element,
+        NativeAdapter::Div
+        | NativeAdapter::Text
+        | NativeAdapter::Scroll
+        | NativeAdapter::List
+        | NativeAdapter::Image => element,
     }
 }
 

@@ -16,6 +16,7 @@ namespace Gpui.Interop
         Spacer = 8,
         Scroll = 9,
         List = 10,
+        Image = 11,
     }
 
     internal enum OpCode : ushort
@@ -50,6 +51,8 @@ namespace Gpui.Interop
         ListOverdrawPx = 313,
         ListAlignment = 314,
         ListEstimatedItemHeightPx = 315,
+        ImageObjectFit = 400,
+        ImageGrayscale = 401,
     }
 
     internal enum ValueKind : ushort
@@ -62,8 +65,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 7;
-        internal const ulong SchemaHash = 0x1DA61C6A140C87B8UL;
+        internal const uint SchemaVersion = 8;
+        internal const ulong SchemaHash = 0xE5AA02EB154169D1UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -77,6 +80,7 @@ namespace Gpui.Interop
             ComponentId.Spacer => true,
             ComponentId.Scroll => true,
             ComponentId.List => true,
+            ComponentId.Image => true,
             _ => false,
         };
 
@@ -112,6 +116,8 @@ namespace Gpui.Interop
             OpCode.ListOverdrawPx => ValueKind.F32,
             OpCode.ListAlignment => ValueKind.U32,
             OpCode.ListEstimatedItemHeightPx => ValueKind.F32,
+            OpCode.ImageObjectFit => ValueKind.U32,
+            OpCode.ImageGrayscale => ValueKind.U32,
             _ => null,
         };
 
@@ -127,6 +133,7 @@ namespace Gpui.Interop
             ComponentId.Spacer => 0x0000000000000001UL,
             ComponentId.Scroll => 0x0000000000000067UL,
             ComponentId.List => 0x00000000000000A1UL,
+            ComponentId.Image => 0x0000000000000101UL,
             _ => 0,
         };
 
@@ -162,6 +169,8 @@ namespace Gpui.Interop
             OpCode.ListOverdrawPx => 0x0000000000000080UL,
             OpCode.ListAlignment => 0x0000000000000080UL,
             OpCode.ListEstimatedItemHeightPx => 0x0000000000000080UL,
+            OpCode.ImageObjectFit => 0x0000000000000100UL,
+            OpCode.ImageGrayscale => 0x0000000000000100UL,
             _ => 0,
         };
 
@@ -183,6 +192,7 @@ namespace Gpui
     public interface INativeStateElementTag { }
     public interface IScrollableElementTag { }
     public interface IVirtualizedElementTag { }
+    public interface IImageElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
@@ -194,6 +204,7 @@ namespace Gpui
     public readonly struct SpacerTag : IStyledElementTag { }
     public readonly struct ScrollTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IScrollableElementTag { }
     public readonly struct ListTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag { }
+    public readonly struct ImageTag : IStyledElementTag, IImageElementTag { }
 
     public readonly unsafe ref partial struct RenderContext
     {

@@ -1,6 +1,9 @@
+use std::path::PathBuf;
+
 use gpui::{
-    AnyElement, ClickEvent, Context, InteractiveElement, IntoElement, ParentElement,
-    SharedString, StatefulInteractiveElement, Styled, div, list, px, relative, rgba,
+    AnyElement, ClickEvent, Context, InteractiveElement, IntoElement, ObjectFit, ParentElement,
+    SharedString, StatefulInteractiveElement, Styled, StyledImage, div, img, list, px, relative,
+    rgba,
 };
 
 use crate::{
@@ -8,17 +11,17 @@ use crate::{
     app_host::ManagedView,
     components,
     resources::{ResourceStore, list_configuration, resource_key},
+    scrolling::{list_overlay, scroll_overlay},
     semantic::{
         CAPABILITY_INTERACTIVE, NativeAdapter, OP_BACKGROUND_RGBA, OP_BORDER_RGBA,
         OP_BORDER_WIDTH_PX, OP_CHECKED, OP_FLEX, OP_FLEX_GROW, OP_FONT_SIZE_PX, OP_GAP_PX,
-        OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_ITEMS_CENTER, OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER,
-        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
-        OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_ON_CLICK,
-        OP_PADDING_PX, OP_RADIUS_PX, OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR,
-        OP_SMOOTH_SCROLL, OP_TEXT_RGBA, OP_V_STACK, OP_WIDTH_PERCENT, OP_WIDTH_PX,
-        component_metadata,
+        OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_ITEMS_CENTER,
+        OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
+        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX,
+        OP_LIST_RENDERER, OP_ON_CLICK, OP_PADDING_PX, OP_RADIUS_PX, OP_RESOURCE_OWNER,
+        OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TEXT_RGBA, OP_V_STACK,
+        OP_WIDTH_PERCENT, OP_WIDTH_PX, component_metadata,
     },
-    scrolling::{list_overlay, scroll_overlay},
     snapshot::{SnapshotNode, ValidatedSnapshot},
 };
 
@@ -36,6 +39,7 @@ impl ManagedView {
         match metadata.adapter {
             NativeAdapter::Scroll => self.materialize_scroll(node_id, node, snapshot, cx),
             NativeAdapter::List => self.materialize_list(node, snapshot),
+            NativeAdapter::Image => materialize_image(node, snapshot),
             _ => self.materialize_regular(node_id, node, snapshot, cx),
         }
     }
@@ -81,7 +85,13 @@ impl ManagedView {
                     if event_token == 0 {
                         return;
                     }
-                    let status = invoke_click(this.callbacks, this.view_id, event_token, event_payload, event);
+                    let status = invoke_click(
+                        this.callbacks,
+                        this.view_id,
+                        event_token,
+                        event_payload,
+                        event,
+                    );
                     this.after_click(status, cx);
                 }))
                 .into_any_element();
@@ -98,7 +108,9 @@ impl ManagedView {
         cx: &Context<Self>,
     ) -> AnyElement {
         let Some(key) = resource_key(snapshot, node) else {
-            return div().child("Scroll resource is missing its owner/key.").into_any_element();
+            return div()
+                .child("Scroll resource is missing its owner/key.")
+                .into_any_element();
         };
         let resource = self.resources.scroll_resource(&key);
         let handle = resource.handle.clone();
@@ -120,12 +132,20 @@ impl ManagedView {
             .id(SharedString::from(element_id));
         let axis = last_op(snapshot, node, OP_SCROLL_AXIS).map_or(0, |op| op.a as u32);
         let smooth = last_op(snapshot, node, OP_SMOOTH_SCROLL).is_none_or(|op| op.a != 0);
-        let show_scrollbar =
-            last_op(snapshot, node, OP_SHOW_SCROLLBAR).is_none_or(|op| op.a != 0);
+        let show_scrollbar = last_op(snapshot, node, OP_SHOW_SCROLLBAR).is_none_or(|op| op.a != 0);
         let scrollable = match axis {
-            1 => stateful.overflow_x_scroll().track_scroll(&handle).into_any_element(),
-            2 => stateful.overflow_scroll().track_scroll(&handle).into_any_element(),
-            _ => stateful.overflow_y_scroll().track_scroll(&handle).into_any_element(),
+            1 => stateful
+                .overflow_x_scroll()
+                .track_scroll(&handle)
+                .into_any_element(),
+            2 => stateful
+                .overflow_scroll()
+                .track_scroll(&handle)
+                .into_any_element(),
+            _ => stateful
+                .overflow_y_scroll()
+                .track_scroll(&handle)
+                .into_any_element(),
         };
         let overlay = scroll_overlay(resource, axis, smooth, show_scrollbar);
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
@@ -135,12 +155,16 @@ impl ManagedView {
 
     fn materialize_list(&self, node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> AnyElement {
         let Some(key) = resource_key(snapshot, node) else {
-            return div().child("List resource is missing its owner/key.").into_any_element();
+            return div()
+                .child("List resource is missing its owner/key.")
+                .into_any_element();
         };
         let Some((item_count, renderer, batch_size, overdraw, alignment, estimated_item_height)) =
             list_configuration(snapshot, node)
         else {
-            return div().child("List resource is missing virtualization metadata.").into_any_element();
+            return div()
+                .child("List resource is missing virtualization metadata.")
+                .into_any_element();
         };
         let resource = self.resources.list_resource(
             &key,
@@ -164,17 +188,14 @@ impl ManagedView {
         .min_h_0()
         .min_w_0();
         let smooth = last_op(snapshot, node, OP_SMOOTH_SCROLL).is_none_or(|op| op.a != 0);
-        let show_scrollbar =
-            last_op(snapshot, node, OP_SHOW_SCROLLBAR).is_none_or(|op| op.a != 0);
-        let overlay = list_overlay(
-            resource,
-            estimated_item_height,
-            smooth,
-            show_scrollbar,
-        );
+        let show_scrollbar = last_op(snapshot, node, OP_SHOW_SCROLLBAR).is_none_or(|op| op.a != 0);
+        let overlay = list_overlay(resource, estimated_item_height, smooth, show_scrollbar);
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
         element = element.min_h_0().min_w_0();
-        element.child(list_element).child(overlay).into_any_element()
+        element
+            .child(list_element)
+            .child(overlay)
+            .into_any_element()
     }
 }
 
@@ -191,10 +212,18 @@ pub(crate) fn materialize_snapshot_node_detached(
 ) -> AnyElement {
     let node = &snapshot.nodes[node_id as usize];
     let metadata = component_metadata(node.component).unwrap();
-    if matches!(metadata.adapter, NativeAdapter::Scroll | NativeAdapter::List) {
+    if matches!(
+        metadata.adapter,
+        NativeAdapter::Scroll | NativeAdapter::List
+    ) {
         return div()
-            .child("Retained Scroll/List resources inside a virtualized list row are not supported.")
+            .child(
+                "Retained Scroll/List resources inside a virtualized list row are not supported.",
+            )
             .into_any_element();
+    }
+    if metadata.adapter == NativeAdapter::Image {
+        return materialize_image(node, snapshot);
     }
 
     let mut element = components::apply_defaults(metadata.adapter, div(), node, snapshot);
@@ -203,13 +232,7 @@ pub(crate) fn materialize_snapshot_node_detached(
     }
     for child in snapshot.children(node) {
         element = element.child(materialize_snapshot_node_detached(
-            *child,
-            snapshot,
-            session_id,
-            callbacks,
-            _resources,
-            list_key,
-            item_index,
+            *child, snapshot, session_id, callbacks, _resources, list_key, item_index,
         ));
     }
     element = apply_styles(element, node, snapshot);
@@ -233,13 +256,7 @@ pub(crate) fn materialize_snapshot_node_detached(
                 .id(SharedString::from(element_id))
                 .cursor_pointer()
                 .on_click(move |event: &ClickEvent, _, _| {
-                    let _ = invoke_click(
-                        callbacks,
-                        session_id,
-                        event_token,
-                        event_payload,
-                        event,
-                    );
+                    let _ = invoke_click(callbacks, session_id, event_token, event_payload, event);
                 })
                 .into_any_element();
         }
@@ -278,11 +295,7 @@ fn invoke_click(
     }
 }
 
-fn apply_styles<T: Styled>(
-    mut element: T,
-    node: &SnapshotNode,
-    snapshot: &ValidatedSnapshot,
-) -> T {
+fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> T {
     for op in snapshot.ops(node) {
         let value = f32::from_bits(op.a as u32);
         element = match op.code {
@@ -315,11 +328,41 @@ fn apply_styles<T: Styled>(
             | OP_LIST_BATCH_SIZE
             | OP_LIST_OVERDRAW_PX
             | OP_LIST_ALIGNMENT
-            | OP_LIST_ESTIMATED_ITEM_HEIGHT_PX => element,
+            | OP_LIST_ESTIMATED_ITEM_HEIGHT_PX
+            | OP_IMAGE_OBJECT_FIT
+            | OP_IMAGE_GRAYSCALE => element,
             _ => element,
         };
     }
     element
+}
+
+fn materialize_image(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> AnyElement {
+    let mut element = img(PathBuf::from(node.data.as_ref()));
+    let fit = match last_op(snapshot, node, OP_IMAGE_OBJECT_FIT).map(|op| op.a as u32) {
+        Some(0) => ObjectFit::Fill,
+        Some(2) => ObjectFit::Cover,
+        Some(3) => ObjectFit::ScaleDown,
+        Some(4) => ObjectFit::None,
+        _ => ObjectFit::Contain,
+    };
+    let grayscale = last_op(snapshot, node, OP_IMAGE_GRAYSCALE).is_some_and(|op| op.a != 0);
+    element = element
+        .object_fit(fit)
+        .grayscale(grayscale)
+        .overflow_hidden()
+        .with_fallback(|| {
+            div()
+                .size_full()
+                .flex()
+                .items_center()
+                .justify_center()
+                .bg(rgba(0xE2E8F0FF))
+                .text_color(rgba(0x64748BFF))
+                .child("Image unavailable")
+                .into_any_element()
+        });
+    apply_styles(element, node, snapshot).into_any_element()
 }
 
 fn last_op<'a>(

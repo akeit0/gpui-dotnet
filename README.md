@@ -150,6 +150,23 @@ Structural commands are queued as measurement hints and committed together with 
 
 After a managed snapshot changes, native `ListState` is retained but managed row snapshot batches are conservatively dropped because arbitrary C# View state may affect row output. Clean scrolling between managed renders keeps those batches and crosses into C# only for missing ranges.
 
+## Images
+
+Images use GPUI's native decoder and cache. The managed render arena carries only a UTF-8 filesystem path and presentation options:
+
+```csharp
+var image = ui.Image(Path.Combine(AppContext.BaseDirectory, "Assets", "hero.svg"))
+    .Fit(ImageFit.Cover)
+    .Grayscale(false)
+    .Width(Px(320))
+    .Height(Px(180))
+    .Radius(Px(12));
+```
+
+`ImageFit` supports `Fill`, `Contain`, `Cover`, `ScaleDown`, and `None`. Image overflow is clipped to its styled bounds, so `Cover` composes correctly with fixed sizes and rounded corners. A load or decode failure renders a neutral fallback instead of leaving an unexplained blank region.
+
+`ui.Image` currently accepts filesystem paths only; relative paths resolve against the application working directory. URI sources are intentionally not exposed until the native application has a real HTTP client and an explicit network-loading policy.
+
 ## Generated events
 
 Constructor-time callback registration is not used. `[GpuiEvent]` emits stable handler IDs, `Events.*` bindings and direct dispatch code. `Task`/`ValueTask` completion is observed; `async void` is rejected.
@@ -175,11 +192,11 @@ ABI v3 is intentionally incompatible with previous revisions. It adds:
 - a 64-bit callback payload in addition to the generated event token;
 - retained Scroll/List resource commands;
 - a batched Rust → managed `list_render_range` callback;
-- semantic Scroll/List render operations and resource owner IDs;
+- semantic Scroll/List/Image render operations and resource owner IDs;
 - shutdown callback before native application teardown;
 - flat native snapshots and reusable validation scratch storage.
 
-Managed startup validates both ABI version and semantic schema hash (`0x1DA61C6A140C87B8`). See [docs/ABI.md](docs/ABI.md).
+Managed startup validates both ABI version and semantic schema hash (`0xE5AA02EB154169D1`). See [docs/ABI.md](docs/ABI.md).
 
 ## Build
 
@@ -194,7 +211,7 @@ dotnet build gpui-dotnet.slnx
 dotnet run --project dotnet/samples/Gpui.Net.Sample
 ```
 
-The sample contains a retained Scroll route and a 20,000-row variable-height virtualized List route. To force native-owned render-arena growth/retry:
+The sample contains a retained Scroll route, a 20,000-row variable-height virtualized List route, and an Image gallery demonstrating contain, cover, and grayscale. To force native-owned render-arena growth/retry:
 
 ```powershell
 dotnet run --project dotnet/samples/Gpui.Net.Sample -- --stress-growth

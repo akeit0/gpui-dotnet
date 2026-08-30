@@ -7,7 +7,7 @@ GpuiApplication.Run(
     stressGrowth ? new ArenaGrowthView() : new SampleShellView(),
     new GpuiApplicationOptions
     {
-        Title = stressGrowth ? "GPUI.NET Arena Growth" : "GPUI.NET Scroll + Virtual List",
+        Title = stressGrowth ? "GPUI.NET Arena Growth" : "GPUI.NET Components",
         Width = 1040,
         Height = 700,
     }
@@ -17,6 +17,7 @@ internal enum SamplePage
 {
     Overview,
     Activity,
+    Images,
 }
 
 [GpuiView]
@@ -45,15 +46,26 @@ internal sealed partial class SampleShellView : View
         {
             SamplePage.Overview => ui.Child<DashboardView>("content"),
             SamplePage.Activity => ui.Child<ActivityView>("content"),
+            SamplePage.Images => ui.Child<ImageGalleryView>("content"),
             _ => throw new InvalidOperationException("Unknown sample page."),
         };
         var pageSlot = ui.VStack(page).Grow().Height(Percent(100));
 
         var routeProps = new RouteHeaderProps(
-            _page == SamplePage.Overview ? "Overview" : "Activity",
-            _page == SamplePage.Overview
-                ? "retained ScrollHandle; wheel scrolling stays native"
-                : "20,000 variable-height rows; managed rendering is range-batched"
+            _page switch
+            {
+                SamplePage.Overview => "Overview",
+                SamplePage.Activity => "Activity",
+                SamplePage.Images => "Images",
+                _ => throw new InvalidOperationException("Unknown sample page."),
+            },
+            _page switch
+            {
+                SamplePage.Overview => "retained ScrollHandle; wheel scrolling stays native",
+                SamplePage.Activity => "20,000 variable-height rows; managed rendering is range-batched",
+                SamplePage.Images => "GPUI-native decoding, caching, fitting, and grayscale",
+                _ => throw new InvalidOperationException("Unknown sample page."),
+            }
         );
         var routeHeader = ui.Child<RouteHeaderView, RouteHeaderProps>("route-header", in routeProps);
 
@@ -81,21 +93,29 @@ internal sealed partial class SampleShellView : View
 
     private Element RenderSidebar(ref RenderContext ui)
     {
+        var overviewSelected = _page == SamplePage.Overview;
         var activitySelected = _page == SamplePage.Activity;
+        var imagesSelected = _page == SamplePage.Images;
         return ui.VStack(
                 ui.Text("SIDEBAR"u8).FontSize(Px(11)).TextColor(Rgb(148, 163, 184)),
                 ui.Divider().Background(Rgb(51, 65, 85)),
                 ui.Button("show-overview", "Scroll view")
                     .OnClick(Events.ShowOverview)
                     .Padding(Px(10))
-                    .Background(activitySelected ? Rgb(15, 23, 42) : Rgb(79, 70, 229))
-                    .BorderColor(activitySelected ? Rgb(51, 65, 85) : Rgb(129, 140, 248))
+                    .Background(overviewSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
+                    .BorderColor(overviewSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
                     .TextColor(Rgb(255, 255, 255)),
                 ui.Button("show-activity", "Virtual list")
                     .OnClick(Events.ShowActivity)
                     .Padding(Px(10))
                     .Background(activitySelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
                     .BorderColor(activitySelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
+                    .TextColor(Rgb(255, 255, 255)),
+                ui.Button("show-images", "Images")
+                    .OnClick(Events.ShowImages)
+                    .Padding(Px(10))
+                    .Background(imagesSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
+                    .BorderColor(imagesSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
                     .TextColor(Rgb(255, 255, 255)),
                 ui.Spacer(),
                 ui.Text("The keyed content slot replaces its View type when the route changes."u8)
@@ -107,6 +127,13 @@ internal sealed partial class SampleShellView : View
             .Width(Px(220))
             .Height(Percent(100))
             .Background(Rgb(15, 23, 42));
+    }
+
+    [GpuiEvent]
+    private void ShowImages()
+    {
+        _page = SamplePage.Images;
+        Invalidate();
     }
 }
 
@@ -259,6 +286,60 @@ internal sealed partial class ActivityView : View
             .Width(Percent(100));
 
         return ui.VStack(header, list).Gap(Px(10)).Grow();
+    }
+}
+
+[GpuiView]
+internal sealed partial class ImageGalleryView : View
+{
+    private static readonly string ImagePath = Path.Combine(
+        AppContext.BaseDirectory,
+        "Assets",
+        "gpui-net.svg"
+    );
+
+    protected override Element Render(ref RenderContext ui)
+    {
+        var contain = ImageCard(ref ui, "Contain", ImageFit.Contain, false);
+        var cover = ImageCard(ref ui, "Cover", ImageFit.Cover, false);
+        var grayscale = ImageCard(ref ui, "Grayscale", ImageFit.Cover, true);
+
+        return ui.VStack(
+                ui.Text("One cached SVG, rendered with three native presentation modes."u8)
+                    .FontSize(Px(13))
+                    .TextColor(Rgb(71, 85, 105)),
+                ui.HStack(contain, cover, grayscale).Gap(Px(14)).JustifyCenter().Grow()
+            )
+            .Gap(Px(14))
+            .Grow();
+    }
+
+    private static Element ImageCard(
+        ref RenderContext ui,
+        ReadOnlySpan<char> label,
+        ImageFit fit,
+        bool grayscale
+    )
+    {
+        var image = ui.Image(ImagePath)
+            .Fit(fit)
+            .Grayscale(grayscale)
+            .Width(Percent(100))
+            .Height(Px(180))
+            .Radius(Px(12))
+            .Background(Rgb(226, 232, 240));
+
+        return ui.VStack(
+                ui.Text(label).FontSize(Px(14)).TextColor(Rgb(30, 41, 59)),
+                image
+            )
+            .Gap(Px(8))
+            .Padding(Px(12))
+            .Width(Px(240))
+            .Background(Rgb(255, 255, 255))
+            .BorderWidth(Px(1))
+            .BorderColor(Rgb(226, 232, 240))
+            .Radius(Px(12));
     }
 }
 

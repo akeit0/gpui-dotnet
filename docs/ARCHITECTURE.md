@@ -33,13 +33,13 @@ The boundary rule is: **cross the ABI for state transitions or coarse data batch
 - pointer, keyboard, focus, accessibility, overlay, virtualization, and reduced-motion behavior are part of a component contract;
 - one retained handle represents one logical viewport or control instance.
 
-These principles guide Scroll/List today and future input, editor, select, menu, dialog, tree, table, and notification work. GPUI.NET does not directly depend on `gpui-component`/`gpui-base`: those crates must use the exact same GPUI revision as their consumer, while this repository currently pins crates.io GPUI 0.2.2. Concepts are adapted behind GPUI.NET's semantic ABI instead. Attribution is recorded in the root [NOTICE](../NOTICE).
+These principles guide Scroll/List/Image today and future input, editor, select, menu, dialog, tree, table, and notification work. GPUI.NET does not directly depend on `gpui-component`/`gpui-base`: those crates must use the exact same GPUI revision as their consumer, while this repository currently pins crates.io GPUI 0.2.2. Concepts are adapted behind GPUI.NET's semantic ABI instead. Attribution is recorded in the root [NOTICE](../NOTICE).
 
 ## Three planes
 
 ### Render plane
 
-Managed `Render()` writes one arena containing nodes, operations, child edges and UTF-8. Rust validates and decodes it into flat ranges. A clean native repaint reuses that snapshot without calling .NET.
+Managed `Render()` writes one arena containing nodes, operations, child edges and UTF-8. Rust validates and decodes it into flat ranges. A clean native repaint reuses that snapshot without calling .NET. Image nodes carry a filesystem path and semantic presentation options; GPUI owns decoding and its image cache.
 
 ### Retained resource/control plane
 

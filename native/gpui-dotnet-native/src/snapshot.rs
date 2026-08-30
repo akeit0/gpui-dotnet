@@ -5,8 +5,8 @@ use gpui::SharedString;
 use crate::{
     abi::{OpRecord, RenderArena},
     semantic::{
-        DataKind, OP_CHECKED, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
-        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_OVERDRAW_PX, OP_ON_CLICK,
+        DataKind, OP_CHECKED, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_LIST_ALIGNMENT,
+        OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_OVERDRAW_PX, OP_ON_CLICK,
         OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, ValueKind,
         component_metadata, operation_metadata,
     },
@@ -50,7 +50,9 @@ impl ValidatedSnapshot {
         }
         prefix_offsets(&scratch.op_counts, &mut scratch.op_offsets);
         scratch.op_cursor.clear();
-        scratch.op_cursor.extend_from_slice(&scratch.op_offsets[..nodes.len()]);
+        scratch
+            .op_cursor
+            .extend_from_slice(&scratch.op_offsets[..nodes.len()]);
 
         self.ops.clear();
         self.ops.resize(ops.len(), OpRecord::default());
@@ -263,6 +265,12 @@ fn validate_with_scratch(
         if matches!(op.code, OP_SMOOTH_SCROLL | OP_SHOW_SCROLLBAR) && op.a > 1 {
             return Err(-21);
         }
+        if op.code == OP_IMAGE_GRAYSCALE && op.a > 1 {
+            return Err(-21);
+        }
+        if op.code == OP_IMAGE_OBJECT_FIT && op.a > 4 {
+            return Err(-30);
+        }
         if op.code == OP_LIST_BATCH_SIZE && !(1..=512).contains(&(op.a as u32)) {
             return Err(-27);
         }
@@ -272,9 +280,7 @@ fn validate_with_scratch(
         if op.code == OP_LIST_OVERDRAW_PX && f32::from_bits(op.a as u32) < 0.0 {
             return Err(-29);
         }
-        if op.code == OP_LIST_ESTIMATED_ITEM_HEIGHT_PX
-            && f32::from_bits(op.a as u32) <= 0.0
-        {
+        if op.code == OP_LIST_ESTIMATED_ITEM_HEIGHT_PX && f32::from_bits(op.a as u32) <= 0.0 {
             return Err(-29);
         }
     }
@@ -366,8 +372,8 @@ mod tests {
     use crate::{
         abi::{ChildRecord, NodeRecord, OpRecord},
         semantic::{
-            COMPONENT_CHECKBOX, COMPONENT_DIV, COMPONENT_TEXT, OP_CHECKED, OP_GAP_PX,
-            OP_ON_CLICK, OP_PADDING_PX,
+            COMPONENT_CHECKBOX, COMPONENT_DIV, COMPONENT_IMAGE, COMPONENT_TEXT, OP_CHECKED,
+            OP_GAP_PX, OP_IMAGE_OBJECT_FIT, OP_ON_CLICK, OP_PADDING_PX,
         },
     };
 
@@ -400,7 +406,10 @@ mod tests {
 
     #[test]
     fn rejects_unknown_components() {
-        let mut node = NodeRecord { component: 99, ..Default::default() };
+        let mut node = NodeRecord {
+            component: 99,
+            ..Default::default()
+        };
         let arena = arena_with(&mut node, None);
         assert_eq!(validate(&arena, 0), Err(-9));
     }
@@ -418,7 +427,10 @@ mod tests {
 
     #[test]
     fn rejects_noncanonical_operation_payloads() {
-        let mut node = NodeRecord { component: COMPONENT_DIV, ..Default::default() };
+        let mut node = NodeRecord {
+            component: COMPONENT_DIV,
+            ..Default::default()
+        };
         let mut operation = OpRecord {
             code: OP_GAP_PX,
             value_kind: ValueKind::F32 as u16,
@@ -435,7 +447,10 @@ mod tests {
 
     #[test]
     fn rejects_operation_value_kind_mismatches() {
-        let mut node = NodeRecord { component: COMPONENT_DIV, ..Default::default() };
+        let mut node = NodeRecord {
+            component: COMPONENT_DIV,
+            ..Default::default()
+        };
         let mut operation = OpRecord {
             code: OP_GAP_PX,
             value_kind: ValueKind::None as u16,
@@ -447,7 +462,10 @@ mod tests {
 
     #[test]
     fn rejects_operations_on_incompatible_components() {
-        let mut node = NodeRecord { component: COMPONENT_DIV, ..Default::default() };
+        let mut node = NodeRecord {
+            component: COMPONENT_DIV,
+            ..Default::default()
+        };
         let mut operation = OpRecord {
             code: OP_ON_CLICK,
             value_kind: ValueKind::Callback as u16,
@@ -480,8 +498,32 @@ mod tests {
     }
 
     #[test]
+    fn rejects_invalid_image_fit() {
+        let mut path = b'x';
+        let mut node = NodeRecord {
+            component: COMPONENT_IMAGE,
+            data_length: 1,
+            ..Default::default()
+        };
+        let mut operation = OpRecord {
+            code: OP_IMAGE_OBJECT_FIT,
+            value_kind: ValueKind::U32 as u16,
+            a: 5,
+            ..Default::default()
+        };
+        let mut arena = arena_with(&mut node, Some(&mut operation));
+        arena.utf8 = &mut path;
+        arena.utf8_length = 1;
+        arena.utf8_capacity = 1;
+        assert_eq!(validate(&arena, 0), Err(-30));
+    }
+
+    #[test]
     fn rejects_nodes_unreachable_from_the_root() {
-        let mut nodes = [NodeRecord { component: COMPONENT_DIV, ..Default::default() }; 2];
+        let mut nodes = [NodeRecord {
+            component: COMPONENT_DIV,
+            ..Default::default()
+        }; 2];
         let arena = RenderArena {
             nodes: nodes.as_mut_ptr(),
             node_length: 2,
@@ -508,9 +550,18 @@ mod tests {
     #[test]
     fn decode_groups_children_and_operations_into_flat_ranges() {
         let mut nodes = [
-            NodeRecord { component: COMPONENT_DIV, ..Default::default() },
-            NodeRecord { component: COMPONENT_DIV, ..Default::default() },
-            NodeRecord { component: COMPONENT_TEXT, ..Default::default() },
+            NodeRecord {
+                component: COMPONENT_DIV,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DIV,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_TEXT,
+                ..Default::default()
+            },
         ];
         let mut operations = [
             OpRecord {
@@ -536,8 +587,14 @@ mod tests {
             },
         ];
         let mut children = [
-            ChildRecord { parent: 0, child: 2 },
-            ChildRecord { parent: 0, child: 1 },
+            ChildRecord {
+                parent: 0,
+                child: 2,
+            },
+            ChildRecord {
+                parent: 0,
+                child: 1,
+            },
         ];
         let arena = RenderArena {
             nodes: nodes.as_mut_ptr(),

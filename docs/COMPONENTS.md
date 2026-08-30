@@ -4,7 +4,7 @@
 
 | Class | Examples | Transport/state |
 |---|---|---|
-| Snapshot component | div, badge, button | render IR |
+| Snapshot component | div, badge, button, image | render IR |
 | Retained container | Scroll | render IR reference + native state keyed by View/key |
 | Virtualized datasource | List | retained native state + batched managed row renderer |
 | Native entity component | future input/editor/select | opaque native handle + commands/events |
@@ -28,6 +28,22 @@ ui.Scroll("main", ScrollAxis.Vertical, content)
 
 The key is local to the owning managed View. Use `ScrollController` only for imperative offset commands. Scroll input itself remains native.
 
+## Image
+
+`ui.Image(path)` records a UTF-8 filesystem path in the render arena. Rust materializes it with GPUI's native image element, so decoding and caching stay on the native side:
+
+```csharp
+ui.Image(Path.Combine(AppContext.BaseDirectory, "Assets", "photo.webp"))
+    .Fit(ImageFit.Cover)
+    .Grayscale()
+    .Width(Px(240))
+    .Height(Px(160));
+```
+
+Supported fits are `Fill`, `Contain` (the default), `Cover`, `ScaleDown`, and `None`. Image overflow is clipped to the styled bounds, and load/decode failures display a neutral fallback. Image is a snapshot component and is safe inside virtualized List rows; GPUI owns decoded-image caching independently of the managed row snapshot cache.
+
+Only filesystem paths are public today. Relative paths resolve from the process working directory. Remote URI loading is deferred until GPUI.NET installs a native HTTP client and defines explicit network behavior rather than exposing an API that silently cannot load.
+
 ## List
 
 `ui.List` is intentionally **not** a parent receiving all item elements:
@@ -44,7 +60,7 @@ The render IR carries:
 - generated renderer token;
 - managed batch size;
 - overdraw pixels;
-- top/bottom alignment.
+- top/bottom alignment;
 - estimated item height for stable virtual scrollbar geometry;
 - smooth-scrolling and scrollbar visibility flags.
 
