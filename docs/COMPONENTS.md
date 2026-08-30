@@ -7,7 +7,7 @@
 | Snapshot component | div, badge, button, image | render IR |
 | Retained container | Scroll | render IR reference + native state keyed by View/key |
 | Virtualized datasource | List | retained native state + batched managed row renderer |
-| Native entity component | future input/editor/select | opaque native handle + commands/events |
+| Native entity component | Input; future editor/select | opaque native handle + commands/events |
 | App/window service | future dialogs/clipboard/notifications | control commands |
 
 Do not force all classes into one ABI shape.
@@ -43,6 +43,19 @@ ui.Image(Path.Combine(AppContext.BaseDirectory, "Assets", "photo.webp"))
 Supported fits are `Fill`, `Contain` (the default), `Cover`, `ScaleDown`, and `None`. Image overflow is clipped to the styled bounds, and load/decode failures display a neutral fallback. Image is a snapshot component and is safe inside virtualized List rows; GPUI owns decoded-image caching independently of the managed row snapshot cache.
 
 Only filesystem paths are public today. Relative paths resolve from the process working directory. Remote URI loading is deferred until GPUI.NET installs a native HTTP client and defines explicit network behavior rather than exposing an API that silently cannot load.
+
+## Input
+
+`ui.Input(key, options)` materializes a keyed `Entity<ManagedInput>`. The entity owns text, focus, UTF-8/UTF-16 IME range conversion, selection, caret/selection geometry, horizontal reveal, clipboard actions, and password presentation. Declarative `initialValue` is used only when the resource is created; normal managed rerenders do not overwrite user edits.
+
+String and UTF-8-first forms are both public:
+
+```csharp
+ui.Input("name", new InputOptions(placeholder: "Name"));
+ui.Input("name"u8, new Utf8InputOptions(placeholder: "Name"u8));
+```
+
+`OnChanged`, `OnSubmitted`, and `OnFocusChanged` are opt-in generated event bindings. `InputEvent.Utf8Value` is the owned no-transcode payload; `Value` is a lazy string convenience. `InputController` supports focus, blur, selection, and programmatic value replacement. Input is retained and therefore intentionally rejected inside a virtualized List row, whose cache lifetime is not a managed View/resource lifetime.
 
 ## List
 

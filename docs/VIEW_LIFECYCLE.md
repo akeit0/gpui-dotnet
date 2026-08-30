@@ -37,15 +37,17 @@ Controllers are examples:
 ```csharp
 private ScrollController _scroll;
 private ListController _list;
+private InputController _input;
 
 protected override void OnMounted(ref ViewContext context)
 {
     _scroll = context.CreateScrollController("content");
     _list = context.CreateListController("rows");
+    _input = context.CreateInputController("search"u8);
 }
 ```
 
-Creating a controller does not immediately allocate the GPUI resource. The resource is materialized from `ui.Scroll`/`ui.List`; native commands use the same `(View handle, key)` identity.
+Creating a controller does not immediately allocate the GPUI resource. The resource is materialized from `ui.Scroll`/`ui.List`/`ui.Input`; native commands use the same `(View handle, key)` identity. Input's declarative initial value is creation-only, so rerenders cannot accidentally reset an in-progress native edit.
 
 ## Render purity
 

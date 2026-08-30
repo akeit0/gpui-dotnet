@@ -1,10 +1,16 @@
 # Next steps
 
-The repository now has framework-owned dynamic managed Views, ABI v3 event payloads, retained native Scroll state, virtualized ListState, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
+The repository now has framework-owned dynamic managed Views, ABI v4 typed native-control events, retained native Scroll and Input state, virtualized ListState, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
 
-## 1. Input/editor native entities
+## 1. Input hardening and Editor
 
-Use an input/editor as the first opaque native-entity implementation. It must establish the long-lived control ABI for focus, IME, selection, subscriptions and text-change events without a managed callback per keystroke/frame.
+The single-line Input establishes the native-entity ABI for focus, IME, selection, subscriptions, UTF-8 values, and imperative commands. Harden it before expanding the same foundation into a multiline Editor:
+
+- accessibility role/value/selection exposure and platform verification;
+- word navigation, undo/redo, double/triple-click selection, and richer platform keymaps;
+- validation/error/help presentation without moving edit state into managed renders;
+- composition/IME tests across Windows, macOS, and Linux;
+- optional controlled-value semantics with explicit revision/conflict behavior.
 
 ## 2. List datasource refinement
 
@@ -28,13 +34,11 @@ Build Table/Tree on the same coarse datasource principles rather than as thousan
 
 Move from the single convenience root toward an application abstraction that can create multiple managed windows while retaining app-level native initialization/services.
 
-## 5. NativeAOT and package CI
+## 5. Package and ABI CI
 
 Add CI gates for:
 
 - all supported native RID builds;
-- semantic generation verify;
-- managed source-generator sample compilation;
-- NativeAOT smoke applications;
+- Linux/macOS native RID builds in addition to the current Windows build;
 - NuGet consumer tests without a Rust toolchain;
 - ABI C header/layout assertions.

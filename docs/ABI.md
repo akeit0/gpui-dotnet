@@ -1,14 +1,14 @@
-# ABI v3
+# ABI v4
 
-ABI v3 is intentionally incompatible with previous revisions. Managed startup requests exactly version 3 and also checks the semantic schema hash.
+ABI v4 is intentionally incompatible with previous revisions. Managed startup requests exactly version 4 and also checks the semantic schema hash.
 
 ## Discovery
 
 ```c
-const gpui_dotnet_api_v3* gpui_dotnet_get_api(uint32_t requested_version);
+const gpui_dotnet_api_v4* gpui_dotnet_get_api(uint32_t requested_version);
 ```
 
-`gpui_dotnet_api_v3` contains:
+`gpui_dotnet_api_v4` contains:
 
 - `struct_size`;
 - `abi_version`;
@@ -18,7 +18,7 @@ const gpui_dotnet_api_v3* gpui_dotnet_get_api(uint32_t requested_version);
 - `notify_view`;
 - `dispatch_command`.
 
-The current schema hash is `0xE5AA02EB154169D1`.
+The current schema hash is `0x64EAD325E7854DAE`.
 
 ## Managed callbacks
 
@@ -30,6 +30,7 @@ typedef struct gpui_managed_callbacks {
     gpui_managed_render_fn render;
     gpui_managed_click_fn click;
     gpui_managed_list_render_range_fn list_render_range;
+    gpui_managed_control_event_fn control_event;
     gpui_managed_shutdown_fn shutdown;
 } gpui_managed_callbacks;
 ```
@@ -82,6 +83,17 @@ int32_t list_render_range(
 
 List range rendering is also retryable when the native-owned arena must grow, so `[GpuiListItem]` is subject to the same pure-render rule.
 
+### Native control event
+
+```c
+int32_t control_event(
+    uint64_t session_id,
+    uint64_t event_token,
+    const gpui_native_control_event* event);
+```
+
+`gpui_native_control_event` carries a typed event kind, flags, native state revision, and a borrowed UTF-8 data range. Input currently emits Changed, Submitted, and FocusChanged. Managed code validates the record and copies the bytes before returning through FFI, making `InputEvent.Utf8Value` safe for asynchronous handlers. UTF-16 decoding is deferred until `InputEvent.Value` is accessed.
+
 ### Shutdown
 
 `shutdown(session_id)` runs after the last GPUI window closes but before the native application quits. Managed Views are unmounted while native lifecycle infrastructure is still valid.
@@ -115,7 +127,7 @@ Canonical rules:
 
 ## Retained native resource commands
 
-Scroll and List state are not rebuilt from managed objects. Commands use:
+Scroll, List, and Input state are not rebuilt from managed objects. Commands use:
 
 ```c
 typedef struct gpui_native_resource_command {
@@ -124,6 +136,8 @@ typedef struct gpui_native_resource_command {
     uint16_t command;
     const uint8_t* key;
     int32_t key_length;
+    const uint8_t* data;
+    int32_t data_length;
     uint32_t reserved;
     uint64_t a;
     uint64_t b;
@@ -143,10 +157,14 @@ Current commands:
 | List | `Splice` | `a=start`, high/low halves of `b` = removed/inserted |
 | List | `Reset` | `a=itemCount` |
 | List | `Refresh` | `a=start`, `b=count` |
+| Input | `Focus` | none |
+| Input | `Blur` | none |
+| Input | `SetValue` | UTF-8 `data` |
+| Input | `SelectAll` | none |
 
 Commands are sent through the native UI message channel and handled on the GPUI thread. Scroll commands and `List.ScrollToItem` apply immediately. `List.Splice/Reset/Refresh` are measurement-preservation hints: when a List already exists they are queued and committed only with the next managed snapshot revision, so they cannot race materialization of the previous declarative `itemCount`. A hint/snapshot mismatch falls back to a full `ListState.reset`.
 
-Command payloads are canonicalized too: scalar indices/counts use only their documented 32-bit words, no-payload commands require zero payload words, and scroll offsets must be finite non-negative `f32` values.
+Command payloads are canonicalized too: scalar indices/counts use only their documented 32-bit words, no-payload commands require zero payload words and empty data, scroll offsets must be finite non-negative `f32` values, and Input value data must be valid UTF-8. The UTF-8 `SetValue` managed overload pins the caller span only for this synchronous call; Rust copies it into retained native storage before returning.
 
 ## Error handling
 

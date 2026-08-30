@@ -24,6 +24,17 @@ Wheel/trackpad movement updates `ScrollHandle` entirely in Rust. C# is involved 
 
 Do not add per-scroll-delta reverse callbacks to the default component.
 
+## Input
+
+Input editing, selection, caret movement, IME composition, and horizontal reveal remain native. Reverse callbacks exist only for explicitly bound Changed, Submitted, and FocusChanged transitions.
+
+The UTF-8-first API avoids unnecessary transcoding:
+
+- `Utf8InputOptions` copies caller bytes directly into the render arena;
+- `InputController.SetValue(ReadOnlySpan<byte>)` uses the caller span synchronously without a managed payload allocation;
+- `InputEvent.Utf8Value` owns copied UTF-8 bytes for async safety;
+- `InputEvent.Value` allocates/decodes only on first access.
+
 Native resource commands use a lossless queue. Ordinary managed invalidation notifications are atomically coalesced to at most one pending queue entry, so repeated `Invalidate()` calls do not grow the native message queue while a frame is already pending.
 
 ## Virtual list crossing budget
@@ -58,6 +69,7 @@ Track at least:
 - clean repaint managed callback count (must be zero);
 - Scroll wheel managed callback count (must be zero);
 - List crossings while scrolling a fixed viewport;
+- Input UTF-8 controller allocation count and event decode-on-demand behavior;
 - range batch size/cache hit rate;
 - row arena high-water capacities;
 - `ListState` reset/splice behavior after model mutation.

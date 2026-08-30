@@ -13,7 +13,7 @@ C# View state
    │ dirty render only
    ▼
 RenderArena (nodes / ops / children / UTF-8)
-   │ ABI v3
+   │ ABI v4
    ▼
 Rust validation + flat retained snapshot
    │
@@ -21,7 +21,8 @@ Rust validation + flat retained snapshot
    │
    └─ retained native resources
         ├─ ScrollHandle
-        └─ ListState + managed row batch cache
+        ├─ ListState + managed row batch cache
+        └─ ManagedInput + GPUI input handler
 ```
 
 Clean GPUI repaints do not call managed `Render()`. Scroll wheel/trackpad movement stays native. A virtualized list crosses back into managed code only when Rust needs a row batch that is not already cached.
@@ -167,6 +168,36 @@ var image = ui.Image(Path.Combine(AppContext.BaseDirectory, "Assets", "hero.svg"
 
 `ui.Image` currently accepts filesystem paths only; relative paths resolve against the application working directory. URI sources are intentionally not exposed until the native application has a real HTTP client and an explicit network-loading policy.
 
+## Input
+
+`ui.Input` is a retained native single-line editor. GPUI owns focus, selection, clipboard actions, IME composition, caret painting, horizontal scrolling, and password masking. A managed rerender reconfigures presentation and event bindings without replacing the current native value.
+
+```csharp
+private InputController _search;
+
+protected override void OnMounted(ref ViewContext context) =>
+    _search = context.CreateInputController("search"u8);
+
+[GpuiEvent]
+private void SearchChanged(InputEvent input)
+{
+    // Decode only when the application actually needs a System.String.
+    _model = input.Value;
+    Invalidate();
+}
+
+protected override Element Render(ref RenderContext ui) =>
+    ui.Input(
+            "search"u8,
+            new Utf8InputOptions(placeholder: "Search…"u8))
+        .OnChanged(Events.SearchChanged)
+        .Width(Percent(100));
+```
+
+`InputOptions` is the string convenience API. `Utf8InputOptions`, UTF-8 controller keys, `InputController.SetValue(ReadOnlySpan<byte>)`, and `InputEvent.Utf8Value` avoid unnecessary UTF-16 transcoding. Input event bytes are copied once into event-owned memory so async handlers are safe; `InputEvent.Value` decodes lazily. The warmed-up UTF-8 `SetValue` command pins its caller span for the synchronous ABI call and allocates no managed payload array.
+
+Events are opt-in: `OnChanged`, `OnSubmitted`, and `OnFocusChanged`. Without them, native edits do not cross into managed code. `InputController` provides `Focus`, `Blur`, `SelectAll`, and `SetValue`; the initial value is consumed only when the keyed native resource is first created.
+
 ## Generated events
 
 Constructor-time callback registration is not used. `[GpuiEvent]` emits stable handler IDs, `Events.*` bindings and direct dispatch code. `Task`/`ValueTask` completion is observed; `async void` is rejected.
@@ -185,18 +216,16 @@ private async ValueTask Increment(ClickEvent _)
 
 `Render()` remains a pure description function. Arena growth may retry it. Do not mutate View state, start tasks, perform I/O, register handlers, or call `Invalidate()` from `Render()` or a `[GpuiListItem]` renderer.
 
-## ABI v3
+## ABI v4
 
-ABI v3 is intentionally incompatible with previous revisions. It adds:
+ABI v4 is intentionally incompatible with previous revisions. In addition to the v3 Scroll/List/Image protocol, it adds:
 
-- a 64-bit callback payload in addition to the generated event token;
-- retained Scroll/List resource commands;
-- a batched Rust → managed `list_render_range` callback;
-- semantic Scroll/List/Image render operations and resource owner IDs;
-- shutdown callback before native application teardown;
-- flat native snapshots and reusable validation scratch storage.
+- retained Input resource commands with optional UTF-8 command data;
+- a typed native-control event callback carrying owned-on-receipt UTF-8 data;
+- generated `InputEvent` dispatch;
+- semantic Input configuration and event operations.
 
-Managed startup validates both ABI version and semantic schema hash (`0xE5AA02EB154169D1`). See [docs/ABI.md](docs/ABI.md).
+Managed startup validates both ABI version and semantic schema hash (`0x64EAD325E7854DAE`). See [docs/ABI.md](docs/ABI.md).
 
 ## Build
 
@@ -211,7 +240,7 @@ dotnet build gpui-dotnet.slnx
 dotnet run --project dotnet/samples/Gpui.Net.Sample
 ```
 
-The sample contains a retained Scroll route, a 20,000-row variable-height virtualized List route, and an Image gallery demonstrating contain, cover, and grayscale. To force native-owned render-arena growth/retry:
+The sample contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, and an Image gallery demonstrating contain, cover, and grayscale. To force native-owned render-arena growth/retry:
 
 ```powershell
 dotnet run --project dotnet/samples/Gpui.Net.Sample -- --stress-growth

@@ -19,7 +19,7 @@ dotnet run --project tools/Gpui.Bindings.Generator -- generate
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
 ```
 
-`Scroll` and `List` are manual factories because they encode retained resource metadata in addition to normal semantic component identity. Styling operations are still capability-generated.
+`Scroll`, `List`, and `Input` are manual factories because they encode retained resource metadata in addition to normal semantic component identity. Styling operations are still capability-generated.
 
 For callback operations the generated managed fluent API has two forms:
 
@@ -45,17 +45,20 @@ Accepted signatures:
 ```csharp
 void Handler()
 void Handler(ClickEvent e)
+void Handler(InputEvent e)
 Task Handler()
 Task Handler(ClickEvent e)
+Task Handler(InputEvent e)
 ValueTask Handler()
 ValueTask Handler(ClickEvent e)
+ValueTask Handler(InputEvent e)
 ```
 
 The generator emits:
 
 - nonzero deterministic handler IDs;
 - `Events.Handler` callback tokens;
-- a direct switch-based `DispatchClickAsync` override;
+- direct switch-based `DispatchClickAsync` and `DispatchInputAsync` overrides as needed;
 - diagnostics for invalid/duplicate/reserved handlers and ID collisions.
 
 `async void` is rejected.
