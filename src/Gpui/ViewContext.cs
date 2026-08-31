@@ -60,6 +60,7 @@ public readonly ref struct ViewContext
         {
             throw new ArgumentException("A native resource key cannot be empty.", nameof(key));
         }
+        ResourceKeys.ValidateExplicitChars(key, nameof(key));
     }
 
     private static void ValidateResourceKey(ReadOnlySpan<byte> utf8Key)
@@ -75,5 +76,6 @@ public readonly ref struct ViewContext
                 nameof(utf8Key)
             );
         }
+        ResourceKeys.ValidateExplicitBytes(utf8Key, nameof(utf8Key));
     }
 }

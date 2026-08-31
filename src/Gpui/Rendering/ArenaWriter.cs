@@ -130,6 +130,100 @@ internal static unsafe class ArenaWriter
         return new Element<TTag>(new Element(arena, node, arena->Generation));
     }
 
+    /// <summary>Adds a UTF-8 key followed by two UTF-16 strings as NUL-separated fields.</summary>
+    internal static Element<TTag> AddCompositeNode<TTag>(
+        RenderArena* arena,
+        ComponentId component,
+        ReadOnlySpan<byte> first,
+        ReadOnlySpan<char> second,
+        ReadOnlySpan<char> third
+    )
+        where TTag : unmanaged
+    {
+        if (first.Contains((byte)0) || second.Contains('\0') || third.Contains('\0'))
+        {
+            throw new ArgumentException("Composite render data cannot contain NUL characters.");
+        }
+
+        EnsureNodes(arena, 1);
+        var byteCount = checked(
+            first.Length
+            + Encoding.UTF8.GetByteCount(second)
+            + Encoding.UTF8.GetByteCount(third)
+            + 2
+        );
+        EnsureUtf8(arena, byteCount);
+
+        var offset = arena->Utf8Length;
+        var destination = new Span<byte>(arena->Utf8 + offset, byteCount);
+        first.CopyTo(destination);
+        var written = first.Length;
+        destination[written++] = 0;
+        written += Encoding.UTF8.GetBytes(second, destination[written..]);
+        destination[written++] = 0;
+        written += Encoding.UTF8.GetBytes(third, destination[written..]);
+        arena->Utf8Length += written;
+
+        var node = checked((uint)arena->NodeLength);
+        arena->Nodes[arena->NodeLength++] = new NodeRecord
+        {
+            Component = (ushort)component,
+            DataOffset = checked((uint)offset),
+            DataLength = checked((uint)written),
+        };
+        return new Element<TTag>(new Element(arena, node, arena->Generation));
+    }
+
+    /// <summary>Adds table data with an already encoded UTF-8 key.</summary>
+    internal static Element<TTag> AddTableNode<TTag>(
+        RenderArena* arena,
+        ComponentId component,
+        ReadOnlySpan<byte> key,
+        ReadOnlySpan<TableColumn> columns
+    )
+        where TTag : unmanaged
+    {
+        if (key.Contains((byte)0))
+        {
+            throw new ArgumentException("Table render data cannot contain NUL bytes.");
+        }
+
+        EnsureNodes(arena, 1);
+        var byteCount = key.Length;
+        foreach (var column in columns)
+        {
+            byteCount = checked(
+                byteCount
+                + Encoding.UTF8.GetByteCount(column.Key)
+                + Encoding.UTF8.GetByteCount(column.Header)
+                + 2
+            );
+        }
+        EnsureUtf8(arena, byteCount);
+
+        var offset = arena->Utf8Length;
+        var destination = new Span<byte>(arena->Utf8 + offset, byteCount);
+        key.CopyTo(destination);
+        var written = key.Length;
+        foreach (var column in columns)
+        {
+            destination[written++] = 0;
+            written += Encoding.UTF8.GetBytes(column.Key, destination[written..]);
+            destination[written++] = 0;
+            written += Encoding.UTF8.GetBytes(column.Header, destination[written..]);
+        }
+        arena->Utf8Length += written;
+
+        var node = checked((uint)arena->NodeLength);
+        arena->Nodes[arena->NodeLength++] = new NodeRecord
+        {
+            Component = (ushort)component,
+            DataOffset = checked((uint)offset),
+            DataLength = checked((uint)written),
+        };
+        return new Element<TTag>(new Element(arena, node, arena->Generation));
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static Element<TTag> AddNode<TTag>(
         RenderArena* arena,

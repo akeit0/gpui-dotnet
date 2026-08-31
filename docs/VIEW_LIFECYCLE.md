@@ -32,7 +32,7 @@ A keyed slot can change View type. The slot is identity; the type is the current
 
 Constructors should initialize ordinary managed state only. Anything that relies on a mounted runtime belongs in `OnMounted`.
 
-Controllers are examples:
+Explicit-key controllers are examples of mounted resources:
 
 ```csharp
 private ScrollController _scroll;
@@ -42,18 +42,16 @@ private InputController _input;
 protected override void OnMounted(ref ViewContext context)
 {
     _scroll = context.CreateScrollController("content");
-    _list = context.CreateListController("rows");
-    _input = context.CreateInputController("search"u8);
 }
 ```
 
-Creating a controller does not immediately allocate the GPUI resource. The resource is materialized from `ui.Scroll`/`ui.List`/`ui.Input`; native commands use the same `(View handle, key)` identity. Input's declarative initial value is creation-only, so rerenders cannot accidentally reset an in-progress native edit.
+Creating an explicit-key controller does not immediately allocate the GPUI resource. Input and list controllers can instead remain default-initialized and be bound by reference in `Render()` with `ui.Input(ref _input, ...)` or `ui.List(ref _list, ...)`; the first render assigns a stable per-view UTF-8 key that the controller retains for later renders and commands. Native commands use the same `(View handle, key)` identity. Input's declarative initial value is creation-only, so rerenders cannot accidentally reset an in-progress native edit.
 
 ## Render purity
 
 `Render()` and `[GpuiListItem]` are both retryable because the native-owned arena may need growth. They must not:
 
-- mutate managed View/domain state;
+- mutate managed View/domain state (framework ref-bound controllers may initialize their retained key);
 - start tasks or perform I/O;
 - invoke controllers;
 - register callbacks;

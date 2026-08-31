@@ -98,6 +98,7 @@ public readonly struct ListOptions
 /// <summary>
 /// Optional imperative handle for a virtualized list declared by the same View with ui.List().
 /// Use Splice when item identity/order changes so native measurements can be retained precisely.
+/// A default controller is assigned a stable key when passed by reference to ui.List() or ui.Table().
 /// </summary>
 public readonly struct ListController
 {
@@ -109,6 +110,17 @@ public readonly struct ListController
         _owner = owner;
         _utf8Key = Encoding.UTF8.GetBytes(key);
     }
+
+    internal ListController(View owner, ReadOnlySpan<byte> utf8Key)
+    {
+        _owner = owner;
+        _utf8Key = utf8Key.ToArray();
+    }
+
+    /// <summary>True once this controller has been bound to a resource.</summary>
+    public bool IsBound => _utf8Key is not null;
+
+    internal ReadOnlySpan<byte> Utf8KeySpan => _utf8Key;
 
     public bool IsDefault => _owner is null;
 

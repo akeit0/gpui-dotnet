@@ -100,6 +100,45 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public unsafe void RefBoundInputControllerGetsAStableAutoKey()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            InputController controller = default;
+            Assert.False(controller.IsBound);
+
+            var firstUi = arena.BeginRender(new NoopRenderer(), view);
+            var first = firstUi.Input(
+                ref controller,
+                new Utf8InputOptions(placeholder: "Search"u8)
+            );
+            arena.Validate(first);
+
+            Assert.True(controller.IsBound);
+            var firstKey = ReadNodeKey(arena);
+            Assert.True(firstKey.AsSpan().SequenceEqual(ResourceKeys.EncodeAutoKey(1)));
+
+            var secondUi = arena.BeginRender(new NoopRenderer(), view);
+            var second = secondUi.Input(
+                ref controller,
+                new Utf8InputOptions(placeholder: "Changed"u8)
+            );
+            arena.Validate(second);
+
+            var secondKey = ReadNodeKey(arena);
+            Assert.True(firstKey.AsSpan().SequenceEqual(secondKey));
+            Assert.True(controller.Utf8KeySpan.SequenceEqual(firstKey));
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
     public void InputEventOwnsUtf8AndDecodesOnlyOnce()
     {
         var input = new InputEvent(InputEventKind.Changed, "こんにちは"u8.ToArray(), true, 7);
@@ -337,6 +376,67 @@ public sealed class SemanticRenderTests
             var stats = arena.GetStats();
             Assert.Equal(1, stats.Nodes);
             Assert.Equal(4, stats.Ops);
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public unsafe void RefBoundListControllerGetsAStableAutoKey()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            ListController controller = default;
+            Assert.False(controller.IsBound);
+
+            var firstUi = arena.BeginRender(new NoopRenderer(), view);
+            var first = firstUi.List(ref controller, new ListDataSource(100, 1), view.Row);
+            arena.Validate(first);
+
+            Assert.True(controller.IsBound);
+            var firstKey = ReadNodeKey(arena);
+            Assert.True(firstKey.AsSpan().SequenceEqual(ResourceKeys.EncodeAutoKey(1)));
+
+            var secondUi = arena.BeginRender(new NoopRenderer(), view);
+            var second = secondUi.List(ref controller, new ListDataSource(100, 2), view.Row);
+            arena.Validate(second);
+
+            var secondKey = ReadNodeKey(arena);
+            Assert.True(firstKey.AsSpan().SequenceEqual(secondKey));
+            Assert.True(controller.Utf8KeySpan.SequenceEqual(firstKey));
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public unsafe void RefBoundListControllerCanDeclareATable()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            ListController controller = default;
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var table = ui.Table(
+                ref controller,
+                new ListDataSource(10, 1),
+                view.Row,
+                new TableColumn("name", "Name", 120)
+            );
+
+            arena.Validate(table);
+
+            var key = ReadNodeKey(arena);
+            Assert.True(key.AsSpan().SequenceEqual(ResourceKeys.EncodeAutoKey(1)));
         }
         finally
         {
@@ -677,6 +777,19 @@ public sealed class SemanticRenderTests
             static (_, _) => { },
             static (_, _, _) => { }
         );
+
+    private static unsafe byte[] ReadNodeKey(RenderArenaOwner arena)
+    {
+        var node = arena.NativeArena->Nodes[0];
+        var payload = new ReadOnlySpan<byte>(
+            arena.NativeArena->Utf8 + node.DataOffset,
+            checked((int)node.DataLength)
+        );
+        var separator = payload.IndexOf((byte)0);
+        var keyLength = separator < 0 ? payload.Length : separator;
+        Assert.True(keyLength > 0);
+        return payload[..keyLength].ToArray();
+    }
 
     private sealed class ProbeView : View
     {

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 
 namespace Gpui;
@@ -56,6 +57,7 @@ public readonly struct ScrollOptions
 /// Optional imperative handle for a scroll resource declared by the same View with ui.Scroll().
 /// Most scroll containers do not need a controller.
 /// </summary>
+[DebuggerDisplay("{DebuggerView,nq}")]
 public readonly struct ScrollController
 {
     private readonly View? _owner;
@@ -67,7 +69,31 @@ public readonly struct ScrollController
         _utf8Key = Encoding.UTF8.GetBytes(key);
     }
 
+    /// <summary>Internal constructor that takes ownership of an already-encoded key array.</summary>
+    internal ScrollController(View owner, byte[] utf8Key)
+    {
+        _owner = owner;
+        _utf8Key = utf8Key;
+    }
+
+    /// <summary>True once this controller has been bound to a resource.</summary>
+    public bool IsBound => _utf8Key is not null;
+
+    internal ReadOnlySpan<byte> Utf8KeySpan => _utf8Key;
+
     public bool IsDefault => _owner is null;
+
+    private string DebuggerView
+    {
+        get
+        {
+            if (_utf8Key is null)
+            {
+                return "unbound";
+            }
+            return ResourceKeys.TryDecodeAutoKey(_utf8Key, out var id) ? $"auto:{id}" : "explicit";
+        }
+    }
 
     /// <summary>Scrolls to a positive content-space offset from the top-left corner.</summary>
     public void ScrollTo(float x, float y)

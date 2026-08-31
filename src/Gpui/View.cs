@@ -34,11 +34,19 @@ public abstract class View
     private CancellationTokenSource? _mountLifetime;
     private uint _runtimeViewHandle;
     private int _mounted;
+    private ulong _nextResourceKeyId;
 
     protected View() => Dispatcher = new Dispatcher(this);
 
     /// <summary>Posts managed work to this view's GPUI UI thread.</summary>
     protected internal Dispatcher Dispatcher { get; }
+
+    /// <summary>
+    /// Allocates the next auto resource-key id for this view. Ids are monotonic per view
+    /// instance: ref-bound controllers retain the id assigned by their first render, so later
+    /// renders and re-renders reuse it instead of allocating.
+    /// </summary>
+    internal ulong NextResourceKeyId() => ++_nextResourceKeyId;
 
     /// <summary>True between <see cref="OnMounted"/> and <see cref="OnUnmounted"/>.</summary>
     protected bool IsMounted => Volatile.Read(ref _mounted) != 0;

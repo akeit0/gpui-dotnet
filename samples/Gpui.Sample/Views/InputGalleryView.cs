@@ -9,11 +9,6 @@ internal sealed partial class InputGalleryView : View
     private string _value = "Type in the first field";
     private string _lastEvent = "No input event yet";
 
-    protected override void OnMounted(ref ViewContext context)
-    {
-        _search = context.CreateInputController("search"u8);
-    }
-
     [GpuiEvent]
     private void SearchChanged(InputEvent input)
     {
@@ -53,7 +48,7 @@ internal sealed partial class InputGalleryView : View
         var search = Field(
             ref ui,
             "Interactive + UTF-8 events",
-            ui.Input("search"u8, new Utf8InputOptions(placeholder: "Search or enter 日本語…"u8))
+            ui.Input(ref _search, new Utf8InputOptions(placeholder: "Search or enter 日本語…"u8))
                 .OnChanged(Events.SearchChanged)
                 .OnSubmitted(Events.SearchSubmitted)
                 .OnFocusChanged(Events.SearchFocusChanged)

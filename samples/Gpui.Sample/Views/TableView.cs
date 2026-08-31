@@ -17,11 +17,6 @@ internal sealed partial class TableView : View
         new("rps", "Req/s", 90, TableColumnWidth.Pixels, TableColumnAlignment.Right),
     ];
 
-    protected override void OnMounted(ref ViewContext context)
-    {
-        _grid = context.CreateListController("service-grid");
-    }
-
     [GpuiEvent]
     private void SelectRow(ClickEvent e)
     {
@@ -89,7 +84,7 @@ internal sealed partial class TableView : View
             .ItemsCenter();
 
         var grid = ui.Table(
-                "service-grid",
+                ref _grid,
                 new ListDataSource(ItemCount, 1),
                 Rows.ServiceRow,
                 new TableOptions(

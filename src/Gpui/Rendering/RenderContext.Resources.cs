@@ -68,10 +68,53 @@ public readonly unsafe ref partial struct RenderContext
         }
         if (options.EffectiveScrollbarWidth != 8)
         {
-            ArenaWriter.AddF32(element.Inner, OpCode.ScrollbarWidth, options.EffectiveScrollbarWidth);
+            ArenaWriter.AddF32(
+                element.Inner,
+                OpCode.ScrollbarWidth,
+                options.EffectiveScrollbarWidth
+            );
         }
         ArenaWriter.AddChildren(element.Inner, children);
         return element;
+    }
+
+    /// <summary>
+    /// Declares a variable-height virtualized list. GPUI retains measurements and requests managed
+    /// rows in coarse batches. The renderer must be generated from a [GpuiListItem] method.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Element<ListTag> List(
+        ref ListController controller,
+        int itemCount,
+        ListItemRenderer renderer,
+        ListOptions options = default
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(itemCount);
+        BindAutoController(ref controller);
+        return ListCore(controller.Utf8KeySpan, itemCount, null, renderer, options);
+    }
+
+    /// <summary>
+    /// Declares a variable-height virtualized list bound to a controller-owned retained key.
+    /// The controller receives its per-view key on the first render and reuses it thereafter.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Element<ListTag> List(
+        ref ListController controller,
+        ListDataSource dataSource,
+        ListItemRenderer renderer,
+        ListOptions options = default
+    )
+    {
+        BindAutoController(ref controller);
+        return ListCore(
+            controller.Utf8KeySpan,
+            dataSource.Count,
+            dataSource.ContentRevision,
+            renderer,
+            options
+        );
     }
 
     /// <summary>
@@ -115,6 +158,34 @@ public readonly unsafe ref partial struct RenderContext
         {
             throw new ArgumentException("A list resource key cannot be empty.", nameof(key));
         }
+        ResourceKeys.ValidateExplicitChars(key, nameof(key));
+        ValidateListArguments(renderer, options);
+
+        var element = ArenaWriter.AddNode<ListTag>(_arena, ComponentId.List, key);
+        return ConfigureList(element, itemCount, contentRevision, renderer, options);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private Element<ListTag> ListCore(
+        ReadOnlySpan<byte> key,
+        int itemCount,
+        ulong? contentRevision,
+        ListItemRenderer renderer,
+        ListOptions options
+    )
+    {
+        if (key.IsEmpty)
+        {
+            throw new ArgumentException("A list resource key cannot be empty.", nameof(key));
+        }
+        ValidateListArguments(renderer, options);
+
+        var element = ArenaWriter.AddNode<ListTag>(_arena, ComponentId.List, key);
+        return ConfigureList(element, itemCount, contentRevision, renderer, options);
+    }
+
+    private static void ValidateListArguments(ListItemRenderer renderer, ListOptions options)
+    {
         if (renderer.IsDefault)
         {
             throw new ArgumentException("A generated list renderer is required.", nameof(renderer));
@@ -123,8 +194,17 @@ public readonly unsafe ref partial struct RenderContext
         {
             throw new ArgumentOutOfRangeException(nameof(options));
         }
+    }
 
-        var element = ArenaWriter.AddNode<ListTag>(_arena, ComponentId.List, key);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private Element<ListTag> ConfigureList(
+        Element<ListTag> element,
+        int itemCount,
+        ulong? contentRevision,
+        ListItemRenderer renderer,
+        ListOptions options
+    )
+    {
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
         ArenaWriter.AddU32(element.Inner, OpCode.ListItemCount, checked((uint)itemCount));
         ArenaWriter.AddCallback(element.Inner, OpCode.ListRenderer, renderer.Token);
@@ -144,7 +224,11 @@ public readonly unsafe ref partial struct RenderContext
         }
         if (options.EffectiveAlignment != ListAlignment.Top)
         {
-            ArenaWriter.AddU32(element.Inner, OpCode.ListAlignment, (uint)options.EffectiveAlignment);
+            ArenaWriter.AddU32(
+                element.Inner,
+                OpCode.ListAlignment,
+                (uint)options.EffectiveAlignment
+            );
         }
         if (options.EffectiveEstimatedItemHeight != 40)
         {
@@ -172,9 +256,40 @@ public readonly unsafe ref partial struct RenderContext
         }
         if (options.EffectiveScrollbarWidth != 8)
         {
-            ArenaWriter.AddF32(element.Inner, OpCode.ScrollbarWidth, options.EffectiveScrollbarWidth);
+            ArenaWriter.AddF32(
+                element.Inner,
+                OpCode.ScrollbarWidth,
+                options.EffectiveScrollbarWidth
+            );
         }
         return element;
+    }
+
+    /// <summary>
+    /// Declares a virtualized table. Rows render through the same coarse batch pipeline as
+    /// <see cref="List"/>, while the declared columns drive the native header strip and the
+    /// width/alignment of every <see cref="TableCell"/> inside each row.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Element<TableTag> Table(
+        ref ListController controller,
+        ListDataSource dataSource,
+        ListItemRenderer renderer,
+        params ReadOnlySpan<TableColumn> columns
+    ) => Table(ref controller, dataSource, renderer, default, columns);
+
+    /// <summary>Declares a virtualized table bound to a controller-owned retained key.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Element<TableTag> Table(
+        ref ListController controller,
+        ListDataSource dataSource,
+        ListItemRenderer renderer,
+        TableOptions options,
+        params ReadOnlySpan<TableColumn> columns
+    )
+    {
+        BindAutoController(ref controller);
+        return TableCore(controller.Utf8KeySpan, dataSource, renderer, options, columns);
     }
 
     /// <summary>
@@ -204,6 +319,45 @@ public readonly unsafe ref partial struct RenderContext
         {
             throw new ArgumentException("A table resource key cannot be empty.", nameof(key));
         }
+        ResourceKeys.ValidateExplicitChars(key, nameof(key));
+        return TableCore(key, dataSource, renderer, options, columns);
+    }
+
+    private Element<TableTag> TableCore(
+        ReadOnlySpan<byte> key,
+        ListDataSource dataSource,
+        ListItemRenderer renderer,
+        TableOptions options,
+        ReadOnlySpan<TableColumn> columns
+    )
+    {
+        if (key.IsEmpty)
+        {
+            throw new ArgumentException("A table resource key cannot be empty.", nameof(key));
+        }
+        if (renderer.IsDefault)
+        {
+            throw new ArgumentException("A generated list renderer is required.", nameof(renderer));
+        }
+        ArgumentOutOfRangeException.ThrowIfNegative(dataSource.Count);
+        ValidateTableColumns(columns);
+
+        var element = ArenaWriter.AddTableNode<TableTag>(_arena, ComponentId.Table, key, columns);
+        return ConfigureTable(element, dataSource, renderer, options, columns);
+    }
+
+    private Element<TableTag> TableCore(
+        ReadOnlySpan<char> key,
+        ListDataSource dataSource,
+        ListItemRenderer renderer,
+        TableOptions options,
+        ReadOnlySpan<TableColumn> columns
+    )
+    {
+        if (key.IsEmpty)
+        {
+            throw new ArgumentException("A table resource key cannot be empty.", nameof(key));
+        }
         if (renderer.IsDefault)
         {
             throw new ArgumentException("A generated list renderer is required.", nameof(renderer));
@@ -216,6 +370,18 @@ public readonly unsafe ref partial struct RenderContext
             ComponentId.Table,
             EncodeTableData(key, columns)
         );
+        return ConfigureTable(element, dataSource, renderer, options, columns);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private Element<TableTag> ConfigureTable(
+        Element<TableTag> element,
+        ListDataSource dataSource,
+        ListItemRenderer renderer,
+        TableOptions options,
+        ReadOnlySpan<TableColumn> columns
+    )
+    {
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
         ArenaWriter.AddU32(element.Inner, OpCode.ListItemCount, checked((uint)dataSource.Count));
         ArenaWriter.AddCallback(element.Inner, OpCode.ListRenderer, renderer.Token);
@@ -256,7 +422,11 @@ public readonly unsafe ref partial struct RenderContext
         }
         if (options.EffectiveScrollbarWidth != 8)
         {
-            ArenaWriter.AddF32(element.Inner, OpCode.ScrollbarWidth, options.EffectiveScrollbarWidth);
+            ArenaWriter.AddF32(
+                element.Inner,
+                OpCode.ScrollbarWidth,
+                options.EffectiveScrollbarWidth
+            );
         }
         if (!options.EffectiveShowHeader)
         {
@@ -379,14 +549,65 @@ public readonly unsafe ref partial struct RenderContext
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private uint CurrentResourceOwner()
     {
-        var owner =
-            _owner
-            ?? throw new InvalidOperationException(
-                "Retained native resources require a mounted managed View. Element-only RenderArenaOwner tests cannot create them."
-            );
-        var handle = owner.RuntimeViewHandle;
+        var handle = OwnerView.RuntimeViewHandle;
         return handle != 0
             ? handle
             : throw new InvalidOperationException("The owning View is not mounted.");
+    }
+
+    private View OwnerView =>
+        _owner
+        ?? throw new InvalidOperationException(
+            "Retained native resources require a mounted managed View. Element-only RenderArenaOwner tests cannot create them."
+        );
+
+    /// <summary>
+    /// Binds an unbound controller to a fresh per-view auto id. Ids are retained inside the
+    /// controller field, so this allocates exactly once per field and every later render reuses
+    /// the same identity.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private InputController BindAutoController(ref InputController controller)
+    {
+        if (controller.IsBound)
+        {
+            return controller;
+        }
+        var owner = OwnerView;
+        controller = new InputController(
+            owner,
+            ResourceKeys.EncodeAutoKey(owner.NextResourceKeyId())
+        );
+        return controller;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ScrollController BindAutoController(ref ScrollController controller)
+    {
+        if (controller.IsBound)
+        {
+            return controller;
+        }
+        var owner = OwnerView;
+        controller = new ScrollController(
+            owner,
+            ResourceKeys.EncodeAutoKey(owner.NextResourceKeyId())
+        );
+        return controller;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private ListController BindAutoController(ref ListController controller)
+    {
+        if (controller.IsBound)
+        {
+            return controller;
+        }
+        var owner = OwnerView;
+        controller = new ListController(
+            owner,
+            ResourceKeys.EncodeAutoKey(owner.NextResourceKeyId())
+        );
+        return controller;
     }
 }

@@ -144,9 +144,6 @@ internal sealed partial class ActivityView : View
     private ListController _list;
     private ulong _rowsRevision;
 
-    protected override void OnMounted(ref ViewContext context) =>
-        _list = context.CreateListController("activity");
-
     [GpuiListItem]
     private Element ActivityRow(int index, ref RenderContext ui) =>
         ui.Button("row", $"Row {index:N0}")
@@ -163,7 +160,7 @@ internal sealed partial class ActivityView : View
 
     protected override Element Render(ref RenderContext ui) =>
         ui.List(
-                "activity",
+                ref _list,
                 new ListDataSource(Count, _rowsRevision),
                 Rows.ActivityRow,
                 new ListOptions(
@@ -226,9 +223,6 @@ var image = ui.Image(Path.Combine(AppContext.BaseDirectory, "Assets", "hero.svg"
 ```csharp
 private InputController _search;
 
-protected override void OnMounted(ref ViewContext context) =>
-    _search = context.CreateInputController("search"u8);
-
 [GpuiEvent]
 private void SearchChanged(InputEvent input)
 {
@@ -239,13 +233,13 @@ private void SearchChanged(InputEvent input)
 
 protected override Element Render(ref RenderContext ui) =>
     ui.Input(
-            "search"u8,
+            ref _search,
             new Utf8InputOptions(placeholder: "Search…"u8))
         .OnChanged(Events.SearchChanged)
         .Width(Percent(100));
 ```
 
-`InputOptions` is the string convenience API. `Utf8InputOptions`, UTF-8 controller keys, `InputController.SetValue(ReadOnlySpan<byte>)`, and `InputEvent.Utf8Value` avoid unnecessary UTF-16 transcoding. Input event bytes are copied once into event-owned memory so async handlers are safe; `InputEvent.Value` decodes lazily. The warmed-up UTF-8 `SetValue` command pins its caller span for the synchronous ABI call and allocates no managed payload array.
+`InputOptions` is the string convenience API. `Utf8InputOptions`, ref-bound controller IDs, `InputController.SetValue(ReadOnlySpan<byte>)`, and `InputEvent.Utf8Value` avoid unnecessary UTF-16 transcoding. A ref-bound controller receives a stable per-view ID on its first render and retains the UTF-8 key bytes for later renders and commands. Input event bytes are copied once into event-owned memory so async handlers are safe; `InputEvent.Value` decodes lazily. The warmed-up UTF-8 `SetValue` command pins its caller span for the synchronous ABI call and allocates no managed payload array.
 
 Events are opt-in: `OnChanged`, `OnSubmitted`, and `OnFocusChanged`. Without them, native edits do not cross into managed code. `InputController` provides `Focus`, `Blur`, `SelectAll`, and `SetValue`; the initial value is consumed only when the keyed native resource is first created.
 

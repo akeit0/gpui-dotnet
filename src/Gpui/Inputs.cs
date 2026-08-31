@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 
 namespace Gpui;
@@ -103,7 +104,9 @@ public sealed class InputEvent
 /// <summary>
 /// Imperative handle for a retained native input declared by the same View with ui.Input().
 /// Native user edits do not require controller calls.
+/// A default controller is assigned a stable key when passed by reference to ui.Input().
 /// </summary>
+[DebuggerDisplay("{DebuggerView,nq}")]
 public readonly struct InputController
 {
     private readonly View? _owner;
@@ -121,7 +124,31 @@ public readonly struct InputController
         _utf8Key = utf8Key.ToArray();
     }
 
+    /// <summary>Internal constructor that takes ownership of an already-encoded key array.</summary>
+    internal InputController(View owner, byte[] utf8Key)
+    {
+        _owner = owner;
+        _utf8Key = utf8Key;
+    }
+
+    /// <summary>True once this controller has been bound to a resource.</summary>
+    public bool IsBound => _utf8Key is not null;
+
+    internal ReadOnlySpan<byte> Utf8KeySpan => _utf8Key;
+
     public bool IsDefault => _owner is null;
+
+    private string DebuggerView
+    {
+        get
+        {
+            if (_utf8Key is null)
+            {
+                return "unbound";
+            }
+            return ResourceKeys.TryDecodeAutoKey(_utf8Key, out var id) ? $"auto:{id}" : "explicit";
+        }
+    }
 
     public void Focus() => Dispatch(ResourceCommandKind.InputFocus);
 

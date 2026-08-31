@@ -36,6 +36,19 @@ ui.Scroll("main", ScrollAxis.Vertical, content)
 
 The key is local to the owning managed View. Use `ScrollController` only for imperative offset commands. Scroll input itself remains native.
 
+## Virtualized list and table
+
+Virtualized lists and tables can bind their retained row-engine key to a controller by reference:
+
+```csharp
+private ListController _list;
+
+protected override Element Render(ref RenderContext ui) =>
+    ui.List(ref _list, new ListDataSource(Count, revision), Rows.RenderRow);
+```
+
+The first render assigns a stable per-view key; later renders reuse the UTF-8 key retained by the controller.
+
 ## Image
 
 `ui.Image(path)` records a UTF-8 filesystem path in the render arena. Rust materializes it with GPUI's native image element, so decoding and caching stay on the native side:
@@ -54,7 +67,7 @@ Only filesystem paths are public today. Relative paths resolve from the process 
 
 ## Input
 
-`ui.Input(key, options)` materializes a keyed `Entity<ManagedInput>`. The entity owns text, focus, UTF-8/UTF-16 IME range conversion, selection, caret/selection geometry, horizontal reveal, clipboard actions, and password presentation. Declarative `initialValue` is used only when the resource is created; normal managed rerenders do not overwrite user edits.
+`ui.Input(key, options)` materializes a keyed `Entity<ManagedInput>`. For controller-owned identity, use `ui.Input(ref controller, options)`; the first render assigns that controller a stable per-view key and later renders reuse it. The entity owns text, focus, UTF-8/UTF-16 IME range conversion, selection, caret/selection geometry, horizontal reveal, clipboard actions, and password presentation. Declarative `initialValue` is used only when the resource is created; normal managed rerenders do not overwrite user edits.
 
 String and UTF-8-first forms are both public:
 

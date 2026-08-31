@@ -10,11 +10,6 @@ internal sealed partial class ActivityView : View
     private int _selected = -1;
     private ulong _contentRevision;
 
-    protected override void OnMounted(ref ViewContext context)
-    {
-        _list = context.CreateListController("activity-list");
-    }
-
     [GpuiEvent]
     private void JumpToMiddle() => _list.ScrollToItem(ItemCount / 2);
 
@@ -71,7 +66,7 @@ internal sealed partial class ActivityView : View
             .ItemsCenter();
 
         var list = ui.List(
-                "activity-list",
+                ref _list,
                 new ListDataSource(ItemCount, _contentRevision),
                 Rows.ActivityRow,
                 new ListOptions(
