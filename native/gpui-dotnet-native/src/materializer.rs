@@ -88,7 +88,7 @@ impl ManagedView {
                 node.data.clone()
             };
             return element
-                .id(SharedString::from(element_id))
+                .id(element_id)
                 .cursor_pointer()
                 .hover(|style| style.opacity(0.88))
                 .active(|style| style.opacity(0.72))
@@ -171,22 +171,14 @@ impl ManagedView {
                 .child("List resource is missing its owner/key.")
                 .into_any_element();
         };
-        let Some((item_count, renderer, batch_size, overdraw, alignment, estimated_item_height)) =
-            list_configuration(snapshot, node)
-        else {
+        let Some(configuration) = list_configuration(snapshot, node) else {
             return div()
                 .child("List resource is missing virtualization metadata.")
                 .into_any_element();
         };
-        let resource = self.resources.list_resource(
-            &key,
-            item_count,
-            renderer,
-            batch_size,
-            overdraw,
-            alignment,
-            self.snapshot_revision,
-        );
+        let resource = self
+            .resources
+            .list_resource(&key, &configuration, self.snapshot_revision);
         let state = resource.borrow().state.clone();
         let resources = self.resources.clone();
         let row_scope = key.clone();
@@ -201,7 +193,12 @@ impl ManagedView {
         .min_w_0();
         let smooth = last_op(snapshot, node, OP_SMOOTH_SCROLL).is_none_or(|op| op.a != 0);
         let show_scrollbar = last_op(snapshot, node, OP_SHOW_SCROLLBAR).is_none_or(|op| op.a != 0);
-        let overlay = list_overlay(resource, estimated_item_height, smooth, show_scrollbar);
+        let overlay = list_overlay(
+            resource,
+            configuration.estimated_item_height,
+            smooth,
+            show_scrollbar,
+        );
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
         element = element.min_h_0().min_w_0();
         element

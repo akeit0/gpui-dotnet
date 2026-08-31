@@ -62,6 +62,15 @@ pub(crate) struct InputBindings {
     pub(crate) focus_changed: u64,
 }
 
+pub(crate) struct InputInitialState<'a> {
+    pub(crate) value: &'a str,
+    pub(crate) placeholder: &'a str,
+    pub(crate) disabled: bool,
+    pub(crate) read_only: bool,
+    pub(crate) password: bool,
+    pub(crate) bindings: InputBindings,
+}
+
 pub(crate) struct ManagedInput {
     session_id: u64,
     callbacks: ManagedCallbacks,
@@ -89,15 +98,10 @@ impl ManagedInput {
     pub(crate) fn new(
         session_id: u64,
         callbacks: ManagedCallbacks,
-        initial_value: &str,
-        placeholder: &str,
-        disabled: bool,
-        read_only: bool,
-        password: bool,
-        bindings: InputBindings,
+        initial: InputInitialState<'_>,
         cx: &mut Context<Self>,
     ) -> Self {
-        let content = single_line(initial_value);
+        let content = single_line(initial.value);
         let cursor = content.len();
         Self {
             session_id,
@@ -105,7 +109,7 @@ impl ManagedInput {
             focus_handle: cx.focus_handle().tab_stop(true),
             last_emitted_content: content.clone(),
             content,
-            placeholder: shared(placeholder),
+            placeholder: shared(initial.placeholder),
             selected_range: cursor..cursor,
             selection_reversed: false,
             marked_range: None,
@@ -113,10 +117,10 @@ impl ManagedInput {
             last_bounds: None,
             scroll_x: px(0.),
             is_selecting: false,
-            disabled,
-            read_only,
-            password,
-            bindings,
+            disabled: initial.disabled,
+            read_only: initial.read_only,
+            password: initial.password,
+            bindings: initial.bindings,
             revision: 0,
             callback_error: None,
             focus_subscriptions: Vec::new(),

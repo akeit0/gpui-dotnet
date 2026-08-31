@@ -388,7 +388,7 @@ fn validate_with_scratch(
             .extend_from_slice(&scratch.grouped_children[start..end]);
     }
 
-    if scratch.visited.iter().any(|visited| *visited == 0) {
+    if scratch.visited.contains(&0) {
         return Err(-13);
     }
 

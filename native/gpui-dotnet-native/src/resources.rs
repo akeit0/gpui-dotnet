@@ -14,7 +14,7 @@ use crate::{
     abi::{ManagedCallbacks, NativeResourceCommand},
     app_host::ManagedView,
     arena::OwnedRenderArena,
-    input::{InputBindings, ManagedInput},
+    input::{InputBindings, InputInitialState, ManagedInput},
     semantic::{
         NativeAdapter, OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED,
         OP_INPUT_ON_SUBMITTED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT,
@@ -98,11 +98,7 @@ impl ResourceStore {
     pub(crate) fn list_resource(
         &self,
         key: &ResourceKey,
-        item_count: usize,
-        renderer_token: u64,
-        batch_size: usize,
-        overdraw: Pixels,
-        alignment: ListAlignment,
+        configuration: &ListConfiguration,
         snapshot_revision: u64,
     ) -> Rc<RefCell<ManagedListResource>> {
         let existing = self.lists.borrow().get(key).cloned();
@@ -112,25 +108,16 @@ impl ResourceStore {
             let created = Rc::new(RefCell::new(ManagedListResource::new(
                 self.session_id,
                 self.callbacks,
-                item_count,
-                renderer_token,
-                batch_size,
-                overdraw,
-                alignment,
+                configuration,
                 snapshot_revision,
             )));
             self.lists.borrow_mut().insert(key.clone(), created.clone());
             created
         };
 
-        resource.borrow_mut().configure(
-            item_count,
-            renderer_token,
-            batch_size,
-            overdraw,
-            alignment,
-            snapshot_revision,
-        );
+        resource
+            .borrow_mut()
+            .configure(configuration, snapshot_revision);
         self.apply_pending(2, key);
         resource
     }
@@ -145,18 +132,18 @@ impl ResourceStore {
         let resource = if let Some(existing) = existing {
             existing
         } else {
-            let initial_value = configuration.initial_value.clone();
-            let placeholder = configuration.placeholder.clone();
             let created = cx.new(|cx| {
                 ManagedInput::new(
                     self.session_id,
                     self.callbacks,
-                    initial_value.as_ref(),
-                    placeholder.as_ref(),
-                    configuration.disabled,
-                    configuration.read_only,
-                    configuration.password,
-                    configuration.bindings,
+                    InputInitialState {
+                        value: configuration.initial_value.as_ref(),
+                        placeholder: configuration.placeholder.as_ref(),
+                        disabled: configuration.disabled,
+                        read_only: configuration.read_only,
+                        password: configuration.password,
+                        bindings: configuration.bindings,
+                    },
                     cx,
                 )
             });
@@ -301,6 +288,15 @@ pub(crate) struct InputConfiguration {
     pub(crate) bindings: InputBindings,
 }
 
+pub(crate) struct ListConfiguration {
+    pub(crate) item_count: usize,
+    pub(crate) renderer_token: u64,
+    pub(crate) batch_size: usize,
+    pub(crate) overdraw: Pixels,
+    pub(crate) alignment: ListAlignment,
+    pub(crate) estimated_item_height: Pixels,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ScrollbarDrag {
     Vertical { pointer_offset: Pixels },
@@ -348,23 +344,23 @@ impl ManagedListResource {
     fn new(
         session_id: u64,
         callbacks: ManagedCallbacks,
-        item_count: usize,
-        renderer_token: u64,
-        batch_size: usize,
-        overdraw: Pixels,
-        alignment: ListAlignment,
+        configuration: &ListConfiguration,
         snapshot_revision: u64,
     ) -> Self {
         Self {
             session_id,
             callbacks,
-            state: ListState::new(item_count, alignment, overdraw),
+            state: ListState::new(
+                configuration.item_count,
+                configuration.alignment,
+                configuration.overdraw,
+            ),
             interaction: Rc::new(ScrollInteraction::default()),
-            item_count,
-            renderer_token,
-            batch_size,
-            overdraw,
-            alignment,
+            item_count: configuration.item_count,
+            renderer_token: configuration.renderer_token,
+            batch_size: configuration.batch_size,
+            overdraw: configuration.overdraw,
+            alignment: configuration.alignment,
             snapshot_revision,
             batches: HashMap::new(),
             pending_commands: Vec::new(),
@@ -372,40 +368,39 @@ impl ManagedListResource {
         }
     }
 
-    fn configure(
-        &mut self,
-        item_count: usize,
-        renderer_token: u64,
-        batch_size: usize,
-        overdraw: Pixels,
-        alignment: ListAlignment,
-        snapshot_revision: u64,
-    ) {
+    fn configure(&mut self, configuration: &ListConfiguration, snapshot_revision: u64) {
         let revision_changed = self.snapshot_revision != snapshot_revision;
-        let layout_changed = self.alignment != alignment || self.overdraw != overdraw;
+        let layout_changed =
+            self.alignment != configuration.alignment || self.overdraw != configuration.overdraw;
 
         if layout_changed {
             // Rebuilding ListState already discards all measurements, so structural hints that
             // were waiting for this managed commit no longer provide any additional value.
-            self.state = ListState::new(item_count, alignment, overdraw);
-            self.item_count = item_count;
-            self.alignment = alignment;
-            self.overdraw = overdraw;
+            self.state = ListState::new(
+                configuration.item_count,
+                configuration.alignment,
+                configuration.overdraw,
+            );
+            self.item_count = configuration.item_count;
+            self.alignment = configuration.alignment;
+            self.overdraw = configuration.overdraw;
             self.pending_commands.clear();
             self.batches.clear();
         } else if revision_changed && !self.pending_commands.is_empty() {
-            self.commit_pending_commands(item_count);
-        } else if self.item_count != item_count {
+            self.commit_pending_commands(configuration.item_count);
+        } else if self.item_count != configuration.item_count {
             // A normal declarative count change without a ListController splice hint still has to
             // be correct; it simply cannot preserve the old per-item measurements precisely.
-            self.state.reset(item_count);
-            self.item_count = item_count;
+            self.state.reset(configuration.item_count);
+            self.item_count = configuration.item_count;
             self.batches.clear();
         }
 
-        if self.renderer_token != renderer_token || self.batch_size != batch_size {
-            self.renderer_token = renderer_token;
-            self.batch_size = batch_size;
+        if self.renderer_token != configuration.renderer_token
+            || self.batch_size != configuration.batch_size
+        {
+            self.renderer_token = configuration.renderer_token;
+            self.batch_size = configuration.batch_size;
             self.batches.clear();
         }
         if revision_changed {
@@ -689,7 +684,7 @@ pub(crate) fn input_configuration(
 pub(crate) fn list_configuration(
     snapshot: &ValidatedSnapshot,
     node: &crate::snapshot::SnapshotNode,
-) -> Option<(usize, u64, usize, Pixels, ListAlignment, Pixels)> {
+) -> Option<ListConfiguration> {
     let item_count = last_u32(snapshot, node, OP_LIST_ITEM_COUNT)? as usize;
     let renderer = snapshot
         .ops(node)
@@ -716,14 +711,14 @@ pub(crate) fn list_configuration(
         .rev()
         .find(|op| op.code == OP_LIST_ESTIMATED_ITEM_HEIGHT_PX)
         .map_or(px(40.), |op| px(f32::from_bits(op.a as u32)));
-    Some((
+    Some(ListConfiguration {
         item_count,
-        renderer,
+        renderer_token: renderer,
         batch_size,
         overdraw,
         alignment,
         estimated_item_height,
-    ))
+    })
 }
 
 fn last_u32(
