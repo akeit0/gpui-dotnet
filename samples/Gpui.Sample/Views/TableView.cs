@@ -13,13 +13,7 @@ internal sealed partial class TableView : View
     [
         new("name", "Service", 0.45f, TableColumnWidth.Fraction),
         new("region", "Region", 130),
-        new(
-            "status",
-            "Status",
-            110,
-            TableColumnWidth.Pixels,
-            TableColumnAlignment.Center
-        ),
+        new("status", "Status", 110, TableColumnWidth.Pixels, TableColumnAlignment.Center),
         new("rps", "Req/s", 90, TableColumnWidth.Pixels, TableColumnAlignment.Right),
     ];
 
@@ -85,15 +79,9 @@ internal sealed partial class TableView : View
     protected override Element Render(ref RenderContext ui)
     {
         var header = ui.HStack(
-                ui.Text($"{ItemCount:N0} services")
-                    .FontSize(Px(14))
-                    .TextColor(Rgb(30, 41, 59)),
+                ui.Text($"{ItemCount:N0} services").FontSize(Px(14)).TextColor(Rgb(30, 41, 59)),
                 ui.Spacer(),
-                ui.Badge(
-                        ui.Text(
-                            _selected < 0 ? "select a row" : $"selected: svc-{_selected:D4}"
-                        )
-                    )
+                ui.Badge(ui.Text(_selected < 0 ? "select a row" : $"selected: svc-{_selected:D4}"))
                     .Background(Rgb(224, 231, 255))
                     .TextColor(Rgb(67, 56, 202))
                     .Padding(Px(7))

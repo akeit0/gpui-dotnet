@@ -56,7 +56,11 @@ internal sealed partial class DashboardView : View
         var scroll = ui.Scroll(
                 "overview-scroll",
                 ScrollAxis.Vertical,
-                new ScrollOptions(smoothScrolling: true, showScrollbar: true, scrollbarGutter: true),
+                new ScrollOptions(
+                    smoothScrolling: true,
+                    showScrollbar: true,
+                    scrollbarGutter: true
+                ),
                 body
             )
             .Grow()

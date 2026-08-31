@@ -433,13 +433,23 @@ public sealed class SemanticRenderTests
             {
                 using var arena = new RenderArenaOwner();
                 var ui = arena.BeginRender(new NoopRenderer(), view);
-                ui.Table("grid", new ListDataSource(10, 0), view.Row, new TableColumn("", "Name", 120));
+                ui.Table(
+                    "grid",
+                    new ListDataSource(10, 0),
+                    view.Row,
+                    new TableColumn("", "Name", 120)
+                );
             });
             Assert.Throws<ArgumentException>(() =>
             {
                 using var arena = new RenderArenaOwner();
                 var ui = arena.BeginRender(new NoopRenderer(), view);
-                ui.Table("grid", new ListDataSource(10, 0), view.Row, new TableColumn("n", "Name", 1.4f, TableColumnWidth.Fraction));
+                ui.Table(
+                    "grid",
+                    new ListDataSource(10, 0),
+                    view.Row,
+                    new TableColumn("n", "Name", 1.4f, TableColumnWidth.Fraction)
+                );
             });
         }
         finally
@@ -475,7 +485,13 @@ public sealed class SemanticRenderTests
                     "grid",
                     new ListDataSource(10, 0),
                     view.Row,
-                    new TableColumn("n", "Name", 120, TableColumnWidth.Pixels, (TableColumnAlignment)99)
+                    new TableColumn(
+                        "n",
+                        "Name",
+                        120,
+                        TableColumnWidth.Pixels,
+                        (TableColumnAlignment)99
+                    )
                 );
             });
         }

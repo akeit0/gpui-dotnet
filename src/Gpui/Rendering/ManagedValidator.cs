@@ -41,10 +41,7 @@ internal static unsafe class ManagedValidator
             }
 
             var componentId = (ComponentId)node.Component;
-            if (
-                SemanticRegistry.IsDataRequired(componentId)
-                && node.DataLength == 0
-            )
+            if (SemanticRegistry.IsDataRequired(componentId) && node.DataLength == 0)
             {
                 throw new InvalidOperationException(
                     $"{componentId} node {i} requires non-empty data."

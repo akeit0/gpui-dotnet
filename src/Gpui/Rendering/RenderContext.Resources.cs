@@ -64,11 +64,7 @@ public readonly unsafe ref partial struct RenderContext
             OpCode.ScrollbarGutter,
             options.EffectiveScrollbarGutter ? 1u : 0u
         );
-        ArenaWriter.AddF32(
-            element.Inner,
-            OpCode.ScrollbarWidth,
-            options.EffectiveScrollbarWidth
-        );
+        ArenaWriter.AddF32(element.Inner, OpCode.ScrollbarWidth, options.EffectiveScrollbarWidth);
         ArenaWriter.AddChildren(element.Inner, children);
         return element;
     }
@@ -158,11 +154,7 @@ public readonly unsafe ref partial struct RenderContext
             OpCode.ScrollbarGutter,
             options.EffectiveScrollbarGutter ? 1u : 0u
         );
-        ArenaWriter.AddF32(
-            element.Inner,
-            OpCode.ScrollbarWidth,
-            options.EffectiveScrollbarWidth
-        );
+        ArenaWriter.AddF32(element.Inner, OpCode.ScrollbarWidth, options.EffectiveScrollbarWidth);
         return element;
     }
 
@@ -219,11 +211,7 @@ public readonly unsafe ref partial struct RenderContext
             OpCode.ListEstimatedItemHeightPx,
             options.EffectiveEstimatedItemHeight
         );
-        ArenaWriter.AddU64(
-            element.Inner,
-            OpCode.ListContentRevision,
-            dataSource.ContentRevision
-        );
+        ArenaWriter.AddU64(element.Inner, OpCode.ListContentRevision, dataSource.ContentRevision);
         ArenaWriter.AddU32(
             element.Inner,
             OpCode.SmoothScroll,
@@ -239,12 +227,12 @@ public readonly unsafe ref partial struct RenderContext
             OpCode.ScrollbarGutter,
             options.EffectiveScrollbarGutter ? 1u : 0u
         );
-        ArenaWriter.AddF32(
+        ArenaWriter.AddF32(element.Inner, OpCode.ScrollbarWidth, options.EffectiveScrollbarWidth);
+        ArenaWriter.AddU32(
             element.Inner,
-            OpCode.ScrollbarWidth,
-            options.EffectiveScrollbarWidth
+            OpCode.TableShowHeader,
+            options.EffectiveShowHeader ? 1u : 0u
         );
-        ArenaWriter.AddU32(element.Inner, OpCode.TableShowHeader, options.EffectiveShowHeader ? 1u : 0u);
         return element;
     }
 
@@ -337,7 +325,8 @@ public readonly unsafe ref partial struct RenderContext
         for (var i = 0; i < columns.Length; i++)
         {
             builder.Append('\0');
-            builder.Append(columns[i].Key)
+            builder
+                .Append(columns[i].Key)
                 .Append('\u001F')
                 .Append(columns[i].Header)
                 .Append('\u001F')

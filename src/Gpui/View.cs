@@ -172,12 +172,12 @@ public abstract class View
         );
 
     /// <summary>
-/// Renders the view tree into native IR. Rendering must be synchronous, repeatable, and free of
-/// externally visible side effects: the framework may invoke it more than once per frame when
-/// the render arena needs to grow before the final render is accepted, and list batch renderers
-/// are invoked lazily whenever the viewport requires an uncached range.
-/// </summary>
-protected abstract Element Render(ref RenderContext ui);
+    /// Renders the view tree into native IR. Rendering must be synchronous, repeatable, and free of
+    /// externally visible side effects: the framework may invoke it more than once per frame when
+    /// the render arena needs to grow before the final render is accepted, and list batch renderers
+    /// are invoked lazily whenever the viewport requires an uncached range.
+    /// </summary>
+    protected abstract Element Render(ref RenderContext ui);
 
     internal Element RenderCore(ref RenderContext ui) => Render(ref ui);
 
