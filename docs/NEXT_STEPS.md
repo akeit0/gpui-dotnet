@@ -16,7 +16,7 @@ The single-line Input establishes the native-entity ABI for focus, IME, selectio
 
 The generic window-relative Overlay is the geometry and event foundation. Build semantic compositions on it rather than repeatedly recreating modal behavior:
 
-- Dialog and Sheet with a complete tab/shift-tab focus trap and deterministic nested-overlay focus restoration;
+- Dialog and Sheet semantics on the generic modal focus trap, including initial-focus selection and deterministic stacked-overlay dismissal policy;
 - Popover/Menu with trigger measurement, anchor flipping/snapping, keyboard navigation, and outside-click dismissal;
 - Tooltip accessibility descriptions and keyboard/focus-triggered visibility in addition to pointer hover;
 - Toast/notification host with retained ordering, timeouts, pause-on-hover, and reduced-motion policy;

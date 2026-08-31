@@ -278,10 +278,12 @@ impl ManagedView {
         let focus_state =
             window.use_keyed_state(overlay_id.clone(), cx, move |_, cx| OverlayFocusState {
                 focus: cx.focus_handle().tab_stop(false),
+                end_focus: cx.focus_handle().tab_stop(false),
                 previous_focus,
                 focus_pending: modal,
             });
         let focus = focus_state.read(cx).focus.clone();
+        let end_focus = focus_state.read(cx).end_focus.clone();
         if focus_state.read(cx).focus_pending {
             focus_state.update(cx, |state, _| state.focus_pending = false);
             let deferred_focus = focus.clone();
@@ -329,12 +331,28 @@ impl ManagedView {
                     }));
             }
             host = host.child(backdrop);
+
+            let trap_state = focus_state.clone();
+            host = host.on_key_down(move |event: &KeyDownEvent, window, cx| {
+                let modifiers = event.keystroke.modifiers;
+                if event.keystroke.key != "tab"
+                    || modifiers.control
+                    || modifiers.alt
+                    || modifiers.platform
+                    || modifiers.function
+                {
+                    return;
+                }
+
+                cx.stop_propagation();
+                cycle_overlay_focus(&trap_state, modifiers.shift, window, cx);
+            });
         }
 
         if dismiss_on_escape && dismiss_token != 0 {
             let callbacks = self.callbacks;
             let session_id = self.view_id;
-            let escape_state = focus_state;
+            let escape_state = focus_state.clone();
             host = host.on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
                 if event.keystroke.key != "escape" {
                     return;
@@ -359,6 +377,9 @@ impl ManagedView {
         }
 
         host = host.child(content);
+        if modal {
+            host = host.child(div().w(px(0.)).h(px(0.)).track_focus(&end_focus));
+        }
         let anchored = anchored().position(point(px(0.), px(0.))).child(host);
         deferred(anchored)
             .with_priority(priority as usize)
@@ -396,6 +417,7 @@ impl ManagedView {
 
 struct OverlayFocusState {
     focus: FocusHandle,
+    end_focus: FocusHandle,
     previous_focus: Option<WeakFocusHandle>,
     focus_pending: bool,
 }
@@ -436,6 +458,32 @@ fn restore_overlay_focus(
         previous.focus(window);
     } else {
         window.blur();
+    }
+}
+
+fn cycle_overlay_focus(
+    state: &Entity<OverlayFocusState>,
+    backwards: bool,
+    window: &mut Window,
+    cx: &mut gpui::App,
+) {
+    let state = state.read(cx);
+    if backwards {
+        window.focus_prev();
+        if !state.focus.contains_focused(window, cx) {
+            state.end_focus.focus(window);
+            window.focus_prev();
+        }
+    } else {
+        window.focus_next();
+        if !state.focus.contains_focused(window, cx) {
+            state.focus.focus(window);
+            window.focus_next();
+        }
+    }
+
+    if !state.focus.contains_focused(window, cx) {
+        state.focus.focus(window);
     }
 }
 

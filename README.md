@@ -218,7 +218,7 @@ return ui.Overlay("preferences"u8, dialog)
     .OnDismiss(Events.Close);
 ```
 
-`OverlayOptions` supports nine viewport placements, modal/non-modal behavior, priority, margin, backdrop color, and independent backdrop/Escape dismissal. Modal overlays block pointer and wheel input behind the backdrop, move focus into the overlay on open, and restore the previous focus when native dismissal runs. Escape is handled in the bubble phase so a focused child control receives it first. Content can contain normal managed child Views and retained controls such as Input; overlays are intentionally unavailable inside virtualized List rows.
+`OverlayOptions` supports nine viewport placements, modal/non-modal behavior, priority, margin, backdrop color, and independent backdrop/Escape dismissal. Modal overlays block pointer and wheel input behind the backdrop, move focus into the overlay on open, keep Tab/Shift+Tab traversal inside it, and restore the previous focus when native dismissal runs. Escape is handled in the bubble phase so a focused child control receives it first. Content can contain normal managed child Views and retained controls such as Input; overlays are intentionally unavailable inside virtualized List rows.
 
 `ui.Tooltip(key, trigger, content, options)` adds native hover timing to any semantic trigger and paints ordinary semantic content in a deferred layer. Defaults follow the interaction model used by GPUI Component: a 500 ms show delay, a 300 ms grace period for crossing from trigger to content, automatic side selection, centered alignment, an 8-pixel gap, and an 8-pixel viewport margin.
 

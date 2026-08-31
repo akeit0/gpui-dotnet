@@ -611,7 +611,7 @@ internal sealed partial class OverlayGalleryView : View
                         ui.Text("• Tooltips use deferred content and disappear on pointer press."u8),
                         ui.Text("• Click the dim backdrop or press Escape to dismiss."u8),
                         ui.Text("• The background action must not fire through the backdrop."u8),
-                        ui.Text("• Tab into the dialog input and try IME composition."u8)
+                        ui.Text("• Tab and Shift+Tab stay inside the modal; try IME composition."u8)
                     )
                     .Gap(Px(8))
                     .Padding(Px(18))
@@ -643,8 +643,13 @@ internal sealed partial class OverlayGalleryView : View
                     .FontSize(Px(12))
                     .TextColor(Rgb(100, 116, 139)),
                 ui.Input(
-                        "overlay-input"u8,
-                        new Utf8InputOptions(placeholder: "IME works inside the overlay…"u8)
+                        "overlay-first-input"u8,
+                        new Utf8InputOptions(placeholder: "First modal tab stop…"u8)
+                    )
+                    .Width(Percent(100)),
+                ui.Input(
+                        "overlay-second-input"u8,
+                        new Utf8InputOptions(placeholder: "Second modal tab stop; IME works here…"u8)
                     )
                     .Width(Percent(100)),
                 ui.Text("Escape is handled after focused child controls get the key first."u8)
@@ -654,7 +659,7 @@ internal sealed partial class OverlayGalleryView : View
             .Gap(Px(14))
             .Padding(Px(20))
             .Width(Px(isSheet ? 380 : 440))
-            .Height(isSheet ? Percent(100) : Px(240))
+            .Height(isSheet ? Percent(100) : Px(290))
             .Background(Rgb(255, 255, 255))
             .BorderWidth(Px(1))
             .BorderColor(Rgb(203, 213, 225))
