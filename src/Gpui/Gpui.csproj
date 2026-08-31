@@ -13,8 +13,8 @@
 
         <NativeCargoProfile Condition="'$(Configuration)' == 'Release'">release</NativeCargoProfile>
         <NativeCargoProfile Condition="'$(NativeCargoProfile)' == ''">debug</NativeCargoProfile>
-        <NativeCrateDir>$(MSBuildThisFileDirectory)..\..\..\crates\gpui-dotnet</NativeCrateDir>
-        <RepositoryRoot>$(MSBuildThisFileDirectory)..\..\..</RepositoryRoot>
+        <NativeCrateDir>$(MSBuildThisFileDirectory)..\..\crates\gpui-dotnet</NativeCrateDir>
+        <RepositoryRoot>$(MSBuildThisFileDirectory)..\..</RepositoryRoot>
         <NativeBuildScript>$(RepositoryRoot)\eng\build-native.ps1</NativeBuildScript>
         <NativeBuildCommand Condition="$([MSBuild]::IsOSPlatform('Windows'))"
             >powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(NativeBuildScript)&quot; -ManifestPath &quot;$(NativeCrateDir)\Cargo.toml&quot; -Configuration $(NativeCargoProfile)</NativeBuildCommand>
@@ -30,8 +30,8 @@
         <NativeBuildStamp>$(NativeCrateDir)\target\$(NativeCargoProfile)\.gpui-msbuild.stamp</NativeBuildStamp>
         <NativeBindingsPath>$(MSBuildThisFileDirectory)Interop\NativeMethods.g.cs</NativeBindingsPath>
         <BindingsGeneratorProject>$(RepositoryRoot)\tools\Gpui.Bindings.Generator\Gpui.Bindings.Generator.csproj</BindingsGeneratorProject>
-        <ViewGeneratorProject>$(RepositoryRoot)\dotnet\src\Gpui.Generators\Gpui.Generators.csproj</ViewGeneratorProject>
-        <ViewGeneratorAssembly>$(RepositoryRoot)\dotnet\src\Gpui.Generators\bin\$(Configuration)\netstandard2.0\Gpui.Generators.dll</ViewGeneratorAssembly>
+        <ViewGeneratorProject>$(RepositoryRoot)\src\Gpui.Generators\Gpui.Generators.csproj</ViewGeneratorProject>
+        <ViewGeneratorAssembly>$(RepositoryRoot)\src\Gpui.Generators\bin\$(Configuration)\netstandard2.0\Gpui.Generators.dll</ViewGeneratorAssembly>
         <BuildGpuiNative Condition="'$(BuildGpuiNative)' == ''">true</BuildGpuiNative>
     </PropertyGroup>
 

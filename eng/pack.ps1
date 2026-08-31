@@ -19,7 +19,7 @@ foreach ($relative in $required) {
     }
 }
 
-& dotnet pack (Join-Path $root 'dotnet/src/Gpui/Gpui.csproj') `
+& dotnet pack (Join-Path $root 'src/Gpui/Gpui.csproj') `
     -c $Configuration `
     -p:BuildGpuiNative=false `
     -o (Join-Path $root 'artifacts/packages')

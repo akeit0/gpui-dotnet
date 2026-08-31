@@ -356,27 +356,27 @@ Prerequisites:
 
 ```powershell
 dotnet build gpui-dotnet.slnx
-dotnet run --project dotnet/samples/Gpui.Sample
+dotnet run --project samples/Gpui.Sample
 ```
 
 The sample starts with custom chrome, compact platform-style caption controls, and File/View/Help popover menus in the title bar. It also contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, centered-dialog/right-sheet Overlay demos, delayed trigger-relative tooltips, an application-content ContextMenu demo, and a multi-window gallery. Closing either companion leaves the main gallery running. To open the system-title-bar companion automatically at startup:
 
 ```powershell
-dotnet run --project dotnet/samples/Gpui.Sample -- --multi-window
+dotnet run --project samples/Gpui.Sample -- --multi-window
 ```
 
 To force native-owned render-arena growth/retry:
 
 ```powershell
-dotnet run --project dotnet/samples/Gpui.Sample -- --stress-growth
+dotnet run --project samples/Gpui.Sample -- --stress-growth
 ```
 
 ## Binding generation
 
 `bindings/schema.json` is the semantic render protocol source of truth and generates:
 
-- `dotnet/src/Gpui/Rendering/Semantic.g.cs`
-- `crates/gpui-dotnet/src/semantic.g.rs`
+- `src/Gpui/Rendering/Semantic.g.cs`
+- `crates/gpui-src/semantic.g.rs`
 
 ```powershell
 dotnet run --project tools/Gpui.Bindings.Generator -- generate

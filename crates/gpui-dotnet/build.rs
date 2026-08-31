@@ -22,6 +22,6 @@ fn main() {
             "ManagedCallbacks",
             "GpuiDotnetApiV5",
         ])
-        .generate_csharp_file("../../dotnet/src/Gpui/Interop/NativeMethods.g.cs")
+        .generate_csharp_file("../../src/Gpui/Interop/NativeMethods.g.cs")
         .expect("failed to generate C# native bindings");
 }

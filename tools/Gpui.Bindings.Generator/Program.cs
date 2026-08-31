@@ -9,7 +9,7 @@ return BindingGenerator.Run(args);
 internal static class BindingGenerator
 {
     private const string SchemaPath = "bindings/schema.json";
-    private const string CSharpOutputPath = "dotnet/src/Gpui/Rendering/Semantic.g.cs";
+    private const string CSharpOutputPath = "src/Gpui/Rendering/Semantic.g.cs";
     private const string RustOutputPath = "crates/gpui-dotnet/src/semantic.g.rs";
 
     private static readonly JsonSerializerOptions JsonOptions = new()

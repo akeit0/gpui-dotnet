@@ -32,7 +32,7 @@ For callback operations the generated managed fluent API has two forms:
 
 ## Roslyn incremental generator
 
-Project: `dotnet/src/Gpui.Generators`
+Project: `src/Gpui.Generators`
 
 ### `[GpuiView]`
 

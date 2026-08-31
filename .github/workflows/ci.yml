@@ -35,7 +35,7 @@ jobs:
         run: dotnet build gpui-dotnet.slnx --no-incremental
 
       - name: Test managed contract and generator
-        run: dotnet test dotnet/tests/Gpui.Tests/Gpui.Tests.csproj --no-build
+        run: dotnet test tests/Gpui.Tests/Gpui.Tests.csproj --no-build
 
       - name: NativeAOT publish smoke test
-        run: dotnet publish dotnet/samples/Gpui.Sample/Gpui.Sample.csproj -c Release -r win-x64 -p:PublishAot=true
+        run: dotnet publish samples/Gpui.Sample/Gpui.Sample.csproj -c Release -r win-x64 -p:PublishAot=true

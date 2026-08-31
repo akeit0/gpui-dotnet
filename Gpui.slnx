@@ -1,8 +1,8 @@
 <Solution>
-    <Project Path="dotnet/src/Gpui/Gpui.csproj" />
-    <Project Path="dotnet/src/Gpui.Generators/Gpui.Generators.csproj" />
-    <Project Path="dotnet/tests/Gpui.Tests/Gpui.Tests.csproj" />
-    <Project Path="dotnet/samples/Gpui.Sample/Gpui.Sample.csproj" />
-    <Project Path="dotnet/samples/Gpui.Bench/Gpui.Bench.csproj" />
+    <Project Path="src/Gpui/Gpui.csproj" />
+    <Project Path="src/Gpui.Generators/Gpui.Generators.csproj" />
+    <Project Path="tests/Gpui.Tests/Gpui.Tests.csproj" />
+    <Project Path="samples/Gpui.Sample/Gpui.Sample.csproj" />
+    <Project Path="samples/Gpui.Bench/Gpui.Bench.csproj" />
     <Project Path="tools/Gpui.Bindings.Generator/Gpui.Bindings.Generator.csproj" />
 </Solution>

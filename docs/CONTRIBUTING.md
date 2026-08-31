@@ -47,4 +47,4 @@ dotnet run --project tools/Gpui.Bindings.Generator -- verify
 dotnet build gpui-dotnet.slnx
 ```
 
-Native changes that touch `abi.rs` must regenerate `NativeMethods.g.cs` through the normal native build and keep `native/include/gpui_dotnet.h` synchronized.
+Native changes that touch `abi.rs` must regenerate `NativeMethods.g.cs` through the normal native build and keep `include/gpui_dotnet.h` synchronized.
