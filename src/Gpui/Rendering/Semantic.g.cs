@@ -22,6 +22,7 @@ namespace Gpui.Interop
         Tooltip = 14,
         ContextMenu = 15,
         PopoverMenu = 16,
+        Table = 17,
     }
 
     internal enum OpCode : ushort
@@ -86,6 +87,8 @@ namespace Gpui.Interop
         ContextMenuMarginPx = 621,
         PopoverMenuPriority = 630,
         PopoverMenuMarginPx = 631,
+        TableShowHeader = 318,
+        TableCellColumn = 319,
     }
 
     internal enum ValueKind : ushort
@@ -99,8 +102,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 17;
-        internal const ulong SchemaHash = 0x6AC45CA245884F63UL;
+        internal const uint SchemaVersion = 18;
+        internal const ulong SchemaHash = 0x281FBED1439FB468UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -120,6 +123,7 @@ namespace Gpui.Interop
             ComponentId.Tooltip => true,
             ComponentId.ContextMenu => true,
             ComponentId.PopoverMenu => true,
+            ComponentId.Table => true,
             _ => false,
         };
 
@@ -185,6 +189,8 @@ namespace Gpui.Interop
             OpCode.ContextMenuMarginPx => ValueKind.F32,
             OpCode.PopoverMenuPriority => ValueKind.U32,
             OpCode.PopoverMenuMarginPx => ValueKind.F32,
+            OpCode.TableShowHeader => ValueKind.U32,
+            OpCode.TableCellColumn => ValueKind.U32,
             _ => null,
         };
 
@@ -206,6 +212,7 @@ namespace Gpui.Interop
             ComponentId.Tooltip => 0x0000000000000822UL,
             ComponentId.ContextMenu => 0x0000000000002023UL,
             ComponentId.PopoverMenu => 0x0000000000004023UL,
+            ComponentId.Table => 0x00000000000080A1UL,
             _ => 0,
         };
 
@@ -271,6 +278,8 @@ namespace Gpui.Interop
             OpCode.ContextMenuMarginPx => 0x0000000000002000UL,
             OpCode.PopoverMenuPriority => 0x0000000000004000UL,
             OpCode.PopoverMenuMarginPx => 0x0000000000004000UL,
+            OpCode.TableShowHeader => 0x0000000000008000UL,
+            OpCode.TableCellColumn => 0x0000000000000001UL,
             _ => 0,
         };
 
@@ -299,6 +308,7 @@ namespace Gpui
     public interface IWindowControlElementTag { }
     public interface IContextMenuElementTag { }
     public interface IPopoverMenuElementTag { }
+    public interface ITableElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
@@ -316,6 +326,7 @@ namespace Gpui
     public readonly struct TooltipTag : IParentElementTag, INativeStateElementTag, ITooltipElementTag { }
     public readonly struct ContextMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IContextMenuElementTag { }
     public readonly struct PopoverMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IPopoverMenuElementTag { }
+    public readonly struct TableTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag, ITableElementTag { }
 
     public readonly unsafe ref partial struct RenderContext
     {

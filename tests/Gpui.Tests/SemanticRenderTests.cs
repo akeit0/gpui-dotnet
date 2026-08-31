@@ -387,6 +387,111 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void ExplicitTablePassesManagedValidation()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var table = ui.Table(
+                "grid",
+                new ListDataSource(100, 7),
+                view.Row,
+                new TableOptions(batchSize: 48, overdraw: 240),
+                new TableColumn("name", "Name", 120),
+                new TableColumn(
+                    "size",
+                    "Size",
+                    0.25f,
+                    TableColumnWidth.Fraction,
+                    TableColumnAlignment.Right
+                )
+            );
+
+            arena.Validate(table);
+
+            var stats = arena.GetStats();
+            Assert.Equal(1, stats.Nodes);
+            Assert.Equal(10, stats.Ops);
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void TableRejectsInvalidColumns()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            Assert.Throws<ArgumentException>(() =>
+            {
+                using var arena = new RenderArenaOwner();
+                var ui = arena.BeginRender(new NoopRenderer(), view);
+                ui.Table("grid", new ListDataSource(10, 0), view.Row, new TableColumn("", "Name", 120));
+            });
+            Assert.Throws<ArgumentException>(() =>
+            {
+                using var arena = new RenderArenaOwner();
+                var ui = arena.BeginRender(new NoopRenderer(), view);
+                ui.Table("grid", new ListDataSource(10, 0), view.Row, new TableColumn("n", "Name", 1.4f, TableColumnWidth.Fraction));
+            });
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void TableCellPassesManagedValidation()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var cell = ui.TableCell(1, ui.Text("value"));
+
+            arena.Validate(cell);
+
+            var stats = arena.GetStats();
+            Assert.Equal(2, stats.Nodes);
+            Assert.Equal(1, stats.Ops);
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void TableCellRejectsNegativeColumn()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+            {
+                using var arena = new RenderArenaOwner();
+                var ui = arena.BeginRender(new NoopRenderer(), view);
+                ui.TableCell(-1, ui.Text("value"));
+            });
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
     public void ListDatasourceRejectsNegativeCount()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new ListDataSource(-1, 0));

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 17,
+  "schemaVersion": 18,
   "capabilities": [
     "styled",
     "parent",
@@ -15,7 +15,8 @@
     "tooltip",
     "window_control",
     "context_menu",
-    "popover_menu"
+    "popover_menu",
+    "table"
   ],
   "components": [
     {
@@ -257,6 +258,22 @@
         "popover_menu"
       ],
       "nativeAdapter": "popover_menu"
+    },
+    {
+      "id": 17,
+      "name": "table",
+      "csharp": "Table",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": false,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "native_state",
+        "virtualized",
+        "table"
+      ],
+      "nativeAdapter": "table"
     }
   ],
   "operations": [
@@ -732,6 +749,22 @@
       "csharp": "PopoverMenuMarginPx",
       "value": "f32",
       "requires": "popover_menu",
+      "managedApi": null
+    },
+    {
+      "id": 318,
+      "name": "table_show_header",
+      "csharp": "TableShowHeader",
+      "value": "u32",
+      "requires": "table",
+      "managedApi": null
+    },
+    {
+      "id": 319,
+      "name": "table_cell_column",
+      "csharp": "TableCellColumn",
+      "value": "u32",
+      "requires": "styled",
       "managedApi": null
     }
   ]

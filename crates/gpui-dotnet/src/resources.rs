@@ -65,6 +65,7 @@ pub(crate) struct ResourceStore {
     callbacks: ManagedCallbacks,
     scrolls: RefCell<HashMap<ResourceKey, Rc<ManagedScrollResource>>>,
     lists: RefCell<HashMap<ResourceKey, Rc<RefCell<ManagedListResource>>>>,
+    tables: RefCell<HashMap<ResourceKey, Rc<TableSpec>>>,
     inputs: RefCell<HashMap<ResourceKey, Entity<ManagedInput>>>,
     pending: RefCell<HashMap<(u16, ResourceKey), Vec<ResourceCommand>>>,
     active_scratch: RefCell<HashSet<(u16, ResourceKey)>>,
@@ -77,6 +78,7 @@ impl ResourceStore {
             callbacks,
             scrolls: RefCell::new(HashMap::new()),
             lists: RefCell::new(HashMap::new()),
+            tables: RefCell::new(HashMap::new()),
             inputs: RefCell::new(HashMap::new()),
             pending: RefCell::new(HashMap::new()),
             active_scratch: RefCell::new(HashSet::new()),
@@ -121,6 +123,26 @@ impl ResourceStore {
             .configure(configuration, snapshot_revision);
         self.apply_pending(2, key);
         resource
+    }
+
+    /// Binds the column metadata declared by the current snapshot to a table's row engine.
+    /// A changed column table changes row layout, so every cached row batch is invalidated.
+    pub(crate) fn bind_table_spec(
+        &self,
+        key: &ResourceKey,
+        spec: Rc<TableSpec>,
+        row_engine: &Rc<RefCell<ManagedListResource>>,
+    ) {
+        let mut tables = self.tables.borrow_mut();
+        if matches!(tables.get(key), Some(existing) if **existing == *spec) {
+            return;
+        }
+        row_engine.borrow_mut().invalidate_all_batches();
+        tables.insert(key.clone(), spec);
+    }
+
+    pub(crate) fn table_spec(&self, key: &ResourceKey) -> Option<Rc<TableSpec>> {
+        self.tables.borrow().get(key).cloned()
     }
 
     pub(crate) fn input_resource(
@@ -248,13 +270,17 @@ impl ResourceStore {
             };
             if !matches!(
                 metadata.adapter,
-                NativeAdapter::Scroll | NativeAdapter::List | NativeAdapter::Input
+                NativeAdapter::Scroll
+                    | NativeAdapter::List
+                    | NativeAdapter::Table
+                    | NativeAdapter::Input
             ) {
                 continue;
             }
             let active_resource = match metadata.adapter {
                 NativeAdapter::Scroll => resource_key(snapshot, node).map(|key| (1, key)),
                 NativeAdapter::List => resource_key(snapshot, node).map(|key| (2, key)),
+                NativeAdapter::Table => table_key(snapshot, node).map(|key| (2, key)),
                 NativeAdapter::Input => {
                     input_configuration(snapshot, node).map(|configuration| (3, configuration.key))
                 }
@@ -268,6 +294,9 @@ impl ResourceStore {
             .borrow_mut()
             .retain(|key, _| active.contains(&(1, key.clone())));
         self.lists
+            .borrow_mut()
+            .retain(|key, _| active.contains(&(2, key.clone())));
+        self.tables
             .borrow_mut()
             .retain(|key, _| active.contains(&(2, key.clone())));
         self.inputs
@@ -298,6 +327,27 @@ pub(crate) struct ListConfiguration {
     pub(crate) estimated_item_height: Pixels,
     pub(crate) content_revision: Option<u64>,
 }
+
+/// One declared table column. Widths are declarative intents (px or fraction); the native
+/// header strip and every reconciled row cell use the same resolved intent so Taffy aligns them.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct TableColumnSpec {
+    pub(crate) key: SharedString,
+    pub(crate) header: SharedString,
+    pub(crate) width: Pixels,
+    pub(crate) width_is_fraction: bool,
+    pub(crate) alignment: u32,
+}
+
+/// Column metadata for one table resource. A change between snapshots means row layout
+/// changed, which invalidates every cached row batch.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct TableSpec {
+    pub(crate) columns: Vec<TableColumnSpec>,
+}
+
+/// Field separator inside one column record of the table node data blob (unit separator).
+const TABLE_FIELD_SEPARATOR: char = '\u{1F}';
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ScrollbarDrag {
@@ -734,9 +784,17 @@ impl ManagedListResource {
 
     /// Reads the monotonic telemetry counters. The ABI does not expose them yet, so this is
     /// currently only reachable from native tests and future benchmarks.
+    /// Reads the monotonic telemetry counters. The ABI does not expose them yet, so this is
+    /// currently only reachable from native tests and future benchmarks.
     #[cfg(test)]
     pub(crate) fn telemetry(&self) -> ListTelemetry {
         self.telemetry
+    }
+
+    /// Discards every cached row batch. Used when a table's column table changes, which
+    /// changes the layout of all rows at once.
+    pub(crate) fn invalidate_all_batches(&mut self) {
+        self.clear_batches();
     }
 }
 
@@ -769,6 +827,70 @@ pub(crate) fn resource_key(
         return None;
     }
     Some(ResourceKey::new(owner, node.data.clone()))
+}
+
+/// Table node data is `rowEngineKey` followed by one `\0`-separated record per column; each
+/// record is `key<US>header<US>width<US>unit<US>alignment` with US = unit separator.
+pub(crate) fn parse_table_data(data: &str) -> Option<(SharedString, Vec<TableColumnSpec>)> {
+    let mut records = data.split('\0');
+    let key = records.next()?;
+    if key.is_empty() {
+        return None;
+    }
+    let mut columns = Vec::new();
+    for record in records {
+        let mut fields = record.split(TABLE_FIELD_SEPARATOR);
+        let column_key = fields.next()?;
+        let header = fields.next()?;
+        let width: f32 = fields.next()?.parse().ok()?;
+        let unit = fields.next()?;
+        let alignment: u32 = fields.next()?.parse().ok()?;
+        if column_key.is_empty() || !width.is_finite() || width <= 0.0 || alignment > 2 {
+            return None;
+        }
+        let width_is_fraction = match unit {
+            "0" => false,
+            "1" => {
+                if width > 1.0 {
+                    return None;
+                }
+                true
+            }
+            _ => return None,
+        };
+        columns.push(TableColumnSpec {
+            key: shared(column_key),
+            header: shared(header),
+            width: px(width),
+            width_is_fraction,
+            alignment,
+        });
+    }
+    Some((shared(key), columns))
+}
+
+pub(crate) fn table_key(
+    snapshot: &ValidatedSnapshot,
+    node: &crate::snapshot::SnapshotNode,
+) -> Option<ResourceKey> {
+    let owner = last_u32(snapshot, node, OP_RESOURCE_OWNER)?;
+    if owner == 0 || node.data.is_empty() {
+        return None;
+    }
+    let (key, _) = parse_table_data(&node.data)?;
+    Some(ResourceKey::new(owner, key))
+}
+
+pub(crate) fn table_configuration(
+    snapshot: &ValidatedSnapshot,
+    node: &crate::snapshot::SnapshotNode,
+) -> Option<(ResourceKey, Rc<TableSpec>)> {
+    let owner = last_u32(snapshot, node, OP_RESOURCE_OWNER)?;
+    if owner == 0 || node.data.is_empty() {
+        return None;
+    }
+    let (key, columns) = parse_table_data(&node.data)?;
+    Some((ResourceKey::new(owner, key), Rc::new(TableSpec { columns })))
 }
 
 pub(crate) fn input_configuration(
@@ -1080,5 +1202,237 @@ mod tests {
 
         assert_eq!(batch_keys(&resource), vec![0, 96]);
         assert_eq!(resource.telemetry().batch_invalidations, 1);
+    }
+
+    #[test]
+    fn parse_table_data_reads_column_records() {
+        let (key, columns) = parse_table_data(
+            "rows\0name\u{1F}Name\u{1F}120\u{1F}0\u{1F}0\0size\u{1F}Size\u{1F}0.3\u{1F}1\u{1F}2",
+        )
+        .expect("valid table data");
+        assert_eq!(key, shared("rows"));
+        assert_eq!(columns.len(), 2);
+        assert_eq!(columns[0].key, shared("name"));
+        assert_eq!(columns[0].header, shared("Name"));
+        assert_eq!(columns[0].width, px(120.));
+        assert!(!columns[0].width_is_fraction);
+        assert_eq!(columns[0].alignment, 0);
+        assert_eq!(columns[1].width, px(0.3));
+        assert!(columns[1].width_is_fraction);
+        assert_eq!(columns[1].alignment, 2);
+
+        // A key-only blob is a headerless table with no columns.
+        let (key, columns) = parse_table_data("rows").expect("valid key-only table data");
+        assert_eq!(key, shared("rows"));
+        assert!(columns.is_empty());
+    }
+
+    #[test]
+    fn parse_table_data_rejects_malformed_records() {
+        assert_eq!(parse_table_data(""), None);
+        assert_eq!(
+            parse_table_data("\0name\u{1F}Name\u{1F}10\u{1F}0\u{1F}0"),
+            None
+        );
+        assert_eq!(
+            parse_table_data("rows\0name\u{1F}Name\u{1F}-4\u{1F}0\u{1F}0"),
+            None
+        );
+        assert_eq!(
+            parse_table_data("rows\0name\u{1F}Name\u{1F}10\u{1F}2\u{1F}0"),
+            None
+        );
+        assert_eq!(
+            parse_table_data("rows\0name\u{1F}Name\u{1F}1.4\u{1F}1\u{1F}0"),
+            None
+        );
+        assert_eq!(
+            parse_table_data("rows\0name\u{1F}Name\u{1F}10\u{1F}0\u{1F}3"),
+            None
+        );
+        assert_eq!(
+            parse_table_data("rows\0name\u{1F}Name\u{1F}10\u{1F}0"),
+            None
+        );
+        assert_eq!(
+            parse_table_data("rows\0\u{1F}Name\u{1F}10\u{1F}0\u{1F}0"),
+            None
+        );
+    }
+
+    #[test]
+    fn binding_a_changed_table_spec_invalidates_row_batches() {
+        let store = ResourceStore::new(1, callbacks());
+        let configuration = configuration(None);
+        let engine = store.list_resource(&ResourceKey::new(7, shared("rows")), &configuration, 1);
+
+        let spec = TableSpec {
+            columns: vec![TableColumnSpec {
+                key: shared("name"),
+                header: shared("Name"),
+                width: px(120.),
+                width_is_fraction: false,
+                alignment: 0,
+            }],
+        };
+        store.bind_table_spec(
+            &ResourceKey::new(7, shared("rows")),
+            Rc::new(spec.clone()),
+            &engine,
+        );
+        engine.borrow_mut().batches.insert(0, CachedBatch::new());
+        assert_eq!(engine.borrow().batches.len(), 1);
+
+        // Rebinding the identical spec is a no-op.
+        store.bind_table_spec(
+            &ResourceKey::new(7, shared("rows")),
+            Rc::new(spec.clone()),
+            &engine,
+        );
+        assert_eq!(engine.borrow().batches.len(), 1);
+
+        // A changed column table invalidates every cached row batch.
+        let changed = TableSpec {
+            columns: vec![
+                spec.columns[0].clone(),
+                TableColumnSpec {
+                    key: shared("size"),
+                    header: shared("Size"),
+                    width: px(80.),
+                    width_is_fraction: false,
+                    alignment: 2,
+                },
+            ],
+        };
+        store.bind_table_spec(
+            &ResourceKey::new(7, shared("rows")),
+            Rc::new(changed),
+            &engine,
+        );
+        assert!(engine.borrow().batches.is_empty());
+        assert_eq!(
+            store
+                .table_spec(&ResourceKey::new(7, shared("rows")))
+                .unwrap()
+                .columns
+                .len(),
+            2
+        );
+    }
+
+    #[test]
+    fn click_refresh_flow_preserves_scroll_across_configure_and_rebind() {
+        let key = ResourceKey::new(7, shared("grid"));
+        let store = ResourceStore::new(1, callbacks());
+        let mut config = configuration(None);
+        config.item_count = 5_000;
+        config.batch_size = 64;
+
+        // First materialization: the table declares columns and the row engine is created.
+        let engine = store.list_resource(&key, &config, 1);
+        let spec = TableSpec {
+            columns: vec![TableColumnSpec {
+                key: shared("name"),
+                header: shared("Name"),
+                width: px(120.),
+                width_is_fraction: false,
+                alignment: 0,
+            }],
+        };
+        store.bind_table_spec(&key, Rc::new(spec), &engine);
+
+        // The user scrolls down to item 1000.
+        engine.borrow().state.scroll_to(ListOffset {
+            item_ix: 1000,
+            offset_in_item: px(0.),
+        });
+        assert_eq!(engine.borrow().state.logical_scroll_top().item_ix, 1000);
+
+        // Click: RefreshRanges queues two Refresh commands, then invalidates the view.
+        engine.borrow_mut().apply_command(&command(13, 40, 1, ""));
+        engine.borrow_mut().apply_command(&command(13, 41, 1, ""));
+
+        // Next frame: the snapshot revision advanced and the table re-materialized.
+        let engine = store.list_resource(&key, &config, 2);
+        let spec = TableSpec {
+            columns: vec![TableColumnSpec {
+                key: shared("name"),
+                header: shared("Name"),
+                width: px(120.),
+                width_is_fraction: false,
+                alignment: 0,
+            }],
+        };
+        store.bind_table_spec(&key, Rc::new(spec), &engine);
+
+        let telemetry = engine.borrow().telemetry();
+        assert_eq!(telemetry.full_invalidations, 0);
+        assert_eq!(engine.borrow().state.logical_scroll_top().item_ix, 1000);
+    }
+
+    /// Regression test: a managed re-render must not drop a table's row engine. Table nodes
+    /// were skipped by the retain adapter guard, so the first snapshot commit after a table
+    /// appeared evicted the engine (fresh ListState = scroll jumped to the top).
+    #[test]
+    fn retain_snapshot_keeps_table_row_engines_across_renders() {
+        use crate::{
+            abi::{NodeRecord, OpRecord, RenderArena},
+            semantic::{COMPONENT_TABLE, ValueKind},
+        };
+
+        let data = b"grid\0name\x1FName\x1F120\x1F0\x1F0";
+        let mut node = NodeRecord {
+            component: COMPONENT_TABLE,
+            data_offset: 0,
+            data_length: data.len() as u32,
+            ..Default::default()
+        };
+        let mut operation = OpRecord {
+            node: 0,
+            code: OP_RESOURCE_OWNER,
+            value_kind: ValueKind::U32 as u16,
+            a: 4,
+            ..Default::default()
+        };
+        let mut utf8 = data.to_vec();
+        let arena = RenderArena {
+            nodes: &mut node,
+            node_length: 1,
+            node_capacity: 1,
+            ops: &mut operation,
+            op_length: 1,
+            op_capacity: 1,
+            children: std::ptr::null_mut(),
+            child_length: 0,
+            child_capacity: 0,
+            utf8: utf8.as_mut_ptr(),
+            utf8_length: utf8.len() as i32,
+            utf8_capacity: utf8.len() as i32,
+            generation: 1,
+            flags: 0,
+            required_node_capacity: 0,
+            required_op_capacity: 0,
+            required_child_capacity: 0,
+            required_utf8_capacity: 0,
+        };
+        let mut snapshot = ValidatedSnapshot::default();
+        let mut retained_strings = RetainedStrings::default();
+        let mut scratch = SnapshotScratch::default();
+        snapshot
+            .decode_into(&arena, 0, &mut retained_strings, &mut scratch)
+            .expect("table snapshot decodes");
+
+        let key = ResourceKey::new(4, shared("grid"));
+        let store = ResourceStore::new(1, callbacks());
+        let engine = store.list_resource(&key, &configuration(None), 1);
+        store.retain_snapshot(&snapshot);
+        assert!(Rc::ptr_eq(
+            &store.lists.borrow().get(&key).expect("engine retained"),
+            &engine
+        ));
+
+        // A later re-render retains the same snapshot shape; the engine must survive again.
+        store.retain_snapshot(&snapshot);
+        assert!(store.lists.borrow().contains_key(&key));
     }
 }

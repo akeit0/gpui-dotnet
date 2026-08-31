@@ -13,7 +13,10 @@ use crate::{
     components,
     context_menu::{ContextMenuConfiguration, context_menu},
     popover_menu::{PopoverMenuConfiguration, popover_menu},
-    resources::{ResourceStore, input_configuration, list_configuration, resource_key},
+    resources::{
+        ResourceStore, TableSpec, input_configuration, list_configuration, resource_key,
+        table_configuration,
+    },
     scrolling::{list_overlay, scroll_overlay},
     semantic::{
         CAPABILITY_INTERACTIVE, NativeAdapter, OP_BACKGROUND_RGBA, OP_BORDER_RGBA,
@@ -26,8 +29,9 @@ use crate::{
         OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
         OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY, OP_PADDING_PX,
         OP_POPOVER_MENU_MARGIN_PX, OP_POPOVER_MENU_PRIORITY, OP_RADIUS_PX, OP_RESOURCE_OWNER,
-        OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT,
-        OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS, OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT,
+        OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN,
+        OP_TABLE_SHOW_HEADER, OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX,
+        OP_TOOLTIP_HIDE_DELAY_MS, OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT,
         OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK, OP_WIDTH_PERCENT, OP_WIDTH_PX,
         OP_WINDOW_CONTROL_AREA, component_metadata,
     },
@@ -50,6 +54,7 @@ impl ManagedView {
         match metadata.adapter {
             NativeAdapter::Scroll => self.materialize_scroll(node_id, node, snapshot, window, cx),
             NativeAdapter::List => self.materialize_list(node, snapshot),
+            NativeAdapter::Table => self.materialize_table(node, snapshot),
             NativeAdapter::Image => materialize_image(node, snapshot),
             NativeAdapter::Input => self.materialize_input(node, snapshot, window, cx),
             NativeAdapter::Overlay => self.materialize_overlay(node, snapshot, window, cx),
@@ -212,6 +217,57 @@ impl ManagedView {
         );
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
         element = element.min_h_0().min_w_0();
+        element
+            .child(list_element)
+            .child(overlay)
+            .into_any_element()
+    }
+
+    /// A table is a virtualized list whose rows are reconciled against declared columns. The
+    /// row engine, its commands, and its batch cache are exactly the list machinery; columns
+    /// are declarative IR that only changes how the header strip and row cells are laid out.
+    fn materialize_table(&self, node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> AnyElement {
+        let Some((key, spec)) = table_configuration(snapshot, node) else {
+            return div()
+                .child("Table resource is missing its owner/key or declares malformed columns.")
+                .into_any_element();
+        };
+        let Some(configuration) = list_configuration(snapshot, node) else {
+            return div()
+                .child("Table resource is missing virtualization metadata.")
+                .into_any_element();
+        };
+        let resource = self
+            .resources
+            .list_resource(&key, &configuration, self.snapshot_revision);
+        self.resources
+            .bind_table_spec(&key, spec.clone(), &resource);
+        let state = resource.borrow().state.clone();
+        let resources = self.resources.clone();
+        let row_scope = key.clone();
+        let row_resource = resource.clone();
+        let list_element = list(state, move |index, _window, _cx| {
+            row_resource
+                .borrow_mut()
+                .render_item(index, &resources, &row_scope)
+        })
+        .flex_grow()
+        .min_h_0()
+        .min_w_0();
+        let smooth = last_op(snapshot, node, OP_SMOOTH_SCROLL).is_none_or(|op| op.a != 0);
+        let show_scrollbar = last_op(snapshot, node, OP_SHOW_SCROLLBAR).is_none_or(|op| op.a != 0);
+        let overlay = list_overlay(
+            resource,
+            configuration.estimated_item_height,
+            smooth,
+            show_scrollbar,
+        );
+        let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
+        element = element.min_h_0().min_w_0();
+        let show_header = last_op(snapshot, node, OP_TABLE_SHOW_HEADER).is_none_or(|op| op.a != 0);
+        if show_header {
+            element = element.child(table_header_strip(&spec));
+        }
         element
             .child(list_element)
             .child(overlay)
@@ -564,7 +620,7 @@ pub(crate) fn materialize_snapshot_node_detached(
     snapshot: &ValidatedSnapshot,
     session_id: u64,
     callbacks: ManagedCallbacks,
-    _resources: &ResourceStore,
+    resources: &ResourceStore,
     list_key: &crate::resources::ResourceKey,
     item_index: usize,
     item_id: Option<u64>,
@@ -575,6 +631,7 @@ pub(crate) fn materialize_snapshot_node_detached(
         metadata.adapter,
         NativeAdapter::Scroll
             | NativeAdapter::List
+            | NativeAdapter::Table
             | NativeAdapter::Input
             | NativeAdapter::Overlay
             | NativeAdapter::Tooltip
@@ -583,7 +640,7 @@ pub(crate) fn materialize_snapshot_node_detached(
     ) {
         return div()
             .child(
-                "Retained Scroll/List/Input resources and deferred layers inside a virtualized list row are not supported.",
+                "Retained Scroll/List/Table/Input resources and deferred layers inside a virtualized list row are not supported.",
             )
             .into_any_element();
     }
@@ -597,11 +654,12 @@ pub(crate) fn materialize_snapshot_node_detached(
     }
     for child in snapshot.children(node) {
         element = element.child(materialize_snapshot_node_detached(
-            *child, snapshot, session_id, callbacks, _resources, list_key, item_index, item_id,
+            *child, snapshot, session_id, callbacks, resources, list_key, item_index, item_id,
         ));
     }
     element = apply_styles(element, node, snapshot);
     element = apply_window_control_area(element, node, snapshot);
+    element = apply_table_cell_layout(element, node, snapshot, resources, list_key);
     if metadata.capabilities & CAPABILITY_INTERACTIVE != 0 {
         let event_binding = last_op(snapshot, node, OP_ON_CLICK);
         let event_token = event_binding.map_or(0, |op| op.a);
@@ -745,6 +803,79 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
         };
     }
     element
+}
+
+/// Reconciles a row cell's width and alignment against the owning table's declared columns.
+/// Cells carry only a column index (OP_TABLE_CELL_COLUMN); the resolved width intent comes
+/// from the table spec so header cells and row cells are laid out from one source of truth.
+/// Applying it after apply_styles lets a cell still declare its own padding or text styles.
+fn apply_table_cell_layout(
+    mut element: gpui::Div,
+    node: &SnapshotNode,
+    snapshot: &ValidatedSnapshot,
+    resources: &ResourceStore,
+    list_key: &crate::resources::ResourceKey,
+) -> gpui::Div {
+    let Some(op) = last_op(snapshot, node, OP_TABLE_CELL_COLUMN) else {
+        return element;
+    };
+    let Some(spec) = resources.table_spec(list_key) else {
+        return element;
+    };
+    let Some(column) = spec.columns.get(op.a as usize) else {
+        return element;
+    };
+    element = element.flex().overflow_hidden();
+    element = if column.width_is_fraction {
+        element.w(relative(column.width.into()))
+    } else {
+        element.w(column.width)
+    };
+    match column.alignment {
+        1 => element.justify_center(),
+        2 => element.justify_end(),
+        _ => element,
+    }
+}
+
+/// Native header strip for a table. Fixed chrome by design: product styling belongs to
+/// managed code, but header geometry must come from the same column resolution as rows.
+fn table_header_strip(spec: &std::rc::Rc<TableSpec>) -> gpui::Div {
+    let mut strip = div()
+        .flex()
+        .flex_row()
+        .h(px(32.))
+        .flex_shrink_0()
+        .bg(rgba(0xF8FAFCFF))
+        .border_b_1()
+        .border_color(rgba(0xE2E8F0FF));
+    for column in &spec.columns {
+        let mut cell = div()
+            .flex()
+            .items_center()
+            .px(px(10.))
+            .overflow_hidden()
+            .whitespace_nowrap();
+        cell = if column.width_is_fraction {
+            cell.w(relative(f32::from(column.width)))
+        } else {
+            cell.w(column.width)
+        };
+        cell = match column.alignment {
+            1 => cell.justify_center(),
+            2 => cell.justify_end(),
+            _ => cell,
+        };
+        strip = strip.child(
+            cell.child(
+                div()
+                    .child(column.header.clone())
+                    .text_size(px(12.))
+                    .text_color(rgba(0x64748BFF)),
+            ),
+        );
+    }
+    strip
 }
 
 fn apply_window_control_area(

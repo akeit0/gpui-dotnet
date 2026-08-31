@@ -34,6 +34,7 @@ pub(crate) fn apply_defaults(
         | NativeAdapter::Text
         | NativeAdapter::Scroll
         | NativeAdapter::List
+        | NativeAdapter::Table
         | NativeAdapter::Image
         | NativeAdapter::Input
         | NativeAdapter::Overlay

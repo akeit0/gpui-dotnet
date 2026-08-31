@@ -80,6 +80,13 @@ internal sealed partial class SampleShellView : View
         Invalidate();
     }
 
+    [GpuiEvent]
+    private void ShowTables()
+    {
+        _page = SamplePage.Tables;
+        Invalidate();
+    }
+
     protected override Element Render(ref RenderContext ui)
     {
         var sidebar = RenderSidebar(ref ui);
@@ -87,6 +94,7 @@ internal sealed partial class SampleShellView : View
         {
             SamplePage.Overview => ui.Child<DashboardView>("content"),
             SamplePage.Activity => ui.Child<ActivityView>("content"),
+            SamplePage.Tables => ui.Child<TableView>("content"),
             SamplePage.Images => ui.Child<ImageGalleryView>("content"),
             SamplePage.Inputs => ui.Child<InputGalleryView>("content"),
             SamplePage.Overlays => ui.Child<OverlayGalleryView>("content"),
@@ -100,6 +108,7 @@ internal sealed partial class SampleShellView : View
             {
                 SamplePage.Overview => "Overview",
                 SamplePage.Activity => "Activity",
+                SamplePage.Tables => "Tables",
                 SamplePage.Images => "Images",
                 SamplePage.Inputs => "Inputs",
                 SamplePage.Overlays => "Overlays",
@@ -111,6 +120,8 @@ internal sealed partial class SampleShellView : View
                 SamplePage.Overview => "retained ScrollHandle; wheel scrolling stays native",
                 SamplePage.Activity =>
                     "20,000 variable-height rows; managed rendering is range-batched",
+                SamplePage.Tables =>
+                    "declared columns drive the native header and row cell reconciliation",
                 SamplePage.Images => "GPUI-native decoding, caching, fitting, and grayscale",
                 SamplePage.Inputs =>
                     "retained native editing, IME, selection, focus, and UTF-8 events",
@@ -185,6 +196,7 @@ internal sealed partial class SampleShellView : View
                 ref ui,
                 MenuItem(ref ui, "menu-overview"u8, "Scroll view"u8, Events.ShowOverview),
                 MenuItem(ref ui, "menu-activity"u8, "Virtual list"u8, Events.ShowActivity),
+                MenuItem(ref ui, "menu-tables"u8, "Virtual table"u8, Events.ShowTables),
                 MenuItem(ref ui, "menu-images"u8, "Images"u8, Events.ShowImages),
                 MenuItem(ref ui, "menu-inputs"u8, "Inputs"u8, Events.ShowInputs),
                 MenuItem(ref ui, "menu-overlays"u8, "Overlays + tooltips"u8, Events.ShowOverlays),
@@ -255,6 +267,7 @@ internal sealed partial class SampleShellView : View
     {
         var overviewSelected = _page == SamplePage.Overview;
         var activitySelected = _page == SamplePage.Activity;
+        var tablesSelected = _page == SamplePage.Tables;
         var imagesSelected = _page == SamplePage.Images;
         var inputsSelected = _page == SamplePage.Inputs;
         var overlaysSelected = _page == SamplePage.Overlays;
@@ -273,6 +286,12 @@ internal sealed partial class SampleShellView : View
                     .Padding(Px(10))
                     .Background(activitySelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
                     .BorderColor(activitySelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
+                    .TextColor(Rgb(255, 255, 255)),
+                ui.Button("show-tables", "Virtual table")
+                    .OnClick(Events.ShowTables)
+                    .Padding(Px(10))
+                    .Background(tablesSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
+                    .BorderColor(tablesSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
                     .TextColor(Rgb(255, 255, 255)),
                 ui.Button("show-images", "Images")
                     .OnClick(Events.ShowImages)

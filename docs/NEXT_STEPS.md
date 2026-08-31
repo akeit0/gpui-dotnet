@@ -1,6 +1,6 @@
 # Next steps
 
-The repository now has framework-owned dynamic managed Views, an ABI v5 multi-window application/session model, typed native-control events, retained native Scroll and Input state, virtualized ListState, deferred window Overlay, trigger-relative Tooltip, pointer-anchored ContextMenu, and trigger-attached PopoverMenu layers, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
+The repository now has framework-owned dynamic managed Views, an ABI v5 multi-window application/session model, typed native-control events, retained native Scroll and Input state, virtualized ListState, deferred window Overlay, trigger-relative Tooltip, pointer-anchored ContextMenu, and trigger-attached PopoverMenu layers, batched managed datasource rendering with surgical batch invalidation, stable row identity, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots, and a virtualized Table sharing the list row engine with declarative column IR.
 
 ## 1. List datasource refinement — foundation complete
 
@@ -51,9 +51,18 @@ The generic window-relative Overlay is the modal geometry and event foundation. 
 
 Keep stacking and dismissal window-owned; keep product styling and content composition in managed code.
 
-## 5. Table/tree
+## 5. Table/tree — table foundation complete
 
-Build Table/Tree on the same coarse datasource principles rather than as thousands of managed child Views. Column/tree metadata can be semantic IR; viewport state and measurement remain native.
+The virtualized Table shares the list row engine end to end: `ui.Table` reuses the same batch renderer, cache, surgical invalidation, controller commands, and telemetry; a table registers its row engine as a list resource. Columns are declarative IR (`TableColumn[]`: key, header, px/fraction width, alignment) that drives the native header strip and reconciles every `ui.TableCell(column)` natively, so header and row geometry come from one source of truth. Row layout stays managed: cells are flex items and compose inside a horizontal container (for example `ui.HStack` stretched to the row width), since plain divs are block by default. A changed column table between snapshots invalidates all row batches. Rows keep the full list semantics — `ItemId` model identity, payload-less row events, `RefreshRanges`, and `Splice` for reordering.
+
+Continue where applications demonstrate need:
+
+- header click/sort events and column visibility/reorder IR refinements;
+- accessibility roles (table/row/columnheader/cell) as one semantic batch with list rows;
+- keyboard navigation and roving selection across rows;
+- cell-level virtualization, frozen columns, and native resize chrome only if benchmarks or applications prove the need.
+
+Tree deliberately has no native component: a visible tree is a flat list, so managed-owned flattening plus `Splice` for expand/collapse preserves measurements precisely. Reopen native hierarchy only for accessibility tree semantics or very large forests.
 
 ## 6. Package and ABI CI
 
