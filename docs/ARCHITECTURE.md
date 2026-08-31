@@ -7,6 +7,7 @@ GPUI.NET deliberately does not mirror GPUI's Rust API one-to-one.
 ### C# owns
 
 - domain/application state;
+- application/window definitions and stable managed window handles;
 - managed `View` state and retained child-slot composition;
 - generated event/list-renderer logic;
 - dirty render IR construction.
@@ -24,6 +25,14 @@ GPUI.NET deliberately does not mirror GPUI's Rust API one-to-one.
 - high-frequency wheel/trackpad/scrollbar behavior.
 
 The boundary rule is: **cross the ABI for state transitions or coarse data batches, never for each builder call, frame, style property or list row.**
+
+## Application and window ownership
+
+`GpuiApplication` is the managed owner of one native `gpui::Application`. Each `GpuiWindow` owns an independent managed render session rooted at one `View`; window IDs are globally stable for the process lifetime and are also the native callback session IDs. Opening another window never constructs a second GPUI application.
+
+The native application host keeps a window registry and a UI-thread command channel. Open/close/activate/title/resize calls may originate on any managed thread, but GPUI window mutation occurs only when the native event loop consumes the command. Initial positioned bounds are supported. The pinned GPUI API exposes runtime resize but no cross-platform runtime reposition operation, so that capability is deliberately absent rather than emulated.
+
+Each window has a separate `ManagedSession`, View-handle allocator, render snapshots, retained resources, list caches, and lifecycle teardown. A failure is recorded against the affected window session while other windows keep running; the application reports the first failure when the final window closes. Closing one window unmounts only its View tree. Closing the final window quits the shared GPUI application.
 
 ## Design reference and dependency policy
 
@@ -48,10 +57,10 @@ Managed `Render()` writes one arena containing nodes, operations, child edges an
 Some UI state must survive independently of a managed render snapshot. A resource is keyed by:
 
 ```text
-(managed View handle, local string key, resource kind)
+(window session, managed View handle, local string key, resource kind)
 ```
 
-The render snapshot declares that a resource is active. Imperative controllers send commands through the ABI; wheel/trackpad operations remain native. Overlay and Tooltip are keyed snapshot components rather than retained resources: native keyed state holds focus entry/restoration or hover timing while each component remains in consecutive snapshots.
+The render snapshot declares that a resource is active. Imperative controllers send commands through the ABI; wheel/trackpad operations remain native. Each native window owns a separate resource store, so equal View handles and keys in different windows cannot collide. Overlay and Tooltip are keyed snapshot components rather than retained resources: native keyed state holds focus entry/restoration or hover timing while each component remains in consecutive snapshots.
 
 Current retained resources:
 

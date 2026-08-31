@@ -13,7 +13,7 @@ C# View state
    │ dirty render only
    ▼
 RenderArena (nodes / ops / children / UTF-8)
-   │ ABI v4
+   │ ABI v5
    ▼
 Rust validation + flat retained snapshot
    │
@@ -27,6 +27,28 @@ Rust validation + flat retained snapshot
 ```
 
 Clean GPUI repaints do not call managed `Render()`. Scroll wheel/trackpad movement stays native. A virtualized list crosses back into managed code only when Rust needs a row batch that is not already cached.
+
+## Application and windows
+
+One managed application owns one native GPUI event loop and any number of independent window roots:
+
+```csharp
+var application = new GpuiApplication();
+
+var main = application.OpenWindow(
+    new MainView(),
+    new GpuiWindowOptions { Title = "Main", Width = 1040, Height = 700 });
+
+var inspector = application.OpenWindow(
+    new InspectorView(),
+    new GpuiWindowOptions { Title = "Inspector", Left = 80, Top = 80 });
+
+application.Run(); // returns after the last window closes
+```
+
+Each `GpuiWindow` has a stable 64-bit ID and its own root View tree, retained resource store, render snapshots, failures, and mount lifetime. `OpenWindow` also works while the application is running. `Close`, `Activate`, `SetTitle`, and `Resize` enqueue thread-safe native UI commands; title/size changes made before `Run` update the initial window definition. Initial `Left`/`Top` positioning is supported, while runtime repositioning is not exposed by the pinned GPUI API.
+
+For a single window, `GpuiApplication.Run(view, options)` is a convenience over the same model.
 
 ## Managed Views: framework ownership by default
 
@@ -256,15 +278,15 @@ private async ValueTask Increment(ClickEvent _)
 
 `Render()` remains a pure description function. Arena growth may retry it. Do not mutate View state, start tasks, perform I/O, register handlers, or call `Invalidate()` from `Render()` or a `[GpuiListItem]` renderer.
 
-## ABI v4
+## ABI v5
 
-ABI v4 is intentionally incompatible with previous revisions. In addition to the v3 Scroll/List/Image protocol, it adds:
+ABI v5 makes application ownership distinct from window/render sessions. It adds:
 
-- retained Input resource commands with optional UTF-8 command data;
-- a typed native-control event callback carrying owned-on-receipt UTF-8 data;
-- generated `InputEvent` dispatch;
-- semantic Input configuration and event operations.
-- deferred semantic Overlay and Tooltip nodes without changing the native function-table layout.
+- one native GPUI application with multiple independently mounted managed window roots;
+- application-started and per-window-closed lifecycle callbacks;
+- thread-safe open, close, activate, title, and resize commands;
+- stable 64-bit window/session IDs and per-window resource namespaces;
+- shutdown only after the final application-owned window closes.
 
 Managed startup validates both ABI version and semantic schema hash (`0x920C821394FBE3D4`). See [docs/ABI.md](docs/ABI.md).
 
@@ -281,7 +303,13 @@ dotnet build gpui-dotnet.slnx
 dotnet run --project dotnet/samples/Gpui.Net.Sample
 ```
 
-The sample contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, centered-dialog/right-sheet Overlay demos, and delayed trigger-relative tooltips. To force native-owned render-arena growth/retry:
+The sample contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, centered-dialog/right-sheet Overlay demos, delayed trigger-relative tooltips, and a Windows gallery. The Windows route launches a distinct companion root with isolated local state; closing it leaves the main gallery running. To open that companion automatically at startup:
+
+```powershell
+dotnet run --project dotnet/samples/Gpui.Net.Sample -- --multi-window
+```
+
+To force native-owned render-arena growth/retry:
 
 ```powershell
 dotnet run --project dotnet/samples/Gpui.Net.Sample -- --stress-growth

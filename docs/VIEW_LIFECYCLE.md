@@ -2,7 +2,7 @@
 
 ## Managed View lifecycle
 
-A root View is supplied to `GpuiApplication.Run`. Framework-owned children are created lazily through source-generated factories.
+Each `GpuiApplication.OpenWindow(rootView, options)` creates an independent root lifecycle. `GpuiApplication.Run()` mounts initial windows and runs until the last window closes; windows opened while it is running use the same native application. Framework-owned children are created lazily through source-generated factories inside each window tree.
 
 ```text
 child slot requested

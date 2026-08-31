@@ -13,14 +13,15 @@ namespace Gpui.Interop;
 /// </summary>
 public sealed unsafe class NativeRuntime
 {
+    private static readonly ConcurrentDictionary<ulong, ManagedApplication> Applications = new();
     private static readonly ConcurrentDictionary<ulong, ManagedSession> Sessions = new();
-    private static long _nextSessionId;
+    private static long _nextApplicationId;
 
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
-    private readonly GpuiDotnetApiV4* _api;
+    private readonly GpuiDotnetApiV5* _api;
 
-    private NativeRuntime(GpuiDotnetApiV4* api) => _api = api;
+    private NativeRuntime(GpuiDotnetApiV5* api) => _api = api;
 
     public static NativeRuntime Load()
     {
@@ -32,10 +33,10 @@ public sealed unsafe class NativeRuntime
             );
         }
 
-        if (api->struct_size < (uint)sizeof(GpuiDotnetApiV4))
+        if (api->struct_size < (uint)sizeof(GpuiDotnetApiV5))
         {
             throw new InvalidOperationException(
-                $"Native API table is too small. Managed={sizeof(GpuiDotnetApiV4)}, native={api->struct_size}."
+                $"Native API table is too small. Managed={sizeof(GpuiDotnetApiV5)}, native={api->struct_size}."
             );
         }
 
@@ -58,6 +59,7 @@ public sealed unsafe class NativeRuntime
             || api->run_application == null
             || api->notify_view == null
             || api->dispatch_command == null
+            || api->dispatch_application_command == null
         )
         {
             throw new InvalidOperationException("The native API table is missing required entries.");
@@ -78,13 +80,14 @@ public sealed unsafe class NativeRuntime
         }
     }
 
-    internal void Run(View view, GpuiApplicationOptions options)
+    internal void Run(GpuiApplication application)
     {
-        var id = checked((ulong)Interlocked.Increment(ref _nextSessionId));
-        var session = new ManagedSession(this, id, view);
-        if (!Sessions.TryAdd(id, session))
+        ArgumentNullException.ThrowIfNull(application);
+        var id = checked((ulong)Interlocked.Increment(ref _nextApplicationId));
+        var managedApplication = new ManagedApplication(this, id, application);
+        if (!Applications.TryAdd(id, managedApplication))
         {
-            throw new InvalidOperationException("Failed to register the managed view session.");
+            throw new InvalidOperationException("Failed to register the managed GPUI application.");
         }
 
         var status = 0;
@@ -97,41 +100,30 @@ public sealed unsafe class NativeRuntime
                 click = &Click,
                 list_render_range = &ListRenderRange,
                 control_event = &ControlEvent,
-                shutdown = &Shutdown,
+                application_started = &ApplicationStarted,
+                window_closed = &WindowClosed,
             };
-            var title = Encoding.UTF8.GetBytes(options.Title);
-            fixed (byte* titlePointer = title)
-            {
-                status = _api->run_application(
-                    id,
-                    &callbacks,
-                    titlePointer,
-                    title.Length,
-                    options.Width,
-                    options.Height
-                );
-            }
+            status = _api->run_application(id, &callbacks);
         }
         finally
         {
-            // Stop first so OnUnmounted failures are part of the final session result.
-            session.Stop();
-            Sessions.TryRemove(id, out _);
+            managedApplication.Stop();
+            Applications.TryRemove(id, out _);
         }
 
         if (status != 0)
         {
             throw new InvalidOperationException(
                 $"The native GPUI application stopped with status {status}.",
-                session.Failure
+                managedApplication.Failure
             );
         }
 
-        if (session.Failure is not null)
+        if (managedApplication.Failure is not null)
         {
             throw new InvalidOperationException(
-                "The managed GPUI session observed an event, render, or lifecycle failure.",
-                session.Failure
+                "The managed GPUI application observed a window event, render, or lifecycle failure.",
+                managedApplication.Failure
             );
         }
     }
@@ -311,30 +303,44 @@ public sealed unsafe class NativeRuntime
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static int Shutdown(ulong sessionId)
+    private static int ApplicationStarted(ulong applicationId)
     {
         try
         {
-            if (!Sessions.TryGetValue(sessionId, out var session))
+            if (!Applications.TryGetValue(applicationId, out var application))
             {
                 return -120;
             }
-
-            var previousContext = SynchronizationContext.Current;
-            SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
-            try
-            {
-                session.Stop();
-                return session.Failure is null ? 0 : -121;
-            }
-            finally
-            {
-                SynchronizationContext.SetSynchronizationContext(previousContext);
-            }
+            application.Start();
+            return 0;
         }
         catch (Exception exception)
         {
-            RecordFailure(sessionId, exception);
+            if (Applications.TryGetValue(applicationId, out var application))
+            {
+                application.RecordFailure(exception);
+            }
+            return -122;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static int WindowClosed(ulong applicationId, ulong windowId, int nativeStatus)
+    {
+        try
+        {
+            if (!Applications.TryGetValue(applicationId, out var application))
+            {
+                return -120;
+            }
+            return application.WindowClosed(windowId, nativeStatus);
+        }
+        catch (Exception exception)
+        {
+            if (Applications.TryGetValue(applicationId, out var application))
+            {
+                application.RecordFailure(exception);
+            }
             return -121;
         }
     }
@@ -360,6 +366,200 @@ public sealed unsafe class NativeRuntime
             throw new InvalidOperationException(
                 $"Native view notification failed with status {status}."
             );
+        }
+    }
+
+    private sealed class ManagedApplication : IGpuiApplicationHost
+    {
+        private readonly NativeRuntime _runtime;
+        private readonly ulong _applicationId;
+        private readonly GpuiApplication _application;
+        private readonly ConcurrentDictionary<ulong, ManagedSession> _sessions = new();
+        private Exception? _failure;
+        private int _stopped;
+
+        internal ManagedApplication(
+            NativeRuntime runtime,
+            ulong applicationId,
+            GpuiApplication application
+        )
+        {
+            _runtime = runtime;
+            _applicationId = applicationId;
+            _application = application;
+        }
+
+        internal Exception? Failure => Volatile.Read(ref _failure);
+
+        internal void RecordFailure(Exception exception) =>
+            Interlocked.CompareExchange(ref _failure, exception, null);
+
+        internal void Start()
+        {
+            foreach (var request in _application.AttachHost(this))
+            {
+                OpenWindow(request.Window, request.Snapshot);
+            }
+        }
+
+        public void OpenWindow(GpuiWindow window, GpuiWindowSnapshot snapshot)
+        {
+            if (Volatile.Read(ref _stopped) != 0)
+            {
+                throw new InvalidOperationException("The GPUI application is stopping.");
+            }
+
+            var session = new ManagedSession(_runtime, window.Id, window.RootView);
+            if (!_sessions.TryAdd(window.Id, session))
+            {
+                throw new InvalidOperationException("Failed to register the managed window session.");
+            }
+            if (!Sessions.TryAdd(window.Id, session))
+            {
+                _sessions.TryRemove(window.Id, out _);
+                throw new InvalidOperationException("Failed to register the managed window session.");
+            }
+
+            try
+            {
+                Dispatch(
+                    1,
+                    window.Id,
+                    snapshot.Title,
+                    snapshot.Left ?? 0,
+                    snapshot.Top ?? 0,
+                    snapshot.Width,
+                    snapshot.Height,
+                    (ushort)((snapshot.Left.HasValue ? 1 : 0) | (snapshot.Activate ? 2 : 0))
+                );
+            }
+            catch
+            {
+                _sessions.TryRemove(window.Id, out _);
+                Sessions.TryRemove(window.Id, out _);
+                StopSession(session);
+                throw;
+            }
+        }
+
+        public void CloseWindow(ulong windowId) => Dispatch(2, windowId);
+
+        public void ActivateWindow(ulong windowId) => Dispatch(3, windowId);
+
+        public void SetWindowTitle(ulong windowId, string title) =>
+            Dispatch(4, windowId, title);
+
+        public void ResizeWindow(ulong windowId, float width, float height) =>
+            Dispatch(5, windowId, width: width, height: height);
+
+        internal int WindowClosed(ulong windowId, int nativeStatus)
+        {
+            var failed = nativeStatus != 0;
+            if (failed)
+            {
+                RecordFailure(
+                    new InvalidOperationException(
+                        $"Native window {windowId} closed with status {nativeStatus}."
+                    )
+                );
+            }
+
+            if (_sessions.TryRemove(windowId, out var session))
+            {
+                Sessions.TryRemove(windowId, out _);
+                StopSession(session);
+                if (session.Failure is { } failure)
+                {
+                    RecordFailure(failure);
+                    failed = true;
+                }
+            }
+            _application.NativeWindowClosed(windowId);
+            return failed ? -121 : 0;
+        }
+
+        internal void Stop()
+        {
+            if (Interlocked.Exchange(ref _stopped, 1) != 0)
+            {
+                return;
+            }
+
+            foreach (var (windowId, session) in _sessions.ToArray())
+            {
+                if (!_sessions.TryRemove(windowId, out _))
+                {
+                    continue;
+                }
+                Sessions.TryRemove(windowId, out _);
+                StopSession(session);
+                if (session.Failure is { } failure)
+                {
+                    RecordFailure(failure);
+                }
+                _application.NativeWindowClosed(windowId);
+            }
+        }
+
+        private void StopSession(ManagedSession session)
+        {
+            var previousContext = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
+            try
+            {
+                session.Stop();
+            }
+            catch (Exception exception)
+            {
+                session.RecordFailure(exception);
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(previousContext);
+            }
+        }
+
+        private void Dispatch(
+            ushort command,
+            ulong windowId,
+            string? title = null,
+            float left = 0,
+            float top = 0,
+            float width = 0,
+            float height = 0,
+            ushort flags = 0
+        )
+        {
+            if (Volatile.Read(ref _stopped) != 0)
+            {
+                throw new InvalidOperationException("The GPUI application is stopping.");
+            }
+
+            var titleUtf8 = title is null ? Array.Empty<byte>() : Encoding.UTF8.GetBytes(title);
+            fixed (byte* titlePointer = titleUtf8)
+            {
+                var native = new NativeApplicationCommand
+                {
+                    window_id = windowId,
+                    command = command,
+                    flags = flags,
+                    reserved = 0,
+                    title = titlePointer,
+                    title_length = titleUtf8.Length,
+                    reserved2 = 0,
+                    left = left,
+                    top = top,
+                    width = width,
+                    height = height,
+                };
+                var status = _runtime._api->dispatch_application_command(_applicationId, &native);
+                if (status != 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Native application command {command} failed with status {status}."
+                    );
+                }
+            }
         }
     }
 

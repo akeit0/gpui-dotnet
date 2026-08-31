@@ -6,7 +6,7 @@
         <PackageId>Gpui.Net</PackageId>
         <Version>0.4.0</Version>
         <Authors>GPUI.NET contributors</Authors>
-        <Description>Allocation-conscious .NET frontend for GPUI with retained managed Views, native Scroll state, virtualized List batching, and source-generated event/data-source dispatch.</Description>
+        <Description>Allocation-conscious .NET frontend for GPUI with multi-window managed Views, retained native controls, virtualized List batching, and source-generated event/data-source dispatch.</Description>
         <PackageTags>gpui;gui;dotnet;csharp;rust</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <!-- <GenerateDocumentationFile>true</GenerateDocumentationFile> -->

@@ -1,14 +1,14 @@
-# ABI v4
+# ABI v5
 
-ABI v4 is intentionally incompatible with previous revisions. Managed startup requests exactly version 4 and also checks the semantic schema hash.
+ABI v5 separates one application identity from its independently mounted window/render session identities. Managed startup requests exactly version 5 and also checks the semantic schema hash.
 
 ## Discovery
 
 ```c
-const gpui_dotnet_api_v4* gpui_dotnet_get_api(uint32_t requested_version);
+const gpui_dotnet_api_v5* gpui_dotnet_get_api(uint32_t requested_version);
 ```
 
-`gpui_dotnet_api_v4` contains:
+`gpui_dotnet_api_v5` contains:
 
 - `struct_size`;
 - `abi_version`;
@@ -16,7 +16,8 @@ const gpui_dotnet_api_v4* gpui_dotnet_get_api(uint32_t requested_version);
 - `validate_render`;
 - `run_application`;
 - `notify_view`;
-- `dispatch_command`.
+- `dispatch_command`;
+- `dispatch_application_command`.
 
 The current schema hash is `0x920C821394FBE3D4`.
 
@@ -31,9 +32,27 @@ typedef struct gpui_managed_callbacks {
     gpui_managed_click_fn click;
     gpui_managed_list_render_range_fn list_render_range;
     gpui_managed_control_event_fn control_event;
-    gpui_managed_shutdown_fn shutdown;
+    gpui_managed_application_started_fn application_started;
+    gpui_managed_window_closed_fn window_closed;
 } gpui_managed_callbacks;
 ```
+
+### Application/window lifecycle
+
+```c
+int32_t run_application(
+    uint64_t application_id,
+    const gpui_managed_callbacks* callbacks);
+
+int32_t application_started(uint64_t application_id);
+
+int32_t window_closed(
+    uint64_t application_id,
+    uint64_t window_id,
+    int32_t native_status);
+```
+
+Native registration exists before `application_started` runs, so managed code can synchronously enqueue every initial window. `window_id` is also the session ID passed to render/event callbacks and the notification/resource-command functions. `window_closed` unmounts only that session; the native application exits after the final registered window closes.
 
 ### Dirty root render
 
@@ -94,10 +113,6 @@ int32_t control_event(
 
 `gpui_native_control_event` carries a typed event kind, flags, native state revision, and a borrowed UTF-8 data range. Input currently emits Changed, Submitted, and FocusChanged. Managed code validates the record and copies the bytes before returning through FFI, making `InputEvent.Utf8Value` safe for asynchronous handlers. UTF-16 decoding is deferred until `InputEvent.Value` is accessed.
 
-### Shutdown
-
-`shutdown(session_id)` runs after the last GPUI window closes but before the native application quits. Managed Views are unmounted while native lifecycle infrastructure is still valid.
-
 ## Render arena
 
 The ABI stays pointer-free from managed application code; only the runtime layer sees arena pointers. The wire structures remain C-layout fixed-width records.
@@ -124,6 +139,36 @@ Canonical rules:
 - component/operation capability constraints are validated on both managed and native sides.
 
 `ListRenderer` is encoded as a callback-kind operation but currently uses `b == 0`.
+
+## Application/window commands
+
+Application commands use a separate application-scoped channel:
+
+```c
+typedef struct gpui_native_application_command {
+    uint64_t window_id;
+    uint16_t command;
+    uint16_t flags;
+    uint32_t reserved;
+    const uint8_t* title;
+    int32_t title_length;
+    uint32_t reserved2;
+    float left;
+    float top;
+    float width;
+    float height;
+} gpui_native_application_command;
+```
+
+| Command | Payload |
+|---|---|
+| `Open` | UTF-8 title, positive size, optional positioned flag + finite `left`/`top`, optional activate flag |
+| `Close` | none |
+| `Activate` | none |
+| `SetTitle` | non-empty UTF-8 title |
+| `Resize` | positive finite width/height |
+
+The call copies borrowed UTF-8 before returning and enqueues the owned command. All GPUI window mutation occurs on the native UI thread. Initial position is supported by `Open`; runtime resize is supported, but runtime reposition is absent because the pinned GPUI API has no durable cross-platform operation for it.
 
 ## Retained native resource commands
 
@@ -168,4 +213,4 @@ Command payloads are canonicalized too: scalar indices/counts use only their doc
 
 ## Error handling
 
-Negative statuses are implementation/runtime failures. Managed callback exceptions are recorded by the managed session and are not allowed to unwind through native code. Late notifications/commands racing normal teardown are ignored by managed code for the known closed-session statuses.
+Negative statuses are implementation/runtime failures. Managed callback exceptions are recorded by the affected window session and are not allowed to unwind through native code. One failed window does not tear down the other windows, but the application returns the first recorded failure after final-window shutdown. Late notifications/resource commands racing normal teardown are ignored for known closed-session statuses.

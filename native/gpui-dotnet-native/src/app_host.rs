@@ -1,5 +1,6 @@
 use std::{
-    collections::HashMap,
+    cell::RefCell,
+    collections::{HashMap, HashSet},
     rc::Rc,
     sync::{
         Arc, Mutex, OnceLock,
@@ -9,8 +10,8 @@ use std::{
 
 use async_channel::{Receiver, Sender, TrySendError};
 use gpui::{
-    App, Application, Bounds, Context, IntoElement, Render, TitlebarOptions, Window, WindowBounds,
-    WindowOptions, div, prelude::*, px, rgb, size,
+    AnyWindowHandle, App, AppContext, Application, Bounds, Context, IntoElement, Render,
+    TitlebarOptions, Window, WindowBounds, WindowOptions, div, point, prelude::*, px, rgb, size,
 };
 
 use crate::{
@@ -74,6 +75,71 @@ impl Drop for ViewRegistration {
     }
 }
 
+#[derive(Debug)]
+pub(crate) enum ApplicationCommand {
+    Open {
+        window_id: u64,
+        title: String,
+        left: Option<f32>,
+        top: Option<f32>,
+        width: f32,
+        height: f32,
+        activate: bool,
+    },
+    Close(u64),
+    Activate(u64),
+    SetTitle {
+        window_id: u64,
+        title: String,
+    },
+    Resize {
+        window_id: u64,
+        width: f32,
+        height: f32,
+    },
+}
+
+#[derive(Clone)]
+struct ApplicationNotifier {
+    sender: Sender<ApplicationCommand>,
+}
+
+static APPLICATION_NOTIFIERS: OnceLock<Mutex<HashMap<u64, ApplicationNotifier>>> = OnceLock::new();
+
+fn application_notifiers() -> &'static Mutex<HashMap<u64, ApplicationNotifier>> {
+    APPLICATION_NOTIFIERS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+struct ApplicationRegistration {
+    application_id: u64,
+}
+
+impl ApplicationRegistration {
+    fn new(application_id: u64, notifier: ApplicationNotifier) -> Result<Self, i32> {
+        let mut notifiers = application_notifiers().lock().map_err(|_| -42)?;
+        if notifiers.contains_key(&application_id) {
+            return Err(-40);
+        }
+        notifiers.insert(application_id, notifier);
+        Ok(Self { application_id })
+    }
+}
+
+impl Drop for ApplicationRegistration {
+    fn drop(&mut self) {
+        if let Ok(mut notifiers) = application_notifiers().lock() {
+            notifiers.remove(&self.application_id);
+        }
+    }
+}
+
+struct ManagedWindowRegistration {
+    handle: AnyWindowHandle,
+    _view_registration: ViewRegistration,
+}
+
+type ManagedWindows = Rc<RefCell<HashMap<u64, ManagedWindowRegistration>>>;
+
 pub(crate) fn notify(view_id: u64) -> i32 {
     let notifier = {
         let Ok(notifiers) = view_notifiers().lock() else {
@@ -116,6 +182,26 @@ pub(crate) fn dispatch_command(view_id: u64, command: ResourceCommand) -> i32 {
         Ok(()) => 0,
         Err(TrySendError::Full(_)) => -33,
         Err(TrySendError::Closed(_)) => -31,
+    }
+}
+
+pub(crate) fn dispatch_application_command(
+    application_id: u64,
+    command: ApplicationCommand,
+) -> i32 {
+    let sender = {
+        let Ok(notifiers) = application_notifiers().lock() else {
+            return -42;
+        };
+        let Some(notifier) = notifiers.get(&application_id) else {
+            return -40;
+        };
+        notifier.sender.clone()
+    };
+    match sender.try_send(command) {
+        Ok(()) => 0,
+        Err(TrySendError::Full(_)) => -43,
+        Err(TrySendError::Closed(_)) => -41,
     }
 }
 
@@ -219,57 +305,274 @@ impl Render for ManagedView {
     }
 }
 
-pub fn run(view_id: u64, callbacks: ManagedCallbacks, title: &str, width: f32, height: f32) -> i32 {
-    let title = title.to_owned();
+pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
     let (sender, receiver) = async_channel::unbounded();
-    let invalidate_pending = Arc::new(AtomicBool::new(false));
-    let notifier = ViewNotifier {
-        sender,
-        invalidate_pending: Arc::clone(&invalidate_pending),
-    };
-    let Ok(_registration) = ViewRegistration::new(view_id, notifier) else {
-        return -30;
+    let Ok(_application_registration) =
+        ApplicationRegistration::new(application_id, ApplicationNotifier { sender })
+    else {
+        return -40;
     };
 
-    let shutdown_status = Arc::new(AtomicI32::new(0));
-    let shutdown_status_in_app = Arc::clone(&shutdown_status);
+    let startup_status = unsafe {
+        callbacks
+            .application_started
+            .expect("callbacks were validated before application startup")(application_id)
+    };
+    if startup_status != 0 {
+        return startup_status;
+    }
+
+    let application_status = Arc::new(AtomicI32::new(0));
+    let application_status_in_app = Arc::clone(&application_status);
 
     Application::new().run(move |cx: &mut App| {
         crate::input::init(cx);
-        let shutdown_status = Arc::clone(&shutdown_status_in_app);
-        let shutdown_callbacks = callbacks;
+        let windows: ManagedWindows = Rc::new(RefCell::new(HashMap::new()));
+
+        let closed_windows = Rc::clone(&windows);
+        let closed_status = Arc::clone(&application_status_in_app);
         cx.on_window_closed(move |cx| {
-            if cx.windows().is_empty() {
-                let status = unsafe {
-                    shutdown_callbacks
-                        .shutdown
-                        .expect("callbacks were validated before application startup")(
-                        view_id
-                    )
-                };
-                shutdown_status.store(status, Ordering::Release);
-                cx.quit();
+            report_closed_windows(
+                cx,
+                application_id,
+                callbacks,
+                &closed_windows,
+                &closed_status,
+            );
+        })
+        .detach();
+
+        while let Ok(command) = receiver.try_recv() {
+            apply_application_command(
+                command,
+                cx,
+                application_id,
+                callbacks,
+                &windows,
+                &application_status_in_app,
+            );
+        }
+
+        if windows.borrow().is_empty() {
+            record_status(&application_status_in_app, -24);
+            cx.quit();
+            return;
+        }
+
+        let command_windows = Rc::clone(&windows);
+        let command_status = Arc::clone(&application_status_in_app);
+        cx.spawn(async move |cx| {
+            while let Ok(command) = receiver.recv().await {
+                if cx
+                    .update(|cx| {
+                        apply_application_command(
+                            command,
+                            cx,
+                            application_id,
+                            callbacks,
+                            &command_windows,
+                            &command_status,
+                        );
+                    })
+                    .is_err()
+                {
+                    break;
+                }
             }
         })
         .detach();
 
-        let bounds = Bounds::centered(None, size(px(width), px(height)), cx);
-        cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                titlebar: Some(TitlebarOptions {
-                    title: Some(title.clone().into()),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            },
-            move |_, cx| create_managed_view(cx, view_id, callbacks, receiver, invalidate_pending),
-        )
-        .expect("failed to open the GPUI window");
         cx.activate(true);
     });
 
-    shutdown_status.load(Ordering::Acquire)
+    application_status.load(Ordering::Acquire)
+}
+
+fn apply_application_command(
+    command: ApplicationCommand,
+    cx: &mut App,
+    application_id: u64,
+    callbacks: ManagedCallbacks,
+    windows: &ManagedWindows,
+    application_status: &AtomicI32,
+) {
+    match command {
+        ApplicationCommand::Open {
+            window_id,
+            title,
+            left,
+            top,
+            width,
+            height,
+            activate,
+        } => {
+            let result = open_managed_window(
+                cx,
+                windows,
+                window_id,
+                callbacks,
+                &title,
+                left.zip(top),
+                width,
+                height,
+                activate,
+            );
+            if let Err(status) = result {
+                record_status(application_status, status);
+                report_window_closed(
+                    application_id,
+                    window_id,
+                    status,
+                    callbacks,
+                    application_status,
+                );
+                if windows.borrow().is_empty() {
+                    cx.quit();
+                }
+            }
+        }
+        ApplicationCommand::Close(window_id) => {
+            if let Some(handle) = managed_window_handle(windows, window_id) {
+                let _ = handle.update(cx, |_, window, _| window.remove_window());
+            }
+        }
+        ApplicationCommand::Activate(window_id) => {
+            if let Some(handle) = managed_window_handle(windows, window_id) {
+                let _ = handle.update(cx, |_, window, _| window.activate_window());
+            }
+        }
+        ApplicationCommand::SetTitle { window_id, title } => {
+            if let Some(handle) = managed_window_handle(windows, window_id) {
+                let _ = handle.update(cx, |_, window, _| window.set_window_title(&title));
+            }
+        }
+        ApplicationCommand::Resize {
+            window_id,
+            width,
+            height,
+        } => {
+            if let Some(handle) = managed_window_handle(windows, window_id) {
+                let _ = handle.update(cx, |_, window, _| {
+                    window.resize(size(px(width), px(height)));
+                });
+            }
+        }
+    }
+}
+
+fn managed_window_handle(windows: &ManagedWindows, window_id: u64) -> Option<AnyWindowHandle> {
+    // Drop the RefCell borrow before calling into GPUI. remove_window can synchronously invoke
+    // on_window_closed, which mutates this same registry.
+    windows.borrow().get(&window_id).map(|entry| entry.handle)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn open_managed_window(
+    cx: &mut App,
+    windows: &ManagedWindows,
+    window_id: u64,
+    callbacks: ManagedCallbacks,
+    title: &str,
+    position: Option<(f32, f32)>,
+    width: f32,
+    height: f32,
+    activate: bool,
+) -> Result<(), i32> {
+    if windows.borrow().contains_key(&window_id) {
+        return Err(-44);
+    }
+
+    let (sender, receiver) = async_channel::unbounded();
+    let invalidate_pending = Arc::new(AtomicBool::new(false));
+    let view_registration = ViewRegistration::new(
+        window_id,
+        ViewNotifier {
+            sender,
+            invalidate_pending: Arc::clone(&invalidate_pending),
+        },
+    )?;
+
+    let bounds = position.map_or_else(
+        || Bounds::centered(None, size(px(width), px(height)), cx),
+        |(left, top)| Bounds::new(point(px(left), px(top)), size(px(width), px(height))),
+    );
+    let handle = cx
+        .open_window(
+            WindowOptions {
+                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                titlebar: Some(TitlebarOptions {
+                    title: Some(title.to_owned().into()),
+                    ..Default::default()
+                }),
+                focus: activate,
+                ..Default::default()
+            },
+            move |_, cx| {
+                create_managed_view(cx, window_id, callbacks, receiver, invalidate_pending)
+            },
+        )
+        .map_err(|_| -45)?;
+
+    let handle = AnyWindowHandle::from(handle);
+    windows.borrow_mut().insert(
+        window_id,
+        ManagedWindowRegistration {
+            handle,
+            _view_registration: view_registration,
+        },
+    );
+    if activate {
+        let _ = handle.update(cx, |_, window, _| window.activate_window());
+    }
+    Ok(())
+}
+
+fn report_closed_windows(
+    cx: &mut App,
+    application_id: u64,
+    callbacks: ManagedCallbacks,
+    windows: &ManagedWindows,
+    application_status: &AtomicI32,
+) {
+    let open: HashSet<_> = cx.windows().into_iter().collect();
+    let closed: Vec<_> = windows
+        .borrow()
+        .iter()
+        .filter_map(|(window_id, entry)| (!open.contains(&entry.handle)).then_some(*window_id))
+        .collect();
+
+    for window_id in closed {
+        windows.borrow_mut().remove(&window_id);
+        report_window_closed(application_id, window_id, 0, callbacks, application_status);
+    }
+    if windows.borrow().is_empty() {
+        cx.quit();
+    }
+}
+
+fn report_window_closed(
+    application_id: u64,
+    window_id: u64,
+    native_status: i32,
+    callbacks: ManagedCallbacks,
+    application_status: &AtomicI32,
+) {
+    let status = unsafe {
+        callbacks
+            .window_closed
+            .expect("callbacks were validated before application startup")(
+            application_id,
+            window_id,
+            native_status,
+        )
+    };
+    record_status(application_status, status);
+}
+
+fn record_status(application_status: &AtomicI32, status: i32) {
+    if status != 0 {
+        let _ = application_status.compare_exchange(0, status, Ordering::AcqRel, Ordering::Acquire);
+    }
 }
 
 fn create_managed_view(
@@ -340,5 +643,28 @@ mod tests {
 
         drop(registration);
         assert_eq!(notify(view_id), -30);
+    }
+
+    #[test]
+    fn application_registration_routes_commands_and_is_scoped() {
+        let application_id = u64::MAX;
+        let (sender, receiver) = async_channel::unbounded();
+        let registration =
+            ApplicationRegistration::new(application_id, ApplicationNotifier { sender }).unwrap();
+
+        assert_eq!(
+            dispatch_application_command(application_id, ApplicationCommand::Close(7)),
+            0
+        );
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(ApplicationCommand::Close(7))
+        ));
+
+        drop(registration);
+        assert_eq!(
+            dispatch_application_command(application_id, ApplicationCommand::Close(7)),
+            -40
+        );
     }
 }

@@ -21,7 +21,7 @@ namespace Gpui.Interop
 
 
         [DllImport(__DllName, EntryPoint = "gpui_dotnet_get_api", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        internal static extern GpuiDotnetApiV4* gpui_dotnet_get_api(uint requested_version);
+        internal static extern GpuiDotnetApiV5* gpui_dotnet_get_api(uint requested_version);
 
 
     }
@@ -112,6 +112,22 @@ namespace Gpui.Interop
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    internal unsafe partial struct NativeApplicationCommand
+    {
+        public ulong window_id;
+        public ushort command;
+        public ushort flags;
+        public uint reserved;
+        public byte* title;
+        public int title_length;
+        public uint reserved2;
+        public float left;
+        public float top;
+        public float width;
+        public float height;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     internal unsafe partial struct ManagedCallbacks
     {
         public uint struct_size;
@@ -119,19 +135,21 @@ namespace Gpui.Interop
         public delegate* unmanaged[Cdecl]<ulong, ulong, ulong, NativeClickEvent*, int> click;
         public delegate* unmanaged[Cdecl]<ulong, ulong, uint, uint, RenderArena*, uint*, int> list_render_range;
         public delegate* unmanaged[Cdecl]<ulong, ulong, NativeControlEvent*, int> control_event;
-        public delegate* unmanaged[Cdecl]<ulong, int> shutdown;
+        public delegate* unmanaged[Cdecl]<ulong, int> application_started;
+        public delegate* unmanaged[Cdecl]<ulong, ulong, int, int> window_closed;
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    internal unsafe partial struct GpuiDotnetApiV4
+    internal unsafe partial struct GpuiDotnetApiV5
     {
         public uint struct_size;
         public uint abi_version;
         public ulong schema_hash;
         public delegate* unmanaged[Cdecl]<RenderArena*, uint, int> validate_render;
-        public delegate* unmanaged[Cdecl]<ulong, ManagedCallbacks*, byte*, int, float, float, int> run_application;
+        public delegate* unmanaged[Cdecl]<ulong, ManagedCallbacks*, int> run_application;
         public delegate* unmanaged[Cdecl]<ulong, int> notify_view;
         public delegate* unmanaged[Cdecl]<ulong, NativeResourceCommand*, int> dispatch_command;
+        public delegate* unmanaged[Cdecl]<ulong, NativeApplicationCommand*, int> dispatch_application_command;
     }
 
 

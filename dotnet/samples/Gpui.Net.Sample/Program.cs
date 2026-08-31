@@ -3,15 +3,41 @@ using static Gpui.Colors;
 using static Gpui.Units;
 
 var stressGrowth = args.Contains("--stress-growth", StringComparer.Ordinal);
-GpuiApplication.Run(
-    stressGrowth ? new ArenaGrowthView() : new SampleShellView(),
-    new GpuiApplicationOptions
+var multiWindow = args.Contains("--multi-window", StringComparer.Ordinal);
+var application = new GpuiApplication();
+View rootView = stressGrowth
+    ? new ArenaGrowthView()
+    : new SampleShellView { Application = application };
+var mainWindow = application.OpenWindow(
+    rootView,
+    new GpuiWindowOptions
     {
         Title = stressGrowth ? "GPUI.NET Arena Growth" : "GPUI.NET Components",
         Width = 1040,
         Height = 700,
     }
 );
+if (rootView is SampleShellView mainShell)
+{
+    mainShell.Window = mainWindow;
+}
+if (multiWindow)
+{
+    var secondRoot = new CompanionWindowView { Origin = "Started with --multi-window" };
+    var secondWindow = application.OpenWindow(
+        secondRoot,
+        new GpuiWindowOptions
+        {
+            Title = "GPUI.NET Companion — Window 2",
+            Width = 860,
+            Height = 620,
+            Left = 80,
+            Top = 80,
+        }
+    );
+    secondRoot.Window = secondWindow;
+}
+application.Run();
 
 internal enum SamplePage
 {
@@ -20,12 +46,46 @@ internal enum SamplePage
     Images,
     Inputs,
     Overlays,
+    Windows,
 }
 
 [GpuiView]
 internal sealed partial class SampleShellView : View
 {
     private SamplePage _page;
+
+    internal GpuiApplication? Application { get; init; }
+    internal GpuiWindow? Window { get; set; }
+
+    [GpuiEvent]
+    private void OpenNewWindow()
+    {
+        var application = Application ?? throw new InvalidOperationException(
+            "The sample root is not associated with its application."
+        );
+        var root = new CompanionWindowView { Origin = "Opened from the Windows gallery" };
+        var window = application.OpenWindow(
+            root,
+            new GpuiWindowOptions
+            {
+                Title = "GPUI.NET Components — Opening",
+                Width = 800,
+                Height = 580,
+                Activate = false,
+            }
+        );
+        root.Window = window;
+        window.SetTitle($"GPUI.NET Companion — Window {window.Id}");
+        window.Resize(860, 620);
+        window.Activate();
+    }
+
+    [GpuiEvent]
+    private void CloseWindow()
+    {
+        (Window ?? throw new InvalidOperationException("The sample root has no window handle."))
+            .Close();
+    }
 
     [GpuiEvent]
     private void ShowOverview()
@@ -51,6 +111,7 @@ internal sealed partial class SampleShellView : View
             SamplePage.Images => ui.Child<ImageGalleryView>("content"),
             SamplePage.Inputs => ui.Child<InputGalleryView>("content"),
             SamplePage.Overlays => ui.Child<OverlayGalleryView>("content"),
+            SamplePage.Windows => RenderWindowGallery(ref ui),
             _ => throw new InvalidOperationException("Unknown sample page."),
         };
         var pageSlot = ui.VStack(page).Grow().Height(Percent(100));
@@ -63,6 +124,7 @@ internal sealed partial class SampleShellView : View
                 SamplePage.Images => "Images",
                 SamplePage.Inputs => "Inputs",
                 SamplePage.Overlays => "Overlays",
+                SamplePage.Windows => "Windows",
                 _ => throw new InvalidOperationException("Unknown sample page."),
             },
             _page switch
@@ -72,6 +134,7 @@ internal sealed partial class SampleShellView : View
                 SamplePage.Images => "GPUI-native decoding, caching, fitting, and grayscale",
                 SamplePage.Inputs => "retained native editing, IME, selection, focus, and UTF-8 events",
                 SamplePage.Overlays => "deferred overlays, native tooltip timing, flipping, and dismissal",
+                SamplePage.Windows => "one application, independent roots, stable handles, isolated state",
                 _ => throw new InvalidOperationException("Unknown sample page."),
             }
         );
@@ -80,7 +143,12 @@ internal sealed partial class SampleShellView : View
         var topBar = ui.HStack(
                 routeHeader,
                 ui.Spacer(),
-                ui.Badge(ui.Text("ABI V4"u8))
+                ui.Button("close-window", "Close")
+                    .OnClick(Events.CloseWindow)
+                    .Padding(Px(7))
+                    .Background(Rgb(255, 255, 255))
+                    .BorderColor(Rgb(203, 213, 225)),
+                ui.Badge(ui.Text("ABI V5"u8))
                     .Background(Rgb(224, 231, 255))
                     .TextColor(Rgb(67, 56, 202))
                     .Padding(Px(7))
@@ -106,6 +174,7 @@ internal sealed partial class SampleShellView : View
         var imagesSelected = _page == SamplePage.Images;
         var inputsSelected = _page == SamplePage.Inputs;
         var overlaysSelected = _page == SamplePage.Overlays;
+        var windowsSelected = _page == SamplePage.Windows;
         return ui.VStack(
                 ui.Text("SIDEBAR"u8).FontSize(Px(11)).TextColor(Rgb(148, 163, 184)),
                 ui.Divider().Background(Rgb(51, 65, 85)),
@@ -139,6 +208,12 @@ internal sealed partial class SampleShellView : View
                     .Background(overlaysSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
                     .BorderColor(overlaysSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
                     .TextColor(Rgb(255, 255, 255)),
+                ui.Button("show-windows", "Windows")
+                    .OnClick(Events.ShowWindows)
+                    .Padding(Px(10))
+                    .Background(windowsSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
+                    .BorderColor(windowsSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
+                    .TextColor(Rgb(255, 255, 255)),
                 ui.Spacer(),
                 ui.Text("The keyed content slot replaces its View type when the route changes."u8)
                     .FontSize(Px(11))
@@ -170,6 +245,146 @@ internal sealed partial class SampleShellView : View
     {
         _page = SamplePage.Overlays;
         Invalidate();
+    }
+
+    [GpuiEvent]
+    private void ShowWindows()
+    {
+        _page = SamplePage.Windows;
+        Invalidate();
+    }
+
+    private Element RenderWindowGallery(ref RenderContext ui) =>
+        ui.VStack(
+                ui.VStack(
+                        ui.Text("Open a genuinely different root view in the same GPUI application."u8)
+                            .FontSize(Px(18))
+                            .TextColor(Rgb(15, 23, 42)),
+                        ui.Text(
+                                "Each window owns its render tree, resources, controls, and failure boundary. Closing the companion leaves this gallery running."u8
+                            )
+                            .FontSize(Px(13))
+                            .TextColor(Rgb(71, 85, 105)),
+                        ui.HStack(
+                                ui.Button("open-companion-window", "Launch companion window")
+                                    .OnClick(Events.OpenNewWindow)
+                                    .Padding(Px(11))
+                                    .Background(Rgb(79, 70, 229))
+                                    .BorderColor(Rgb(67, 56, 202))
+                                    .TextColor(Rgb(255, 255, 255)),
+                                ui.Badge(ui.Text($"Gallery window ID: {Window?.Id ?? 0}"))
+                                    .Background(Rgb(224, 231, 255))
+                                    .TextColor(Rgb(67, 56, 202))
+                                    .Padding(Px(8))
+                            )
+                            .Gap(Px(10))
+                            .ItemsCenter()
+                    )
+                    .Gap(Px(14))
+                    .Padding(Px(22))
+                    .Background(Rgb(255, 255, 255))
+                    .BorderWidth(Px(1))
+                    .BorderColor(Rgb(226, 232, 240))
+                    .Radius(Px(12)),
+                ui.Text("The companion includes local state so window isolation is easy to verify."u8)
+                    .FontSize(Px(12))
+                    .TextColor(Rgb(100, 116, 139))
+            )
+            .Gap(Px(14))
+            .Grow();
+}
+
+[GpuiView]
+internal sealed partial class CompanionWindowView : View
+{
+    private int _localCount;
+
+    internal string Origin { get; init; } = "Opened by the sample";
+    internal GpuiWindow? Window { get; set; }
+
+    [GpuiEvent]
+    private void Increment()
+    {
+        _localCount++;
+        Invalidate();
+    }
+
+    [GpuiEvent]
+    private void CloseWindow()
+    {
+        (Window ?? throw new InvalidOperationException("The companion has no window handle."))
+            .Close();
+    }
+
+    protected override Element Render(ref RenderContext ui)
+    {
+        var windowId = Window?.Id ?? 0;
+        return ui.VStack(
+                ui.HStack(
+                        ui.VStack(
+                                ui.Text("Companion workspace"u8)
+                                    .FontSize(Px(24))
+                                    .TextColor(Rgb(15, 23, 42)),
+                                ui.Text(Origin).FontSize(Px(12)).TextColor(Rgb(100, 116, 139))
+                            )
+                            .Gap(Px(4)),
+                        ui.Spacer(),
+                        ui.Badge(ui.Text($"Window {windowId}"))
+                            .Background(Rgb(220, 252, 231))
+                            .TextColor(Rgb(22, 101, 52))
+                            .Padding(Px(8)),
+                        ui.Button("close-companion", "Close this window")
+                            .OnClick(Events.CloseWindow)
+                            .Padding(Px(9))
+                    )
+                    .Gap(Px(10))
+                    .ItemsCenter(),
+                ui.HStack(
+                        ui.VStack(
+                                ui.Text("Independent local state"u8)
+                                    .FontSize(Px(16))
+                                    .TextColor(Rgb(30, 41, 59)),
+                                ui.Text($"Companion count: {_localCount:N0}")
+                                    .FontSize(Px(28))
+                                    .TextColor(Rgb(79, 70, 229)),
+                                ui.Button("increment-companion", "Increment only this window")
+                                    .OnClick(Events.Increment)
+                                    .Padding(Px(10))
+                                    .Background(Rgb(238, 242, 255))
+                                    .BorderColor(Rgb(165, 180, 252))
+                            )
+                            .Gap(Px(14))
+                            .Padding(Px(22))
+                            .Grow()
+                            .Background(Rgb(255, 255, 255))
+                            .BorderWidth(Px(1))
+                            .BorderColor(Rgb(226, 232, 240))
+                            .Radius(Px(12)),
+                        ui.VStack(
+                                ui.Text("Per-window ownership"u8)
+                                    .FontSize(Px(16))
+                                    .TextColor(Rgb(30, 41, 59)),
+                                ui.Text("• separate root View"u8),
+                                ui.Text("• separate native resources"u8),
+                                ui.Text("• isolated close lifecycle"u8),
+                                ui.Text("• shared application event loop"u8)
+                            )
+                            .Gap(Px(10))
+                            .Padding(Px(22))
+                            .Grow()
+                            .Background(Rgb(255, 255, 255))
+                            .BorderWidth(Px(1))
+                            .BorderColor(Rgb(226, 232, 240))
+                            .Radius(Px(12))
+                    )
+                    .Gap(Px(16))
+                    .Grow()
+            )
+            .Gap(Px(18))
+            .Padding(Px(24))
+            .Width(Percent(100))
+            .Height(Percent(100))
+            .Background(Rgb(241, 245, 249));
     }
 }
 

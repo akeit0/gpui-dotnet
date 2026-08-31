@@ -1,6 +1,6 @@
 # Next steps
 
-The repository now has framework-owned dynamic managed Views, ABI v4 typed native-control events, retained native Scroll and Input state, virtualized ListState, deferred window Overlay and trigger-relative Tooltip layers, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
+The repository now has framework-owned dynamic managed Views, an ABI v5 multi-window application/session model, typed native-control events, retained native Scroll and Input state, virtualized ListState, deferred window Overlay and trigger-relative Tooltip layers, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
 
 ## 1. List datasource refinement — high priority
 
@@ -17,20 +17,17 @@ Continue the datasource foundation before Table/Tree:
 
 Do not expose GPUI's uniform/variable implementation split directly unless it provides durable semantic value.
 
-## 2. Multi-window application model — high priority
+## 2. Multi-window application refinement — foundation complete
 
-Move from the single convenience root toward one managed application session that can create and close multiple managed windows while retaining app-level native initialization/services. This is the next ABI/lifecycle checkpoint after datasource identity.
+`GpuiApplication` now owns one native event loop and multiple independent `GpuiWindow` sessions. Windows have stable IDs, per-window View/resource namespaces, deterministic mount/unmount, isolated failures, thread-safe open/close/activate/title/resize commands, and final-window shutdown. `GpuiApplication.Run(view, options)` remains a one-window convenience.
 
-The design must establish:
+Continue only where applications demonstrate need:
 
-- application ownership distinct from each window/root View;
-- stable window IDs and per-window root View/resource namespaces;
-- UI-thread-safe open, close, activate, title, and bounds commands;
-- shutdown only after the last application-owned window closes;
-- deterministic per-window mount/unmount and failure isolation;
-- no second `gpui::Application` and no process-global managed singleton requirement.
-
-Keep `GpuiApplication.Run(view, options)` as a one-window convenience wrapper over the application model.
+- managed application/window-opened/window-closed events;
+- minimum size, maximized/fullscreen, decorations, and persistence options;
+- shared application services that do not leak GPUI types into C#;
+- runtime repositioning if GPUI exposes a durable cross-platform operation;
+- integration tests on every supported desktop platform.
 
 ## 3. Input hardening and Editor
 

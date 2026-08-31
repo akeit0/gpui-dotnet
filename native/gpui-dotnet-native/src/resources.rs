@@ -778,7 +778,8 @@ mod tests {
             click: None,
             list_render_range: None,
             control_event: None,
-            shutdown: None,
+            application_started: None,
+            window_closed: None,
         }
     }
 

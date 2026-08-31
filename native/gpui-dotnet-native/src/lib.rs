@@ -13,25 +13,29 @@ mod tooltip;
 
 use std::{mem::size_of, panic::AssertUnwindSafe, ptr};
 
-use abi::{ABI_VERSION, GpuiDotnetApiV4, ManagedCallbacks, NativeResourceCommand, RenderArena};
+use abi::{
+    ABI_VERSION, GpuiDotnetApiV5, ManagedCallbacks, NativeApplicationCommand,
+    NativeResourceCommand, RenderArena,
+};
 use semantic::SCHEMA_HASH;
 
-static API_V4: GpuiDotnetApiV4 = GpuiDotnetApiV4 {
-    struct_size: GpuiDotnetApiV4::struct_size(),
+static API_V5: GpuiDotnetApiV5 = GpuiDotnetApiV5 {
+    struct_size: GpuiDotnetApiV5::struct_size(),
     abi_version: ABI_VERSION,
     schema_hash: SCHEMA_HASH,
     validate_render: Some(validate_render),
     run_application: Some(run_application),
     notify_view: Some(notify_view),
     dispatch_command: Some(dispatch_command),
+    dispatch_application_command: Some(dispatch_application_command),
 };
 
 #[unsafe(no_mangle)]
-pub extern "C" fn gpui_dotnet_get_api(requested_version: u32) -> *const GpuiDotnetApiV4 {
+pub extern "C" fn gpui_dotnet_get_api(requested_version: u32) -> *const GpuiDotnetApiV5 {
     if requested_version != ABI_VERSION {
         return ptr::null();
     }
-    &API_V4
+    &API_V5
 }
 
 unsafe extern "C" fn validate_render(arena: *const RenderArena, root: u32) -> i32 {
@@ -109,22 +113,92 @@ unsafe extern "C" fn dispatch_command(view_id: u64, command: *const NativeResour
     )
 }
 
-unsafe extern "C" fn run_application(
-    view_id: u64,
-    callbacks: *const ManagedCallbacks,
-    title: *const u8,
-    title_length: i32,
-    width: f32,
-    height: f32,
+unsafe extern "C" fn dispatch_application_command(
+    application_id: u64,
+    command: *const NativeApplicationCommand,
 ) -> i32 {
-    if callbacks.is_null()
-        || title.is_null()
-        || title_length < 0
-        || !width.is_finite()
-        || !height.is_finite()
-        || width <= 0.0
-        || height <= 0.0
+    let Some(command) = (unsafe { command.as_ref() }) else {
+        return -60;
+    };
+    if application_id == 0
+        || command.window_id == 0
+        || command.reserved != 0
+        || command.reserved2 != 0
+        || command.title_length < 0
+        || (command.title_length != 0 && command.title.is_null())
     {
+        return -61;
+    }
+
+    let no_title = command.title_length == 0;
+    let no_position = command.left == 0.0 && command.top == 0.0;
+    let no_size = command.width == 0.0 && command.height == 0.0;
+    let size_valid = command.width.is_finite()
+        && command.height.is_finite()
+        && command.width > 0.0
+        && command.height > 0.0;
+    let payload_valid = match command.command {
+        1 => {
+            command.flags & !0b11 == 0
+                && !no_title
+                && size_valid
+                && if command.flags & 1 != 0 {
+                    command.left.is_finite() && command.top.is_finite()
+                } else {
+                    no_position
+                }
+        }
+        2 | 3 => command.flags == 0 && no_title && no_position && no_size,
+        4 => command.flags == 0 && !no_title && no_position && no_size,
+        5 => command.flags == 0 && no_title && no_position && size_valid,
+        _ => false,
+    };
+    if !payload_valid {
+        return -62;
+    }
+
+    let title = if no_title {
+        None
+    } else {
+        let bytes =
+            unsafe { std::slice::from_raw_parts(command.title, command.title_length as usize) };
+        let Ok(title) = std::str::from_utf8(bytes) else {
+            return -63;
+        };
+        Some(title.to_owned())
+    };
+
+    let message = match command.command {
+        1 => app_host::ApplicationCommand::Open {
+            window_id: command.window_id,
+            title: title.expect("validated open title"),
+            left: (command.flags & 1 != 0).then_some(command.left),
+            top: (command.flags & 1 != 0).then_some(command.top),
+            width: command.width,
+            height: command.height,
+            activate: command.flags & 2 != 0,
+        },
+        2 => app_host::ApplicationCommand::Close(command.window_id),
+        3 => app_host::ApplicationCommand::Activate(command.window_id),
+        4 => app_host::ApplicationCommand::SetTitle {
+            window_id: command.window_id,
+            title: title.expect("validated title update"),
+        },
+        5 => app_host::ApplicationCommand::Resize {
+            window_id: command.window_id,
+            width: command.width,
+            height: command.height,
+        },
+        _ => unreachable!("command kind was validated"),
+    };
+    app_host::dispatch_application_command(application_id, message)
+}
+
+unsafe extern "C" fn run_application(
+    application_id: u64,
+    callbacks: *const ManagedCallbacks,
+) -> i32 {
+    if application_id == 0 || callbacks.is_null() {
         return -20;
     }
 
@@ -134,18 +208,14 @@ unsafe extern "C" fn run_application(
         || callbacks.click.is_none()
         || callbacks.list_render_range.is_none()
         || callbacks.control_event.is_none()
-        || callbacks.shutdown.is_none()
+        || callbacks.application_started.is_none()
+        || callbacks.window_closed.is_none()
     {
         return -21;
     }
 
-    let title_bytes = unsafe { std::slice::from_raw_parts(title, title_length as usize) };
-    let Ok(title) = std::str::from_utf8(title_bytes) else {
-        return -22;
-    };
-
     std::panic::catch_unwind(AssertUnwindSafe(|| {
-        app_host::run(view_id, callbacks, title, width, height)
+        app_host::run(application_id, callbacks)
     }))
     .unwrap_or(-99)
 }

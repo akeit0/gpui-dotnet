@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-pub const ABI_VERSION: u32 = 4;
+pub const ABI_VERSION: u32 = 5;
 pub const ARENA_FLAG_NATIVE_OWNED: u32 = 1;
 pub const RENDER_GROW_REQUIRED: i32 = 1;
 
@@ -88,12 +88,29 @@ pub struct NativeControlEvent {
     pub reserved2: u32,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct NativeApplicationCommand {
+    pub window_id: u64,
+    pub command: u16,
+    pub flags: u16,
+    pub reserved: u32,
+    pub title: *const u8,
+    pub title_length: i32,
+    pub reserved2: u32,
+    pub left: f32,
+    pub top: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
 pub type ManagedRenderFn = unsafe extern "C" fn(u64, *mut RenderArena, *mut u32) -> i32;
 pub type ManagedClickFn = unsafe extern "C" fn(u64, u64, u64, *const NativeClickEvent) -> i32;
 pub type ManagedListRenderRangeFn =
     unsafe extern "C" fn(u64, u64, u32, u32, *mut RenderArena, *mut u32) -> i32;
 pub type ManagedControlEventFn = unsafe extern "C" fn(u64, u64, *const NativeControlEvent) -> i32;
-pub type ManagedShutdownFn = unsafe extern "C" fn(u64) -> i32;
+pub type ManagedApplicationStartedFn = unsafe extern "C" fn(u64) -> i32;
+pub type ManagedWindowClosedFn = unsafe extern "C" fn(u64, u64, i32) -> i32;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -103,17 +120,19 @@ pub struct ManagedCallbacks {
     pub click: Option<ManagedClickFn>,
     pub list_render_range: Option<ManagedListRenderRangeFn>,
     pub control_event: Option<ManagedControlEventFn>,
-    pub shutdown: Option<ManagedShutdownFn>,
+    pub application_started: Option<ManagedApplicationStartedFn>,
+    pub window_closed: Option<ManagedWindowClosedFn>,
 }
 
 pub type ValidateRenderFn = unsafe extern "C" fn(*const RenderArena, u32) -> i32;
-pub type RunApplicationFn =
-    unsafe extern "C" fn(u64, *const ManagedCallbacks, *const u8, i32, f32, f32) -> i32;
+pub type RunApplicationFn = unsafe extern "C" fn(u64, *const ManagedCallbacks) -> i32;
 pub type NotifyViewFn = unsafe extern "C" fn(u64) -> i32;
 pub type DispatchCommandFn = unsafe extern "C" fn(u64, *const NativeResourceCommand) -> i32;
+pub type DispatchApplicationCommandFn =
+    unsafe extern "C" fn(u64, *const NativeApplicationCommand) -> i32;
 
 #[repr(C)]
-pub struct GpuiDotnetApiV4 {
+pub struct GpuiDotnetApiV5 {
     pub struct_size: u32,
     pub abi_version: u32,
     pub schema_hash: u64,
@@ -121,9 +140,10 @@ pub struct GpuiDotnetApiV4 {
     pub run_application: Option<RunApplicationFn>,
     pub notify_view: Option<NotifyViewFn>,
     pub dispatch_command: Option<DispatchCommandFn>,
+    pub dispatch_application_command: Option<DispatchApplicationCommandFn>,
 }
 
-impl GpuiDotnetApiV4 {
+impl GpuiDotnetApiV5 {
     pub const fn struct_size() -> u32 {
         size_of::<Self>() as u32
     }
