@@ -104,26 +104,34 @@ internal static class Program
         switch (command)
         {
             case "find":
-                return WithWindow(windowTitle, hWnd =>
-                {
-                    var (origin, client, scale) = ClientMetrics(hWnd);
-                    Console.WriteLine(
-                        $"hwnd=0x{hWnd.ToInt64():X} origin=({origin.X},{origin.Y}) "
-                            + $"client={client.Right}x{client.Bottom} dpiScale={scale}"
-                    );
-                    return 0;
-                });
+                return WithWindow(
+                    windowTitle,
+                    hWnd =>
+                    {
+                        var (origin, client, scale) = ClientMetrics(hWnd);
+                        Console.WriteLine(
+                            $"hwnd=0x{hWnd.ToInt64():X} origin=({origin.X},{origin.Y}) "
+                                + $"client={client.Right}x{client.Bottom} dpiScale={scale}"
+                        );
+                        return 0;
+                    }
+                );
             case "click" when positionals.Count >= 3:
-                return WithWindow(windowTitle, hWnd =>
-                    Click(hWnd, int.Parse(positionals[1]), int.Parse(positionals[2])));
+                return WithWindow(
+                    windowTitle,
+                    hWnd => Click(hWnd, int.Parse(positionals[1]), int.Parse(positionals[2]))
+                );
             case "wheel" when positionals.Count >= 4:
-                return WithWindow(windowTitle, hWnd =>
-                    Wheel(
-                        hWnd,
-                        int.Parse(positionals[1]),
-                        int.Parse(positionals[2]),
-                        int.Parse(positionals[3])
-                    ));
+                return WithWindow(
+                    windowTitle,
+                    hWnd =>
+                        Wheel(
+                            hWnd,
+                            int.Parse(positionals[1]),
+                            int.Parse(positionals[2]),
+                            int.Parse(positionals[3])
+                        )
+                );
             case "shot" when positionals.Count >= 2:
                 return WithWindow(windowTitle, hWnd => Shot(hWnd, positionals[1]));
             default:
