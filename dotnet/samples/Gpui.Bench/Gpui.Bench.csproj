@@ -5,6 +5,6 @@
         <Optimize>true</Optimize>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="../../src/Gpui.Net/Gpui.Net.csproj" />
+        <ProjectReference Include="../../src/Gpui/Gpui.csproj" />
     </ItemGroup>
 </Project>

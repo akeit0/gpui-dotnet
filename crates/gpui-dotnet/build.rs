@@ -5,7 +5,7 @@ fn main() {
     csbindgen::Builder::default()
         .input_extern_file("src/lib.rs")
         .input_extern_file("src/abi.rs")
-        .csharp_dll_name("gpui_dotnet_native")
+        .csharp_dll_name("gpui_dotnet")
         .csharp_namespace("Gpui.Interop")
         .csharp_class_name("NativeMethods")
         .csharp_class_accessibility("internal")
@@ -22,6 +22,6 @@ fn main() {
             "ManagedCallbacks",
             "GpuiDotnetApiV5",
         ])
-        .generate_csharp_file("../../dotnet/src/Gpui.Net/Interop/NativeMethods.g.cs")
+        .generate_csharp_file("../../dotnet/src/Gpui/Interop/NativeMethods.g.cs")
         .expect("failed to generate C# native bindings");
 }

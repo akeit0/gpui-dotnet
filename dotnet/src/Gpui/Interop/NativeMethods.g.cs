@@ -14,7 +14,7 @@ namespace Gpui.Interop
 {
     internal static unsafe partial class NativeMethods
     {
-        const string __DllName = "gpui_dotnet_native";
+        const string __DllName = "gpui_dotnet";
 
 
 

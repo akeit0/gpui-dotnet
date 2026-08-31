@@ -3,7 +3,7 @@
         <TargetFramework>netstandard2.0</TargetFramework>
         <PublishAot>false</PublishAot>
         <SelfContained>false</SelfContained>
-        <AssemblyName>Gpui.Net.Generators</AssemblyName>
+        <AssemblyName>Gpui.Generators</AssemblyName>
         <RootNamespace>Gpui.Generators</RootNamespace>
         <IsRoslynComponent>true</IsRoslynComponent>
         <IncludeBuildOutput>false</IncludeBuildOutput>

@@ -1,6 +1,6 @@
 using Gpui;
 
-namespace Gpui.Net.Tests;
+namespace Gpui.Tests;
 
 public sealed class ApplicationModelTests
 {

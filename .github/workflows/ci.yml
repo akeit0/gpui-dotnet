@@ -23,19 +23,19 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: native/gpui-dotnet-native
+          workspaces: crates/gpui-dotnet
 
       - name: Verify semantic bindings
         run: dotnet run --project tools/Gpui.Bindings.Generator -- verify
 
       - name: Test native bridge
-        run: cargo test --manifest-path native/gpui-dotnet-native/Cargo.toml
+        run: cargo test --manifest-path crates/gpui-dotnet/Cargo.toml
 
       - name: Build solution
         run: dotnet build gpui-dotnet.slnx --no-incremental
 
       - name: Test managed contract and generator
-        run: dotnet test dotnet/tests/Gpui.Net.Tests/Gpui.Net.Tests.csproj --no-build
+        run: dotnet test dotnet/tests/Gpui.Tests/Gpui.Tests.csproj --no-build
 
       - name: NativeAOT publish smoke test
-        run: dotnet publish dotnet/samples/Gpui.Net.Sample/Gpui.Net.Sample.csproj -c Release -r win-x64 -p:PublishAot=true
+        run: dotnet publish dotnet/samples/Gpui.Sample/Gpui.Sample.csproj -c Release -r win-x64 -p:PublishAot=true

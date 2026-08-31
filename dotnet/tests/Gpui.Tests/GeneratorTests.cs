@@ -3,7 +3,7 @@ using Gpui.Generators;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
-namespace Gpui.Net.Tests;
+namespace Gpui.Tests;
 
 public sealed class GeneratorTests
 {

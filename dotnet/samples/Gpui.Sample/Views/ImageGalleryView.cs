@@ -8,7 +8,7 @@ internal sealed partial class ImageGalleryView : View
     private static readonly string ImagePath = Path.Combine(
         AppContext.BaseDirectory,
         "Assets",
-        "gpui-net.svg"
+        "gpui.svg"
     );
 
     protected override Element Render(ref RenderContext ui)

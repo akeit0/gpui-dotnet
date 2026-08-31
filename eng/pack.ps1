@@ -6,10 +6,10 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $required = @(
-    'artifacts/native/win-x64/gpui_dotnet_native.dll',
-    'artifacts/native/linux-x64/libgpui_dotnet_native.so',
-    'artifacts/native/osx-x64/libgpui_dotnet_native.dylib',
-    'artifacts/native/osx-arm64/libgpui_dotnet_native.dylib'
+    'artifacts/native/win-x64/gpui_dotnet.dll',
+    'artifacts/native/linux-x64/libgpui_dotnet.so',
+    'artifacts/native/osx-x64/libgpui_dotnet.dylib',
+    'artifacts/native/osx-arm64/libgpui_dotnet.dylib'
 )
 
 foreach ($relative in $required) {
@@ -19,7 +19,7 @@ foreach ($relative in $required) {
     }
 }
 
-& dotnet pack (Join-Path $root 'dotnet/src/Gpui.Net/Gpui.Net.csproj') `
+& dotnet pack (Join-Path $root 'dotnet/src/Gpui/Gpui.csproj') `
     -c $Configuration `
     -p:BuildGpuiNative=false `
     -o (Join-Path $root 'artifacts/packages')

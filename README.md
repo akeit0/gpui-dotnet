@@ -356,47 +356,47 @@ Prerequisites:
 
 ```powershell
 dotnet build gpui-dotnet.slnx
-dotnet run --project dotnet/samples/Gpui.Net.Sample
+dotnet run --project dotnet/samples/Gpui.Sample
 ```
 
 The sample starts with custom chrome, compact platform-style caption controls, and File/View/Help popover menus in the title bar. It also contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, centered-dialog/right-sheet Overlay demos, delayed trigger-relative tooltips, an application-content ContextMenu demo, and a multi-window gallery. Closing either companion leaves the main gallery running. To open the system-title-bar companion automatically at startup:
 
 ```powershell
-dotnet run --project dotnet/samples/Gpui.Net.Sample -- --multi-window
+dotnet run --project dotnet/samples/Gpui.Sample -- --multi-window
 ```
 
 To force native-owned render-arena growth/retry:
 
 ```powershell
-dotnet run --project dotnet/samples/Gpui.Net.Sample -- --stress-growth
+dotnet run --project dotnet/samples/Gpui.Sample -- --stress-growth
 ```
 
 ## Binding generation
 
 `bindings/schema.json` is the semantic render protocol source of truth and generates:
 
-- `dotnet/src/Gpui.Net/Rendering/Semantic.g.cs`
-- `native/gpui-dotnet-native/src/semantic.g.rs`
+- `dotnet/src/Gpui/Rendering/Semantic.g.cs`
+- `crates/gpui-dotnet/src/semantic.g.rs`
 
 ```powershell
 dotnet run --project tools/Gpui.Bindings.Generator -- generate
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
 ```
 
-`Gpui.Net.Generators` is a separate Roslyn incremental generator for `[GpuiView]`, `[GpuiEvent]`, and `[GpuiListItem]`.
+`Gpui.Generators` is a separate Roslyn incremental generator for `[GpuiView]`, `[GpuiEvent]`, and `[GpuiListItem]`.
 
 ## Packaging
 
 The intended distribution is one managed NuGet containing the source generator and RID-specific native assets:
 
 ```text
-Gpui.Net.nupkg
-  lib/net10.0/Gpui.Net.dll
-  analyzers/dotnet/cs/Gpui.Net.Generators.dll
-  runtimes/win-x64/native/gpui_dotnet_native.dll
-  runtimes/linux-x64/native/libgpui_dotnet_native.so
-  runtimes/osx-x64/native/libgpui_dotnet_native.dylib
-  runtimes/osx-arm64/native/libgpui_dotnet_native.dylib
+Gpui.nupkg
+  lib/net10.0/Gpui.dll
+  analyzers/dotnet/cs/Gpui.Generators.dll
+  runtimes/win-x64/native/gpui_dotnet.dll
+  runtimes/linux-x64/native/libgpui_dotnet.so
+  runtimes/osx-x64/native/libgpui_dotnet.dylib
+  runtimes/osx-arm64/native/libgpui_dotnet.dylib
 ```
 
 See `docs/` for architecture, ABI, component/resource authoring, lifecycle, performance, generation and packaging details.

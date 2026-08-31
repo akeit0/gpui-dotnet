@@ -7,12 +7,12 @@ Normal C# consumers should not need Cargo or a Rust toolchain.
 The intended NuGet contains:
 
 ```text
-lib/net10.0/Gpui.Net.dll
-analyzers/dotnet/cs/Gpui.Net.Generators.dll
-runtimes/win-x64/native/gpui_dotnet_native.dll
-runtimes/linux-x64/native/libgpui_dotnet_native.so
-runtimes/osx-x64/native/libgpui_dotnet_native.dylib
-runtimes/osx-arm64/native/libgpui_dotnet_native.dylib
+lib/net10.0/Gpui.dll
+analyzers/dotnet/cs/Gpui.Generators.dll
+runtimes/win-x64/native/gpui_dotnet.dll
+runtimes/linux-x64/native/libgpui_dotnet.so
+runtimes/osx-x64/native/libgpui_dotnet.dylib
+runtimes/osx-arm64/native/libgpui_dotnet.dylib
 ```
 
 The source generator is shipped as an analyzer so `[GpuiEvent]` works in consumer compilations without a separate package reference.
@@ -22,7 +22,7 @@ The source generator is shipped as an analyzer so `[GpuiEvent]` works in consume
 Build each RID on its natural host/toolchain. After each native job, stage the produced library:
 
 ```powershell
-./eng/stage-native.ps1 -Rid win-x64 -Library path/to/gpui_dotnet_native.dll
+./eng/stage-native.ps1 -Rid win-x64 -Library path/to/gpui_dotnet.dll
 ```
 
 Equivalent calls are used for Linux and macOS artifacts. The final packaging job downloads all staged `artifacts/native/<rid>/...` files and runs:
@@ -41,7 +41,7 @@ Package assembly sets `BuildGpuiNative=false`; it consumes the already-built RID
 
 ## Future package split
 
-Keep one NuGet while binary size remains reasonable. Split platform assets into `Gpui.Net.NativeAssets.*` packages only if package size or release cadence makes it materially useful. A premature split increases restore and version-coordination complexity.
+Keep one NuGet while binary size remains reasonable. Split platform assets into `Gpui.NativeAssets.*` packages only if package size or release cadence makes it materially useful. A premature split increases restore and version-coordination complexity.
 
 ## Custom Rust components
 

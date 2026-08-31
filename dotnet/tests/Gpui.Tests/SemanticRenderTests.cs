@@ -1,7 +1,7 @@
 using static Gpui.Colors;
 using static Gpui.Units;
 
-namespace Gpui.Net.Tests;
+namespace Gpui.Tests;
 
 public sealed class SemanticRenderTests
 {
