@@ -12,6 +12,7 @@ mod scrolling;
 mod semantic;
 mod snapshot;
 mod tooltip;
+mod trace;
 
 use std::{mem::size_of, panic::AssertUnwindSafe, ptr};
 

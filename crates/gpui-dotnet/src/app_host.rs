@@ -21,6 +21,7 @@ use crate::{
     popover_menu::PopoverMenuGroup,
     resources::{ResourceCommand, ResourceStore},
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
+    trace,
 };
 
 pub(crate) struct ManagedView {
@@ -249,25 +250,32 @@ impl ManagedView {
             .render
             .expect("callbacks were validated before application startup");
         let view_id = self.view_id;
-        let status = self
-            .arena
-            .render_with_growth_retry(|arena| unsafe { render(view_id, arena, &mut root) })
-            .unwrap_or_else(|status| status);
+        let status = {
+            let _stage = trace::span(trace::Stage::ManagedRender);
+            self.arena
+                .render_with_growth_retry(|arena| unsafe { render(view_id, arena, &mut root) })
+                .unwrap_or_else(|status| status)
+        };
 
         if status != 0 {
             self.error = Some(format!("Managed render failed with status {status}."));
             return;
         }
 
-        match self.snapshot.decode_into(
-            self.arena.as_native(),
-            root,
-            &mut self.retained_strings,
-            &mut self.snapshot_scratch,
-        ) {
+        let decode_result = {
+            let _stage = trace::span(trace::Stage::SnapshotDecode);
+            self.snapshot.decode_into(
+                self.arena.as_native(),
+                root,
+                &mut self.retained_strings,
+                &mut self.snapshot_scratch,
+            )
+        };
+        match decode_result {
             Ok(()) => {
                 self.has_snapshot = true;
                 self.snapshot_revision = self.snapshot_revision.wrapping_add(1).max(1);
+                let _stage = trace::span(trace::Stage::Retain);
                 self.resources.retain_snapshot(&self.snapshot);
             }
             Err(status) => {
@@ -291,25 +299,59 @@ impl ManagedView {
         self.dirty = true;
         cx.notify();
     }
+
+    /// Cumulative list cache telemetry across every active list/table row engine, appended to
+    /// the per-frame trace report.
+    fn list_telemetry_sums(&self) -> [(&'static str, u64); 8] {
+        let engines = self.resources.list_engine_count();
+        let mut sums = [0u64; 7];
+        for engine in self.resources.list_engines() {
+            let telemetry = engine.borrow().telemetry();
+            sums[0] += telemetry.batch_loads;
+            sums[1] += telemetry.batch_cache_hits;
+            sums[2] += telemetry.batch_evictions;
+            sums[3] += telemetry.batch_invalidations;
+            sums[4] += telemetry.full_invalidations;
+            sums[5] += telemetry.batch_crossings;
+            sums[6] += telemetry.rendered_rows;
+        }
+        [
+            ("engines", engines as u64),
+            ("loads", sums[0]),
+            ("hits", sums[1]),
+            ("evict", sums[2]),
+            ("inval", sums[3]),
+            ("full", sums[4]),
+            ("cross", sums[5]),
+            ("rows", sums[6]),
+        ]
+    }
 }
 
 impl Render for ManagedView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.refresh_if_dirty();
 
-        let content = if let Some(error) = &self.error {
-            div()
-                .p(px(20.0))
-                .text_color(rgb(0xb42318))
-                .child(error.clone())
-                .into_any_element()
-        } else if self.has_snapshot {
-            self.materialize_node(self.snapshot.root, &self.snapshot, window, cx)
-        } else {
-            div()
-                .child("No managed snapshot was published.")
-                .into_any_element()
+        let content = {
+            let _stage = trace::span(trace::Stage::Materialize);
+            if let Some(error) = &self.error {
+                div()
+                    .p(px(20.0))
+                    .text_color(rgb(0xb42318))
+                    .child(error.clone())
+                    .into_any_element()
+            } else if self.has_snapshot {
+                self.materialize_node(self.snapshot.root, &self.snapshot, window, cx)
+            } else {
+                div()
+                    .child("No managed snapshot was published.")
+                    .into_any_element()
+            }
         };
+
+        if trace::enabled() {
+            trace::end_frame(&self.list_telemetry_sums());
+        }
 
         div()
             .size_full()
@@ -320,6 +362,7 @@ impl Render for ManagedView {
 }
 
 pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
+    trace::init_from_env();
     let (sender, receiver) = async_channel::unbounded();
     let Ok(_application_registration) =
         ApplicationRegistration::new(application_id, ApplicationNotifier { sender })

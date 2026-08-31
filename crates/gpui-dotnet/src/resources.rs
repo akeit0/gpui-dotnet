@@ -147,6 +147,16 @@ impl ResourceStore {
         self.tables.borrow().get(key).cloned()
     }
 
+    /// Clones the row-engine handles for diagnostics aggregation. Safe outside the render path
+    /// (frame boundaries hold no RefCell borrows).
+    pub(crate) fn list_engines(&self) -> Vec<Rc<RefCell<ManagedListResource>>> {
+        self.lists.borrow().values().cloned().collect()
+    }
+
+    pub(crate) fn list_engine_count(&self) -> usize {
+        self.lists.borrow().len()
+    }
+
     pub(crate) fn input_resource(
         &self,
         configuration: &InputConfiguration,
@@ -685,7 +695,11 @@ impl ManagedListResource {
             self.last_batch = Some(start_u32);
         }
         if !self.batches.contains_key(&start_u32) {
-            if let Err(status) = self.load_batch(start_u32) {
+            let loaded = {
+                let _stage = crate::trace::span(crate::trace::Stage::ListBatchLoad);
+                self.load_batch(start_u32)
+            };
+            if let Err(status) = loaded {
                 return div()
                     .child(format!(
                         "Managed list range render failed with status {status}."
@@ -784,9 +798,7 @@ impl ManagedListResource {
 
     /// Reads the monotonic telemetry counters. The ABI does not expose them yet, so this is
     /// currently only reachable from native tests and future benchmarks.
-    /// Reads the monotonic telemetry counters. The ABI does not expose them yet, so this is
-    /// currently only reachable from native tests and future benchmarks.
-    #[cfg(test)]
+    /// Reads the monotonic telemetry counters for diagnostics aggregation.
     pub(crate) fn telemetry(&self) -> ListTelemetry {
         self.telemetry
     }

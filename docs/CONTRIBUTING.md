@@ -48,3 +48,18 @@ dotnet build Gpui.slnx
 ```
 
 Native changes that touch `abi.rs` must regenerate `NativeMethods.g.cs` through the normal native build and keep `include/gpui_dotnet.h` synchronized.
+
+## Manual QA driver
+
+`tools/uidrive` is a small Windows dev tool for driving the sample app (window find by title,
+logical-coordinate click/wheel with DPI scaling, client-area PNG screenshots):
+
+`powershell
+dotnet build tools/uidrive/uidrive.csproj
+tools\uidrive\bin\Debug\net10.0-windows\uidrive.exe click 110 177
+tools\uidrive\bin\Debug\net10.0-windows\uidrive.exe shot page.png
+`
+
+Set `GPUI_DOTNET_TRACE=1` before launching the sample to print per-stage frame timings
+(managed render, decode, retain, materialize, list batch load) and cumulative list cache
+telemetry to stderr.
