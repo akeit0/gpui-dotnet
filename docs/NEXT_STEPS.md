@@ -1,6 +1,6 @@
 # Next steps
 
-The repository now has framework-owned dynamic managed Views, ABI v4 typed native-control events, retained native Scroll and Input state, virtualized ListState, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
+The repository now has framework-owned dynamic managed Views, ABI v4 typed native-control events, retained native Scroll and Input state, virtualized ListState, deferred window Overlay layers, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
 
 ## 1. Input hardening and Editor
 
@@ -12,7 +12,18 @@ The single-line Input establishes the native-entity ABI for focus, IME, selectio
 - composition/IME tests across Windows, macOS, and Linux;
 - optional controlled-value semantics with explicit revision/conflict behavior.
 
-## 2. List datasource refinement
+## 2. Overlay compositions
+
+The generic window-relative Overlay is the geometry and event foundation. Build semantic compositions on it rather than repeatedly recreating modal behavior:
+
+- Dialog and Sheet with a complete tab/shift-tab focus trap and deterministic nested-overlay focus restoration;
+- Popover/Menu with trigger measurement, anchor flipping/snapping, keyboard navigation, and outside-click dismissal;
+- Toast/notification host with retained ordering, timeouts, pause-on-hover, and reduced-motion policy;
+- accessibility roles, labels, focus announcements, and platform verification.
+
+Keep stacking and dismissal window-owned; keep product styling and content composition in managed code.
+
+## 3. List datasource refinement
 
 The current List cache is correctness-first: any managed root snapshot revision drops managed row snapshot batches while retaining `ListState`. Future optimization can add an explicit datasource/content revision so unrelated parent renders do not invalidate row snapshots.
 
@@ -26,15 +37,15 @@ Also evaluate:
 
 Do not expose GPUI's uniform/variable implementation split directly unless it provides durable semantic value.
 
-## 3. Table/tree
+## 4. Table/tree
 
 Build Table/Tree on the same coarse datasource principles rather than as thousands of managed child Views. Column/tree metadata can be semantic IR; viewport state and measurement remain native.
 
-## 4. Multi-window application model
+## 5. Multi-window application model
 
 Move from the single convenience root toward an application abstraction that can create multiple managed windows while retaining app-level native initialization/services.
 
-## 5. Package and ABI CI
+## 6. Package and ABI CI
 
 Add CI gates for:
 

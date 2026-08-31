@@ -18,6 +18,7 @@ RenderArena (nodes / ops / children / UTF-8)
 Rust validation + flat retained snapshot
    │
    ├─ semantic NativeAdapter ─────────────► GPUI elements
+   │    └─ deferred window overlays
    │
    └─ retained native resources
         ├─ ScrollHandle
@@ -198,6 +199,25 @@ protected override Element Render(ref RenderContext ui) =>
 
 Events are opt-in: `OnChanged`, `OnSubmitted`, and `OnFocusChanged`. Without them, native edits do not cross into managed code. `InputController` provides `Focus`, `Blur`, `SelectAll`, and `SetValue`; the initial value is consumed only when the keyed native resource is first created.
 
+## Overlays
+
+`ui.Overlay` paints ordinary semantic content in a deferred, window-relative layer. The default is a centered modal with a dim backdrop, 16-pixel viewport margin, backdrop dismissal, and Escape dismissal:
+
+```csharp
+var dialog = ui.VStack(
+        ui.Text("Preferences"),
+        ui.Input("name"u8),
+        ui.Button("close", "Close").OnClick(Events.Close))
+    .Padding(Px(20))
+    .Width(Px(440))
+    .Background(Rgb(255, 255, 255));
+
+return ui.Overlay("preferences"u8, dialog)
+    .OnDismiss(Events.Close);
+```
+
+`OverlayOptions` supports nine viewport placements, modal/non-modal behavior, priority, margin, backdrop color, and independent backdrop/Escape dismissal. Modal overlays block pointer and wheel input behind the backdrop, move focus into the overlay on open, and restore the previous focus when native dismissal runs. Escape is handled in the bubble phase so a focused child control receives it first. Content can contain normal managed child Views and retained controls such as Input; overlays are intentionally unavailable inside virtualized List rows.
+
 ## Generated events
 
 Constructor-time callback registration is not used. `[GpuiEvent]` emits stable handler IDs, `Events.*` bindings and direct dispatch code. `Task`/`ValueTask` completion is observed; `async void` is rejected.
@@ -224,8 +244,9 @@ ABI v4 is intentionally incompatible with previous revisions. In addition to the
 - a typed native-control event callback carrying owned-on-receipt UTF-8 data;
 - generated `InputEvent` dispatch;
 - semantic Input configuration and event operations.
+- deferred semantic Overlay nodes without changing the native function-table layout.
 
-Managed startup validates both ABI version and semantic schema hash (`0x64EAD325E7854DAE`). See [docs/ABI.md](docs/ABI.md).
+Managed startup validates both ABI version and semantic schema hash (`0x8B91513B238A37C7`). See [docs/ABI.md](docs/ABI.md).
 
 ## Build
 
@@ -240,7 +261,7 @@ dotnet build gpui-dotnet.slnx
 dotnet run --project dotnet/samples/Gpui.Net.Sample
 ```
 
-The sample contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, and an Image gallery demonstrating contain, cover, and grayscale. To force native-owned render-arena growth/retry:
+The sample contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, and centered-dialog/right-sheet Overlay demos. To force native-owned render-arena growth/retry:
 
 ```powershell
 dotnet run --project dotnet/samples/Gpui.Net.Sample -- --stress-growth

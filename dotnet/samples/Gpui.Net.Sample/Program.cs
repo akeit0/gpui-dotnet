@@ -19,6 +19,7 @@ internal enum SamplePage
     Activity,
     Images,
     Inputs,
+    Overlays,
 }
 
 [GpuiView]
@@ -49,6 +50,7 @@ internal sealed partial class SampleShellView : View
             SamplePage.Activity => ui.Child<ActivityView>("content"),
             SamplePage.Images => ui.Child<ImageGalleryView>("content"),
             SamplePage.Inputs => ui.Child<InputGalleryView>("content"),
+            SamplePage.Overlays => ui.Child<OverlayGalleryView>("content"),
             _ => throw new InvalidOperationException("Unknown sample page."),
         };
         var pageSlot = ui.VStack(page).Grow().Height(Percent(100));
@@ -60,6 +62,7 @@ internal sealed partial class SampleShellView : View
                 SamplePage.Activity => "Activity",
                 SamplePage.Images => "Images",
                 SamplePage.Inputs => "Inputs",
+                SamplePage.Overlays => "Overlays",
                 _ => throw new InvalidOperationException("Unknown sample page."),
             },
             _page switch
@@ -68,6 +71,7 @@ internal sealed partial class SampleShellView : View
                 SamplePage.Activity => "20,000 variable-height rows; managed rendering is range-batched",
                 SamplePage.Images => "GPUI-native decoding, caching, fitting, and grayscale",
                 SamplePage.Inputs => "retained native editing, IME, selection, focus, and UTF-8 events",
+                SamplePage.Overlays => "deferred window layers, modal input blocking, and dismissal",
                 _ => throw new InvalidOperationException("Unknown sample page."),
             }
         );
@@ -101,6 +105,7 @@ internal sealed partial class SampleShellView : View
         var activitySelected = _page == SamplePage.Activity;
         var imagesSelected = _page == SamplePage.Images;
         var inputsSelected = _page == SamplePage.Inputs;
+        var overlaysSelected = _page == SamplePage.Overlays;
         return ui.VStack(
                 ui.Text("SIDEBAR"u8).FontSize(Px(11)).TextColor(Rgb(148, 163, 184)),
                 ui.Divider().Background(Rgb(51, 65, 85)),
@@ -128,6 +133,12 @@ internal sealed partial class SampleShellView : View
                     .Background(inputsSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
                     .BorderColor(inputsSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
                     .TextColor(Rgb(255, 255, 255)),
+                ui.Button("show-overlays", "Overlays")
+                    .OnClick(Events.ShowOverlays)
+                    .Padding(Px(10))
+                    .Background(overlaysSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
+                    .BorderColor(overlaysSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
+                    .TextColor(Rgb(255, 255, 255)),
                 ui.Spacer(),
                 ui.Text("The keyed content slot replaces its View type when the route changes."u8)
                     .FontSize(Px(11))
@@ -151,6 +162,13 @@ internal sealed partial class SampleShellView : View
     private void ShowInputs()
     {
         _page = SamplePage.Inputs;
+        Invalidate();
+    }
+
+    [GpuiEvent]
+    private void ShowOverlays()
+    {
+        _page = SamplePage.Overlays;
         Invalidate();
     }
 }
@@ -490,6 +508,136 @@ internal sealed partial class InputGalleryView : View
             .BorderWidth(Px(1))
             .BorderColor(Rgb(226, 232, 240))
             .Radius(Px(10));
+}
+
+internal enum OverlayDemo
+{
+    None,
+    Dialog,
+    Sheet,
+}
+
+[GpuiView]
+internal sealed partial class OverlayGalleryView : View
+{
+    private OverlayDemo _open;
+    private int _backgroundClicks;
+
+    [GpuiEvent]
+    private void OpenDialog()
+    {
+        _open = OverlayDemo.Dialog;
+        Invalidate();
+    }
+
+    [GpuiEvent]
+    private void OpenSheet()
+    {
+        _open = OverlayDemo.Sheet;
+        Invalidate();
+    }
+
+    [GpuiEvent]
+    private void CloseOverlay()
+    {
+        _open = OverlayDemo.None;
+        Invalidate();
+    }
+
+    [GpuiEvent]
+    private void CountBackgroundClick()
+    {
+        _backgroundClicks++;
+        Invalidate();
+    }
+
+    protected override Element Render(ref RenderContext ui)
+    {
+        var page = ui.VStack(
+                ui.Text("Overlays are window-relative and paint after normal content."u8)
+                    .FontSize(Px(13))
+                    .TextColor(Rgb(71, 85, 105)),
+                ui.HStack(
+                        ui.Button("open-dialog", "Open centered dialog")
+                            .OnClick(Events.OpenDialog)
+                            .Padding(Px(10))
+                            .Background(Rgb(79, 70, 229))
+                            .BorderColor(Rgb(99, 102, 241))
+                            .TextColor(Rgb(255, 255, 255)),
+                        ui.Button("open-sheet", "Open right sheet")
+                            .OnClick(Events.OpenSheet)
+                            .Padding(Px(10)),
+                        ui.Button("background-action", $"Background action · {_backgroundClicks}")
+                            .OnClick(Events.CountBackgroundClick)
+                            .Padding(Px(10))
+                    )
+                    .Gap(Px(10)),
+                ui.VStack(
+                        ui.Text("Modal checks"u8)
+                            .FontSize(Px(14))
+                            .TextColor(Rgb(30, 41, 59)),
+                        ui.Text("• Click the dim backdrop or press Escape to dismiss."u8),
+                        ui.Text("• The background action must not fire through the backdrop."u8),
+                        ui.Text("• Tab into the dialog input and try IME composition."u8)
+                    )
+                    .Gap(Px(8))
+                    .Padding(Px(18))
+                    .Background(Rgb(255, 255, 255))
+                    .BorderWidth(Px(1))
+                    .BorderColor(Rgb(226, 232, 240))
+                    .Radius(Px(12))
+            )
+            .Gap(Px(18))
+            .Grow();
+
+        if (_open == OverlayDemo.None)
+        {
+            return page;
+        }
+
+        var isSheet = _open == OverlayDemo.Sheet;
+        var title = isSheet ? "Window-edge sheet" : "Centered dialog";
+        var panel = ui.VStack(
+                ui.HStack(
+                        ui.Text(title).FontSize(Px(18)).TextColor(Rgb(15, 23, 42)),
+                        ui.Spacer(),
+                        ui.Button("close-overlay", "Close")
+                            .OnClick(Events.CloseOverlay)
+                            .Padding(Px(8))
+                    )
+                    .ItemsCenter(),
+                ui.Text("This subtree is still ordinary semantic GPUI.NET content."u8)
+                    .FontSize(Px(12))
+                    .TextColor(Rgb(100, 116, 139)),
+                ui.Input(
+                        "overlay-input"u8,
+                        new Utf8InputOptions(placeholder: "IME works inside the overlay…"u8)
+                    )
+                    .Width(Percent(100)),
+                ui.Text("Escape is handled after focused child controls get the key first."u8)
+                    .FontSize(Px(12))
+                    .TextColor(Rgb(79, 70, 229))
+            )
+            .Gap(Px(14))
+            .Padding(Px(20))
+            .Width(Px(isSheet ? 380 : 440))
+            .Height(isSheet ? Percent(100) : Px(240))
+            .Background(Rgb(255, 255, 255))
+            .BorderWidth(Px(1))
+            .BorderColor(Rgb(203, 213, 225))
+            .Radius(Px(14));
+
+        var options = new OverlayOptions(
+            placement: isSheet ? OverlayPlacement.Right : OverlayPlacement.Center,
+            margin: isSheet ? 12 : 24,
+            backdrop: Rgba(15, 23, 42, 150)
+        );
+        var overlay = ui
+            .Overlay("sample-overlay"u8, panel, options)
+            .OnDismiss(Events.CloseOverlay);
+
+        return ui.VStack(page, overlay).Grow().Height(Percent(100));
+    }
 }
 
 [GpuiView]

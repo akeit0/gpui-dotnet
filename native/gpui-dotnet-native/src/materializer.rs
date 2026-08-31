@@ -279,11 +279,10 @@ impl ManagedView {
         }
 
         let content_id = (overlay_id.clone(), "content");
-        let content = div()
-            .id(content_id)
-            .on_any_mouse_down(|_, _, cx| cx.stop_propagation())
-            .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
-            .child(child);
+        let content = place_overlay_content(
+            div().id(content_id).occlude().child(child),
+            placement as u32,
+        );
 
         let viewport = window.viewport_size();
         let mut host = div()
@@ -304,8 +303,7 @@ impl ManagedView {
                 .inset_0()
                 .bg(rgba(backdrop_color))
                 .id((overlay_id.clone(), "backdrop"))
-                .capture_any_mouse_down(|_, _, cx| cx.stop_propagation())
-                .on_scroll_wheel(|_, _, cx| cx.stop_propagation());
+                .occlude();
             if dismiss_on_backdrop && dismiss_token != 0 {
                 backdrop =
                     backdrop.on_click(cx.listener(move |this, event: &ClickEvent, window, cx| {
@@ -375,6 +373,14 @@ fn place_overlay(element: gpui::Div, placement: u32) -> gpui::Div {
         7 => element.items_center().justify_start(),
         8 => element.items_start().justify_start(),
         _ => element.items_center().justify_center(),
+    }
+}
+
+fn place_overlay_content<T: Styled>(element: T, placement: u32) -> T {
+    match placement {
+        1 | 5 => element.w_full(),
+        3 | 7 => element.h_full(),
+        _ => element,
     }
 }
 

@@ -4,7 +4,7 @@
 
 | Class | Examples | Transport/state |
 |---|---|---|
-| Snapshot component | div, badge, button, image | render IR |
+| Snapshot component | div, badge, button, image, overlay | render IR |
 | Retained container | Scroll | render IR reference + native state keyed by View/key |
 | Virtualized datasource | List | retained native state + batched managed row renderer |
 | Native entity component | Input; future editor/select | opaque native handle + commands/events |
@@ -57,6 +57,12 @@ ui.Input("name"u8, new Utf8InputOptions(placeholder: "Name"u8));
 
 `OnChanged`, `OnSubmitted`, and `OnFocusChanged` are opt-in generated event bindings. `InputEvent.Utf8Value` is the owned no-transcode payload; `Value` is a lazy string convenience. `InputController` supports focus, blur, selection, and programmatic value replacement. Input is retained and therefore intentionally rejected inside a virtualized List row, whose cache lifetime is not a managed View/resource lifetime.
 
+## Overlay
+
+`ui.Overlay(key, child, options)` gives one ordinary semantic child a deferred window-relative layer. Rust owns viewport placement, deferred paint priority, modal backdrop input interception, initial focus, previous-focus restoration, and native backdrop/Escape detection. Dismissal crosses into managed code only through an explicit `OnDismiss` callback.
+
+The default options are a centered modal, 16-pixel viewport margin, priority 10, a translucent black backdrop, and backdrop/Escape dismissal. `OverlayPlacement` also covers every window edge and corner, providing the low-level geometry for dialogs and sheets without exposing GPUI element types through the ABI. Popup trigger measurement, complete modal focus trapping, toast lifecycle, and higher-level Dialog/Sheet/Popover components remain separate composition work.
+
 ## List
 
 `ui.List` is intentionally **not** a parent receiving all item elements:
@@ -81,7 +87,7 @@ Rust owns `ListState` and calls managed `list_render_range` only for missing ali
 
 ### Row renderer restrictions
 
-Rows are pure Element renderers, not retained managed View roots. `RenderContext` for a list range intentionally has no managed child resolver and no native resource owner. `ui.Child`, retained `ui.Scroll`, and nested retained `ui.List` therefore fail rather than creating ambiguous lifetimes.
+Rows are pure Element renderers, not retained managed View roots. `RenderContext` for a list range intentionally has no managed child resolver and no native resource owner. `ui.Child`, retained `ui.Scroll`, nested retained `ui.List`, retained `ui.Input`, and window-level `ui.Overlay` therefore fail rather than creating ambiguous lifetimes.
 
 If item-scoped managed state is needed in the future, implement a dedicated virtualized-item state mechanism instead of silently reusing normal View slots.
 
