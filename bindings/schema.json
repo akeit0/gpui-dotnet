@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 18,
+  "schemaVersion": 19,
   "capabilities": [
     "styled",
     "parent",
@@ -765,6 +765,22 @@
       "csharp": "TableCellColumn",
       "value": "u32",
       "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 320,
+      "name": "scrollbar_gutter",
+      "csharp": "ScrollbarGutter",
+      "value": "u32",
+      "requires": "native_state",
+      "managedApi": null
+    },
+    {
+      "id": 321,
+      "name": "scrollbar_width",
+      "csharp": "ScrollbarWidth",
+      "value": "f32",
+      "requires": "native_state",
       "managedApi": null
     }
   ]

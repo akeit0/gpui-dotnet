@@ -13,9 +13,38 @@ use crate::resources::{
 const SMOOTHING: f32 = 0.24;
 const FINISH_THRESHOLD: Pixels = px(0.5);
 const BAR_MARGIN: Pixels = px(2.0);
-const BAR_HIT_WIDTH: Pixels = px(16.0);
-const BAR_PAINT_WIDTH: Pixels = px(8.0);
+/// Extra hit area beyond the visual bar so imprecise pointers still grab it.
+const HIT_FORGIVENESS: Pixels = px(8.0);
+pub(crate) const DEFAULT_SCROLLBAR_WIDTH: Pixels = px(8.0);
 const MIN_THUMB: Pixels = px(48.0);
+
+/// Scrollbar chrome dimensions resolved from the configured visual width. The hit area and
+/// the reserved gutter both derive from it, so the configured width is the single source of
+/// truth for bar geometry.
+#[derive(Clone, Copy)]
+pub(crate) struct ScrollbarMetrics {
+    pub(crate) paint: Pixels,
+    pub(crate) hit: Pixels,
+    pub(crate) margin: Pixels,
+    pub(crate) gutter: Pixels,
+}
+
+impl ScrollbarMetrics {
+    pub(crate) fn new(width: Pixels, gutter_enabled: bool) -> Self {
+        let hit = width + HIT_FORGIVENESS;
+        let gutter = if gutter_enabled {
+            hit + BAR_MARGIN * 2.0
+        } else {
+            px(0.)
+        };
+        Self {
+            paint: width,
+            hit,
+            margin: BAR_MARGIN,
+            gutter,
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 struct AxisGeometry {
@@ -34,6 +63,7 @@ pub(crate) fn scroll_overlay(
     axis: u32,
     smooth: bool,
     show_scrollbar: bool,
+    metrics: ScrollbarMetrics,
 ) -> gpui::Div {
     let mut overlay = div().absolute().inset_0();
 
@@ -56,8 +86,8 @@ pub(crate) fn scroll_overlay(
         let paint_resource = resource.clone();
         overlay = overlay.child(
             canvas(
-                move |_, _, _| scroll_geometry(&paint_resource, axis),
-                move |_, geometry, window, _| paint_scrollbar(geometry, window),
+                move |_, _, _| scroll_geometry(&paint_resource, axis, metrics),
+                move |_, geometry, window, _| paint_scrollbar(geometry, metrics, window),
             )
             .absolute()
             .inset_0(),
@@ -65,7 +95,7 @@ pub(crate) fn scroll_overlay(
 
         let down_resource = resource.clone();
         overlay = overlay.on_mouse_down(MouseButton::Left, move |event, window, cx| {
-            let geometry = scroll_geometry(&down_resource, axis);
+            let geometry = scroll_geometry(&down_resource, axis, metrics);
             if begin_drag(event, geometry, &down_resource.interaction) {
                 update_scroll_drag(&down_resource, event.position, geometry);
                 window.refresh();
@@ -82,7 +112,7 @@ pub(crate) fn scroll_overlay(
                 move_resource.interaction.drag.set(None);
                 return;
             }
-            let geometry = scroll_geometry(&move_resource, axis);
+            let geometry = scroll_geometry(&move_resource, axis, metrics);
             update_scroll_drag(&move_resource, event.position, geometry);
             window.refresh();
             cx.stop_propagation();
@@ -104,6 +134,7 @@ pub(crate) fn list_overlay(
     estimated_item_height: Pixels,
     smooth: bool,
     show_scrollbar: bool,
+    metrics: ScrollbarMetrics,
 ) -> gpui::Div {
     let mut overlay = div().absolute().inset_0();
 
@@ -125,8 +156,10 @@ pub(crate) fn list_overlay(
         let paint_resource = resource.clone();
         overlay = overlay.child(
             canvas(
-                move |_, _, _| list_geometry(&paint_resource.borrow(), estimated_item_height),
-                move |_, geometry, window, _| paint_scrollbar(geometry, window),
+                move |_, _, _| {
+                    list_geometry(&paint_resource.borrow(), estimated_item_height, metrics)
+                },
+                move |_, geometry, window, _| paint_scrollbar(geometry, metrics, window),
             )
             .absolute()
             .inset_0(),
@@ -135,7 +168,7 @@ pub(crate) fn list_overlay(
         let down_resource = resource.clone();
         overlay = overlay.on_mouse_down(MouseButton::Left, move |event, window, cx| {
             let borrowed = down_resource.borrow();
-            let geometry = list_geometry(&borrowed, estimated_item_height);
+            let geometry = list_geometry(&borrowed, estimated_item_height, metrics);
             let interaction = borrowed.interaction.clone();
             drop(borrowed);
             if begin_drag(event, geometry, &interaction) {
@@ -161,7 +194,7 @@ pub(crate) fn list_overlay(
                 return;
             }
             let borrowed = move_resource.borrow();
-            let geometry = list_geometry(&borrowed, estimated_item_height);
+            let geometry = list_geometry(&borrowed, estimated_item_height, metrics);
             update_list_drag(&borrowed, event.position, geometry, estimated_item_height);
             drop(borrowed);
             window.refresh();
@@ -324,16 +357,20 @@ fn apply_scroll_delta(resource: &ManagedScrollResource, delta: Point<Pixels>) {
     ));
 }
 
-fn scroll_geometry(resource: &ManagedScrollResource, axis: u32) -> ScrollbarGeometry {
+fn scroll_geometry(
+    resource: &ManagedScrollResource,
+    axis: u32,
+    metrics: ScrollbarMetrics,
+) -> ScrollbarGeometry {
     let bounds = resource.handle.bounds();
     let offset = resource.handle.offset();
     let max = resource.handle.max_offset();
     ScrollbarGeometry {
         vertical: (axis != 1)
-            .then(|| vertical_geometry(bounds, offset.y, max.height))
+            .then(|| vertical_geometry(bounds, offset.y, max.height, metrics))
             .flatten(),
         horizontal: (axis != 0)
-            .then(|| horizontal_geometry(bounds, offset.x, max.width))
+            .then(|| horizontal_geometry(bounds, offset.x, max.width, metrics))
             .flatten(),
     }
 }
@@ -341,6 +378,7 @@ fn scroll_geometry(resource: &ManagedScrollResource, axis: u32) -> ScrollbarGeom
 fn list_geometry(
     resource: &ManagedListResource,
     estimated_item_height: Pixels,
+    metrics: ScrollbarMetrics,
 ) -> ScrollbarGeometry {
     let bounds = resource.state.viewport_bounds();
     let visible_items = if estimated_item_height > px(0.) {
@@ -355,7 +393,7 @@ fn list_geometry(
     let max = estimated_item_height * scrollable_items;
     let offset = -(estimated_item_height * item_position.min(scrollable_items));
     ScrollbarGeometry {
-        vertical: vertical_geometry(bounds, offset, max),
+        vertical: vertical_geometry(bounds, offset, max, metrics),
         horizontal: None,
     }
 }
@@ -364,16 +402,21 @@ fn vertical_geometry(
     viewport: Bounds<Pixels>,
     offset: Pixels,
     max: Pixels,
+    metrics: ScrollbarMetrics,
 ) -> Option<AxisGeometry> {
-    if max <= px(0.) || viewport.size.height <= BAR_MARGIN * 2.0 {
+    if max <= px(0.) || viewport.size.height <= metrics.margin * 2.0 {
         return None;
     }
+    // Overlay mode keeps the track inside the viewport's right edge; gutter mode centers it
+    // in the reserved space beyond the content's right edge.
+    let track_left = if metrics.gutter > px(0.) {
+        viewport.right() + (metrics.gutter - metrics.hit) / 2.0
+    } else {
+        viewport.right() - metrics.hit - metrics.margin
+    };
     let track = Bounds::new(
-        point(
-            viewport.right() - BAR_HIT_WIDTH - BAR_MARGIN,
-            viewport.top() + BAR_MARGIN,
-        ),
-        size(BAR_HIT_WIDTH, viewport.size.height - BAR_MARGIN * 2.0),
+        point(track_left, viewport.top() + metrics.margin),
+        size(metrics.hit, viewport.size.height - metrics.margin * 2.0),
     );
     let thumb_extent = (track.size.height * (viewport.size.height / (viewport.size.height + max)))
         .max(MIN_THUMB)
@@ -384,7 +427,7 @@ fn vertical_geometry(
             track.left(),
             track.top() + (track.size.height - thumb_extent) * progress,
         ),
-        size(BAR_HIT_WIDTH, thumb_extent),
+        size(metrics.hit, thumb_extent),
     );
     Some(AxisGeometry { track, thumb })
 }
@@ -393,16 +436,17 @@ fn horizontal_geometry(
     viewport: Bounds<Pixels>,
     offset: Pixels,
     max: Pixels,
+    metrics: ScrollbarMetrics,
 ) -> Option<AxisGeometry> {
-    if max <= px(0.) || viewport.size.width <= BAR_MARGIN * 2.0 {
+    if max <= px(0.) || viewport.size.width <= metrics.margin * 2.0 {
         return None;
     }
     let track = Bounds::new(
         point(
-            viewport.left() + BAR_MARGIN,
-            viewport.bottom() - BAR_HIT_WIDTH - BAR_MARGIN,
+            viewport.left() + metrics.margin,
+            viewport.bottom() - metrics.hit - metrics.margin,
         ),
-        size(viewport.size.width - BAR_MARGIN * 2.0, BAR_HIT_WIDTH),
+        size(viewport.size.width - metrics.margin * 2.0, metrics.hit),
     );
     let thumb_extent = (track.size.width * (viewport.size.width / (viewport.size.width + max)))
         .max(MIN_THUMB)
@@ -413,26 +457,26 @@ fn horizontal_geometry(
             track.left() + (track.size.width - thumb_extent) * progress,
             track.top(),
         ),
-        size(thumb_extent, BAR_HIT_WIDTH),
+        size(thumb_extent, metrics.hit),
     );
     Some(AxisGeometry { track, thumb })
 }
 
-fn paint_scrollbar(geometry: ScrollbarGeometry, window: &mut Window) {
+fn paint_scrollbar(geometry: ScrollbarGeometry, metrics: ScrollbarMetrics, window: &mut Window) {
     if let Some(vertical) = geometry.vertical {
-        paint_axis(vertical, true, window);
+        paint_axis(vertical, true, metrics, window);
     }
     if let Some(horizontal) = geometry.horizontal {
-        paint_axis(horizontal, false, window);
+        paint_axis(horizontal, false, metrics, window);
     }
 }
 
-fn paint_axis(axis: AxisGeometry, vertical: bool, window: &mut Window) {
-    let visual_track = visual_bounds(axis.track, vertical);
-    let visual_thumb = visual_bounds(axis.thumb, vertical);
+fn paint_axis(axis: AxisGeometry, vertical: bool, metrics: ScrollbarMetrics, window: &mut Window) {
+    let visual_track = visual_bounds(axis.track, vertical, metrics);
+    let visual_thumb = visual_bounds(axis.thumb, vertical, metrics);
     window.paint_quad(quad(
         visual_track,
-        BAR_PAINT_WIDTH / 2.0,
+        metrics.paint / 2.0,
         rgba(0x0f172a18),
         px(0.),
         transparent_black(),
@@ -440,7 +484,7 @@ fn paint_axis(axis: AxisGeometry, vertical: bool, window: &mut Window) {
     ));
     window.paint_quad(quad(
         visual_thumb,
-        BAR_PAINT_WIDTH / 2.0,
+        metrics.paint / 2.0,
         rgba(0x64748bb8),
         px(0.),
         transparent_black(),
@@ -448,17 +492,21 @@ fn paint_axis(axis: AxisGeometry, vertical: bool, window: &mut Window) {
     ));
 }
 
-fn visual_bounds(bounds: Bounds<Pixels>, vertical: bool) -> Bounds<Pixels> {
-    let inset = (BAR_HIT_WIDTH - BAR_PAINT_WIDTH) / 2.0;
+fn visual_bounds(
+    bounds: Bounds<Pixels>,
+    vertical: bool,
+    metrics: ScrollbarMetrics,
+) -> Bounds<Pixels> {
+    let inset = (metrics.hit - metrics.paint) / 2.0;
     if vertical {
         Bounds::new(
             point(bounds.left() + inset, bounds.top()),
-            size(BAR_PAINT_WIDTH, bounds.size.height),
+            size(metrics.paint, bounds.size.height),
         )
     } else {
         Bounds::new(
             point(bounds.left(), bounds.top() + inset),
-            size(bounds.size.width, BAR_PAINT_WIDTH),
+            size(bounds.size.width, metrics.paint),
         )
     }
 }
@@ -581,12 +629,52 @@ mod tests {
     #[test]
     fn vertical_thumb_tracks_the_full_scroll_range() {
         let viewport = Bounds::new(point(px(10.), px(20.)), size(px(200.), px(100.)));
-        let top = vertical_geometry(viewport, px(0.), px(900.)).unwrap();
-        let bottom = vertical_geometry(viewport, px(-900.), px(900.)).unwrap();
+        let metrics = ScrollbarMetrics::new(px(8.), false);
+        let top = vertical_geometry(viewport, px(0.), px(900.), metrics).unwrap();
+        let bottom = vertical_geometry(viewport, px(-900.), px(900.), metrics).unwrap();
 
         assert_eq!(top.thumb.top(), top.track.top());
         assert_eq!(bottom.thumb.bottom(), bottom.track.bottom());
         assert_eq!(top.thumb.size.height, MIN_THUMB);
+    }
+
+    #[test]
+    fn gutter_mode_centers_the_track_right_of_the_content() {
+        let viewport = Bounds::new(point(px(10.), px(20.)), size(px(200.), px(100.)));
+        let overlay = vertical_geometry(
+            viewport,
+            px(0.),
+            px(900.),
+            ScrollbarMetrics::new(px(8.), false),
+        )
+        .unwrap();
+        let gutter = vertical_geometry(
+            viewport,
+            px(0.),
+            px(900.),
+            ScrollbarMetrics::new(px(8.), true),
+        )
+        .unwrap();
+
+        // Overlay track hugs the viewport's right edge; gutter track sits inside the
+        // reserved space beyond it, centered with the same margins.
+        assert_eq!(overlay.track.right(), viewport.right() - BAR_MARGIN);
+        assert_eq!(gutter.track.left(), viewport.right() + BAR_MARGIN);
+        assert_eq!(gutter.track.size, overlay.track.size);
+        assert_eq!(gutter.track.top(), overlay.track.top());
+    }
+
+    #[test]
+    fn configured_width_scales_paint_hit_and_gutter() {
+        let metrics = ScrollbarMetrics::new(px(12.), true);
+        assert_eq!(metrics.paint, px(12.));
+        assert_eq!(metrics.hit, px(20.));
+        assert_eq!(metrics.gutter, px(24.));
+
+        let viewport = Bounds::new(point(px(0.), px(0.)), size(px(200.), px(100.)));
+        let axis = vertical_geometry(viewport, px(0.), px(900.), metrics).unwrap();
+        assert_eq!(axis.track.size.width, metrics.hit);
+        assert_eq!(axis.track.left(), viewport.right() + metrics.margin);
     }
 
     #[test]

@@ -12,9 +12,10 @@ use crate::{
         OP_LIST_OVERDRAW_PX, OP_ON_CLICK, OP_OVERLAY_DISMISS_ON_BACKDROP,
         OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
         OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_POPOVER_MENU_MARGIN_PX, OP_RESOURCE_OWNER,
-        OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TOOLTIP_ALIGNMENT,
-        OP_TOOLTIP_GAP_PX, OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA,
-        ValueKind, component_metadata, operation_metadata,
+        OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SHOW_SCROLLBAR,
+        OP_SMOOTH_SCROLL, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_MARGIN_PX,
+        OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA, ValueKind, component_metadata,
+        operation_metadata,
     },
 };
 
@@ -285,6 +286,7 @@ fn validate_with_scratch(
             op.code,
             OP_SMOOTH_SCROLL
                 | OP_SHOW_SCROLLBAR
+                | OP_SCROLLBAR_GUTTER
                 | OP_INPUT_DISABLED
                 | OP_INPUT_READ_ONLY
                 | OP_INPUT_PASSWORD
@@ -312,6 +314,12 @@ fn validate_with_scratch(
         }
         if op.code == OP_LIST_ESTIMATED_ITEM_HEIGHT_PX && f32::from_bits(op.a as u32) <= 0.0 {
             return Err(-29);
+        }
+        if op.code == OP_SCROLLBAR_WIDTH {
+            let width = f32::from_bits(op.a as u32);
+            if !width.is_finite() || !(3.0..=32.0).contains(&width) {
+                return Err(-29);
+            }
         }
         if op.code == OP_OVERLAY_PLACEMENT && op.a > 8 {
             return Err(-33);
@@ -448,9 +456,9 @@ mod tests {
         abi::{ChildRecord, NodeRecord, OpRecord},
         semantic::{
             COMPONENT_CHECKBOX, COMPONENT_CONTEXT_MENU, COMPONENT_DIV, COMPONENT_IMAGE,
-            COMPONENT_INPUT, COMPONENT_OVERLAY, COMPONENT_POPOVER_MENU, COMPONENT_TEXT,
-            COMPONENT_TOOLTIP, OP_CHECKED, OP_GAP_PX, OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED,
-            OP_LIST_ITEM_ID, OP_ON_CLICK, OP_OVERLAY_PLACEMENT, OP_PADDING_PX,
+            COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_OVERLAY, COMPONENT_POPOVER_MENU,
+            COMPONENT_TEXT, COMPONENT_TOOLTIP, OP_CHECKED, OP_GAP_PX, OP_IMAGE_OBJECT_FIT,
+            OP_INPUT_DISABLED, OP_LIST_ITEM_ID, OP_ON_CLICK, OP_OVERLAY_PLACEMENT, OP_PADDING_PX,
             OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA,
         },
     };
@@ -553,6 +561,58 @@ mod tests {
         };
         let arena = arena_with(&mut node, Some(&mut operation));
         assert_eq!(validate(&arena, 0), Err(-17));
+    }
+
+    #[test]
+    fn validates_scrollbar_gutter_and_width_values() {
+        // Both ops require the native_state capability, so anchor them on a list node with
+        // valid resource-key data.
+        let mut identifier = b'k';
+        let mut node = NodeRecord {
+            component: COMPONENT_LIST,
+            data_length: 1,
+            ..Default::default()
+        };
+        let mut gutter = OpRecord {
+            code: OP_SCROLLBAR_GUTTER,
+            value_kind: ValueKind::U32 as u16,
+            a: 2,
+            ..Default::default()
+        };
+        let mut arena = arena_with(&mut node, Some(&mut gutter));
+        arena.utf8 = &mut identifier;
+        arena.utf8_length = 1;
+        arena.utf8_capacity = 1;
+        assert_eq!(validate(&arena, 0), Err(-21));
+
+        gutter.a = 1;
+        let mut width = OpRecord {
+            code: OP_SCROLLBAR_WIDTH,
+            value_kind: ValueKind::U64 as u16,
+            a: 12.0f32.to_bits() as u64,
+            ..Default::default()
+        };
+        // F32 is the declared kind for scrollbar_width; a wrong kind is rejected.
+        let mut arena = arena_with(&mut node, Some(&mut width));
+        arena.utf8 = &mut identifier;
+        arena.utf8_length = 1;
+        arena.utf8_capacity = 1;
+        assert_eq!(validate(&arena, 0), Err(-16));
+
+        width.value_kind = ValueKind::F32 as u16;
+        width.a = 8.0f32.to_bits() as u64;
+        let mut arena = arena_with(&mut node, Some(&mut width));
+        arena.utf8 = &mut identifier;
+        arena.utf8_length = 1;
+        arena.utf8_capacity = 1;
+        assert_eq!(validate(&arena, 0), Ok(()));
+
+        width.a = 40.0f32.to_bits() as u64;
+        let mut arena = arena_with(&mut node, Some(&mut width));
+        arena.utf8 = &mut identifier;
+        arena.utf8_length = 1;
+        arena.utf8_capacity = 1;
+        assert_eq!(validate(&arena, 0), Err(-29));
     }
 
     #[test]

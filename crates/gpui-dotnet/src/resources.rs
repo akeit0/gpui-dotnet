@@ -15,12 +15,13 @@ use crate::{
     app_host::ManagedView,
     arena::OwnedRenderArena,
     input::{InputBindings, InputInitialState, ManagedInput},
+    scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics},
     semantic::{
         NativeAdapter, OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED,
         OP_INPUT_ON_SUBMITTED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT,
         OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
         OP_LIST_ITEM_COUNT, OP_LIST_ITEM_ID, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER,
-        OP_RESOURCE_OWNER, component_metadata,
+        OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, component_metadata,
     },
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
 };
@@ -326,6 +327,7 @@ pub(crate) struct ListConfiguration {
     pub(crate) alignment: ListAlignment,
     pub(crate) estimated_item_height: Pixels,
     pub(crate) content_revision: Option<u64>,
+    pub(crate) scrollbar: ScrollbarMetrics,
 }
 
 /// One declared table column. Widths are declarative intents (px or fraction); the native
@@ -419,6 +421,7 @@ pub(crate) struct ManagedListResource {
     alignment: ListAlignment,
     snapshot_revision: u64,
     content_revision: Option<u64>,
+    pub(crate) scrollbar: ScrollbarMetrics,
     batches: HashMap<u32, CachedBatch>,
     pending_commands: Vec<ResourceCommand>,
     use_clock: u64,
@@ -449,6 +452,7 @@ impl ManagedListResource {
             alignment: configuration.alignment,
             snapshot_revision,
             content_revision: configuration.content_revision,
+            scrollbar: configuration.scrollbar,
             batches: HashMap::new(),
             pending_commands: Vec::new(),
             use_clock: 0,
@@ -961,6 +965,10 @@ pub(crate) fn list_configuration(
         .rev()
         .find(|op| op.code == OP_LIST_CONTENT_REVISION)
         .map(|op| op.a);
+    let scrollbar_gutter = last_u32(snapshot, node, OP_SCROLLBAR_GUTTER).is_some_and(|v| v != 0);
+    let scrollbar_width = last_op_bits_f32(snapshot, node, OP_SCROLLBAR_WIDTH)
+        .unwrap_or(DEFAULT_SCROLLBAR_WIDTH.into());
+    let scrollbar = ScrollbarMetrics::new(px(scrollbar_width), scrollbar_gutter);
     Some(ListConfiguration {
         item_count,
         renderer_token: renderer,
@@ -969,7 +977,22 @@ pub(crate) fn list_configuration(
         alignment,
         estimated_item_height,
         content_revision,
+        scrollbar,
     })
+}
+
+/// Reads an f32-valued op as bits. Returns `None` when the op is absent.
+fn last_op_bits_f32(
+    snapshot: &ValidatedSnapshot,
+    node: &crate::snapshot::SnapshotNode,
+    code: u16,
+) -> Option<f32> {
+    snapshot
+        .ops(node)
+        .iter()
+        .rev()
+        .find(|op| op.code == code)
+        .map(|op| f32::from_bits(op.a as u32))
 }
 
 fn last_u32(
@@ -1027,6 +1050,7 @@ mod tests {
             alignment: ListAlignment::Top,
             estimated_item_height: px(40.),
             content_revision,
+            scrollbar: ScrollbarMetrics::new(DEFAULT_SCROLLBAR_WIDTH, false),
         }
     }
 

@@ -59,6 +59,16 @@ public readonly unsafe ref partial struct RenderContext
             OpCode.ShowScrollbar,
             options.EffectiveShowScrollbar ? 1u : 0u
         );
+        ArenaWriter.AddU32(
+            element.Inner,
+            OpCode.ScrollbarGutter,
+            options.EffectiveScrollbarGutter ? 1u : 0u
+        );
+        ArenaWriter.AddF32(
+            element.Inner,
+            OpCode.ScrollbarWidth,
+            options.EffectiveScrollbarWidth
+        );
         ArenaWriter.AddChildren(element.Inner, children);
         return element;
     }
@@ -143,6 +153,16 @@ public readonly unsafe ref partial struct RenderContext
             OpCode.ShowScrollbar,
             options.EffectiveShowScrollbar ? 1u : 0u
         );
+        ArenaWriter.AddU32(
+            element.Inner,
+            OpCode.ScrollbarGutter,
+            options.EffectiveScrollbarGutter ? 1u : 0u
+        );
+        ArenaWriter.AddF32(
+            element.Inner,
+            OpCode.ScrollbarWidth,
+            options.EffectiveScrollbarWidth
+        );
         return element;
     }
 
@@ -213,6 +233,16 @@ public readonly unsafe ref partial struct RenderContext
             element.Inner,
             OpCode.ShowScrollbar,
             options.EffectiveShowScrollbar ? 1u : 0u
+        );
+        ArenaWriter.AddU32(
+            element.Inner,
+            OpCode.ScrollbarGutter,
+            options.EffectiveScrollbarGutter ? 1u : 0u
+        );
+        ArenaWriter.AddF32(
+            element.Inner,
+            OpCode.ScrollbarWidth,
+            options.EffectiveScrollbarWidth
         );
         ArenaWriter.AddU32(element.Inner, OpCode.TableShowHeader, options.EffectiveShowHeader ? 1u : 0u);
         return element;

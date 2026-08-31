@@ -79,7 +79,8 @@ internal sealed partial class ActivityView : View
                     overdraw: 320,
                     estimatedItemHeight: 40,
                     smoothScrolling: true,
-                    showScrollbar: true
+                    showScrollbar: true,
+                    scrollbarGutter: true
                 )
             )
             .Grow()

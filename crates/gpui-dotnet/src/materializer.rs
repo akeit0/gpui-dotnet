@@ -17,7 +17,7 @@ use crate::{
         ResourceStore, TableSpec, input_configuration, list_configuration, resource_key,
         table_configuration,
     },
-    scrolling::{list_overlay, scroll_overlay},
+    scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics, list_overlay, scroll_overlay},
     semantic::{
         CAPABILITY_INTERACTIVE, NativeAdapter, OP_BACKGROUND_RGBA, OP_BORDER_RGBA,
         OP_BORDER_WIDTH_PX, OP_CHECKED, OP_CONTEXT_MENU_MARGIN_PX, OP_CONTEXT_MENU_PRIORITY,
@@ -29,10 +29,10 @@ use crate::{
         OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
         OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY, OP_PADDING_PX,
         OP_POPOVER_MENU_MARGIN_PX, OP_POPOVER_MENU_PRIORITY, OP_RADIUS_PX, OP_RESOURCE_OWNER,
-        OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN,
-        OP_TABLE_SHOW_HEADER, OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX,
-        OP_TOOLTIP_HIDE_DELAY_MS, OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT,
-        OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK, OP_WIDTH_PERCENT, OP_WIDTH_PX,
+        OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SHOW_SCROLLBAR,
+        OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER, OP_TEXT_RGBA,
+        OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS, OP_TOOLTIP_MARGIN_PX,
+        OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK, OP_WIDTH_PERCENT, OP_WIDTH_PX,
         OP_WINDOW_CONTROL_AREA, component_metadata,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
@@ -161,6 +161,14 @@ impl ManagedView {
         let axis = last_op(snapshot, node, OP_SCROLL_AXIS).map_or(0, |op| op.a as u32);
         let smooth = last_op(snapshot, node, OP_SMOOTH_SCROLL).is_none_or(|op| op.a != 0);
         let show_scrollbar = last_op(snapshot, node, OP_SHOW_SCROLLBAR).is_none_or(|op| op.a != 0);
+        let metrics = scrollbar_metrics(snapshot, node);
+        // Gutter mode reserves the bar's width inside the scrollport: content lays out within
+        // the right padding while the track paints over the reserved padding area.
+        let stateful = if metrics.gutter > px(0.) {
+            stateful.pr(metrics.gutter)
+        } else {
+            stateful
+        };
         let scrollable = match axis {
             1 => stateful
                 .overflow_x_scroll()
@@ -175,7 +183,7 @@ impl ManagedView {
                 .track_scroll(&handle)
                 .into_any_element(),
         };
-        let overlay = scroll_overlay(resource, axis, smooth, show_scrollbar);
+        let overlay = scroll_overlay(resource, axis, smooth, show_scrollbar, metrics);
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
         element = element.min_h_0().min_w_0();
         element.child(scrollable).child(overlay).into_any_element()
@@ -214,13 +222,27 @@ impl ManagedView {
             configuration.estimated_item_height,
             smooth,
             show_scrollbar,
+            configuration.scrollbar,
         );
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
         element = element.min_h_0().min_w_0();
-        element
-            .child(list_element)
-            .child(overlay)
-            .into_any_element()
+        if configuration.scrollbar.gutter > px(0.) {
+            // Reserve the bar's width: the virtualized content excludes the gutter, so rows
+            // never extend under the scrollbar.
+            element = element.child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .flex_grow()
+                    .min_h_0()
+                    .min_w_0()
+                    .child(list_element)
+                    .child(gutter_spacer(configuration.scrollbar.gutter)),
+            );
+        } else {
+            element = element.child(list_element);
+        }
+        element.child(overlay).into_any_element()
     }
 
     /// A table is a virtualized list whose rows are reconciled against declared columns. The
@@ -261,17 +283,42 @@ impl ManagedView {
             configuration.estimated_item_height,
             smooth,
             show_scrollbar,
+            configuration.scrollbar,
         );
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
         element = element.min_h_0().min_w_0();
         let show_header = last_op(snapshot, node, OP_TABLE_SHOW_HEADER).is_none_or(|op| op.a != 0);
         if show_header {
-            element = element.child(table_header_strip(&spec));
+            let header = table_header_strip(&spec).flex_grow();
+            if configuration.scrollbar.gutter > px(0.) {
+                // The header excludes the gutter too, so fraction columns align with row cells.
+                element = element.child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .flex_shrink_0()
+                        .child(header)
+                        .child(gutter_spacer(configuration.scrollbar.gutter)),
+                );
+            } else {
+                element = element.child(header);
+            }
         }
-        element
-            .child(list_element)
-            .child(overlay)
-            .into_any_element()
+        if configuration.scrollbar.gutter > px(0.) {
+            element = element.child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .flex_grow()
+                    .min_h_0()
+                    .min_w_0()
+                    .child(list_element)
+                    .child(gutter_spacer(configuration.scrollbar.gutter)),
+            );
+        } else {
+            element = element.child(list_element);
+        }
+        element.child(overlay).into_any_element()
     }
 
     fn materialize_input(
@@ -836,6 +883,20 @@ fn apply_table_cell_layout(
         2 => element.justify_end(),
         _ => element,
     }
+}
+
+/// Resolves scrollbar chrome from the declared visual width and gutter mode.
+fn scrollbar_metrics(snapshot: &ValidatedSnapshot, node: &SnapshotNode) -> ScrollbarMetrics {
+    let width = last_op(snapshot, node, OP_SCROLLBAR_WIDTH).map_or(DEFAULT_SCROLLBAR_WIDTH, |op| {
+        px(f32::from_bits(op.a as u32))
+    });
+    let gutter_enabled = last_op(snapshot, node, OP_SCROLLBAR_GUTTER).is_some_and(|op| op.a != 0);
+    ScrollbarMetrics::new(width, gutter_enabled)
+}
+
+/// The reserved spacer column that keeps virtualized content off the scrollbar track.
+fn gutter_spacer(gutter: gpui::Pixels) -> gpui::Div {
+    div().flex_shrink_0().w(gutter)
 }
 
 /// Native header strip for a table. Fixed chrome by design: product styling belongs to

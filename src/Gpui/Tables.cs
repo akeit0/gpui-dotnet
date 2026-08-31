@@ -44,7 +44,9 @@ public readonly struct TableOptions
         float estimatedItemHeight = 40,
         bool showHeader = true,
         bool smoothScrolling = true,
-        bool showScrollbar = true
+        bool showScrollbar = true,
+        bool scrollbarGutter = false,
+        float scrollbarWidth = 8
     )
     {
         if (batchSize is < 1 or > 512)
@@ -59,6 +61,7 @@ public readonly struct TableOptions
         {
             throw new ArgumentOutOfRangeException(nameof(estimatedItemHeight));
         }
+        ScrollOptions.ValidateScrollbarWidth(scrollbarWidth);
 
         BatchSize = batchSize;
         Overdraw = overdraw;
@@ -66,6 +69,8 @@ public readonly struct TableOptions
         ShowHeader = showHeader;
         SmoothScrolling = smoothScrolling;
         ShowScrollbar = showScrollbar;
+        ScrollbarGutter = scrollbarGutter;
+        ScrollbarWidth = scrollbarWidth;
         _initialized = true;
     }
 
@@ -75,6 +80,8 @@ public readonly struct TableOptions
     public bool ShowHeader { get; }
     public bool SmoothScrolling { get; }
     public bool ShowScrollbar { get; }
+    public bool ScrollbarGutter { get; }
+    public float ScrollbarWidth { get; }
 
     internal int EffectiveBatchSize => _initialized ? BatchSize : 48;
     internal float EffectiveOverdraw => _initialized ? Overdraw : 240;
@@ -82,4 +89,6 @@ public readonly struct TableOptions
     internal bool EffectiveShowHeader => !_initialized || ShowHeader;
     internal bool EffectiveSmoothScrolling => !_initialized || SmoothScrolling;
     internal bool EffectiveShowScrollbar => !_initialized || ShowScrollbar;
+    internal bool EffectiveScrollbarGutter => _initialized && ScrollbarGutter;
+    internal float EffectiveScrollbarWidth => _initialized ? ScrollbarWidth : 8;
 }

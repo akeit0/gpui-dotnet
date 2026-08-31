@@ -40,18 +40,41 @@ public readonly struct ScrollOptions
 {
     private readonly bool _initialized;
 
-    public ScrollOptions(bool smoothScrolling = true, bool showScrollbar = true)
+    public ScrollOptions(
+        bool smoothScrolling = true,
+        bool showScrollbar = true,
+        bool scrollbarGutter = false,
+        float scrollbarWidth = 8
+    )
     {
+        ValidateScrollbarWidth(scrollbarWidth);
         SmoothScrolling = smoothScrolling;
         ShowScrollbar = showScrollbar;
+        ScrollbarGutter = scrollbarGutter;
+        ScrollbarWidth = scrollbarWidth;
         _initialized = true;
     }
 
     public bool SmoothScrolling { get; }
     public bool ShowScrollbar { get; }
+    public bool ScrollbarGutter { get; }
+    public float ScrollbarWidth { get; }
 
     internal bool EffectiveSmoothScrolling => !_initialized || SmoothScrolling;
     internal bool EffectiveShowScrollbar => !_initialized || ShowScrollbar;
+    internal bool EffectiveScrollbarGutter => _initialized && ScrollbarGutter;
+    internal float EffectiveScrollbarWidth => _initialized ? ScrollbarWidth : 8;
+
+    internal static void ValidateScrollbarWidth(float width)
+    {
+        if (!float.IsFinite(width) || width is < 3f or > 32f)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(ScrollbarWidth),
+                "Scrollbar width must be finite and between 3 and 32 px."
+            );
+        }
+    }
 }
 
 /// <summary>
@@ -68,7 +91,9 @@ public readonly struct ListOptions
         ListAlignment alignment = ListAlignment.Top,
         float estimatedItemHeight = 40,
         bool smoothScrolling = true,
-        bool showScrollbar = true
+        bool showScrollbar = true,
+        bool scrollbarGutter = false,
+        float scrollbarWidth = 8
     )
     {
         if (batchSize is < 1 or > 512)
@@ -87,12 +112,15 @@ public readonly struct ListOptions
         {
             throw new ArgumentOutOfRangeException(nameof(estimatedItemHeight));
         }
+        ScrollOptions.ValidateScrollbarWidth(scrollbarWidth);
         BatchSize = batchSize;
         Overdraw = overdraw;
         Alignment = alignment;
         EstimatedItemHeight = estimatedItemHeight;
         SmoothScrolling = smoothScrolling;
         ShowScrollbar = showScrollbar;
+        ScrollbarGutter = scrollbarGutter;
+        ScrollbarWidth = scrollbarWidth;
         _initialized = true;
     }
 
@@ -102,6 +130,8 @@ public readonly struct ListOptions
     public float EstimatedItemHeight { get; }
     public bool SmoothScrolling { get; }
     public bool ShowScrollbar { get; }
+    public bool ScrollbarGutter { get; }
+    public float ScrollbarWidth { get; }
 
     internal int EffectiveBatchSize => _initialized ? BatchSize : 48;
     internal float EffectiveOverdraw => _initialized ? Overdraw : 240;
@@ -109,6 +139,8 @@ public readonly struct ListOptions
     internal float EffectiveEstimatedItemHeight => _initialized ? EstimatedItemHeight : 40;
     internal bool EffectiveSmoothScrolling => !_initialized || SmoothScrolling;
     internal bool EffectiveShowScrollbar => !_initialized || ShowScrollbar;
+    internal bool EffectiveScrollbarGutter => _initialized && ScrollbarGutter;
+    internal float EffectiveScrollbarWidth => _initialized ? ScrollbarWidth : 8;
 }
 
 /// <summary>

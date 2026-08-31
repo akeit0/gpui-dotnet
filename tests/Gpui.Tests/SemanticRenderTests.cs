@@ -335,7 +335,7 @@ public sealed class SemanticRenderTests
 
             var stats = arena.GetStats();
             Assert.Equal(1, stats.Nodes);
-            Assert.Equal(10, stats.Ops);
+            Assert.Equal(12, stats.Ops);
         }
         finally
         {
@@ -414,7 +414,7 @@ public sealed class SemanticRenderTests
 
             var stats = arena.GetStats();
             Assert.Equal(1, stats.Nodes);
-            Assert.Equal(10, stats.Ops);
+            Assert.Equal(12, stats.Ops);
         }
         finally
         {

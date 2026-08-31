@@ -104,7 +104,12 @@ internal sealed partial class TableView : View
                 "service-grid",
                 new ListDataSource(ItemCount, 1),
                 Rows.ServiceRow,
-                new TableOptions(batchSize: 64, overdraw: 320, estimatedItemHeight: 38),
+                new TableOptions(
+                    batchSize: 64,
+                    overdraw: 320,
+                    estimatedItemHeight: 38,
+                    scrollbarGutter: true
+                ),
                 Columns
             )
             .Grow()

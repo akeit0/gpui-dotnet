@@ -89,6 +89,8 @@ namespace Gpui.Interop
         PopoverMenuMarginPx = 631,
         TableShowHeader = 318,
         TableCellColumn = 319,
+        ScrollbarGutter = 320,
+        ScrollbarWidth = 321,
     }
 
     internal enum ValueKind : ushort
@@ -102,8 +104,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 18;
-        internal const ulong SchemaHash = 0x281FBED1439FB468UL;
+        internal const uint SchemaVersion = 19;
+        internal const ulong SchemaHash = 0x9E511801427BB909UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -191,6 +193,8 @@ namespace Gpui.Interop
             OpCode.PopoverMenuMarginPx => ValueKind.F32,
             OpCode.TableShowHeader => ValueKind.U32,
             OpCode.TableCellColumn => ValueKind.U32,
+            OpCode.ScrollbarGutter => ValueKind.U32,
+            OpCode.ScrollbarWidth => ValueKind.F32,
             _ => null,
         };
 
@@ -280,6 +284,8 @@ namespace Gpui.Interop
             OpCode.PopoverMenuMarginPx => 0x0000000000004000UL,
             OpCode.TableShowHeader => 0x0000000000008000UL,
             OpCode.TableCellColumn => 0x0000000000000001UL,
+            OpCode.ScrollbarGutter => 0x0000000000000020UL,
+            OpCode.ScrollbarWidth => 0x0000000000000020UL,
             _ => 0,
         };
 
