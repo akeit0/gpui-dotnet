@@ -319,7 +319,15 @@ internal static class BindingGenerator
 
         if (
             validation.Kind
-            is not ("bool" or "u32Min" or "u32Max" or "u32Range" or "f32Min" or "f32Range" or "packedTableColumn")
+            is not (
+                "bool"
+                or "u32Min"
+                or "u32Max"
+                or "u32Range"
+                or "f32Min"
+                or "f32Range"
+                or "packedTableColumn"
+            )
         )
         {
             throw new InvalidOperationException(
@@ -336,10 +344,7 @@ internal static class BindingGenerator
                 $"Operation {operation.Name} uses a {validation.Kind} validation but is not u32."
             );
         }
-        if (
-            validation.Kind is "f32Min" or "f32Range"
-            && operation.Value != "f32"
-        )
+        if (validation.Kind is "f32Min" or "f32Range" && operation.Value != "f32")
         {
             throw new InvalidOperationException(
                 $"Operation {operation.Name} uses a {validation.Kind} validation but is not f32."
@@ -368,10 +373,7 @@ internal static class BindingGenerator
             {
                 ValidateIntegerBound(validation.Max, operation, "max");
             }
-            if (
-                validation.Kind == "u32Range"
-                && validation.Min!.Value > validation.Max!.Value
-            )
+            if (validation.Kind == "u32Range" && validation.Min!.Value > validation.Max!.Value)
             {
                 throw new InvalidOperationException(
                     $"Operation {operation.Name} has a validation range with min greater than max."
@@ -395,10 +397,7 @@ internal static class BindingGenerator
                     $"Operation {operation.Name} requires a finite validation max."
                 );
             }
-            if (
-                validation.Kind == "f32Range"
-                && validation.Min!.Value > validation.Max!.Value
-            )
+            if (validation.Kind == "f32Range" && validation.Min!.Value > validation.Max!.Value)
             {
                 throw new InvalidOperationException(
                     $"Operation {operation.Name} has a validation range with min greater than max."
@@ -952,8 +951,7 @@ internal static class BindingGenerator
         builder.AppendLine("}");
         builder.AppendLine();
         var payloadOperations = schema
-            .Operations
-            .Where(operation => operation.Payload == "event")
+            .Operations.Where(operation => operation.Payload == "event")
             .Select(operation => $"OP_{UpperSnake(operation.Name)}")
             .ToArray();
         builder.AppendLine("pub fn allows_payload(operation: u16) -> bool {");
@@ -975,9 +973,7 @@ internal static class BindingGenerator
         builder.AppendLine("        && (a >> 34) & 0b11 <= 2");
         builder.AppendLine("        && f32::from_bits(a as u32).is_finite()");
         builder.AppendLine("        && f32::from_bits(a as u32) > 0.0");
-        builder.AppendLine(
-            "        && ((a >> 32) & 0b11 != 1 || f32::from_bits(a as u32) <= 1.0)"
-        );
+        builder.AppendLine("        && ((a >> 32) & 0b11 != 1 || f32::from_bits(a as u32) <= 1.0)");
         builder.AppendLine("}");
         builder.AppendLine();
         builder.AppendLine("pub fn payload_error(operation: u16, a: u64) -> i32 {");
@@ -1133,7 +1129,9 @@ internal static class BindingGenerator
                 $"BitConverter.UInt32BitsToSingle((uint)a) >= {CSharpFloatLiteral(validation.Min!.Value)} && BitConverter.UInt32BitsToSingle((uint)a) <= {CSharpFloatLiteral(validation.Max!.Value)}",
             "packedTableColumn" =>
                 "(a >> 36) == 0 && ((a >> 32) & 0b11) <= 1 && ((a >> 34) & 0b11) <= 2 && float.IsFinite(BitConverter.UInt32BitsToSingle((uint)a)) && BitConverter.UInt32BitsToSingle((uint)a) > 0f && (((a >> 32) & 0b11) != 1 || BitConverter.UInt32BitsToSingle((uint)a) <= 1f)",
-            _ => throw new InvalidOperationException($"Unknown validation kind '{validation.Kind}'."),
+            _ => throw new InvalidOperationException(
+                $"Unknown validation kind '{validation.Kind}'."
+            ),
         };
 
     private static string RustValidationExpression(Validation validation) =>
@@ -1148,9 +1146,10 @@ internal static class BindingGenerator
                 $"f32::from_bits(a as u32) {(validation.MinExclusive ? ">" : ">=")} {RustFloatLiteral(validation.Min!.Value)}",
             "f32Range" =>
                 $"f32_payload_in_range(a, {RustFloatLiteral(validation.Min!.Value)}, {RustFloatLiteral(validation.Max!.Value)})",
-            "packedTableColumn" =>
-                "valid_packed_table_column(a)",
-            _ => throw new InvalidOperationException($"Unknown validation kind '{validation.Kind}'."),
+            "packedTableColumn" => "valid_packed_table_column(a)",
+            _ => throw new InvalidOperationException(
+                $"Unknown validation kind '{validation.Kind}'."
+            ),
         };
 
     private static string CSharpUnsignedLiteral(double value) => $"{checked((ulong)value)}UL";
