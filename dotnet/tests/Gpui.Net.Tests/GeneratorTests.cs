@@ -31,12 +31,22 @@ public sealed class GeneratorTests
 
         var result = RunGenerator(source);
 
-        Assert.Empty(result.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(
+            result.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+        );
         var generated = Assert.Single(result.GeneratedTrees).ToString();
         Assert.Contains("CreateGpuiView", generated, StringComparison.Ordinal);
-        Assert.Contains("Callback<global::Gpui.ClickEvent> Save", generated, StringComparison.Ordinal);
+        Assert.Contains(
+            "Callback<global::Gpui.ClickEvent> Save",
+            generated,
+            StringComparison.Ordinal
+        );
         Assert.Contains("DispatchClickAsync", generated, StringComparison.Ordinal);
-        Assert.Contains("Callback<global::Gpui.InputEvent> SearchChanged", generated, StringComparison.Ordinal);
+        Assert.Contains(
+            "Callback<global::Gpui.InputEvent> SearchChanged",
+            generated,
+            StringComparison.Ordinal
+        );
         Assert.Contains("DispatchInputAsync", generated, StringComparison.Ordinal);
         Assert.Contains("ListItemRenderer Row", generated, StringComparison.Ordinal);
     }
@@ -73,7 +83,12 @@ public sealed class GeneratorTests
 
         var compilation = CSharpCompilation.Create(
             "GeneratorProbe",
-            [CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest))],
+            [
+                CSharpSyntaxTree.ParseText(
+                    source,
+                    CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest)
+                ),
+            ],
             references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
         );

@@ -15,9 +15,7 @@ var mainWindow = application.OpenWindow(
         Title = stressGrowth ? "GPUI.NET Arena Growth" : "GPUI.NET Components",
         Width = 1040,
         Height = 700,
-        TitleBarStyle = stressGrowth
-            ? WindowTitleBarStyle.System
-            : WindowTitleBarStyle.Custom,
+        TitleBarStyle = stressGrowth ? WindowTitleBarStyle.System : WindowTitleBarStyle.Custom,
     }
 );
 if (rootView is SampleShellView mainShell)
@@ -63,9 +61,11 @@ internal sealed partial class SampleShellView : View
     [GpuiEvent]
     private void OpenNewWindow()
     {
-        var application = Application ?? throw new InvalidOperationException(
-            "The sample root is not associated with its application."
-        );
+        var application =
+            Application
+            ?? throw new InvalidOperationException(
+                "The sample root is not associated with its application."
+            );
         var root = new CompanionWindowView { Origin = "Opened from the Windows gallery" };
         var window = application.OpenWindow(
             root,
@@ -86,9 +86,11 @@ internal sealed partial class SampleShellView : View
     [GpuiEvent]
     private void OpenCustomTitleBarWindow()
     {
-        var application = Application ?? throw new InvalidOperationException(
-            "The sample root is not associated with its application."
-        );
+        var application =
+            Application
+            ?? throw new InvalidOperationException(
+                "The sample root is not associated with its application."
+            );
         var root = new CustomTitleBarWindowView();
         var window = application.OpenWindow(
             root,
@@ -107,8 +109,9 @@ internal sealed partial class SampleShellView : View
     [GpuiEvent]
     private void CloseWindow()
     {
-        (Window ?? throw new InvalidOperationException("The sample root has no window handle."))
-            .Close();
+        (
+            Window ?? throw new InvalidOperationException("The sample root has no window handle.")
+        ).Close();
     }
 
     [GpuiEvent]
@@ -154,15 +157,22 @@ internal sealed partial class SampleShellView : View
             _page switch
             {
                 SamplePage.Overview => "retained ScrollHandle; wheel scrolling stays native",
-                SamplePage.Activity => "20,000 variable-height rows; managed rendering is range-batched",
+                SamplePage.Activity =>
+                    "20,000 variable-height rows; managed rendering is range-batched",
                 SamplePage.Images => "GPUI-native decoding, caching, fitting, and grayscale",
-                SamplePage.Inputs => "retained native editing, IME, selection, focus, and UTF-8 events",
-                SamplePage.Overlays => "deferred overlays, native tooltip timing, flipping, and dismissal",
-                SamplePage.Windows => "one application, independent roots, stable handles, isolated state",
+                SamplePage.Inputs =>
+                    "retained native editing, IME, selection, focus, and UTF-8 events",
+                SamplePage.Overlays =>
+                    "deferred overlays, native tooltip timing, flipping, and dismissal",
+                SamplePage.Windows =>
+                    "one application, independent roots, stable handles, isolated state",
                 _ => throw new InvalidOperationException("Unknown sample page."),
             }
         );
-        var routeHeader = ui.Child<RouteHeaderView, RouteHeaderProps>("route-header", in routeProps);
+        var routeHeader = ui.Child<RouteHeaderView, RouteHeaderProps>(
+            "route-header",
+            in routeProps
+        );
 
         var topBar = ui.HStack(
                 routeHeader,
@@ -244,9 +254,7 @@ internal sealed partial class SampleShellView : View
             )
         );
 
-        return ui.HStack(fileMenu, viewMenu, helpMenu)
-            .Height(Percent(100))
-            .ItemsCenter();
+        return ui.HStack(fileMenu, viewMenu, helpMenu).Height(Percent(100)).ItemsCenter();
     }
 
     private static Element TitleBarMenuTrigger(
@@ -381,7 +389,9 @@ internal sealed partial class SampleShellView : View
     private Element RenderWindowGallery(ref RenderContext ui) =>
         ui.VStack(
                 ui.VStack(
-                        ui.Text("Open a genuinely different root view in the same GPUI application."u8)
+                        ui.Text(
+                                "Open a genuinely different root view in the same GPUI application."u8
+                            )
                             .FontSize(Px(18))
                             .TextColor(Rgb(15, 23, 42)),
                         ui.Text(
@@ -451,9 +461,7 @@ internal sealed partial class CustomTitleBarWindowView : View
                 ui.Text("Managed visuals, native window behavior"u8)
                     .FontSize(Px(24))
                     .TextColor(Rgb(15, 23, 42)),
-                ui.Text(
-                        "Drag or double-click the dark header. Pointer motion stays in GPUI."u8
-                    )
+                ui.Text("Drag or double-click the dark header. Pointer motion stays in GPUI."u8)
                     .FontSize(Px(13))
                     .TextColor(Rgb(71, 85, 105)),
                 ui.VStack(
@@ -487,29 +495,16 @@ internal sealed partial class CustomTitleBarWindowView : View
 internal static class SampleTitleBar
 {
     internal static Element Render(ref RenderContext ui, ReadOnlySpan<byte> utf8Title) =>
-        Render(
-            ref ui,
-            ui.Text(utf8Title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)),
-            null
-        );
+        Render(ref ui, ui.Text(utf8Title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)), null);
 
     internal static Element Render(
         ref RenderContext ui,
         ReadOnlySpan<byte> utf8Title,
         Element menuBar
-    ) =>
-        Render(
-            ref ui,
-            ui.Text(utf8Title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)),
-            menuBar
-        );
+    ) => Render(ref ui, ui.Text(utf8Title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)), menuBar);
 
     internal static Element Render(ref RenderContext ui, ReadOnlySpan<char> title) =>
-        Render(
-            ref ui,
-            ui.Text(title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)),
-            null
-        );
+        Render(ref ui, ui.Text(title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)), null);
 
     private static Element Render(ref RenderContext ui, Element title, Element? menuBar)
     {
@@ -518,10 +513,7 @@ internal static class SampleTitleBar
         ReadOnlySpan<byte> maximizeGlyph = windowsCaptionGlyphs ? "\uE922"u8 : "□"u8;
         ReadOnlySpan<byte> closeGlyph = windowsCaptionGlyphs ? "\uE8BB"u8 : "×"u8;
         var glyphSize = windowsCaptionGlyphs ? 10 : 15;
-        var titleRegion = ui.HStack(
-                ui.Div().Width(Px(OperatingSystem.IsMacOS() ? 64 : 0)),
-                title
-            )
+        var titleRegion = ui.HStack(ui.Div().Width(Px(OperatingSystem.IsMacOS() ? 64 : 0)), title)
             .ItemsCenter()
             .Padding(Px(9))
             .Height(Percent(100))
@@ -566,10 +558,7 @@ internal static class SampleTitleBar
                     Rgb(232, 17, 32)
                 )
             );
-        return titleBar
-            .Height(Px(38))
-            .Width(Percent(100))
-            .Background(Rgb(15, 23, 42));
+        return titleBar.Height(Px(38)).Width(Percent(100)).Background(Rgb(15, 23, 42));
     }
 
     private static Element Button(
@@ -613,8 +602,9 @@ internal sealed partial class CompanionWindowView : View
     [GpuiEvent]
     private void CloseWindow()
     {
-        (Window ?? throw new InvalidOperationException("The companion has no window handle."))
-            .Close();
+        (
+            Window ?? throw new InvalidOperationException("The companion has no window handle.")
+        ).Close();
     }
 
     protected override Element Render(ref RenderContext ui)
@@ -738,7 +728,9 @@ internal sealed partial class DashboardView : View
                     ui.Text($"Scrollable card {index + 1:D2}")
                         .FontSize(Px(16))
                         .TextColor(Rgb(15, 23, 42)),
-                    ui.Text("Wheel/trackpad updates the Rust-owned offset without a managed callback."u8)
+                    ui.Text(
+                            "Wheel/trackpad updates the Rust-owned offset without a managed callback."u8
+                        )
                         .FontSize(Px(12))
                         .TextColor(Rgb(100, 116, 139))
                 )
@@ -805,7 +797,13 @@ internal sealed partial class ActivityView : View
 
         return ui.Button("activity-row", $"#{index:N0}  •  {heightHint}")
             .OnClick(Events.SelectRow, checked((ulong)index))
-            .Padding(Px(selected ? 18 : index % 7 == 0 ? 14 : 9))
+            .Padding(
+                Px(
+                    selected ? 18
+                    : index % 7 == 0 ? 14
+                    : 9
+                )
+            )
             .Background(selected ? Rgb(224, 231, 255) : Rgb(255, 255, 255))
             .BorderColor(selected ? Rgb(99, 102, 241) : Rgb(226, 232, 240))
             .TextColor(selected ? Rgb(55, 48, 163) : Rgb(30, 41, 59));
@@ -814,9 +812,7 @@ internal sealed partial class ActivityView : View
     protected override Element Render(ref RenderContext ui)
     {
         var header = ui.HStack(
-                ui.Text($"{ItemCount:N0} virtual rows")
-                    .FontSize(Px(14))
-                    .TextColor(Rgb(30, 41, 59)),
+                ui.Text($"{ItemCount:N0} virtual rows").FontSize(Px(14)).TextColor(Rgb(30, 41, 59)),
                 ui.Spacer(),
                 ui.Button("jump-middle", "Jump to 10,000")
                     .OnClick(Events.JumpToMiddle)
@@ -883,10 +879,7 @@ internal sealed partial class ImageGalleryView : View
             .Radius(Px(12))
             .Background(Rgb(226, 232, 240));
 
-        return ui.VStack(
-                ui.Text(label).FontSize(Px(14)).TextColor(Rgb(30, 41, 59)),
-                image
-            )
+        return ui.VStack(ui.Text(label).FontSize(Px(14)).TextColor(Rgb(30, 41, 59)), image)
             .Gap(Px(8))
             .Padding(Px(12))
             .Width(Px(240))
@@ -948,10 +941,7 @@ internal sealed partial class InputGalleryView : View
         var search = Field(
             ref ui,
             "Interactive + UTF-8 events",
-            ui.Input(
-                    "search"u8,
-                    new Utf8InputOptions(placeholder: "Search or enter 日本語…"u8)
-                )
+            ui.Input("search"u8, new Utf8InputOptions(placeholder: "Search or enter 日本語…"u8))
                 .OnChanged(Events.SearchChanged)
                 .OnSubmitted(Events.SearchSubmitted)
                 .OnFocusChanged(Events.SearchFocusChanged)
@@ -978,23 +968,24 @@ internal sealed partial class InputGalleryView : View
         var disabled = Field(
             ref ui,
             "Disabled",
-            ui.Input(
-                    "disabled"u8,
-                    new Utf8InputOptions("Cannot focus or edit"u8, disabled: true)
-                )
+            ui.Input("disabled"u8, new Utf8InputOptions("Cannot focus or edit"u8, disabled: true))
                 .Width(Percent(100))
         );
 
         var controls = ui.HStack(
                 ui.Button("focus-search", "Focus").OnClick(Events.FocusSearch).Padding(Px(8)),
-                ui.Button("select-search", "Select all").OnClick(Events.SelectSearch).Padding(Px(8)),
+                ui.Button("select-search", "Select all")
+                    .OnClick(Events.SelectSearch)
+                    .Padding(Px(8)),
                 ui.Button("set-japanese", "Set UTF-8").OnClick(Events.SetJapanese).Padding(Px(8)),
                 ui.Button("clear-search", "Clear").OnClick(Events.ClearSearch).Padding(Px(8))
             )
             .Gap(Px(8));
 
         return ui.VStack(
-                ui.Text("Editing and pointer/keyboard state stay in Rust. Managed callbacks are opt-in."u8)
+                ui.Text(
+                        "Editing and pointer/keyboard state stay in Rust. Managed callbacks are opt-in."u8
+                    )
                     .FontSize(Px(13))
                     .TextColor(Rgb(71, 85, 105)),
                 ui.HStack(search, password).Gap(Px(14)),
@@ -1013,11 +1004,7 @@ internal sealed partial class InputGalleryView : View
             .Grow();
     }
 
-    private static Element Field(
-        ref RenderContext ui,
-        ReadOnlySpan<char> label,
-        Element input
-    ) =>
+    private static Element Field(ref RenderContext ui, ReadOnlySpan<char> label, Element input) =>
         ui.VStack(ui.Text(label).FontSize(Px(12)).TextColor(Rgb(71, 85, 105)), input)
             .Gap(Px(6))
             .Padding(Px(12))
@@ -1106,7 +1093,9 @@ internal sealed partial class OverlayGalleryView : View
                                     ui.Text("Native tooltip"u8)
                                         .FontSize(Px(13))
                                         .TextColor(Rgb(255, 255, 255)),
-                                    ui.Text("Shows after 500 ms and stays open while you cross the gap."u8)
+                                    ui.Text(
+                                            "Shows after 500 ms and stays open while you cross the gap."u8
+                                        )
                                         .FontSize(Px(11))
                                         .TextColor(Rgb(203, 213, 225))
                                 )
@@ -1172,10 +1161,10 @@ internal sealed partial class OverlayGalleryView : View
                     )
                     .Width(Px(360)),
                 ui.VStack(
-                        ui.Text("Interaction checks"u8)
-                            .FontSize(Px(14))
-                            .TextColor(Rgb(30, 41, 59)),
-                        ui.Text("• Tooltips use deferred content and disappear on pointer press."u8),
+                        ui.Text("Interaction checks"u8).FontSize(Px(14)).TextColor(Rgb(30, 41, 59)),
+                        ui.Text(
+                            "• Tooltips use deferred content and disappear on pointer press."u8
+                        ),
                         ui.Text("• Application content can provide a managed right-click menu."u8),
                         ui.Text("• Custom title bars preserve the operating system window menu."u8),
                         ui.Text("• Click the dim backdrop or press Escape to dismiss."u8),
@@ -1218,7 +1207,9 @@ internal sealed partial class OverlayGalleryView : View
                     .Width(Percent(100)),
                 ui.Input(
                         "overlay-second-input"u8,
-                        new Utf8InputOptions(placeholder: "Second modal tab stop; IME works here…"u8)
+                        new Utf8InputOptions(
+                            placeholder: "Second modal tab stop; IME works here…"u8
+                        )
                     )
                     .Width(Percent(100)),
                 ui.Text("Escape is handled after focused child controls get the key first."u8)
@@ -1239,9 +1230,7 @@ internal sealed partial class OverlayGalleryView : View
             margin: isSheet ? 12 : 24,
             backdrop: Rgba(15, 23, 42, 150)
         );
-        var overlay = ui
-            .Overlay("sample-overlay"u8, panel, options)
-            .OnDismiss(Events.CloseOverlay);
+        var overlay = ui.Overlay("sample-overlay"u8, panel, options).OnDismiss(Events.CloseOverlay);
 
         return ui.VStack(page, overlay).Grow().Height(Percent(100));
     }
@@ -1263,9 +1252,7 @@ internal sealed partial class CounterCardView : View
     protected override Element Render(ref RenderContext ui) =>
         ui.VStack(
                 ui.Text($"Counter: {_count:N0}"),
-                ui.Button("increment", "Async increment")
-                    .OnClick(Events.Increment)
-                    .Padding(Px(10))
+                ui.Button("increment", "Async increment").OnClick(Events.Increment).Padding(Px(10))
             )
             .Gap(Px(10));
 }

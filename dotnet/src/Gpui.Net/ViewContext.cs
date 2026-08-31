@@ -65,7 +65,10 @@ public readonly ref struct ViewContext
         }
         if (utf8Key.Contains((byte)0))
         {
-            throw new ArgumentException("A native resource key cannot contain NUL.", nameof(utf8Key));
+            throw new ArgumentException(
+                "A native resource key cannot contain NUL.",
+                nameof(utf8Key)
+            );
         }
     }
 }

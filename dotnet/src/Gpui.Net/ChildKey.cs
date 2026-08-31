@@ -19,9 +19,11 @@ public readonly struct ChildKey : IEquatable<ChildKey>
         _text = text;
     }
 
-    public ChildKey(long value) : this(KeyKind.Int64, unchecked((ulong)value)) { }
+    public ChildKey(long value)
+        : this(KeyKind.Int64, unchecked((ulong)value)) { }
 
-    public ChildKey(ulong value) : this(KeyKind.UInt64, value) { }
+    public ChildKey(ulong value)
+        : this(KeyKind.UInt64, value) { }
 
     public ChildKey(string value)
         : this(KeyKind.String, 0, 0, value ?? throw new ArgumentNullException(nameof(value)))
@@ -43,10 +45,15 @@ public readonly struct ChildKey : IEquatable<ChildKey>
     }
 
     public static implicit operator ChildKey(string value) => new(value);
+
     public static implicit operator ChildKey(int value) => new((long)value);
+
     public static implicit operator ChildKey(uint value) => new((ulong)value);
+
     public static implicit operator ChildKey(long value) => new(value);
+
     public static implicit operator ChildKey(ulong value) => new(value);
+
     public static implicit operator ChildKey(Guid value) => new(value);
 
     public bool Equals(ChildKey other) =>
@@ -106,7 +113,9 @@ internal readonly struct ChildSlot : IEquatable<ChildSlot>
     }
 
     internal static ChildSlot Auto => new(ChildSlotKind.Auto, 0, default);
-    internal static ChildSlot Positional(uint position) => new(ChildSlotKind.Positional, position, default);
+
+    internal static ChildSlot Positional(uint position) =>
+        new(ChildSlotKind.Positional, position, default);
 
     internal static ChildSlot Keyed(ChildKey key)
     {

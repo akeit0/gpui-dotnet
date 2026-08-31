@@ -70,7 +70,9 @@ public abstract class View
     {
         var invalidate =
             Volatile.Read(ref _invalidate)
-            ?? throw new InvalidOperationException("The view is not mounted in a GPUI application.");
+            ?? throw new InvalidOperationException(
+                "The view is not mounted in a GPUI application."
+            );
         invalidate(this);
     }
 
@@ -117,7 +119,6 @@ public abstract class View
         return new Callback<InputEvent>(((ulong)viewHandle << 32) | handlerId);
     }
 
-
     /// <summary>
     /// Binds a generated list-item renderer id to this mounted view. The token is consumed by
     /// native virtualization and is never a managed delegate.
@@ -147,13 +148,17 @@ public abstract class View
     /// </summary>
     protected virtual ValueTask DispatchClickAsync(uint handlerId, ClickEvent clickEvent) =>
         ValueTask.FromException(
-            new InvalidOperationException($"Generated click handler 0x{handlerId:X8} is not defined.")
+            new InvalidOperationException(
+                $"Generated click handler 0x{handlerId:X8} is not defined."
+            )
         );
 
     /// <summary>Generated views override this with input-event dispatch.</summary>
     protected virtual ValueTask DispatchInputAsync(uint handlerId, InputEvent inputEvent) =>
         ValueTask.FromException(
-            new InvalidOperationException($"Generated input handler 0x{handlerId:X8} is not defined.")
+            new InvalidOperationException(
+                $"Generated input handler 0x{handlerId:X8} is not defined."
+            )
         );
 
     /// <summary>
@@ -322,18 +327,19 @@ public abstract class View
     {
         var dispatch =
             Volatile.Read(ref _resourceCommand)
-            ?? throw new InvalidOperationException("The view is not mounted in a GPUI application.");
+            ?? throw new InvalidOperationException(
+                "The view is not mounted in a GPUI application."
+            );
         dispatch(this, command);
     }
 
-    internal void DispatchUtf8InputValue(
-        ReadOnlySpan<byte> utf8Key,
-        ReadOnlySpan<byte> utf8Value
-    )
+    internal void DispatchUtf8InputValue(ReadOnlySpan<byte> utf8Key, ReadOnlySpan<byte> utf8Value)
     {
         var dispatch =
             Volatile.Read(ref _utf8InputValue)
-            ?? throw new InvalidOperationException("The view is not mounted in a GPUI application.");
+            ?? throw new InvalidOperationException(
+                "The view is not mounted in a GPUI application."
+            );
         dispatch(this, utf8Key, utf8Value);
     }
 
@@ -341,7 +347,9 @@ public abstract class View
     {
         var invalidate =
             Volatile.Read(ref _invalidate)
-            ?? throw new InvalidOperationException("The view is not mounted in a GPUI application.");
+            ?? throw new InvalidOperationException(
+                "The view is not mounted in a GPUI application."
+            );
         invalidate(this);
     }
 
@@ -350,7 +358,9 @@ public abstract class View
         ArgumentNullException.ThrowIfNull(callback);
         var post =
             Volatile.Read(ref _post)
-            ?? throw new InvalidOperationException("The view is not mounted in a GPUI application.");
+            ?? throw new InvalidOperationException(
+                "The view is not mounted in a GPUI application."
+            );
         post(callback);
     }
 }
@@ -404,12 +414,7 @@ internal unsafe interface IViewRenderer
     )
         where TView : View<TProps>, IGeneratedViewFactory<TView>;
 
-    Element RenderChild(
-        View view,
-        View parent,
-        ChildSlot slot,
-        Interop.RenderArena* destination
-    );
+    Element RenderChild(View view, View parent, ChildSlot slot, Interop.RenderArena* destination);
 
     Element RenderChild<TProps>(
         View<TProps> view,

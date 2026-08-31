@@ -55,8 +55,16 @@ public readonly unsafe ref partial struct RenderContext
     )
     {
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
-        ArenaWriter.AddU32(element.Inner, OpCode.TooltipPlacement, (uint)options.EffectivePlacement);
-        ArenaWriter.AddU32(element.Inner, OpCode.TooltipAlignment, (uint)options.EffectiveAlignment);
+        ArenaWriter.AddU32(
+            element.Inner,
+            OpCode.TooltipPlacement,
+            (uint)options.EffectivePlacement
+        );
+        ArenaWriter.AddU32(
+            element.Inner,
+            OpCode.TooltipAlignment,
+            (uint)options.EffectiveAlignment
+        );
         ArenaWriter.AddU32(
             element.Inner,
             OpCode.TooltipShowDelayMs,

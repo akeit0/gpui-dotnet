@@ -64,9 +64,9 @@ internal static unsafe class ArenaWriter
         EnsureNodes(arena, 1);
         var byteCount = checked(
             Encoding.UTF8.GetByteCount(first)
-                + Encoding.UTF8.GetByteCount(second)
-                + Encoding.UTF8.GetByteCount(third)
-                + 2
+            + Encoding.UTF8.GetByteCount(second)
+            + Encoding.UTF8.GetByteCount(third)
+            + 2
         );
         EnsureUtf8(arena, byteCount);
 

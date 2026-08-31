@@ -53,7 +53,7 @@ Console.WriteLine(
 static Element Build(ref RenderContext ui)
 {
     const int iterationValue = 42;
-    var title = ui.Text($"Performance probe {iterationValue,6:D4}");
+    var title = ui.Text($"Performance probe {iterationValue, 6:D4}");
     var rowA = ui.HStack(ui.Text("A"u8), ui.Text("B"u8), ui.Text("C"u8)).Gap(Px(4)).ItemsCenter();
     var rowB = ui.HStack([ui.Text("D"u8), ui.Text("E"u8), ui.Text("F"u8)]).Gap(Px(4));
 

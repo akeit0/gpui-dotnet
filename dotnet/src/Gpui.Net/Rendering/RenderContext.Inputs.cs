@@ -41,10 +41,7 @@ public readonly unsafe ref partial struct RenderContext
     /// directly into the render arena without intermediate strings or transcoding.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Element<InputTag> Input(
-        ReadOnlySpan<byte> utf8Key,
-        Utf8InputOptions options = default
-    )
+    public Element<InputTag> Input(ReadOnlySpan<byte> utf8Key, Utf8InputOptions options = default)
     {
         if (utf8Key.IsEmpty)
         {
@@ -52,7 +49,10 @@ public readonly unsafe ref partial struct RenderContext
         }
         if (utf8Key.Contains((byte)0))
         {
-            throw new ArgumentException("An input resource key cannot contain NUL.", nameof(utf8Key));
+            throw new ArgumentException(
+                "An input resource key cannot contain NUL.",
+                nameof(utf8Key)
+            );
         }
 
         var element = ArenaWriter.AddCompositeNode<InputTag>(
@@ -114,7 +114,10 @@ public static partial class ElementExtensions
     {
         if (callback.IsDefault)
         {
-            throw new ArgumentException("A generated input callback is required.", nameof(callback));
+            throw new ArgumentException(
+                "A generated input callback is required.",
+                nameof(callback)
+            );
         }
         ArenaWriter.AddCallback(element, code, callback.Token);
     }

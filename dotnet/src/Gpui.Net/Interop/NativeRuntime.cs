@@ -62,7 +62,9 @@ public sealed unsafe class NativeRuntime
             || api->dispatch_application_command == null
         )
         {
-            throw new InvalidOperationException("The native API table is missing required entries.");
+            throw new InvalidOperationException(
+                "The native API table is missing required entries."
+            );
         }
 
         return new NativeRuntime(api);
@@ -210,7 +212,12 @@ public sealed unsafe class NativeRuntime
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static int Click(ulong sessionId, ulong eventToken, ulong eventPayload, NativeClickEvent* nativeEvent)
+    private static int Click(
+        ulong sessionId,
+        ulong eventToken,
+        ulong eventPayload,
+        NativeClickEvent* nativeEvent
+    )
     {
         try
         {
@@ -263,8 +270,9 @@ public sealed unsafe class NativeRuntime
                 || nativeEvent->reserved2 != 0
                 || nativeEvent->data_length < 0
                 || (nativeEvent->data_length != 0 && nativeEvent->data == null)
-                || nativeEvent->kind is < (ushort)InputEventKind.Changed
-                    or > (ushort)InputEventKind.FocusChanged
+                || nativeEvent->kind
+                    is < (ushort)InputEventKind.Changed
+                        or > (ushort)InputEventKind.FocusChanged
                 || (nativeEvent->flags & ~1u) != 0
                 || !Sessions.TryGetValue(sessionId, out var session)
             )
@@ -272,9 +280,10 @@ public sealed unsafe class NativeRuntime
                 return -112;
             }
 
-            var value = nativeEvent->data_length == 0
-                ? Array.Empty<byte>()
-                : new ReadOnlySpan<byte>(nativeEvent->data, nativeEvent->data_length).ToArray();
+            var value =
+                nativeEvent->data_length == 0
+                    ? Array.Empty<byte>()
+                    : new ReadOnlySpan<byte>(nativeEvent->data, nativeEvent->data_length).ToArray();
             var previousContext = SynchronizationContext.Current;
             SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
             try
@@ -412,12 +421,16 @@ public sealed unsafe class NativeRuntime
             var session = new ManagedSession(_runtime, window.Id, window.RootView);
             if (!_sessions.TryAdd(window.Id, session))
             {
-                throw new InvalidOperationException("Failed to register the managed window session.");
+                throw new InvalidOperationException(
+                    "Failed to register the managed window session."
+                );
             }
             if (!Sessions.TryAdd(window.Id, session))
             {
                 _sessions.TryRemove(window.Id, out _);
-                throw new InvalidOperationException("Failed to register the managed window session.");
+                throw new InvalidOperationException(
+                    "Failed to register the managed window session."
+                );
             }
 
             try
@@ -454,8 +467,7 @@ public sealed unsafe class NativeRuntime
 
         public void ToggleMaximizeWindow(ulong windowId) => Dispatch(7, windowId);
 
-        public void SetWindowTitle(ulong windowId, string title) =>
-            Dispatch(4, windowId, title);
+        public void SetWindowTitle(ulong windowId, string title) => Dispatch(4, windowId, title);
 
         public void ResizeWindow(ulong windowId, float width, float height) =>
             Dispatch(5, windowId, width: width, height: height);
@@ -630,7 +642,10 @@ public sealed unsafe class NativeRuntime
             }
             if (command.Utf8Key is null && string.IsNullOrEmpty(command.Key))
             {
-                throw new ArgumentException("A native resource key cannot be empty.", nameof(command));
+                throw new ArgumentException(
+                    "A native resource key cannot be empty.",
+                    nameof(command)
+                );
             }
 
             var keyUtf8 = command.Utf8Key ?? Encoding.UTF8.GetBytes(command.Key!);
@@ -680,7 +695,10 @@ public sealed unsafe class NativeRuntime
             }
             if (utf8Key.IsEmpty)
             {
-                throw new ArgumentException("A native resource key cannot be empty.", nameof(utf8Key));
+                throw new ArgumentException(
+                    "A native resource key cannot be empty.",
+                    nameof(utf8Key)
+                );
             }
 
             fixed (byte* key = utf8Key)
@@ -807,7 +825,9 @@ public sealed unsafe class NativeRuntime
             Volatile.Write(ref _renderingStarted, 1);
             if (Interlocked.CompareExchange(ref _renderingManaged, 1, 0) != 0)
             {
-                throw new InvalidOperationException("Nested managed list rendering is not supported.");
+                throw new InvalidOperationException(
+                    "Nested managed list rendering is not supported."
+                );
             }
             Volatile.Write(ref _notifyAfterRender, 0);
             try
@@ -1002,13 +1022,7 @@ public sealed unsafe class NativeRuntime
 
             var created = CreateFrameworkView<TView>();
             _ = created.ApplyProps(in props);
-            AttachResolvedCandidate(
-                created,
-                parent,
-                parentState,
-                slot,
-                ChildOwnership.Framework
-            );
+            AttachResolvedCandidate(created, parent, parentState, slot, ChildOwnership.Framework);
             return created;
         }
 
@@ -1100,7 +1114,9 @@ public sealed unsafe class NativeRuntime
         {
             if (_renderingViews.Contains(child))
             {
-                throw new InvalidOperationException("Managed views cannot recursively render themselves.");
+                throw new InvalidOperationException(
+                    "Managed views cannot recursively render themselves."
+                );
             }
         }
 
@@ -1252,7 +1268,9 @@ public sealed unsafe class NativeRuntime
 
             if (state.WorkingNextPosition == uint.MaxValue)
             {
-                throw new InvalidOperationException("The managed child positional slot space was exhausted.");
+                throw new InvalidOperationException(
+                    "The managed child positional slot space was exhausted."
+                );
             }
 
             return ChildSlot.Positional(state.WorkingNextPosition++);
@@ -1339,12 +1357,14 @@ public sealed unsafe class NativeRuntime
 
         private void ObserveEventTask(ValueTask pending)
         {
-            _ = pending.AsTask().ContinueWith(
-                completed => ObserveEventCompletion(completed),
-                CancellationToken.None,
-                TaskContinuationOptions.ExecuteSynchronously,
-                TaskScheduler.Default
-            );
+            _ = pending
+                .AsTask()
+                .ContinueWith(
+                    completed => ObserveEventCompletion(completed),
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default
+                );
         }
 
         private void ObserveEventCompletion(Task pending)
@@ -1384,7 +1404,9 @@ public sealed unsafe class NativeRuntime
                 var rootState = GetRenderState(RootView);
                 if (rootState.Parent is not null)
                 {
-                    throw new InvalidOperationException("The root View cannot be owned by another View.");
+                    throw new InvalidOperationException(
+                        "The root View cannot be owned by another View."
+                    );
                 }
             }
             Attach(RootView);
@@ -1517,7 +1539,9 @@ public sealed unsafe class NativeRuntime
         {
             if (!_renderingViews.Add(view))
             {
-                throw new InvalidOperationException("Managed views cannot recursively render themselves.");
+                throw new InvalidOperationException(
+                    "Managed views cannot recursively render themselves."
+                );
             }
 
             var state = GetRenderState(view);
@@ -1534,8 +1558,10 @@ public sealed unsafe class NativeRuntime
             }
 
             var state = GetRenderState(view);
-            (state.StagedChildren, state.WorkingChildren) =
-                (state.WorkingChildren, state.StagedChildren);
+            (state.StagedChildren, state.WorkingChildren) = (
+                state.WorkingChildren,
+                state.StagedChildren
+            );
             state.WorkingChildren?.Clear();
             state.WorkingViews?.Clear();
             state.HasStagedComposition = true;
@@ -1577,8 +1603,10 @@ public sealed unsafe class NativeRuntime
 
                     if (state.HasStagedComposition)
                     {
-                        (state.Children, state.StagedChildren) =
-                            (state.StagedChildren, state.Children);
+                        (state.Children, state.StagedChildren) = (
+                            state.StagedChildren,
+                            state.Children
+                        );
                         state.StagedChildren?.Clear();
                         state.HasStagedComposition = false;
                         state.Candidates?.Clear();

@@ -53,11 +53,19 @@ public readonly unsafe ref partial struct RenderContext
         OverlayOptions options
     )
     {
-        ArenaWriter.AddU32(element.Inner, OpCode.OverlayPlacement, (uint)options.EffectivePlacement);
+        ArenaWriter.AddU32(
+            element.Inner,
+            OpCode.OverlayPlacement,
+            (uint)options.EffectivePlacement
+        );
         ArenaWriter.AddU32(element.Inner, OpCode.OverlayPriority, options.EffectivePriority);
         ArenaWriter.AddF32(element.Inner, OpCode.OverlayMarginPx, options.EffectiveMargin);
         ArenaWriter.AddU32(element.Inner, OpCode.OverlayModal, options.EffectiveModal ? 1u : 0u);
-        ArenaWriter.AddU32(element.Inner, OpCode.OverlayBackdropRgba, options.EffectiveBackdrop.Rgba);
+        ArenaWriter.AddU32(
+            element.Inner,
+            OpCode.OverlayBackdropRgba,
+            options.EffectiveBackdrop.Rgba
+        );
         ArenaWriter.AddU32(
             element.Inner,
             OpCode.OverlayDismissOnBackdrop,

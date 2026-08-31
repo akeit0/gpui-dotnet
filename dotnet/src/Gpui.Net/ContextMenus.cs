@@ -7,10 +7,7 @@ public readonly struct ContextMenuOptions
     private const float DefaultMargin = 8;
     private readonly bool _initialized;
 
-    public ContextMenuOptions(
-        uint priority = DefaultPriority,
-        float margin = DefaultMargin
-    )
+    public ContextMenuOptions(uint priority = DefaultPriority, float margin = DefaultMargin)
     {
         if (!float.IsFinite(margin) || margin < 0)
         {

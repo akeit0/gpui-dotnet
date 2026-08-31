@@ -43,15 +43,7 @@ public sealed class GpuiWindowOptions
         {
             throw new ArgumentOutOfRangeException(nameof(Left));
         }
-        return new GpuiWindowSnapshot(
-            Title,
-            Width,
-            Height,
-            Left,
-            Top,
-            Activate,
-            TitleBarStyle
-        );
+        return new GpuiWindowSnapshot(Title, Width, Height, Left, Top, Activate, TitleBarStyle);
     }
 
     internal static void ValidateSize(float width, float height)
@@ -181,11 +173,15 @@ public sealed class GpuiApplication
         {
             if (_state != ApplicationState.Created)
             {
-                throw new InvalidOperationException("A GpuiApplication instance can run only once.");
+                throw new InvalidOperationException(
+                    "A GpuiApplication instance can run only once."
+                );
             }
             if (_windows.Count == 0)
             {
-                throw new InvalidOperationException("Open at least one window before running the application.");
+                throw new InvalidOperationException(
+                    "Open at least one window before running the application."
+                );
             }
             _state = ApplicationState.Running;
         }
@@ -225,11 +221,13 @@ public sealed class GpuiApplication
         {
             if (_state != ApplicationState.Running || _host is not null)
             {
-                throw new InvalidOperationException("The GPUI application runtime is already attached.");
+                throw new InvalidOperationException(
+                    "The GPUI application runtime is already attached."
+                );
             }
             _host = host;
-            return _windows.Values
-                .Where(window => !window.IsClosed && !window.CloseRequested)
+            return _windows
+                .Values.Where(window => !window.IsClosed && !window.CloseRequested)
                 .Select(window => new GpuiWindowOpenRequest(window, window.Snapshot))
                 .ToArray();
         }
@@ -309,7 +307,8 @@ public sealed class GpuiApplication
         lock (_gate)
         {
             ValidateOpenWindow(window);
-            host = _host
+            host =
+                _host
                 ?? throw new InvalidOperationException("The native window has not opened yet.");
         }
         host.MinimizeWindow(window.Id);
@@ -321,7 +320,8 @@ public sealed class GpuiApplication
         lock (_gate)
         {
             ValidateOpenWindow(window);
-            host = _host
+            host =
+                _host
                 ?? throw new InvalidOperationException("The native window has not opened yet.");
         }
         host.ToggleMaximizeWindow(window.Id);

@@ -49,8 +49,16 @@ public readonly unsafe ref partial struct RenderContext
         var element = ArenaWriter.AddNode<ScrollTag>(_arena, ComponentId.Scroll, key);
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
         ArenaWriter.AddU32(element.Inner, OpCode.ScrollAxis, (uint)axis);
-        ArenaWriter.AddU32(element.Inner, OpCode.SmoothScroll, options.EffectiveSmoothScrolling ? 1u : 0u);
-        ArenaWriter.AddU32(element.Inner, OpCode.ShowScrollbar, options.EffectiveShowScrollbar ? 1u : 0u);
+        ArenaWriter.AddU32(
+            element.Inner,
+            OpCode.SmoothScroll,
+            options.EffectiveSmoothScrolling ? 1u : 0u
+        );
+        ArenaWriter.AddU32(
+            element.Inner,
+            OpCode.ShowScrollbar,
+            options.EffectiveShowScrollbar ? 1u : 0u
+        );
         ArenaWriter.AddChildren(element.Inner, children);
         return element;
     }
@@ -109,25 +117,43 @@ public readonly unsafe ref partial struct RenderContext
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
         ArenaWriter.AddU32(element.Inner, OpCode.ListItemCount, checked((uint)itemCount));
         ArenaWriter.AddCallback(element.Inner, OpCode.ListRenderer, renderer.Token);
-        ArenaWriter.AddU32(element.Inner, OpCode.ListBatchSize, checked((uint)options.EffectiveBatchSize));
+        ArenaWriter.AddU32(
+            element.Inner,
+            OpCode.ListBatchSize,
+            checked((uint)options.EffectiveBatchSize)
+        );
         ArenaWriter.AddF32(element.Inner, OpCode.ListOverdrawPx, options.EffectiveOverdraw);
         ArenaWriter.AddU32(element.Inner, OpCode.ListAlignment, (uint)options.EffectiveAlignment);
-        ArenaWriter.AddF32(element.Inner, OpCode.ListEstimatedItemHeightPx, options.EffectiveEstimatedItemHeight);
+        ArenaWriter.AddF32(
+            element.Inner,
+            OpCode.ListEstimatedItemHeightPx,
+            options.EffectiveEstimatedItemHeight
+        );
         if (contentRevision is { } revision)
         {
             ArenaWriter.AddU64(element.Inner, OpCode.ListContentRevision, revision);
         }
-        ArenaWriter.AddU32(element.Inner, OpCode.SmoothScroll, options.EffectiveSmoothScrolling ? 1u : 0u);
-        ArenaWriter.AddU32(element.Inner, OpCode.ShowScrollbar, options.EffectiveShowScrollbar ? 1u : 0u);
+        ArenaWriter.AddU32(
+            element.Inner,
+            OpCode.SmoothScroll,
+            options.EffectiveSmoothScrolling ? 1u : 0u
+        );
+        ArenaWriter.AddU32(
+            element.Inner,
+            OpCode.ShowScrollbar,
+            options.EffectiveShowScrollbar ? 1u : 0u
+        );
         return element;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private uint CurrentResourceOwner()
     {
-        var owner = _owner ?? throw new InvalidOperationException(
-            "Retained native resources require a mounted managed View. Element-only RenderArenaOwner tests cannot create them."
-        );
+        var owner =
+            _owner
+            ?? throw new InvalidOperationException(
+                "Retained native resources require a mounted managed View. Element-only RenderArenaOwner tests cannot create them."
+            );
         var handle = owner.RuntimeViewHandle;
         return handle != 0
             ? handle

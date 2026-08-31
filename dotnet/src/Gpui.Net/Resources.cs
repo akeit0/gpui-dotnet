@@ -133,11 +133,17 @@ public readonly struct ScrollController
     {
         if (!float.IsFinite(x) || x < 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(x), "Scroll position must be finite and non-negative.");
+            throw new ArgumentOutOfRangeException(
+                nameof(x),
+                "Scroll position must be finite and non-negative."
+            );
         }
         if (!float.IsFinite(y) || y < 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(y), "Scroll position must be finite and non-negative.");
+            throw new ArgumentOutOfRangeException(
+                nameof(y),
+                "Scroll position must be finite and non-negative."
+            );
         }
         Owner.DispatchResourceCommand(
             new ResourceCommand(
@@ -160,8 +166,10 @@ public readonly struct ScrollController
             new ResourceCommand(ResourceKind.Scroll, ResourceCommandKind.ScrollToBottom, Key, 0, 0)
         );
 
-    private View Owner => _owner ?? throw new InvalidOperationException("Default ScrollController cannot be used.");
-    private string Key => _key ?? throw new InvalidOperationException("Default ScrollController cannot be used.");
+    private View Owner =>
+        _owner ?? throw new InvalidOperationException("Default ScrollController cannot be used.");
+    private string Key =>
+        _key ?? throw new InvalidOperationException("Default ScrollController cannot be used.");
 }
 
 /// <summary>
@@ -185,7 +193,13 @@ public readonly struct ListController
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
         Owner.DispatchResourceCommand(
-            new ResourceCommand(ResourceKind.List, ResourceCommandKind.ListScrollToItem, Key, checked((uint)index), 0)
+            new ResourceCommand(
+                ResourceKind.List,
+                ResourceCommandKind.ListScrollToItem,
+                Key,
+                checked((uint)index),
+                0
+            )
         );
     }
 
@@ -196,7 +210,13 @@ public readonly struct ListController
         ArgumentOutOfRangeException.ThrowIfNegative(insertedCount);
         var packed = ((ulong)checked((uint)removedCount) << 32) | checked((uint)insertedCount);
         Owner.DispatchResourceCommand(
-            new ResourceCommand(ResourceKind.List, ResourceCommandKind.ListSplice, Key, checked((uint)start), packed)
+            new ResourceCommand(
+                ResourceKind.List,
+                ResourceCommandKind.ListSplice,
+                Key,
+                checked((uint)start),
+                packed
+            )
         );
         Owner.InvalidateFromController();
     }
@@ -225,13 +245,21 @@ public readonly struct ListController
     {
         ArgumentOutOfRangeException.ThrowIfNegative(itemCount);
         Owner.DispatchResourceCommand(
-            new ResourceCommand(ResourceKind.List, ResourceCommandKind.ListReset, Key, checked((uint)itemCount), 0)
+            new ResourceCommand(
+                ResourceKind.List,
+                ResourceCommandKind.ListReset,
+                Key,
+                checked((uint)itemCount),
+                0
+            )
         );
         Owner.InvalidateFromController();
     }
 
-    private View Owner => _owner ?? throw new InvalidOperationException("Default ListController cannot be used.");
-    private string Key => _key ?? throw new InvalidOperationException("Default ListController cannot be used.");
+    private View Owner =>
+        _owner ?? throw new InvalidOperationException("Default ListController cannot be used.");
+    private string Key =>
+        _key ?? throw new InvalidOperationException("Default ListController cannot be used.");
 }
 
 /// <summary>
@@ -294,8 +322,10 @@ public readonly struct InputController
             new ResourceCommand(ResourceKind.Input, command, null, 0, 0, null, Utf8KeyArray)
         );
 
-    private View Owner => _owner ?? throw new InvalidOperationException("Default InputController cannot be used.");
-    private byte[] Utf8KeyArray => _utf8Key ?? throw new InvalidOperationException("Default InputController cannot be used.");
+    private View Owner =>
+        _owner ?? throw new InvalidOperationException("Default InputController cannot be used.");
+    private byte[] Utf8KeyArray =>
+        _utf8Key ?? throw new InvalidOperationException("Default InputController cannot be used.");
 }
 
 internal enum ResourceKind : ushort

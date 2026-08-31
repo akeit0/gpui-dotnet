@@ -41,11 +41,7 @@ public readonly unsafe ref partial struct RenderContext
             throw new ArgumentException("A context-menu key cannot be empty.", nameof(utf8Key));
         }
 
-        var element = ArenaWriter.AddNode<ContextMenuTag>(
-            _arena,
-            ComponentId.ContextMenu,
-            utf8Key
-        );
+        var element = ArenaWriter.AddNode<ContextMenuTag>(_arena, ComponentId.ContextMenu, utf8Key);
         ConfigureContextMenu(element, trigger, content, options);
         return element;
     }
@@ -59,16 +55,8 @@ public readonly unsafe ref partial struct RenderContext
     )
     {
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.ContextMenuPriority,
-            options.EffectivePriority
-        );
-        ArenaWriter.AddF32(
-            element.Inner,
-            OpCode.ContextMenuMarginPx,
-            options.EffectiveMargin
-        );
+        ArenaWriter.AddU32(element.Inner, OpCode.ContextMenuPriority, options.EffectivePriority);
+        ArenaWriter.AddF32(element.Inner, OpCode.ContextMenuMarginPx, options.EffectiveMargin);
         ArenaWriter.AddChild(element.Inner, trigger);
         ArenaWriter.AddChild(element.Inner, content);
     }

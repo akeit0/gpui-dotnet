@@ -41,11 +41,7 @@ public readonly unsafe ref partial struct RenderContext
             throw new ArgumentException("A popover-menu key cannot be empty.", nameof(utf8Key));
         }
 
-        var element = ArenaWriter.AddNode<PopoverMenuTag>(
-            _arena,
-            ComponentId.PopoverMenu,
-            utf8Key
-        );
+        var element = ArenaWriter.AddNode<PopoverMenuTag>(_arena, ComponentId.PopoverMenu, utf8Key);
         ConfigurePopoverMenu(element, trigger, content, options);
         return element;
     }
@@ -59,16 +55,8 @@ public readonly unsafe ref partial struct RenderContext
     )
     {
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.PopoverMenuPriority,
-            options.EffectivePriority
-        );
-        ArenaWriter.AddF32(
-            element.Inner,
-            OpCode.PopoverMenuMarginPx,
-            options.EffectiveMargin
-        );
+        ArenaWriter.AddU32(element.Inner, OpCode.PopoverMenuPriority, options.EffectivePriority);
+        ArenaWriter.AddF32(element.Inner, OpCode.PopoverMenuMarginPx, options.EffectiveMargin);
         ArenaWriter.AddChild(element.Inner, trigger);
         ArenaWriter.AddChild(element.Inner, content);
     }

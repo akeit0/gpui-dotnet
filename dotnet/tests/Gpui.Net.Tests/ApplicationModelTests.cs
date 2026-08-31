@@ -72,7 +72,10 @@ public sealed class ApplicationModelTests
         Assert.Throws<InvalidOperationException>(() => application.OpenWindow(firstRoot));
 
         first.Close();
-        var reopened = application.OpenWindow(firstRoot, new GpuiWindowOptions { Activate = false });
+        var reopened = application.OpenWindow(
+            firstRoot,
+            new GpuiWindowOptions { Activate = false }
+        );
         Assert.NotEqual(first.Id, reopened.Id);
     }
 

@@ -65,6 +65,5 @@ public readonly struct OverlayOptions
     internal bool EffectiveDismissOnEscape => !_initialized || DismissOnEscape;
     internal uint EffectivePriority => _initialized ? Priority : DefaultPriority;
     internal float EffectiveMargin => _initialized ? Margin : DefaultMargin;
-    internal Color EffectiveBackdrop =>
-        _initialized ? Backdrop : new Color(DefaultBackdropRgba);
+    internal Color EffectiveBackdrop => _initialized ? Backdrop : new Color(DefaultBackdropRgba);
 }

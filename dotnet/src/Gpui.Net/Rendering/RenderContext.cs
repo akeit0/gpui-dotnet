@@ -102,11 +102,7 @@ public readonly unsafe ref partial struct RenderContext
         return renderer.RenderChild(view, owner, slot, _arena);
     }
 
-    private Element RenderExplicitChild<TProps>(
-        View<TProps> view,
-        ChildSlot slot,
-        in TProps props
-    )
+    private Element RenderExplicitChild<TProps>(View<TProps> view, ChildSlot slot, in TProps props)
     {
         var renderer = _views ?? throw ChildRuntimeRequired();
         var owner = _owner ?? throw ChildOwnerRequired();

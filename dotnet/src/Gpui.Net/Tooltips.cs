@@ -44,13 +44,21 @@ public readonly struct TooltipOptions
         {
             throw new ArgumentOutOfRangeException(nameof(alignment));
         }
-        var resolvedShowDelay = showDelay ?? TimeSpan.FromMilliseconds(DefaultShowDelayMilliseconds);
-        var resolvedHideDelay = hideDelay ?? TimeSpan.FromMilliseconds(DefaultHideDelayMilliseconds);
-        if (resolvedShowDelay < TimeSpan.Zero || resolvedShowDelay.TotalMilliseconds > uint.MaxValue)
+        var resolvedShowDelay =
+            showDelay ?? TimeSpan.FromMilliseconds(DefaultShowDelayMilliseconds);
+        var resolvedHideDelay =
+            hideDelay ?? TimeSpan.FromMilliseconds(DefaultHideDelayMilliseconds);
+        if (
+            resolvedShowDelay < TimeSpan.Zero
+            || resolvedShowDelay.TotalMilliseconds > uint.MaxValue
+        )
         {
             throw new ArgumentOutOfRangeException(nameof(showDelay));
         }
-        if (resolvedHideDelay < TimeSpan.Zero || resolvedHideDelay.TotalMilliseconds > uint.MaxValue)
+        if (
+            resolvedHideDelay < TimeSpan.Zero
+            || resolvedHideDelay.TotalMilliseconds > uint.MaxValue
+        )
         {
             throw new ArgumentOutOfRangeException(nameof(hideDelay));
         }
@@ -84,13 +92,9 @@ public readonly struct TooltipOptions
     internal TooltipAlignment EffectiveAlignment =>
         _initialized ? Alignment : TooltipAlignment.Center;
     internal uint EffectiveShowDelayMilliseconds =>
-        !_initialized
-            ? DefaultShowDelayMilliseconds
-            : checked((uint)ShowDelay.TotalMilliseconds);
+        !_initialized ? DefaultShowDelayMilliseconds : checked((uint)ShowDelay.TotalMilliseconds);
     internal uint EffectiveHideDelayMilliseconds =>
-        !_initialized
-            ? DefaultHideDelayMilliseconds
-            : checked((uint)HideDelay.TotalMilliseconds);
+        !_initialized ? DefaultHideDelayMilliseconds : checked((uint)HideDelay.TotalMilliseconds);
     internal float EffectiveGap => _initialized ? Gap : DefaultGap;
     internal float EffectiveMargin => _initialized ? Margin : DefaultMargin;
 }

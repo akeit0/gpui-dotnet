@@ -44,9 +44,7 @@ public sealed class SemanticRenderTests
         var ui = arena.BeginRender();
         var image = ui.Image("asset.svg"u8);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            image.Fit((ImageFit)99)
-        );
+        Assert.Throws<ArgumentOutOfRangeException>(() => image.Fit((ImageFit)99));
     }
 
     [Fact]
@@ -89,7 +87,10 @@ public sealed class SemanticRenderTests
 
             var stats = arena.GetStats();
             Assert.Equal(1, stats.Nodes);
-            Assert.Equal("検索"u8.Length + "初期値"u8.Length + "キーワード"u8.Length + 2, stats.Utf8Bytes);
+            Assert.Equal(
+                "検索"u8.Length + "初期値"u8.Length + "キーワード"u8.Length + 2,
+                stats.Utf8Bytes
+            );
         }
         finally
         {
@@ -142,8 +143,7 @@ public sealed class SemanticRenderTests
             using var arena = new RenderArenaOwner();
             var ui = arena.BeginRender(new NoopRenderer(), view);
             var child = ui.Text("設定"u8);
-            var overlay = ui
-                .Overlay(
+            var overlay = ui.Overlay(
                     "settings"u8,
                     child,
                     new OverlayOptions(
@@ -251,10 +251,7 @@ public sealed class SemanticRenderTests
             var menu = ui.ContextMenu(
                 "titlebar-menu"u8,
                 ui.HStack(ui.Text("Title"u8)).Grow(),
-                ui.VStack(
-                    ui.Button("minimize"u8, "Minimize"u8),
-                    ui.Button("close"u8, "Close"u8)
-                ),
+                ui.VStack(ui.Button("minimize"u8, "Minimize"u8), ui.Button("close"u8, "Close"u8)),
                 new ContextMenuOptions(priority: 320, margin: 12)
             );
 
@@ -278,9 +275,7 @@ public sealed class SemanticRenderTests
     public void ContextMenuOptionsRejectInvalidMargin()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new ContextMenuOptions(margin: -1));
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new ContextMenuOptions(margin: float.NaN)
-        );
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ContextMenuOptions(margin: float.NaN));
     }
 
     [Fact]
@@ -322,9 +317,7 @@ public sealed class SemanticRenderTests
     public void PopoverMenuOptionsRejectInvalidMargin()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new PopoverMenuOptions(margin: -1));
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new PopoverMenuOptions(margin: float.NaN)
-        );
+        Assert.Throws<ArgumentOutOfRangeException>(() => new PopoverMenuOptions(margin: float.NaN));
     }
 
     [Fact]
@@ -375,16 +368,35 @@ public sealed class SemanticRenderTests
 
     private sealed unsafe class NoopRenderer : IViewRenderer
     {
-        public Element RenderChild<TView>(View parent, ChildSlot slot, Gpui.Interop.RenderArena* destination)
+        public Element RenderChild<TView>(
+            View parent,
+            ChildSlot slot,
+            Gpui.Interop.RenderArena* destination
+        )
             where TView : View, IGeneratedViewFactory<TView> => throw new NotSupportedException();
 
-        public Element RenderChild<TView, TProps>(View parent, ChildSlot slot, in TProps props, Gpui.Interop.RenderArena* destination)
-            where TView : View<TProps>, IGeneratedViewFactory<TView> => throw new NotSupportedException();
-
-        public Element RenderChild(View view, View parent, ChildSlot slot, Gpui.Interop.RenderArena* destination) =>
+        public Element RenderChild<TView, TProps>(
+            View parent,
+            ChildSlot slot,
+            in TProps props,
+            Gpui.Interop.RenderArena* destination
+        )
+            where TView : View<TProps>, IGeneratedViewFactory<TView> =>
             throw new NotSupportedException();
 
-        public Element RenderChild<TProps>(View<TProps> view, View parent, ChildSlot slot, in TProps props, Gpui.Interop.RenderArena* destination) =>
-            throw new NotSupportedException();
+        public Element RenderChild(
+            View view,
+            View parent,
+            ChildSlot slot,
+            Gpui.Interop.RenderArena* destination
+        ) => throw new NotSupportedException();
+
+        public Element RenderChild<TProps>(
+            View<TProps> view,
+            View parent,
+            ChildSlot slot,
+            in TProps props,
+            Gpui.Interop.RenderArena* destination
+        ) => throw new NotSupportedException();
     }
 }
