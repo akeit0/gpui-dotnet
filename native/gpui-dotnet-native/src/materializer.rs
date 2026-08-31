@@ -23,9 +23,12 @@ use crate::{
         OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
         OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY, OP_PADDING_PX,
         OP_RADIUS_PX, OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL,
-        OP_TEXT_RGBA, OP_V_STACK, OP_WIDTH_PERCENT, OP_WIDTH_PX, component_metadata,
+        OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS,
+        OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK,
+        OP_WIDTH_PERCENT, OP_WIDTH_PX, component_metadata,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
+    tooltip::{TooltipConfiguration, tooltip},
 };
 
 impl ManagedView {
@@ -46,6 +49,7 @@ impl ManagedView {
             NativeAdapter::Image => materialize_image(node, snapshot),
             NativeAdapter::Input => self.materialize_input(node, snapshot, window, cx),
             NativeAdapter::Overlay => self.materialize_overlay(node, snapshot, window, cx),
+            NativeAdapter::Tooltip => self.materialize_tooltip(node, snapshot, window, cx),
             _ => self.materialize_regular(node_id, node, snapshot, window, cx),
         }
     }
@@ -263,7 +267,13 @@ impl ManagedView {
         let dismiss_token = dismiss.map_or(0, |op| op.a);
         let dismiss_payload = dismiss.map_or(0, |op| op.b);
 
-        let overlay_id: ElementId = (ElementId::from("managed-overlay"), node.data.clone()).into();
+        let Some(key) = resource_key(snapshot, node) else {
+            return div()
+                .child("Overlay is missing its owner/key.")
+                .into_any_element();
+        };
+        let overlay_id: ElementId =
+            SharedString::from(format!("managed-overlay-{}-{}", key.owner_view, key.key)).into();
         let previous_focus = window.focused(cx).map(|focus| focus.downgrade());
         let focus_state =
             window.use_keyed_state(overlay_id.clone(), cx, move |_, cx| OverlayFocusState {
@@ -354,6 +364,34 @@ impl ManagedView {
             .with_priority(priority as usize)
             .into_any_element()
     }
+
+    fn materialize_tooltip(
+        &self,
+        node: &SnapshotNode,
+        snapshot: &ValidatedSnapshot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let Some(key) = resource_key(snapshot, node) else {
+            return div()
+                .child("Tooltip is missing its owner/key.")
+                .into_any_element();
+        };
+        let children = snapshot.children(node);
+        let trigger = self.materialize_node(children[0], snapshot, window, cx);
+        let content = self.materialize_node(children[1], snapshot, window, cx);
+        let configuration = TooltipConfiguration {
+            placement: last_op(snapshot, node, OP_TOOLTIP_PLACEMENT).map_or(0, |op| op.a as u32),
+            alignment: last_op(snapshot, node, OP_TOOLTIP_ALIGNMENT).map_or(1, |op| op.a as u32),
+            show_delay_ms: last_op(snapshot, node, OP_TOOLTIP_SHOW_DELAY_MS).map_or(500, |op| op.a),
+            hide_delay_ms: last_op(snapshot, node, OP_TOOLTIP_HIDE_DELAY_MS).map_or(300, |op| op.a),
+            gap: last_op(snapshot, node, OP_TOOLTIP_GAP_PX)
+                .map_or(8.0, |op| f32::from_bits(op.a as u32)),
+            margin: last_op(snapshot, node, OP_TOOLTIP_MARGIN_PX)
+                .map_or(8.0, |op| f32::from_bits(op.a as u32)),
+        };
+        tooltip(key, trigger, content, configuration, window, cx)
+    }
 }
 
 struct OverlayFocusState {
@@ -416,11 +454,15 @@ pub(crate) fn materialize_snapshot_node_detached(
     let metadata = component_metadata(node.component).unwrap();
     if matches!(
         metadata.adapter,
-        NativeAdapter::Scroll | NativeAdapter::List | NativeAdapter::Input | NativeAdapter::Overlay
+        NativeAdapter::Scroll
+            | NativeAdapter::List
+            | NativeAdapter::Input
+            | NativeAdapter::Overlay
+            | NativeAdapter::Tooltip
     ) {
         return div()
             .child(
-                "Retained Scroll/List/Input resources and overlays inside a virtualized list row are not supported.",
+                "Retained Scroll/List/Input resources, overlays, and tooltips inside a virtualized list row are not supported.",
             )
             .into_any_element();
     }

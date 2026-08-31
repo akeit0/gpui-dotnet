@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 10,
+  "schemaVersion": 11,
   "capabilities": [
     "styled",
     "parent",
@@ -11,7 +11,8 @@
     "virtualized",
     "image",
     "input",
-    "overlay"
+    "overlay",
+    "tooltip"
   ],
   "components": [
     {
@@ -200,9 +201,25 @@
       "managedFactory": "manual",
       "capabilities": [
         "parent",
+        "native_state",
         "overlay"
       ],
       "nativeAdapter": "overlay"
+    },
+    {
+      "id": 14,
+      "name": "tooltip",
+      "csharp": "Tooltip",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "parent",
+        "native_state",
+        "tooltip"
+      ],
+      "nativeAdapter": "tooltip"
     }
   ],
   "operations": [
@@ -566,6 +583,54 @@
       "csharp": "OnDismiss",
       "value": "callback",
       "requires": "overlay",
+      "managedApi": null
+    },
+    {
+      "id": 610,
+      "name": "tooltip_placement",
+      "csharp": "TooltipPlacement",
+      "value": "u32",
+      "requires": "tooltip",
+      "managedApi": null
+    },
+    {
+      "id": 611,
+      "name": "tooltip_alignment",
+      "csharp": "TooltipAlignment",
+      "value": "u32",
+      "requires": "tooltip",
+      "managedApi": null
+    },
+    {
+      "id": 612,
+      "name": "tooltip_show_delay_ms",
+      "csharp": "TooltipShowDelayMs",
+      "value": "u32",
+      "requires": "tooltip",
+      "managedApi": null
+    },
+    {
+      "id": 613,
+      "name": "tooltip_hide_delay_ms",
+      "csharp": "TooltipHideDelayMs",
+      "value": "u32",
+      "requires": "tooltip",
+      "managedApi": null
+    },
+    {
+      "id": 614,
+      "name": "tooltip_gap_px",
+      "csharp": "TooltipGapPx",
+      "value": "f32",
+      "requires": "tooltip",
+      "managedApi": null
+    },
+    {
+      "id": 615,
+      "name": "tooltip_margin_px",
+      "csharp": "TooltipMarginPx",
+      "value": "f32",
+      "requires": "tooltip",
       "managedApi": null
     }
   ]

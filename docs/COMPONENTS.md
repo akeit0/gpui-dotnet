@@ -4,7 +4,7 @@
 
 | Class | Examples | Transport/state |
 |---|---|---|
-| Snapshot component | div, badge, button, image, overlay | render IR |
+| Snapshot component | div, badge, button, image, overlay, tooltip | render IR |
 | Retained container | Scroll | render IR reference + native state keyed by View/key |
 | Virtualized datasource | List | retained native state + batched managed row renderer |
 | Native entity component | Input; future editor/select | opaque native handle + commands/events |
@@ -61,7 +61,17 @@ ui.Input("name"u8, new Utf8InputOptions(placeholder: "Name"u8));
 
 `ui.Overlay(key, child, options)` gives one ordinary semantic child a deferred window-relative layer. Rust owns viewport placement, deferred paint priority, modal backdrop input interception, initial focus, previous-focus restoration, and native backdrop/Escape detection. Dismissal crosses into managed code only through an explicit `OnDismiss` callback.
 
-The default options are a centered modal, 16-pixel viewport margin, priority 10, a translucent black backdrop, and backdrop/Escape dismissal. `OverlayPlacement` also covers every window edge and corner, providing the low-level geometry for dialogs and sheets without exposing GPUI element types through the ABI. Popup trigger measurement, complete modal focus trapping, toast lifecycle, and higher-level Dialog/Sheet/Popover components remain separate composition work.
+The default options are a centered modal, 16-pixel viewport margin, priority 10, a translucent black backdrop, and backdrop/Escape dismissal. `OverlayPlacement` also covers every window edge and corner, providing the low-level geometry for dialogs and sheets without exposing GPUI element types through the ABI. Popover/menu interaction, complete modal focus trapping, toast lifecycle, and higher-level Dialog/Sheet/Popover components remain separate composition work.
+
+Overlay keys are scoped by the owning managed View. This prevents two reusable child Views with the same local overlay key from sharing GPUI focus state.
+
+## Tooltip
+
+`ui.Tooltip(key, trigger, content, options)` is a semantic two-child component. Rust measures the trigger during prepaint, owns delayed hover transitions, and paints the content at deferred priority 200. The default behavior is 500 ms before showing and a 300 ms grace period before hiding, which lets the pointer cross the gap into rich tooltip content. Pointer press dismisses immediately.
+
+Placement is relative to trigger bounds rather than the cursor. Auto prefers Bottom, then Top, Right, and Left. Explicit side preferences flip when the primary axis does not fit, while cross-axis alignment and final viewport margins are clamped. Managed code owns all tooltip presentation.
+
+Tooltip keys use the same `(managed View handle, local key)` identity rule as retained resources. Tooltip is disallowed inside cached List rows because those rows do not have a mounted managed View lifetime.
 
 ## List
 
@@ -87,7 +97,7 @@ Rust owns `ListState` and calls managed `list_render_range` only for missing ali
 
 ### Row renderer restrictions
 
-Rows are pure Element renderers, not retained managed View roots. `RenderContext` for a list range intentionally has no managed child resolver and no native resource owner. `ui.Child`, retained `ui.Scroll`, nested retained `ui.List`, retained `ui.Input`, and window-level `ui.Overlay` therefore fail rather than creating ambiguous lifetimes.
+Rows are pure Element renderers, not retained managed View roots. `RenderContext` for a list range intentionally has no managed child resolver and no native resource owner. `ui.Child`, retained `ui.Scroll`, nested retained `ui.List`, retained `ui.Input`, window-level `ui.Overlay`, and `ui.Tooltip` therefore fail rather than creating ambiguous lifetimes.
 
 If item-scoped managed state is needed in the future, implement a dedicated virtualized-item state mechanism instead of silently reusing normal View slots.
 

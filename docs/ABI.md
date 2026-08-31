@@ -18,7 +18,7 @@ const gpui_dotnet_api_v4* gpui_dotnet_get_api(uint32_t requested_version);
 - `notify_view`;
 - `dispatch_command`.
 
-The current schema hash is `0x8B91513B238A37C7`.
+The current schema hash is `0x06295A16AD0C9679`.
 
 ## Managed callbacks
 

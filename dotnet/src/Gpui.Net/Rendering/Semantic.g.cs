@@ -19,6 +19,7 @@ namespace Gpui.Interop
         Image = 11,
         Input = 12,
         Overlay = 13,
+        Tooltip = 14,
     }
 
     internal enum OpCode : ushort
@@ -69,6 +70,12 @@ namespace Gpui.Interop
         OverlayDismissOnBackdrop = 605,
         OverlayDismissOnEscape = 606,
         OverlayOnDismiss = 607,
+        TooltipPlacement = 610,
+        TooltipAlignment = 611,
+        TooltipShowDelayMs = 612,
+        TooltipHideDelayMs = 613,
+        TooltipGapPx = 614,
+        TooltipMarginPx = 615,
     }
 
     internal enum ValueKind : ushort
@@ -81,8 +88,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 10;
-        internal const ulong SchemaHash = 0x8B91513B238A37C7UL;
+        internal const uint SchemaVersion = 11;
+        internal const ulong SchemaHash = 0x06295A16AD0C9679UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -99,6 +106,7 @@ namespace Gpui.Interop
             ComponentId.Image => true,
             ComponentId.Input => true,
             ComponentId.Overlay => true,
+            ComponentId.Tooltip => true,
             _ => false,
         };
 
@@ -150,6 +158,12 @@ namespace Gpui.Interop
             OpCode.OverlayDismissOnBackdrop => ValueKind.U32,
             OpCode.OverlayDismissOnEscape => ValueKind.U32,
             OpCode.OverlayOnDismiss => ValueKind.Callback,
+            OpCode.TooltipPlacement => ValueKind.U32,
+            OpCode.TooltipAlignment => ValueKind.U32,
+            OpCode.TooltipShowDelayMs => ValueKind.U32,
+            OpCode.TooltipHideDelayMs => ValueKind.U32,
+            OpCode.TooltipGapPx => ValueKind.F32,
+            OpCode.TooltipMarginPx => ValueKind.F32,
             _ => null,
         };
 
@@ -167,7 +181,8 @@ namespace Gpui.Interop
             ComponentId.List => 0x00000000000000A1UL,
             ComponentId.Image => 0x0000000000000101UL,
             ComponentId.Input => 0x0000000000000221UL,
-            ComponentId.Overlay => 0x0000000000000402UL,
+            ComponentId.Overlay => 0x0000000000000422UL,
+            ComponentId.Tooltip => 0x0000000000000822UL,
             _ => 0,
         };
 
@@ -219,6 +234,12 @@ namespace Gpui.Interop
             OpCode.OverlayDismissOnBackdrop => 0x0000000000000400UL,
             OpCode.OverlayDismissOnEscape => 0x0000000000000400UL,
             OpCode.OverlayOnDismiss => 0x0000000000000400UL,
+            OpCode.TooltipPlacement => 0x0000000000000800UL,
+            OpCode.TooltipAlignment => 0x0000000000000800UL,
+            OpCode.TooltipShowDelayMs => 0x0000000000000800UL,
+            OpCode.TooltipHideDelayMs => 0x0000000000000800UL,
+            OpCode.TooltipGapPx => 0x0000000000000800UL,
+            OpCode.TooltipMarginPx => 0x0000000000000800UL,
             _ => 0,
         };
 
@@ -243,6 +264,7 @@ namespace Gpui
     public interface IImageElementTag { }
     public interface IInputElementTag { }
     public interface IOverlayElementTag { }
+    public interface ITooltipElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
@@ -256,7 +278,8 @@ namespace Gpui
     public readonly struct ListTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag { }
     public readonly struct ImageTag : IStyledElementTag, IImageElementTag { }
     public readonly struct InputTag : IStyledElementTag, INativeStateElementTag, IInputElementTag { }
-    public readonly struct OverlayTag : IParentElementTag, IOverlayElementTag { }
+    public readonly struct OverlayTag : IParentElementTag, INativeStateElementTag, IOverlayElementTag { }
+    public readonly struct TooltipTag : IParentElementTag, INativeStateElementTag, ITooltipElementTag { }
 
     public readonly unsafe ref partial struct RenderContext
     {

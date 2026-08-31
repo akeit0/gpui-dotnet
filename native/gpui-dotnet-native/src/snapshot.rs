@@ -5,13 +5,15 @@ use gpui::SharedString;
 use crate::{
     abi::{OpRecord, RenderArena},
     semantic::{
-        COMPONENT_INPUT, COMPONENT_OVERLAY, DataKind, OP_CHECKED, OP_IMAGE_GRAYSCALE,
-        OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY,
-        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
-        OP_LIST_OVERDRAW_PX, OP_ON_CLICK, OP_OVERLAY_DISMISS_ON_BACKDROP,
-        OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
-        OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_RESOURCE_OWNER, OP_SCROLL_AXIS,
-        OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, ValueKind, component_metadata, operation_metadata,
+        COMPONENT_INPUT, COMPONENT_OVERLAY, COMPONENT_TOOLTIP, DataKind, OP_CHECKED,
+        OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED, OP_INPUT_PASSWORD,
+        OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
+        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_OVERDRAW_PX, OP_ON_CLICK,
+        OP_OVERLAY_DISMISS_ON_BACKDROP, OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX,
+        OP_OVERLAY_MODAL, OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_RESOURCE_OWNER,
+        OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TOOLTIP_ALIGNMENT,
+        OP_TOOLTIP_GAP_PX, OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, ValueKind,
+        component_metadata, operation_metadata,
     },
 };
 
@@ -313,6 +315,17 @@ fn validate_with_scratch(
         if op.code == OP_OVERLAY_MARGIN_PX && f32::from_bits(op.a as u32) < 0.0 {
             return Err(-34);
         }
+        if op.code == OP_TOOLTIP_PLACEMENT && op.a > 4 {
+            return Err(-35);
+        }
+        if op.code == OP_TOOLTIP_ALIGNMENT && op.a > 2 {
+            return Err(-36);
+        }
+        if matches!(op.code, OP_TOOLTIP_GAP_PX | OP_TOOLTIP_MARGIN_PX)
+            && f32::from_bits(op.a as u32) < 0.0
+        {
+            return Err(-37);
+        }
     }
 
     scratch.prepare_nodes(node_len, child_len);
@@ -339,6 +352,11 @@ fn validate_with_scratch(
         node.component == COMPONENT_OVERLAY && scratch.child_counts[index] != 1
     }) {
         return Err(-32);
+    }
+    if nodes.iter().enumerate().any(|(index, node)| {
+        node.component == COMPONENT_TOOLTIP && scratch.child_counts[index] != 2
+    }) {
+        return Err(-38);
     }
 
     if scratch.parents[root as usize] != u32::MAX {
@@ -409,8 +427,9 @@ mod tests {
         abi::{ChildRecord, NodeRecord, OpRecord},
         semantic::{
             COMPONENT_CHECKBOX, COMPONENT_DIV, COMPONENT_IMAGE, COMPONENT_INPUT, COMPONENT_OVERLAY,
-            COMPONENT_TEXT, OP_CHECKED, OP_GAP_PX, OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED,
-            OP_ON_CLICK, OP_OVERLAY_PLACEMENT, OP_PADDING_PX,
+            COMPONENT_TEXT, COMPONENT_TOOLTIP, OP_CHECKED, OP_GAP_PX, OP_IMAGE_OBJECT_FIT,
+            OP_INPUT_DISABLED, OP_ON_CLICK, OP_OVERLAY_PLACEMENT, OP_PADDING_PX,
+            OP_TOOLTIP_PLACEMENT,
         },
     };
 
@@ -630,6 +649,70 @@ mod tests {
         arena.utf8_capacity = 1;
 
         assert_eq!(validate(&arena, 0), Err(-33));
+    }
+
+    #[test]
+    fn rejects_tooltip_without_exactly_two_children() {
+        let mut nodes = [
+            NodeRecord {
+                component: COMPONENT_TOOLTIP,
+                data_length: 1,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DIV,
+                ..Default::default()
+            },
+        ];
+        let mut child = ChildRecord {
+            parent: 0,
+            child: 1,
+        };
+        let mut key = b'x';
+        let arena = RenderArena {
+            nodes: nodes.as_mut_ptr(),
+            node_length: nodes.len() as i32,
+            node_capacity: nodes.len() as i32,
+            ops: std::ptr::null_mut(),
+            op_length: 0,
+            op_capacity: 0,
+            children: &mut child,
+            child_length: 1,
+            child_capacity: 1,
+            utf8: &mut key,
+            utf8_length: 1,
+            utf8_capacity: 1,
+            generation: 1,
+            flags: 0,
+            required_node_capacity: 0,
+            required_op_capacity: 0,
+            required_child_capacity: 0,
+            required_utf8_capacity: 0,
+        };
+
+        assert_eq!(validate(&arena, 0), Err(-38));
+    }
+
+    #[test]
+    fn rejects_invalid_tooltip_placement() {
+        let mut key = b'x';
+        let mut node = NodeRecord {
+            component: COMPONENT_TOOLTIP,
+            data_length: 1,
+            ..Default::default()
+        };
+        let mut operation = OpRecord {
+            code: OP_TOOLTIP_PLACEMENT,
+            value_kind: ValueKind::U32 as u16,
+            a: 5,
+            ..Default::default()
+        };
+        let mut arena = arena_with(&mut node, Some(&mut operation));
+        arena.utf8 = &mut key;
+        arena.utf8_length = 1;
+        arena.utf8_capacity = 1;
+
+        assert_eq!(validate(&arena, 0), Err(-35));
     }
 
     #[test]

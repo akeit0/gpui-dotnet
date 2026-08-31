@@ -137,7 +137,7 @@ public sealed class SemanticRenderTests
             var stats = arena.GetStats();
             Assert.Equal(2, stats.Nodes);
             Assert.Equal(1, stats.Children);
-            Assert.Equal(8, stats.Ops);
+            Assert.Equal(9, stats.Ops);
             Assert.Equal("settings"u8.Length + "設定"u8.Length, stats.Utf8Bytes);
 
             arena.NativeArena->ChildLength = 0;
@@ -156,6 +156,65 @@ public sealed class SemanticRenderTests
             new OverlayOptions(placement: (OverlayPlacement)9)
         );
         Assert.Throws<ArgumentOutOfRangeException>(() => new OverlayOptions(margin: -1));
+    }
+
+    [Fact]
+    public unsafe void Utf8TooltipConfigurationPassesManagedValidation()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var tooltip = ui.Tooltip(
+                "help"u8,
+                ui.Button("help-button", "Help"u8),
+                ui.Text("詳しい説明"u8),
+                new TooltipOptions(
+                    placement: TooltipPlacement.Top,
+                    alignment: TooltipAlignment.End,
+                    showDelay: TimeSpan.Zero,
+                    hideDelay: TimeSpan.FromMilliseconds(125),
+                    gap: 6,
+                    margin: 10
+                )
+            );
+
+            arena.Validate(tooltip);
+
+            var stats = arena.GetStats();
+            Assert.Equal(4, stats.Nodes);
+            Assert.Equal(3, stats.Children);
+            Assert.Equal(7, stats.Ops);
+            Assert.Equal(
+                "help"u8.Length + "help-button"u8.Length + "Help"u8.Length + "詳しい説明"u8.Length,
+                stats.Utf8Bytes
+            );
+
+            arena.NativeArena->ChildLength = 2;
+            Assert.Throws<InvalidOperationException>(() => arena.Validate(tooltip));
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void TooltipOptionsRejectInvalidGeometryAndTiming()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new TooltipOptions(placement: (TooltipPlacement)5)
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new TooltipOptions(alignment: (TooltipAlignment)3)
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new TooltipOptions(showDelay: TimeSpan.FromMilliseconds(-1))
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TooltipOptions(gap: -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new TooltipOptions(margin: float.NaN));
     }
 
     private static void Attach(ProbeView view) =>

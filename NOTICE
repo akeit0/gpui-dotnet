@@ -2,7 +2,7 @@ GPUI.NET
 
 This project uses GPUI Component and its gpui-base layer as a design and
 implementation reference for native component behavior, retained interaction
-state, input editing, focus/IME behavior, overlay geometry, virtualization,
+state, input editing, focus/IME behavior, overlay/tooltip geometry and timing, virtualization,
 motion, theming boundaries, accessibility, and component composition:
 
     https://github.com/longbridge/gpui-component

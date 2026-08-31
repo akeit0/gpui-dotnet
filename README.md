@@ -18,7 +18,7 @@ RenderArena (nodes / ops / children / UTF-8)
 Rust validation + flat retained snapshot
    │
    ├─ semantic NativeAdapter ─────────────► GPUI elements
-   │    └─ deferred window overlays
+   │    └─ deferred window overlays and trigger-relative tooltips
    │
    └─ retained native resources
         ├─ ScrollHandle
@@ -220,6 +220,20 @@ return ui.Overlay("preferences"u8, dialog)
 
 `OverlayOptions` supports nine viewport placements, modal/non-modal behavior, priority, margin, backdrop color, and independent backdrop/Escape dismissal. Modal overlays block pointer and wheel input behind the backdrop, move focus into the overlay on open, and restore the previous focus when native dismissal runs. Escape is handled in the bubble phase so a focused child control receives it first. Content can contain normal managed child Views and retained controls such as Input; overlays are intentionally unavailable inside virtualized List rows.
 
+`ui.Tooltip(key, trigger, content, options)` adds native hover timing to any semantic trigger and paints ordinary semantic content in a deferred layer. Defaults follow the interaction model used by GPUI Component: a 500 ms show delay, a 300 ms grace period for crossing from trigger to content, automatic side selection, centered alignment, an 8-pixel gap, and an 8-pixel viewport margin.
+
+```csharp
+return ui.Tooltip(
+    "save-help"u8,
+    ui.Button("save", "Save"),
+    ui.Text("Writes the current document")
+        .Padding(Px(8))
+        .Background(Rgb(15, 23, 42))
+        .TextColor(Rgb(255, 255, 255)));
+```
+
+`TooltipOptions` can request Top/Right/Bottom/Left placement and Start/Center/End alignment; native geometry flips to another side and clamps to the viewport when needed. Show/hide delays can be zero. Moving into the tooltip during its grace period keeps rich content available, while pointer press dismisses it. Tooltip identity is scoped by the owning managed View, so reusable child Views may use local keys safely. Tooltips are intentionally unavailable inside virtualized List rows.
+
 ## Generated events
 
 Constructor-time callback registration is not used. `[GpuiEvent]` emits stable handler IDs, `Events.*` bindings and direct dispatch code. `Task`/`ValueTask` completion is observed; `async void` is rejected.
@@ -246,9 +260,9 @@ ABI v4 is intentionally incompatible with previous revisions. In addition to the
 - a typed native-control event callback carrying owned-on-receipt UTF-8 data;
 - generated `InputEvent` dispatch;
 - semantic Input configuration and event operations.
-- deferred semantic Overlay nodes without changing the native function-table layout.
+- deferred semantic Overlay and Tooltip nodes without changing the native function-table layout.
 
-Managed startup validates both ABI version and semantic schema hash (`0x8B91513B238A37C7`). See [docs/ABI.md](docs/ABI.md).
+Managed startup validates both ABI version and semantic schema hash (`0x06295A16AD0C9679`). See [docs/ABI.md](docs/ABI.md).
 
 ## Build
 
@@ -263,7 +277,7 @@ dotnet build gpui-dotnet.slnx
 dotnet run --project dotnet/samples/Gpui.Net.Sample
 ```
 
-The sample contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, and centered-dialog/right-sheet Overlay demos. To force native-owned render-arena growth/retry:
+The sample contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, centered-dialog/right-sheet Overlay demos, and delayed trigger-relative tooltips. To force native-owned render-arena growth/retry:
 
 ```powershell
 dotnet run --project dotnet/samples/Gpui.Net.Sample -- --stress-growth

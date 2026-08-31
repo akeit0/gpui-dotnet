@@ -19,7 +19,7 @@ GPUI.NET deliberately does not mirror GPUI's Rust API one-to-one.
 - semantic component materialization;
 - `ScrollHandle` and `ListState`;
 - retained `ManagedInput` entities and GPUI input handlers;
-- deferred overlay stacking, viewport placement, modal input interception, and dismissal;
+- deferred overlay/tooltip stacking, viewport placement, modal input interception, timing, and dismissal;
 - virtual-list viewport/measurement state and row batch cache;
 - high-frequency wheel/trackpad/scrollbar behavior.
 
@@ -35,7 +35,7 @@ The boundary rule is: **cross the ABI for state transitions or coarse data batch
 - pointer, keyboard, focus, accessibility, overlay, virtualization, and reduced-motion behavior are part of a component contract;
 - one retained handle represents one logical viewport or control instance.
 
-These principles guide Scroll/List/Image/Input/Overlay today and future editor, select, menu, dialog, tree, table, and notification work. GPUI.NET does not directly depend on `gpui-component`/`gpui-base`: those crates must use the exact same GPUI revision as their consumer. This repository pins GPUI to the official Zed merge commit for [PR #41259](https://github.com/zed-industries/zed/pull/41259), allowing system IME keys and composition to follow normal Win32 translation without carrying a framework fork. Concepts are adapted behind GPUI.NET's semantic ABI instead. Attribution is recorded in the root [NOTICE](../NOTICE).
+These principles guide Scroll/List/Image/Input/Overlay/Tooltip today and future editor, select, menu, dialog, tree, table, and notification work. GPUI.NET does not directly depend on `gpui-component`/`gpui-base`: those crates must use the exact same GPUI revision as their consumer. This repository pins GPUI to the official Zed merge commit for [PR #41259](https://github.com/zed-industries/zed/pull/41259), allowing system IME keys and composition to follow normal Win32 translation without carrying a framework fork. Concepts are adapted behind GPUI.NET's semantic ABI instead. Attribution is recorded in the root [NOTICE](../NOTICE).
 
 ## Three planes
 
@@ -51,7 +51,7 @@ Some UI state must survive independently of a managed render snapshot. A resourc
 (managed View handle, local string key, resource kind)
 ```
 
-The render snapshot declares that a resource is active. Imperative controllers send commands through the ABI; wheel/trackpad operations remain native. Overlay is a keyed snapshot component rather than a retained resource: native keyed state is used only for focus entry/restoration while the overlay remains in consecutive snapshots.
+The render snapshot declares that a resource is active. Imperative controllers send commands through the ABI; wheel/trackpad operations remain native. Overlay and Tooltip are keyed snapshot components rather than retained resources: native keyed state holds focus entry/restoration or hover timing while each component remains in consecutive snapshots.
 
 Current retained resources:
 
@@ -94,7 +94,7 @@ A `[GpuiListItem]` renderer produces an Element subtree in a list-owned arena. I
 - retained `ui.Scroll()`;
 - nested retained `ui.List()`;
 - retained `ui.Input()`;
-- window-level `ui.Overlay()`.
+- window-level `ui.Overlay()` and `ui.Tooltip()`.
 
 This avoids coupling item cache eviction to managed View mount/unmount rules. Interactive row elements remain valid because event tokens target the owning View, and GPUI element IDs are namespaced by list identity + item index.
 

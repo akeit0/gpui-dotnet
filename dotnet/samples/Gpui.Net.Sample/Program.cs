@@ -71,7 +71,7 @@ internal sealed partial class SampleShellView : View
                 SamplePage.Activity => "20,000 variable-height rows; managed rendering is range-batched",
                 SamplePage.Images => "GPUI-native decoding, caching, fitting, and grayscale",
                 SamplePage.Inputs => "retained native editing, IME, selection, focus, and UTF-8 events",
-                SamplePage.Overlays => "deferred window layers, modal input blocking, and dismissal",
+                SamplePage.Overlays => "deferred overlays, native tooltip timing, flipping, and dismissal",
                 _ => throw new InvalidOperationException("Unknown sample page."),
             }
         );
@@ -133,7 +133,7 @@ internal sealed partial class SampleShellView : View
                     .Background(inputsSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
                     .BorderColor(inputsSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
                     .TextColor(Rgb(255, 255, 255)),
-                ui.Button("show-overlays", "Overlays")
+                ui.Button("show-overlays", "Overlays + tooltips")
                     .OnClick(Events.ShowOverlays)
                     .Padding(Px(10))
                     .Background(overlaysSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
@@ -572,10 +572,43 @@ internal sealed partial class OverlayGalleryView : View
                             .Padding(Px(10))
                     )
                     .Gap(Px(10)),
+                ui.HStack(
+                        ui.Tooltip(
+                            "default-tooltip"u8,
+                            ui.Button("hover-default", "Hover for details").Padding(Px(10)),
+                            ui.VStack(
+                                    ui.Text("Native tooltip"u8)
+                                        .FontSize(Px(13))
+                                        .TextColor(Rgb(255, 255, 255)),
+                                    ui.Text("Shows after 500 ms and stays open while you cross the gap."u8)
+                                        .FontSize(Px(11))
+                                        .TextColor(Rgb(203, 213, 225))
+                                )
+                                .Gap(Px(5))
+                                .Padding(Px(10))
+                                .Width(Px(260))
+                                .Background(Rgb(15, 23, 42))
+                                .Radius(Px(8))
+                        ),
+                        ui.Tooltip(
+                            "right-tooltip"u8,
+                            ui.Button("hover-right", "Prefer right side").Padding(Px(10)),
+                            ui.Text("Flips and clamps when the preferred side does not fit."u8)
+                                .FontSize(Px(11))
+                                .TextColor(Rgb(255, 255, 255))
+                                .Padding(Px(9))
+                                .Width(Px(220))
+                                .Background(Rgb(79, 70, 229))
+                                .Radius(Px(8)),
+                            new TooltipOptions(placement: TooltipPlacement.Right)
+                        )
+                    )
+                    .Gap(Px(10)),
                 ui.VStack(
-                        ui.Text("Modal checks"u8)
+                        ui.Text("Interaction checks"u8)
                             .FontSize(Px(14))
                             .TextColor(Rgb(30, 41, 59)),
+                        ui.Text("• Tooltips use deferred content and disappear on pointer press."u8),
                         ui.Text("• Click the dim backdrop or press Escape to dismiss."u8),
                         ui.Text("• The background action must not fire through the backdrop."u8),
                         ui.Text("• Tab into the dialog input and try IME composition."u8)

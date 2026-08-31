@@ -216,6 +216,36 @@ internal static unsafe class ManagedValidator
                     $"Operation {i} has a negative overlay margin."
                 );
             }
+
+            if (
+                code == OpCode.TooltipPlacement
+                && operation.A > (uint)TooltipPlacement.Left
+            )
+            {
+                throw new InvalidOperationException(
+                    $"Operation {i} has an invalid tooltip placement."
+                );
+            }
+
+            if (
+                code == OpCode.TooltipAlignment
+                && operation.A > (uint)TooltipAlignment.End
+            )
+            {
+                throw new InvalidOperationException(
+                    $"Operation {i} has an invalid tooltip alignment."
+                );
+            }
+
+            if (
+                code is OpCode.TooltipGapPx or OpCode.TooltipMarginPx
+                && BitConverter.UInt32BitsToSingle((uint)operation.A) < 0
+            )
+            {
+                throw new InvalidOperationException(
+                    $"Operation {i} has a negative tooltip distance."
+                );
+            }
         }
 
         var markedChildren = 0;
@@ -252,7 +282,8 @@ internal static unsafe class ManagedValidator
 
             for (var nodeIndex = 0; nodeIndex < arena->NodeLength; nodeIndex++)
             {
-                if ((ComponentId)arena->Nodes[nodeIndex].Component != ComponentId.Overlay)
+                var component = (ComponentId)arena->Nodes[nodeIndex].Component;
+                if (component is not (ComponentId.Overlay or ComponentId.Tooltip))
                 {
                     continue;
                 }
@@ -265,10 +296,11 @@ internal static unsafe class ManagedValidator
                         childCount++;
                     }
                 }
-                if (childCount != 1)
+                var expectedCount = component == ComponentId.Overlay ? 1 : 2;
+                if (childCount != expectedCount)
                 {
                     throw new InvalidOperationException(
-                        $"Overlay node {nodeIndex} must have exactly one child."
+                        $"{component} node {nodeIndex} must have exactly {expectedCount} children."
                     );
                 }
             }

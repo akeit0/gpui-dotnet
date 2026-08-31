@@ -22,6 +22,7 @@ public readonly unsafe ref partial struct RenderContext
         }
 
         var element = ArenaWriter.AddNode<OverlayTag>(_arena, ComponentId.Overlay, key);
+        ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
         ConfigureOverlay(element, child, options);
         return element;
     }
@@ -40,6 +41,7 @@ public readonly unsafe ref partial struct RenderContext
         }
 
         var element = ArenaWriter.AddNode<OverlayTag>(_arena, ComponentId.Overlay, utf8Key);
+        ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
         ConfigureOverlay(element, child, options);
         return element;
     }

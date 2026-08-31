@@ -1,6 +1,6 @@
 # Next steps
 
-The repository now has framework-owned dynamic managed Views, ABI v4 typed native-control events, retained native Scroll and Input state, virtualized ListState, deferred window Overlay layers, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
+The repository now has framework-owned dynamic managed Views, ABI v4 typed native-control events, retained native Scroll and Input state, virtualized ListState, deferred window Overlay and trigger-relative Tooltip layers, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
 
 ## 1. Input hardening and Editor
 
@@ -18,6 +18,7 @@ The generic window-relative Overlay is the geometry and event foundation. Build 
 
 - Dialog and Sheet with a complete tab/shift-tab focus trap and deterministic nested-overlay focus restoration;
 - Popover/Menu with trigger measurement, anchor flipping/snapping, keyboard navigation, and outside-click dismissal;
+- Tooltip accessibility descriptions and keyboard/focus-triggered visibility in addition to pointer hover;
 - Toast/notification host with retained ordering, timeouts, pause-on-hover, and reduced-motion policy;
 - accessibility roles, labels, focus announcements, and platform verification.
 
