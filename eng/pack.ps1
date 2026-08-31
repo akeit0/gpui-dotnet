@@ -19,8 +19,17 @@ foreach ($relative in $required) {
     }
 }
 
-& dotnet pack (Join-Path $root 'src/Gpui/Gpui.csproj') `
-    -c $Configuration `
-    -p:BuildGpuiNative=false `
-    -o (Join-Path $root 'artifacts/packages')
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$packOutput = Join-Path $root 'artifacts/packages'
+$packProjects = @(
+    'src/Gpui.Core/Gpui.Core.csproj',
+    'src/Gpui.Runtime/Gpui.Runtime.csproj',
+    'src/Gpui/Gpui.csproj'
+)
+
+foreach ($project in $packProjects) {
+    & dotnet pack (Join-Path $root $project) `
+        -c $Configuration `
+        -p:BuildGpuiNative=false `
+        -o $packOutput
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}

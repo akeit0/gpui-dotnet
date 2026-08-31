@@ -72,10 +72,9 @@ Add CI gates for:
 - NuGet consumer tests without a Rust toolchain;
 - ABI C header/layout assertions.
 
-The managed assemblies are now split by responsibility: `Gpui.Core` owns the platform-neutral
-render API, `Gpui.Abi` owns generated ABI layouts and native build inputs, `Gpui.Runtime` owns native
-application hosting, and the `Gpui` assembly remains a type-forwarding compatibility facade. Keep
-these as one NuGet package while the public API is still evolving.
+The managed/native boundary now follows the Core/Runtime convention: `Gpui.Core` owns the
+platform-neutral render API, generated ABI layouts, application hosting, and managed native
+bridge; `Gpui.Runtime` carries native assets only; and `Gpui` is the convenient meta package.
 
 ## 7. Review follow-ups (2026-08-31)
 

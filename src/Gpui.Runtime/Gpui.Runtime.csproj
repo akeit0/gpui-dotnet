@@ -3,17 +3,46 @@
         <TargetFramework>net10.0</TargetFramework>
         <RootNamespace>Gpui</RootNamespace>
         <AssemblyName>Gpui.Runtime</AssemblyName>
+        <PackageId>Gpui.Runtime</PackageId>
         <Version>0.4.0</Version>
-        <IsPackable>false</IsPackable>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <Description>RID-specific native assets for GPUI.NET.</Description>
+        <IsPackable>true</IsPackable>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <IncludeContentInPack>true</IncludeContentInPack>
+        <NoWarn>$(NoWarn);NU5100;NU5128</NoWarn>
+        <RepositoryRoot>$(MSBuildThisFileDirectory)../..</RepositoryRoot>
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Include="../Gpui/GpuiApplication.cs" />
-        <Compile Include="../Gpui/Interop/NativeRuntime.cs" />
-        <Compile Include="../Gpui/Interop/Internal/**/*.cs" />
-        <ProjectReference Include="../Gpui.Core/Gpui.Core.csproj" />
-        <ProjectReference Include="../Gpui.Abi/Gpui.Abi.csproj" />
-        <InternalsVisibleTo Include="Gpui.Tests" />
+        <None Remove="**" />
+        <Compile Remove="**" />
+        <EmbeddedResource Remove="**" />
+        <None Include="$(RepositoryRoot)/README.md" Pack="true" PackagePath="\" />
+
+        <None
+            Include="$(RepositoryRoot)/artifacts/native/win-x64/gpui_dotnet.dll"
+            Condition="Exists('$(RepositoryRoot)/artifacts/native/win-x64/gpui_dotnet.dll')"
+            Pack="true"
+            PackagePath="runtimes/win-x64/native"
+        />
+        <None
+            Include="$(RepositoryRoot)/artifacts/native/linux-x64/libgpui_dotnet.so"
+            Condition="Exists('$(RepositoryRoot)/artifacts/native/linux-x64/libgpui_dotnet.so')"
+            Pack="true"
+            PackagePath="runtimes/linux-x64/native"
+        />
+        <None
+            Include="$(RepositoryRoot)/artifacts/native/osx-x64/libgpui_dotnet.dylib"
+            Condition="Exists('$(RepositoryRoot)/artifacts/native/osx-x64/libgpui_dotnet.dylib')"
+            Pack="true"
+            PackagePath="runtimes/osx-x64/native"
+        />
+        <None
+            Include="$(RepositoryRoot)/artifacts/native/osx-arm64/libgpui_dotnet.dylib"
+            Condition="Exists('$(RepositoryRoot)/artifacts/native/osx-arm64/libgpui_dotnet.dylib')"
+            Pack="true"
+            PackagePath="runtimes/osx-arm64/native"
+        />
     </ItemGroup>
 </Project>

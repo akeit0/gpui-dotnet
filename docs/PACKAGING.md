@@ -1,28 +1,21 @@
 # Packaging
 
-## Consumer target
+## Package family
 
 Normal C# consumers should not need Cargo or a Rust toolchain.
 
-The intended NuGet contains:
+The package family is:
 
 ```text
-lib/net10.0/Gpui.dll
-lib/net10.0/Gpui.Abi.dll
-lib/net10.0/Gpui.Core.dll
-lib/net10.0/Gpui.Runtime.dll
-analyzers/dotnet/cs/Gpui.Generators.dll
-runtimes/win-x64/native/gpui_dotnet.dll
-runtimes/linux-x64/native/libgpui_dotnet.so
-runtimes/osx-x64/native/libgpui_dotnet.dylib
-runtimes/osx-arm64/native/libgpui_dotnet.dylib
+Gpui           -> Gpui.Core + Gpui.Runtime
+Gpui.Core     -> Utf8StringInterpolation + managed ABI layouts
+Gpui.Runtime  -> RID-specific native assets only
 ```
 
-`Gpui.dll` remains the compatibility facade for the original public assembly identity. The
-platform-neutral render API lives in `Gpui.Core.dll`; generated ABI layouts and native build
-ownership live in `Gpui.Abi.dll`; native loading, application/window hosting, callbacks, and
-managed sessions live in `Gpui.Runtime.dll`. They are shipped together in the single `Gpui`
-package, so consumers still need only one package reference.
+The platform-neutral render API, managed application runtime, and generated ABI layouts live in
+`Gpui.Core.dll`; `Gpui.Runtime` has no managed assembly and ships only native assets. Installing
+`Gpui` still gives normal consumers one package reference through NuGet dependencies, while
+extension packages can select the managed/native pieces they need.
 
 The source generator is shipped as an analyzer so `[GpuiView]` and `[GpuiListItem]` work in consumer compilations without a separate package reference. Event callbacks are runtime view-bound fluent APIs and require no event attribute.
 
@@ -40,7 +33,8 @@ Equivalent calls are used for Linux and macOS artifacts. The final packaging job
 ./eng/pack.ps1 -Configuration Release
 ```
 
-`eng/pack.ps1` refuses to package if one of the four expected native assets is missing.
+`eng/pack.ps1` refuses to package if one of the four expected native assets is missing. It emits
+`Gpui`, `Gpui.Core`, and the native-only `Gpui.Runtime` packages.
 
 ## Development build vs package build
 
@@ -48,12 +42,14 @@ Repository development builds compile the host native library automatically and 
 
 Package assembly sets `BuildGpuiNative=false`; it consumes the already-built RID matrix rather than trying to cross-compile every GPUI target from one machine.
 
-## Future package split
+## Extensions and custom Rust hosts
 
-Keep one NuGet while binary size remains reasonable. Split platform assets into `Gpui.NativeAssets.*` packages only if package size or release cadence makes it materially useful. A premature split increases restore and version-coordination complexity.
+Future extension packages can reference `Gpui` and ship their managed APIs, generators, semantic
+components, and RID-specific native assets independently. See
+[EXTENSIONS.md](EXTENSIONS.md) for the custom-host contract.
 
-## Custom Rust components
-
-Do not ship third-party Rust components as arbitrary runtime-loaded dylib plugins that exchange GPUI/Rust types. Rust does not provide a stable ABI for those types and GPUI versions would be tightly coupled.
-
-A safer future extension SDK should rebuild/link a custom native host from source at application build time, while preserving the same semantic C ABI toward managed code.
+An application may select an extension-owned native host with
+`new NativeRuntimeOptions { LibraryPath = ... }`. The host must export the versioned
+`gpui_dotnet_get_api` entry point and pass the managed ABI/schema validation. Rust/GPUI types do
+not cross the boundary directly; this leaves custom Rust implementations possible without
+committing the package model to a single native binary.

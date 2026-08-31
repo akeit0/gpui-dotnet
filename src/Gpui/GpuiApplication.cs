@@ -106,6 +106,23 @@ public sealed class GpuiWindow
 }
 
 /// <summary>
+/// Selects the native library used by a <see cref="GpuiApplication"/> instance.
+/// </summary>
+/// <remarks>
+/// Leave <see cref="LibraryPath"/> unset to use the RID-native library supplied by the
+/// <c>Gpui</c> package. An extension package may point this at its own Rust-built native host,
+/// provided that host exposes the GPUI.NET C ABI contract.
+/// </remarks>
+public sealed class NativeRuntimeOptions
+{
+    /// <summary>
+    /// Optional path to a native library exporting <c>gpui_dotnet_get_api</c>. The path may be
+    /// absolute or relative to the process working directory.
+    /// </summary>
+    public string? LibraryPath { get; init; }
+}
+
+/// <summary>
 /// Owns one native GPUI application event loop and any number of independent managed windows.
 /// Configure at least one window before calling <see cref="Run()"/>.
 /// </summary>
@@ -116,8 +133,22 @@ public sealed class GpuiApplication
     private readonly object _gate = new();
     private readonly Dictionary<ulong, GpuiWindow> _windows = [];
     private readonly HashSet<View> _roots = new(ReferenceEqualityComparer.Instance);
+    private readonly NativeRuntimeOptions? _runtimeOptions;
     private IGpuiApplicationHost? _host;
     private ApplicationState _state;
+
+    /// <summary>
+    /// Creates an application using the package's default native host or an explicitly selected
+    /// native host.
+    /// </summary>
+    public GpuiApplication()
+        : this(null) { }
+
+    /// <summary>Creates an application with an explicitly selected native host.</summary>
+    public GpuiApplication(NativeRuntimeOptions? runtimeOptions)
+    {
+        _runtimeOptions = runtimeOptions;
+    }
 
     /// <summary>
     /// Adds a window. Before Run it is queued as an initial window; while Run is active it is
@@ -188,7 +219,7 @@ public sealed class GpuiApplication
 
         try
         {
-            RunOnUiThread(() => NativeRuntime.Load().Run(this));
+            RunOnUiThread(() => NativeRuntime.Load(_runtimeOptions).Run(this));
         }
         finally
         {
@@ -207,9 +238,19 @@ public sealed class GpuiApplication
     }
 
     /// <summary>One-window convenience over the application/window ownership model.</summary>
-    public static void Run(View rootView, GpuiWindowOptions? options = null)
+    public static void Run(View rootView, GpuiWindowOptions? options = null) =>
+        Run(rootView, options, null);
+
+    /// <summary>
+    /// One-window convenience that selects an explicit native host.
+    /// </summary>
+    public static void Run(
+        View rootView,
+        GpuiWindowOptions? options,
+        NativeRuntimeOptions? runtimeOptions
+    )
     {
-        var application = new GpuiApplication();
+        var application = new GpuiApplication(runtimeOptions);
         application.OpenWindow(rootView, options);
         application.Run();
     }

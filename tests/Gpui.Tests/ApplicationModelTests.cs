@@ -1,4 +1,5 @@
 using Gpui;
+using Gpui.Interop;
 
 namespace Gpui.Tests;
 
@@ -10,6 +11,14 @@ public sealed class ApplicationModelTests
         var application = new GpuiApplication();
 
         Assert.Throws<InvalidOperationException>(application.Run);
+    }
+
+    [Fact]
+    public void NativeRuntimeRejectsAnEmptyExplicitNativeLibraryPath()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            NativeRuntime.Load(new NativeRuntimeOptions { LibraryPath = " " })
+        );
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Gpui;
 using Gpui.Interop.Internal;
 
@@ -9,15 +10,56 @@ namespace Gpui.Interop;
 /// </summary>
 public sealed unsafe class NativeRuntime
 {
+    private const string ApiExportName = "gpui_dotnet_get_api";
+
     private readonly GpuiDotnetApiV5* _api;
+    private readonly NativeLibraryHandle? _libraryHandle;
 
-    private NativeRuntime(GpuiDotnetApiV5* api) => _api = api;
-
-    internal GpuiDotnetApiV5* Api => _api;
-
-    public static NativeRuntime Load()
+    private NativeRuntime(GpuiDotnetApiV5* api, NativeLibraryHandle? libraryHandle)
     {
-        var api = NativeMethods.gpui_dotnet_get_api(NativeConstants.AbiVersion);
+        _api = api;
+        _libraryHandle = libraryHandle;
+    }
+
+    internal GpuiDotnetApiV5* Api
+    {
+        get
+        {
+            GC.KeepAlive(_libraryHandle);
+            return _api;
+        }
+    }
+
+    /// <summary>Loads and validates the package's default native host.</summary>
+    public static NativeRuntime Load() => Load(null);
+
+    /// <summary>Loads and validates the default or explicitly selected native host.</summary>
+    public static NativeRuntime Load(NativeRuntimeOptions? options)
+    {
+        if (options is null || options.LibraryPath is null)
+        {
+            return CreateValidated(NativeMethods.gpui_dotnet_get_api(NativeConstants.AbiVersion));
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(options.LibraryPath);
+
+        NativeLibraryHandle? libraryHandle = null;
+        try
+        {
+            libraryHandle = NativeLibraryHandle.Load(options.LibraryPath);
+            var export = NativeLibrary.GetExport(libraryHandle.DangerousGetHandle(), ApiExportName);
+            var getApi = (delegate* unmanaged[Cdecl]<uint, GpuiDotnetApiV5*>)export;
+            return CreateValidated(getApi(NativeConstants.AbiVersion), libraryHandle);
+        }
+        catch
+        {
+            libraryHandle?.Dispose();
+            throw;
+        }
+    }
+
+    private static NativeRuntime CreateValidated(GpuiDotnetApiV5* api, NativeLibraryHandle? libraryHandle = null)
+    {
         if (api == null)
         {
             throw new InvalidOperationException(
@@ -59,7 +101,7 @@ public sealed unsafe class NativeRuntime
             );
         }
 
-        return new NativeRuntime(api);
+        return new NativeRuntime(api, libraryHandle);
     }
 
     public void Validate(RenderArenaOwner owner, Element root)
@@ -143,6 +185,23 @@ public sealed unsafe class NativeRuntime
             throw new InvalidOperationException(
                 $"Native view notification failed with status {status}."
             );
+        }
+    }
+
+    private sealed class NativeLibraryHandle : SafeHandle
+    {
+        private NativeLibraryHandle(nint handle)
+            : base(handle, ownsHandle: true) { }
+
+        public override bool IsInvalid => handle is 0 or -1;
+
+        public static NativeLibraryHandle Load(string path) =>
+            new(NativeLibrary.Load(path));
+
+        protected override bool ReleaseHandle()
+        {
+            NativeLibrary.Free(handle);
+            return true;
         }
     }
 }

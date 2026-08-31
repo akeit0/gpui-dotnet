@@ -49,6 +49,8 @@ application.Run(); // returns after the last window closes
 Each `GpuiWindow` has a stable 64-bit ID and its own root View tree, retained resource store, render snapshots, failures, and mount lifetime. `OpenWindow` also works while the application is running. `Close`, `Activate`, `Minimize`, `ToggleMaximize`, `SetTitle`, and `Resize` enqueue thread-safe native UI commands; title/size changes made before `Run` update the initial window definition. Initial `Left`/`Top` positioning is supported, while runtime repositioning is not exposed by the pinned GPUI API.
 
 For a single window, `GpuiApplication.Run(view, options)` is a convenience over the same model.
+An extension may provide its own compatible Rust host with
+`NativeRuntimeOptions.LibraryPath`; see [docs/EXTENSIONS.md](docs/EXTENSIONS.md).
 
 Window title bars can be system-provided (the default), custom, or hidden. Custom title bars keep presentation in managed composition while native GPUI hit-test regions perform window dragging and caption actions without routing pointer motion through .NET:
 
@@ -421,19 +423,25 @@ dotnet run --project tools/Gpui.Bindings.Generator -- verify
 
 ## Packaging
 
-The intended distribution is one managed NuGet containing the source generator and RID-specific native assets:
+The package family keeps the default install convenient while allowing extensions to depend on
+managed code and native assets independently:
 
 ```text
 Gpui.nupkg
   lib/net10.0/Gpui.dll
-  lib/net10.0/Gpui.Abi.dll
-  lib/net10.0/Gpui.Core.dll
-  lib/net10.0/Gpui.Runtime.dll
   analyzers/dotnet/cs/Gpui.Generators.dll
+
+Gpui.Core.nupkg
+  lib/net10.0/Gpui.Core.dll
+
+Gpui.Runtime.nupkg
   runtimes/win-x64/native/gpui_dotnet.dll
   runtimes/linux-x64/native/libgpui_dotnet.so
   runtimes/osx-x64/native/libgpui_dotnet.dylib
   runtimes/osx-arm64/native/libgpui_dotnet.dylib
 ```
 
-See `docs/` for architecture, ABI, component/resource authoring, lifecycle, performance, generation and packaging details.
+`Gpui` is the meta package. It depends on `Gpui.Core` and `Gpui.Runtime`; `Gpui.Core` contains
+the managed ABI contract. `Gpui.Runtime` contains native binaries only.
+See `docs/` for architecture, ABI, component/resource authoring, lifecycle, performance,
+generation and packaging details.

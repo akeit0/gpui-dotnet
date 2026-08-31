@@ -32,13 +32,17 @@ The boundary rule is: **cross the ABI for state transitions or coarse data batch
 The managed implementation is split by responsibility rather than by operating system:
 
 - `Gpui.Core` contains the platform-neutral public render API, View lifecycle/composition,
-  controllers, semantic bindings, arena writer, and managed validator;
-- `Gpui.Abi` contains the generated native ABI layouts and owns native binding generation/build
-  inputs without exposing them as public API;
-- `Gpui.Runtime` contains native library loading, application/window hosting, callbacks, and
-  managed render sessions;
-- `Gpui` remains a small compatibility facade with type forwarders and owns the single NuGet
-  package, which also carries the Core and Runtime assemblies plus RID-specific native assets.
+  controllers, semantic bindings, arena writer, managed validator, application/window hosting,
+  callbacks, managed sessions, native loading, and the generated managed ABI contract;
+- `Gpui.Runtime` is a pack-only RID native asset package; it contains no managed implementation
+  assembly;
+- `Gpui` is a compile-output-free meta package that carries the source generator and depends on
+  Core and Runtime.
+
+The package boundary is intentionally extensible: future packages may add managed assemblies and
+their own RID-native host. `NativeRuntimeOptions.LibraryPath` lets an application opt into such a
+host while the default package-native loader remains unchanged. Every host still enters through
+the versioned semantic C ABI and schema validation.
 
 Rust remains one native crate with platform-specific modules selected by the target OS. This keeps
 the C# API independent of Windows/AppKit details while allowing each native RID to use its host
