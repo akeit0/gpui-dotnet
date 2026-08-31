@@ -44,6 +44,13 @@ jobs:
         shell: pwsh
         run: ./eng/stage-native.ps1 -Rid win-x64 -Library crates/gpui-dotnet/target/release/gpui_dotnet.dll
 
+      - name: Upload native asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-win-x64
+          path: artifacts/native/win-x64
+          if-no-files-found: error
+
   macos:
     strategy:
       fail-fast: false
@@ -88,3 +95,10 @@ jobs:
       - name: Stage release native asset
         shell: pwsh
         run: ./eng/stage-native.ps1 -Rid ${{ matrix.rid }} -Library crates/gpui-dotnet/target/release/libgpui_dotnet.dylib
+
+      - name: Upload native asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: artifacts/native/${{ matrix.rid }}
+          if-no-files-found: error
