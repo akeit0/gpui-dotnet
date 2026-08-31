@@ -76,7 +76,7 @@ ui.Input("name", new InputOptions(placeholder: "Name"));
 ui.Input("name"u8, new Utf8InputOptions(placeholder: "Name"u8));
 ```
 
-`OnChanged`, `OnSubmitted`, and `OnFocusChanged` are opt-in generated event bindings. `InputEvent.Utf8Value` is the owned no-transcode payload; `Value` is a lazy string convenience. `InputController` supports focus, blur, selection, and programmatic value replacement. Input is retained and therefore intentionally rejected inside a virtualized List row, whose cache lifetime is not a managed View/resource lifetime.
+`OnChanged`, `OnSubmitted`, and `OnFocusChanged` are opt-in view-bound event bindings. `InputEvent.Utf8Value` is the owned no-transcode payload; `Value` is a lazy string convenience. `InputController` supports focus, blur, selection, and programmatic value replacement. Input is retained and therefore intentionally rejected inside a virtualized List row, whose cache lifetime is not a managed View/resource lifetime.
 
 ## Overlay
 
@@ -153,7 +153,7 @@ Rows can bind payloads without per-item closures:
 
 ```csharp
 ui.Button("row", label)
-    .OnClick(Events.Open, (ulong)index);
+    .OnClick(this, (view, e) => view.Open(e), (ulong)index);
 ```
 
 The handler receives `ClickEvent.Payload`.

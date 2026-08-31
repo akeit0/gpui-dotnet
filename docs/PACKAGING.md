@@ -15,7 +15,7 @@ runtimes/osx-x64/native/libgpui_dotnet.dylib
 runtimes/osx-arm64/native/libgpui_dotnet.dylib
 ```
 
-The source generator is shipped as an analyzer so `[GpuiEvent]` works in consumer compilations without a separate package reference.
+The source generator is shipped as an analyzer so `[GpuiView]` and `[GpuiListItem]` work in consumer compilations without a separate package reference. Event callbacks are runtime view-bound fluent APIs and require no event attribute.
 
 ## CI native matrix
 

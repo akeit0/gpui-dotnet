@@ -192,7 +192,7 @@ public sealed class SemanticRenderTests
                         backdrop: Rgba(15, 23, 42, 128)
                     )
                 )
-                .OnDismiss(view.Click, 42);
+                .OnDismiss(view, (owner, _) => owner.RecordClick(), 42);
 
             arena.Validate(overlay);
 
@@ -453,7 +453,9 @@ public sealed class SemanticRenderTests
         {
             using var arena = new RenderArenaOwner();
             var ui = arena.BeginRender(new NoopRenderer(), view);
-            var button = ui.Button("row", "label").ItemId((1UL << 40) | 7).OnClick(view.Click);
+            var button = ui.Button("row", "label")
+                .ItemId((1UL << 40) | 7)
+                .OnClick(view, (owner, _) => owner.RecordClick());
 
             arena.Validate(button);
 
@@ -484,6 +486,76 @@ public sealed class SemanticRenderTests
         finally
         {
             view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public async Task ViewBoundClickCallbackReusesAndUnregistersItsEntry()
+    {
+        var view = new DynamicCallbackView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+
+            var firstUi = arena.BeginRender(new NoopRenderer(), view);
+            var first = view.RenderCore(ref firstUi);
+            arena.Validate(first);
+            var firstEventId = ReadCallbackEventId(arena);
+
+            var secondUi = arena.BeginRender(new NoopRenderer(), view);
+            var second = view.RenderCore(ref secondUi);
+            arena.Validate(second);
+            var secondEventId = ReadCallbackEventId(arena);
+
+            Assert.Equal(firstEventId, secondEventId);
+            await view.DispatchClickCore(firstEventId, default);
+            Assert.Equal(1, view.ClickCount);
+
+            view.BindCallback = false;
+            var thirdUi = arena.BeginRender(new NoopRenderer(), view);
+            var third = view.RenderCore(ref thirdUi);
+            arena.Validate(third);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                view.DispatchClickCore(firstEventId, default).AsTask()
+            );
+
+            view.BindCallback = true;
+            var fourthUi = arena.BeginRender(new NoopRenderer(), view);
+            var fourth = view.RenderCore(ref fourthUi);
+            arena.Validate(fourth);
+            Assert.Equal(firstEventId, ReadCallbackEventId(arena));
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public async Task ViewBoundCallbackCanTargetAnotherMountedView()
+    {
+        var owner = new DynamicCallbackView();
+        var target = new CallbackTargetView();
+        Attach(owner, 1);
+        Attach(target, 2);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            owner.CallbackTarget = target;
+            var ui = arena.BeginRender(new NoopRenderer(), owner);
+            var button = owner.RenderCore(ref ui);
+            arena.Validate(button);
+
+            var eventId = ReadCallbackEventId(arena);
+            await owner.DispatchClickCore(eventId, default);
+            Assert.Equal(1, target.ClickCount);
+        }
+        finally
+        {
+            target.DetachRuntime();
+            owner.DetachRuntime();
         }
     }
 
@@ -769,14 +841,27 @@ public sealed class SemanticRenderTests
         Assert.Throws<InvalidOperationException>(() => controller.RefreshRanges((0, 1)));
     }
 
-    private static void Attach(ProbeView view) =>
+    private static void Attach(View view, uint handle = 1) =>
         view.AttachRuntime(
-            1,
+            handle,
             static callback => callback(),
             static _ => { },
             static (_, _) => { },
             static (_, _, _) => { }
         );
+
+    private static unsafe uint ReadCallbackEventId(RenderArenaOwner arena)
+    {
+        for (var index = 0; index < arena.NativeArena->OpLength; index++)
+        {
+            if (arena.NativeArena->Ops[index].Code == (ushort)OpCode.OnClick)
+            {
+                return checked((uint)(arena.NativeArena->Ops[index].A & uint.MaxValue));
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException("The render did not contain an OnClick operation.");
+    }
 
     private static unsafe byte[] ReadNodeKey(RenderArenaOwner arena)
     {
@@ -793,8 +878,39 @@ public sealed class SemanticRenderTests
 
     private sealed class ProbeView : View
     {
-        internal Callback<ClickEvent> Click => BindClick(1);
         internal ListItemRenderer Row => BindListRenderer(1);
+
+        internal void RecordClick() { }
+
+        protected override Element Render(ref RenderContext ui) => ui.Div();
+    }
+
+    private sealed class DynamicCallbackView : View
+    {
+        internal bool BindCallback = true;
+        internal CallbackTargetView? CallbackTarget;
+        internal int ClickCount;
+
+        protected override Element Render(ref RenderContext ui)
+        {
+            var button = ui.Button("dynamic", "dynamic");
+            if (!BindCallback)
+            {
+                return button;
+            }
+
+            if (CallbackTarget is { } target)
+            {
+                return button.OnClick(target, (view, _) => view.ClickCount++);
+            }
+
+            return button.OnClick(this, (view, _) => view.ClickCount++);
+        }
+    }
+
+    private sealed class CallbackTargetView : View
+    {
+        internal int ClickCount;
 
         protected override Element Render(ref RenderContext ui) => ui.Div();
     }

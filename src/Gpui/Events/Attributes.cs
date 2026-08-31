@@ -9,15 +9,6 @@ namespace Gpui;
 public sealed class GpuiViewAttribute : Attribute;
 
 /// <summary>
-/// Marks an instance method as a generated GPUI event handler. A handler may accept no arguments
-/// or one <see cref="ClickEvent"/>/<see cref="InputEvent"/> and may return void, Task, or ValueTask.
-/// A parameterless handler binds as a click handler; input handlers must accept InputEvent.
-/// async void is rejected.
-/// </summary>
-[AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
-public sealed class GpuiEventAttribute : Attribute;
-
-/// <summary>
 /// Marks a synchronous virtualized list-item renderer. The method signature is
 /// Element Method(int index, ref RenderContext ui). The source generator emits an allocation-free
 /// renderer token and dispatch switch used by native range virtualization.

@@ -12,17 +12,13 @@ internal sealed partial class DashboardView : View
         _scroll = context.CreateScrollController("overview-scroll");
     }
 
-    [GpuiEvent]
-    private void ScrollTop() => _scroll.ScrollToTop();
-
-    [GpuiEvent]
-    private void ScrollBottom() => _scroll.ScrollToBottom();
-
     protected override Element Render(ref RenderContext ui)
     {
         var controls = ui.HStack(
-                ui.Button("scroll-top", "Top").OnClick(Events.ScrollTop),
-                ui.Button("scroll-bottom", "Bottom").OnClick(Events.ScrollBottom),
+                ui.Button("scroll-top", "Top")
+                    .OnClick(this, (view, _) => view._scroll.ScrollToTop()),
+                ui.Button("scroll-bottom", "Bottom")
+                    .OnClick(this, (view, _) => view._scroll.ScrollToBottom()),
                 ui.Spacer(),
                 ui.Badge(ui.Text("native ScrollHandle"u8))
                     .Background(Rgb(219, 234, 254))

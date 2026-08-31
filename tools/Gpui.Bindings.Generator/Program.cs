@@ -430,7 +430,9 @@ internal static class BindingGenerator
         builder.AppendLine("    {");
         AppendParentApis(builder);
         foreach (
-            var operation in schema.Operations.Where(operation => operation.ManagedApi is not null)
+            var operation in schema.Operations.Where(operation =>
+                operation.ManagedApi is not null and not "click"
+            )
         )
         {
             AppendManagedApi(builder, operation);

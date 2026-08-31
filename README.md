@@ -126,8 +126,9 @@ private ScrollController _scroll;
 protected override void OnMounted(ref ViewContext context) =>
     _scroll = context.CreateScrollController("document");
 
-[GpuiEvent]
-private void ToTop() => _scroll.ScrollToTop();
+protected override Element Render(ref RenderContext ui) =>
+    ui.Button("top", "Top")
+        .OnClick(this, (view, _) => view._scroll.ScrollToTop());
 ```
 
 `ScrollController` also supports `ScrollTo(x, y)` and `ScrollToBottom()`.
@@ -147,9 +148,8 @@ internal sealed partial class ActivityView : View
     [GpuiListItem]
     private Element ActivityRow(int index, ref RenderContext ui) =>
         ui.Button("row", $"Row {index:N0}")
-            .OnClick(Events.SelectRow, checked((ulong)index));
+            .OnClick(this, (view, e) => view.SelectRow(e), checked((ulong)index));
 
-    [GpuiEvent]
     private void SelectRow(ClickEvent e)
     {
         var index = checked((int)e.Payload);
@@ -186,7 +186,7 @@ The source generator emits `Rows.Method`, which contains a 64-bit renderer token
 
 Lists also use smooth native wheel scrolling and a draggable scrollbar by default. `estimatedItemHeight` keeps the thumb stable and lets dragging jump through an unmeasured virtual list without eagerly rendering every row.
 
-List row renderers are intentionally **Element-only**. They cannot create managed child Views, nested retained `Scroll`, or nested `List` resources. This keeps virtualization lifetime independent from the normal managed View tree. Row events remain supported; `OnClick(callback, payload)` stores an unmanaged `ulong` payload directly in the render IR.
+List row renderers are intentionally **Element-only**. They cannot create managed child Views, nested retained `Scroll`, or nested `List` resources. This keeps virtualization lifetime independent from the normal managed View tree. Row events remain supported; `OnClick(this, (view, e) => view.SelectRow(e), payload)` stores an unmanaged `ulong` payload directly in the render IR.
 
 Optional `ListController` operations:
 
@@ -223,7 +223,6 @@ var image = ui.Image(Path.Combine(AppContext.BaseDirectory, "Assets", "hero.svg"
 ```csharp
 private InputController _search;
 
-[GpuiEvent]
 private void SearchChanged(InputEvent input)
 {
     // Decode only when the application actually needs a System.String.
@@ -235,7 +234,7 @@ protected override Element Render(ref RenderContext ui) =>
     ui.Input(
             ref _search,
             new Utf8InputOptions(placeholder: "Search…"u8))
-        .OnChanged(Events.SearchChanged)
+        .OnChanged(this, (view, input) => view.SearchChanged(input))
         .Width(Percent(100));
 ```
 
@@ -253,13 +252,13 @@ On Windows, focused inputs use the active system IME, including composition text
 var dialog = ui.VStack(
         ui.Text("Preferences"),
         ui.Input("name"u8),
-        ui.Button("close", "Close").OnClick(Events.Close))
+        ui.Button("close", "Close").OnClick(this, (view, _) => view.Close()))
     .Padding(Px(20))
     .Width(Px(440))
     .Background(Rgb(255, 255, 255));
 
 return ui.Overlay("preferences"u8, dialog)
-    .OnDismiss(Events.Close);
+    .OnDismiss(this, (view, _) => view.Close());
 ```
 
 `OverlayOptions` supports nine viewport placements, modal/non-modal behavior, priority, margin, backdrop color, and independent backdrop/Escape dismissal. Modal overlays block pointer and wheel input behind the backdrop, move focus into the overlay on open, keep Tab/Shift+Tab traversal inside it, and restore the previous focus when native dismissal runs. Escape is handled in the bubble phase so a focused child control receives it first. Content can contain normal managed child Views and retained controls such as Input; overlays are intentionally unavailable inside virtualized List rows.
@@ -283,9 +282,9 @@ return ui.Tooltip(
 ```csharp
 var documentMenu = ui.VStack(
         ui.Text("Document actions"),
-        ui.Button("open-menu"u8, "Open"u8).OnClick(Events.OpenDocument),
+        ui.Button("open-menu"u8, "Open"u8).OnClick(this, (view, _) => view.OpenDocument()),
         ui.Button("duplicate-menu"u8, "Duplicate"u8)
-            .OnClick(Events.DuplicateDocument))
+            .OnClick(this, (view, _) => view.DuplicateDocument()))
     .Width(Px(220))
     .Padding(Px(8))
     .Background(Rgb(255, 255, 255));
@@ -297,7 +296,7 @@ var documentCard = ui.Text("Right-click this document")
 return ui.ContextMenu("document-actions"u8, documentCard, documentMenu);
 ```
 
-Rust owns right-button interception, pointer placement, viewport clamping, deferred priority, focus restoration, and dismissal on outside click, Escape, selection, or another right-click. Managed code owns menu visuals and actions through normal generated event bindings. `ContextMenuOptions` configures priority and viewport margin. Context menus are keyed to the owning View and are intentionally unavailable inside virtualized List rows. Use them for application content; leave a custom title-bar Drag region unwrapped so platform non-client behavior remains unclaimed.
+Rust owns right-button interception, pointer placement, viewport clamping, deferred priority, focus restoration, and dismissal on outside click, Escape, selection, or another right-click. Managed code owns menu visuals and actions through normal view-bound event bindings. `ContextMenuOptions` configures priority and viewport margin. Context menus are keyed to the owning View and are intentionally unavailable inside virtualized List rows. Use them for application content; leave a custom title-bar Drag region unwrapped so platform non-client behavior remains unclaimed.
 
 `ui.PopoverMenu(key, trigger, content, options)` uses the same two-child ownership model for a left-click trigger. Rust measures the trigger, attaches the deferred menu below its leading edge, snaps it to the viewport, moves focus into it, and dismisses it after selection, outside pointer-down, or Escape. While one menu is open, hovering another `PopoverMenu` in the same View transfers the open menu without another click. This is the primitive used by the sample's File/View/Help title-bar menu:
 
@@ -306,17 +305,38 @@ return ui.PopoverMenu(
     "file-menu"u8,
     ui.Button("file-trigger"u8, "File"u8),
     ui.VStack(
-        ui.Button("new-window"u8, "New window"u8).OnClick(Events.NewWindow),
-        ui.Button("close-window"u8, "Close window"u8).OnClick(Events.CloseWindow)));
+        ui.Button("new-window"u8, "New window"u8).OnClick(this, (view, _) => view.NewWindow()),
+        ui.Button("close-window"u8, "Close window"u8).OnClick(this, (view, _) => view.CloseWindow())));
 ```
 
-## Generated events
+## View-bound events
 
-Constructor-time callback registration is not used. `[GpuiEvent]` emits stable handler IDs, `Events.*` bindings and direct dispatch code. `Task`/`ValueTask` completion is observed; `async void` is rejected.
+Event callbacks are bound at the element call site and receive an explicit View target:
 
 ```csharp
-[GpuiEvent]
-private async ValueTask Increment(ClickEvent _)
+ui.Button("save", "Save")
+    .OnClick(this, (view, _) => view.Save());
+
+ui.Button("row", "Open")
+    .OnClick(this, (view, e) => view.OpenRow(e), payload: 42);
+
+ui.Input("search"u8)
+    .OnChanged(this, (view, e) => view.SearchChanged(e));
+```
+
+All click callbacks receive `ClickEvent`; use `_` when the event is not needed. `ClickEvent.Payload`
+is optional unmanaged event context; normal bindings use zero, while virtualized rows can bind an
+index/model ID without creating a managed closure. `Task`/`ValueTask` callbacks are observed by
+the session.
+
+The target View does not have to be the View currently rendering the element. The render owner
+stores the callback in an internal recyclable entry list, and the native token identifies that
+owner and entry. The dispatcher checks the callback's target type before invocation. Each completed
+render pass unregisters entries not touched by that pass; an aborted render leaves the previous
+bindings intact.
+
+```csharp
+private async ValueTask Save()
 {
     await Task.Delay(100, Lifetime);
     _count++;
@@ -324,9 +344,7 @@ private async ValueTask Increment(ClickEvent _)
 }
 ```
 
-`ClickEvent.Payload` is optional unmanaged event context. Normal bindings use zero; virtualized rows can bind an index/model ID without creating a managed closure.
-
-`Render()` remains a pure description function. Arena growth may retry it. Do not mutate View state, start tasks, perform I/O, register handlers, or call `Invalidate()` from `Render()` or a `[GpuiListItem]` renderer.
+`Render()` remains a pure description function. Arena growth may retry it. Do not mutate View state, start tasks, perform I/O, or call `Invalidate()` from `Render()` or a `[GpuiListItem]` renderer. Binding an event at the call site is the supported render-time registration operation.
 
 ## ABI v5
 
@@ -377,7 +395,7 @@ dotnet run --project tools/Gpui.Bindings.Generator -- generate
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
 ```
 
-`Gpui.Generators` is a separate Roslyn incremental generator for `[GpuiView]`, `[GpuiEvent]`, and `[GpuiListItem]`.
+`Gpui.Generators` is a separate Roslyn incremental generator for `[GpuiView]` and `[GpuiListItem]`. Event callbacks use the runtime view-bound fluent APIs described above.
 
 ## Packaging
 

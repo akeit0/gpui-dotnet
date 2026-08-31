@@ -2,6 +2,13 @@ using System.Runtime.ExceptionServices;
 
 namespace Gpui;
 
+internal enum ViewEventBindingScope
+{
+    None,
+    Render,
+    ListRange,
+}
+
 internal delegate void Utf8InputValueDispatcher(
     View owner,
     ReadOnlySpan<byte> utf8Key,
@@ -26,13 +33,71 @@ public interface IGeneratedViewFactory<TSelf>
 /// </summary>
 public abstract class View
 {
+    private const uint DynamicEventBit = 0x8000_0000u;
+    private const uint DynamicEventEntryMask = 0x7FFF_FFFFu;
+
+    [ThreadStatic]
+    private static View? _currentEventBindingOwner;
+
+    internal static View? CurrentEventBindingOwner
+    {
+        get => _currentEventBindingOwner;
+        set => _currentEventBindingOwner = value;
+    }
+
+    private delegate ValueTask EventBinder(
+        object target,
+        Delegate callback,
+        in EventDispatch dispatch
+    );
+
+    private enum EventDispatchKind : byte
+    {
+        Click,
+        Input,
+    }
+
+    private readonly struct EventDispatch
+    {
+        internal EventDispatch(ClickEvent click)
+        {
+            Kind = EventDispatchKind.Click;
+            Click = click;
+            Input = null;
+        }
+
+        internal EventDispatch(InputEvent input)
+        {
+            Kind = EventDispatchKind.Input;
+            Click = default;
+            Input = input;
+        }
+
+        internal EventDispatchKind Kind { get; }
+        internal ClickEvent Click { get; }
+        internal InputEvent? Input { get; }
+    }
+
+    private struct EventEntry
+    {
+        internal object? Target;
+        internal Delegate? Callback;
+        internal int BinderIndex;
+        internal int LastPass;
+    }
+
     private readonly object _runtimeGate = new();
+    private readonly List<EventEntry> _eventEntries = [];
+    private readonly Stack<int> _freeEventIds = new();
     private Action<Action>? _post;
     private Action<View>? _invalidate;
     private Action<View, ResourceCommand>? _resourceCommand;
     private Utf8InputValueDispatcher? _utf8InputValue;
     private CancellationTokenSource? _mountLifetime;
     private uint _runtimeViewHandle;
+    private ViewEventBindingScope _eventBindingScope;
+    private int _eventBindingPass;
+    private int _nextEventBindingPass;
     private int _mounted;
     private ulong _nextResourceKeyId;
 
@@ -85,47 +150,221 @@ public abstract class View
     }
 
     /// <summary>
-    /// Binds a generated local handler id to this mounted view without allocating or registering
-    /// a delegate. Source-generated event accessors call this method.
+    /// Registers a typed click callback on this mounted View. Equivalent bindings reuse their
+    /// recyclable per-View entry, so the native token remains compact and stable across renders.
     /// </summary>
-    protected Callback<ClickEvent> BindClick(uint handlerId)
-    {
-        if (handlerId == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(handlerId), "Handler id 0 is reserved.");
-        }
+    internal ulong BindClick<TView>(Action<TView, ClickEvent> callback)
+        where TView : View => BindDynamicEvent(this, callback, ClickEventBinder<TView>.Index);
 
+    internal ulong BindClick<TView>(Func<TView, ClickEvent, ValueTask> callback)
+        where TView : View => BindDynamicEvent(this, callback, ClickEventAsyncBinder<TView>.Index);
+
+    internal ulong BindClick<TView>(Func<TView, ClickEvent, Task> callback)
+        where TView : View => BindDynamicEvent(this, callback, ClickEventTaskBinder<TView>.Index);
+
+    /// <summary>Registers a typed input callback on this mounted View.</summary>
+    internal ulong BindInput<TView>(Action<TView, InputEvent> callback)
+        where TView : View => BindDynamicEvent(this, callback, InputBinder<TView>.Index);
+
+    internal ulong BindInput<TView>(Func<TView, InputEvent, ValueTask> callback)
+        where TView : View => BindDynamicEvent(this, callback, InputAsyncBinder<TView>.Index);
+
+    internal ulong BindInput<TView>(Func<TView, InputEvent, Task> callback)
+        where TView : View => BindDynamicEvent(this, callback, InputTaskBinder<TView>.Index);
+
+    private ulong BindDynamicEvent(View target, Delegate callback, int binderIndex)
+    {
+        return (_currentEventBindingOwner ?? this).BindDynamicEventCore(
+            target,
+            callback,
+            binderIndex
+        );
+    }
+
+    private ulong BindDynamicEventCore(View target, Delegate callback, int binderIndex)
+    {
         var viewHandle = Volatile.Read(ref _runtimeViewHandle);
         if (viewHandle == 0 || Volatile.Read(ref _mounted) == 0)
         {
             throw new InvalidOperationException(
-                "Generated callbacks can only be materialized while the view is mounted. "
-                    + "Use Events.<handler> from Render(), not from a constructor or field initializer."
+                "Event callbacks can only be bound while the View is mounted and rendering."
             );
         }
 
-        return new Callback<ClickEvent>(((ulong)viewHandle << 32) | handlerId);
+        lock (_runtimeGate)
+        {
+            var scope = _eventBindingScope;
+            var pass = _eventBindingPass;
+            for (var index = 0; index < _eventEntries.Count; index++)
+            {
+                var current = _eventEntries[index];
+                if (
+                    current.BinderIndex == binderIndex
+                    && IsEntryInScope(current.LastPass, scope)
+                    && ReferenceEquals(current.Target, target)
+                    && Equals(current.Callback, callback)
+                )
+                {
+                    current.Target = target;
+                    current.Callback = callback;
+                    current.LastPass = pass;
+                    _eventEntries[index] = current;
+                    return DynamicEventToken(viewHandle, index);
+                }
+            }
+
+            var entryIndex = _freeEventIds.Count != 0 ? _freeEventIds.Pop() : _eventEntries.Count;
+            if (entryIndex >= (int)DynamicEventEntryMask)
+            {
+                throw new InvalidOperationException(
+                    "The View has exhausted its dynamic event entries."
+                );
+            }
+
+            var entry = new EventEntry
+            {
+                Target = target,
+                Callback = callback,
+                BinderIndex = binderIndex,
+                LastPass = pass,
+            };
+            if (entryIndex == _eventEntries.Count)
+            {
+                _eventEntries.Add(entry);
+            }
+            else
+            {
+                _eventEntries[entryIndex] = entry;
+            }
+            return DynamicEventToken(viewHandle, entryIndex);
+        }
     }
 
-    /// <summary>Binds a generated input-event handler to this mounted view.</summary>
-    protected Callback<InputEvent> BindInput(uint handlerId)
+    internal void BeginEventBindingPass(ViewEventBindingScope scope)
     {
-        if (handlerId == 0)
+        lock (_runtimeGate)
         {
-            throw new ArgumentOutOfRangeException(nameof(handlerId), "Handler id 0 is reserved.");
-        }
+            if (_eventBindingScope != ViewEventBindingScope.None)
+            {
+                throw new InvalidOperationException(
+                    "Nested View event-binding passes are not supported."
+                );
+            }
 
-        var viewHandle = Volatile.Read(ref _runtimeViewHandle);
-        if (viewHandle == 0 || Volatile.Read(ref _mounted) == 0)
-        {
-            throw new InvalidOperationException(
-                "Generated callbacks can only be materialized while the view is mounted. "
-                    + "Use Events.<handler> from Render(), not from a constructor or field initializer."
-            );
+            var pass = ++_nextEventBindingPass;
+            _eventBindingScope = scope;
+            _eventBindingPass = scope == ViewEventBindingScope.ListRange ? -pass : pass;
         }
-
-        return new Callback<InputEvent>(((ulong)viewHandle << 32) | handlerId);
     }
+
+    internal void CompleteEventBindingPass(ViewEventBindingScope scope, bool completed)
+    {
+        lock (_runtimeGate)
+        {
+            if (_eventBindingScope != scope)
+            {
+                return;
+            }
+
+            if (completed)
+            {
+                for (var index = 0; index < _eventEntries.Count; index++)
+                {
+                    var entry = _eventEntries[index];
+                    if (
+                        entry.BinderIndex != 0
+                        && IsEntryInScope(entry.LastPass, scope)
+                        && entry.LastPass != _eventBindingPass
+                    )
+                    {
+                        _eventEntries[index] = default;
+                        _freeEventIds.Push(index);
+                    }
+                }
+            }
+
+            _eventBindingScope = ViewEventBindingScope.None;
+            _eventBindingPass = 0;
+        }
+    }
+
+    private static ulong DynamicEventToken(uint viewHandle, int index) =>
+        ((ulong)viewHandle << 32) | DynamicEventBit | checked((uint)(index + 1));
+
+    private ValueTask DispatchDynamicClickAsync(uint eventId, ClickEvent clickEvent)
+    {
+        if (!TryGetDynamicEvent(eventId, out var entry))
+        {
+            return MissingDynamicEvent(eventId, "click");
+        }
+
+        var dispatch = new EventDispatch(clickEvent);
+        return EventBinderRegistry.Get(entry.BinderIndex)(
+            entry.Target!,
+            entry.Callback!,
+            in dispatch
+        );
+    }
+
+    private ValueTask DispatchDynamicInputAsync(uint eventId, InputEvent inputEvent)
+    {
+        if (!TryGetDynamicEvent(eventId, out var entry))
+        {
+            return MissingDynamicEvent(eventId, "input");
+        }
+
+        var dispatch = new EventDispatch(inputEvent);
+        return EventBinderRegistry.Get(entry.BinderIndex)(
+            entry.Target!,
+            entry.Callback!,
+            in dispatch
+        );
+    }
+
+    private bool TryGetDynamicEvent(uint eventId, out EventEntry entry)
+    {
+        if ((eventId & DynamicEventBit) == 0)
+        {
+            entry = default;
+            return false;
+        }
+
+        var entryId = eventId & DynamicEventEntryMask;
+        if (entryId == 0)
+        {
+            entry = default;
+            return false;
+        }
+
+        lock (_runtimeGate)
+        {
+            var index = checked((int)entryId - 1);
+            if (index >= _eventEntries.Count)
+            {
+                entry = default;
+                return false;
+            }
+
+            entry = _eventEntries[index];
+            return entry.BinderIndex != 0;
+        }
+    }
+
+    private static ValueTask MissingDynamicEvent(uint eventId, string eventType) =>
+        ValueTask.FromException(
+            new InvalidOperationException(
+                $"Dynamic {eventType} event entry {eventId & DynamicEventEntryMask} has no callback."
+            )
+        );
+
+    private static bool IsEntryInScope(int pass, ViewEventBindingScope scope) =>
+        scope switch
+        {
+            ViewEventBindingScope.None => pass == 0,
+            ViewEventBindingScope.Render => pass > 0,
+            ViewEventBindingScope.ListRange => pass < 0,
+            _ => false,
+        };
 
     /// <summary>
     /// Binds a generated list-item renderer id to this mounted view. The token is consumed by
@@ -151,25 +390,6 @@ public abstract class View
     }
 
     /// <summary>
-    /// Generated views override this with a switch over compile-time handler ids. The base
-    /// implementation is intentionally strict so stale or malformed event tokens fail loudly.
-    /// </summary>
-    protected virtual ValueTask DispatchClickAsync(uint handlerId, ClickEvent clickEvent) =>
-        ValueTask.FromException(
-            new InvalidOperationException(
-                $"Generated click handler 0x{handlerId:X8} is not defined."
-            )
-        );
-
-    /// <summary>Generated views override this with input-event dispatch.</summary>
-    protected virtual ValueTask DispatchInputAsync(uint handlerId, InputEvent inputEvent) =>
-        ValueTask.FromException(
-            new InvalidOperationException(
-                $"Generated input handler 0x{handlerId:X8} is not defined."
-            )
-        );
-
-    /// <summary>
     /// Generated views override this for [GpuiListItem] methods. List item rendering is synchronous
     /// and element-only; retained child View composition is intentionally not available inside a
     /// virtualized row batch.
@@ -187,16 +407,39 @@ public abstract class View
     /// </summary>
     protected abstract Element Render(ref RenderContext ui);
 
-    internal Element RenderCore(ref RenderContext ui) => Render(ref ui);
+    internal Element RenderCore(ref RenderContext ui)
+    {
+        BeginEventBindingPass(ViewEventBindingScope.Render);
+        var previousEventBindingOwner = _currentEventBindingOwner;
+        _currentEventBindingOwner = this;
+        var completed = false;
+        try
+        {
+            var element = Render(ref ui);
+            completed = true;
+            return element;
+        }
+        finally
+        {
+            try
+            {
+                CompleteEventBindingPass(ViewEventBindingScope.Render, completed);
+            }
+            finally
+            {
+                _currentEventBindingOwner = previousEventBindingOwner;
+            }
+        }
+    }
 
     internal Element RenderListItemCore(uint rendererId, int index, ref RenderContext ui) =>
         RenderListItem(rendererId, index, ref ui);
 
-    internal ValueTask DispatchClickCore(uint handlerId, ClickEvent clickEvent) =>
-        DispatchClickAsync(handlerId, clickEvent);
+    internal ValueTask DispatchClickCore(uint eventId, ClickEvent clickEvent) =>
+        DispatchDynamicClickAsync(eventId, clickEvent);
 
-    internal ValueTask DispatchInputCore(uint handlerId, InputEvent inputEvent) =>
-        DispatchInputAsync(handlerId, inputEvent);
+    internal ValueTask DispatchInputCore(uint eventId, InputEvent inputEvent) =>
+        DispatchDynamicInputAsync(eventId, inputEvent);
 
     internal uint RuntimeViewHandle => Volatile.Read(ref _runtimeViewHandle);
     internal bool IsMountedCore => Volatile.Read(ref _mounted) != 0;
@@ -377,6 +620,224 @@ public abstract class View
             );
         post(callback);
     }
+
+    private static class EventBinderRegistry
+    {
+        private const int SegmentShift = 8;
+        private const int SegmentSize = 1 << SegmentShift;
+        private const int SegmentMask = SegmentSize - 1;
+        private const int MaxSegments = 256;
+        private static readonly EventBinder[]?[] _segments = new EventBinder[]?[MaxSegments];
+        private static int _count;
+
+        internal static int Add(EventBinder binder)
+        {
+            var index = Interlocked.Increment(ref _count);
+            var segmentIndex = index >> SegmentShift;
+            if ((uint)segmentIndex >= MaxSegments)
+            {
+                throw new InvalidOperationException("The event binder registry is exhausted.");
+            }
+
+            var segment = Volatile.Read(ref _segments[segmentIndex]);
+            if (segment is null)
+            {
+                var created = new EventBinder[SegmentSize];
+                segment =
+                    Interlocked.CompareExchange(ref _segments[segmentIndex], created, null)
+                    ?? created;
+            }
+
+            Volatile.Write(ref segment[index & SegmentMask], binder);
+            return index;
+        }
+
+        internal static EventBinder Get(int index)
+        {
+            if (index <= 0)
+            {
+                throw new InvalidOperationException("The event binder index is invalid.");
+            }
+
+            var segmentIndex = index >> SegmentShift;
+            if ((uint)segmentIndex >= MaxSegments)
+            {
+                throw new InvalidOperationException("The event binder index is invalid.");
+            }
+
+            var segment = Volatile.Read(ref _segments[segmentIndex]);
+            var binder = segment is null ? null : Volatile.Read(ref segment[index & SegmentMask]);
+            return binder
+                ?? throw new InvalidOperationException("The event binder is not registered.");
+        }
+    }
+
+    private static class ClickEventBinder<TView>
+        where TView : View
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.Click)
+            {
+                return WrongDispatchKind("click");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "click");
+            }
+            if (callback is not Action<TView, ClickEvent> typedCallback)
+            {
+                return WrongCallback("Action<TView, ClickEvent>", "click");
+            }
+
+            typedCallback(typedTarget, dispatch.Click);
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private static class ClickEventAsyncBinder<TView>
+        where TView : View
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.Click)
+            {
+                return WrongDispatchKind("click");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "click");
+            }
+            if (callback is not Func<TView, ClickEvent, ValueTask> typedCallback)
+            {
+                return WrongCallback("Func<TView, ClickEvent, ValueTask>", "click");
+            }
+
+            return typedCallback(typedTarget, dispatch.Click);
+        }
+    }
+
+    private static class ClickEventTaskBinder<TView>
+        where TView : View
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.Click)
+            {
+                return WrongDispatchKind("click");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "click");
+            }
+            if (callback is not Func<TView, ClickEvent, Task> typedCallback)
+            {
+                return WrongCallback("Func<TView, ClickEvent, Task>", "click");
+            }
+
+            return new ValueTask(typedCallback(typedTarget, dispatch.Click));
+        }
+    }
+
+    private static class InputBinder<TView>
+        where TView : View
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.Input || dispatch.Input is not { } input)
+            {
+                return WrongDispatchKind("input");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "input");
+            }
+            if (callback is not Action<TView, InputEvent> typedCallback)
+            {
+                return WrongCallback("Action<TView, InputEvent>", "input");
+            }
+
+            typedCallback(typedTarget, input);
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private static class InputAsyncBinder<TView>
+        where TView : View
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.Input || dispatch.Input is not { } input)
+            {
+                return WrongDispatchKind("input");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "input");
+            }
+            if (callback is not Func<TView, InputEvent, ValueTask> typedCallback)
+            {
+                return WrongCallback("Func<TView, InputEvent, ValueTask>", "input");
+            }
+
+            return typedCallback(typedTarget, input);
+        }
+    }
+
+    private static class InputTaskBinder<TView>
+        where TView : View
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.Input || dispatch.Input is not { } input)
+            {
+                return WrongDispatchKind("input");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "input");
+            }
+            if (callback is not Func<TView, InputEvent, Task> typedCallback)
+            {
+                return WrongCallback("Func<TView, InputEvent, Task>", "input");
+            }
+
+            return new ValueTask(typedCallback(typedTarget, input));
+        }
+    }
+
+    private static ValueTask WrongDispatchKind(string eventType) =>
+        ValueTask.FromException(
+            new InvalidOperationException($"The event binder cannot dispatch a {eventType} event.")
+        );
+
+    private static ValueTask WrongTarget<TView>(object target, string eventType)
+        where TView : View =>
+        ValueTask.FromException(
+            new InvalidOperationException(
+                $"The {eventType} callback requires target type {typeof(TView).FullName}, "
+                    + $"but received {target.GetType().FullName}."
+            )
+        );
+
+    private static ValueTask WrongCallback(string callbackType, string eventType) =>
+        ValueTask.FromException(
+            new InvalidOperationException(
+                $"The {eventType} callback has an incompatible delegate type; expected {callbackType}."
+            )
+        );
 }
 
 /// <summary>

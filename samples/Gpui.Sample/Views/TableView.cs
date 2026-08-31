@@ -17,10 +17,9 @@ internal sealed partial class TableView : View
         new("rps", "Req/s", 90, TableColumnWidth.Pixels, TableColumnAlignment.Right),
     ];
 
-    [GpuiEvent]
     private void SelectRow(ClickEvent e)
     {
-        // The payload-less OnClick delivers the row's ItemId as its payload — the stable model
+        // An OnClick without an explicit payload delivers the row's ItemId as its payload — the stable model
         // identity that survives splices. Mapping an ID back to a refresh index is app-owned
         // datasource logic; here the ID is the row's original position + 1 by construction.
         var index = checked((int)e.Payload) - 1;
@@ -63,7 +62,7 @@ internal sealed partial class TableView : View
                     .Width(Percent(100))
             )
             .ItemId(checked((ulong)index) + 1)
-            .OnClick(Events.SelectRow)
+            .OnClick(this, (view, e) => view.SelectRow(e))
             .Width(Percent(100))
             .Padding(Px(selected ? 12 : 9))
             .Background(selected ? Rgb(224, 231, 255) : Rgb(255, 255, 255))

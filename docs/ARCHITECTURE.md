@@ -9,7 +9,7 @@ GPUI.NET deliberately does not mirror GPUI's Rust API one-to-one.
 - domain/application state;
 - application/window definitions and stable managed window handles;
 - managed `View` state and retained child-slot composition;
-- generated event/list-renderer logic;
+- view-bound event callback registry and generated list-renderer logic;
 - dirty render IR construction.
 
 ### Rust owns

@@ -8,7 +8,7 @@ namespace Gpui.Tests;
 public sealed class GeneratorTests
 {
     [Fact]
-    public void GeneratesAotFactoryClickDispatchAndListRenderer()
+    public void GeneratesAotFactoryAndListRendererWithoutEventDispatch()
     {
         const string source = """
             using Gpui;
@@ -16,10 +16,8 @@ public sealed class GeneratorTests
             [GpuiView]
             public sealed partial class GeneratedView : View
             {
-                [GpuiEvent]
                 private void Save(ClickEvent e) { }
 
-                [GpuiEvent]
                 private void SearchChanged(InputEvent e) { }
 
                 [GpuiListItem]
@@ -36,23 +34,14 @@ public sealed class GeneratorTests
         );
         var generated = Assert.Single(result.GeneratedTrees).ToString();
         Assert.Contains("CreateGpuiView", generated, StringComparison.Ordinal);
-        Assert.Contains(
-            "Callback<global::Gpui.ClickEvent> Save",
-            generated,
-            StringComparison.Ordinal
-        );
-        Assert.Contains("DispatchClickAsync", generated, StringComparison.Ordinal);
-        Assert.Contains(
-            "Callback<global::Gpui.InputEvent> SearchChanged",
-            generated,
-            StringComparison.Ordinal
-        );
-        Assert.Contains("DispatchInputAsync", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("GeneratedGpuiEvents", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("DispatchClickAsync", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("DispatchInputAsync", generated, StringComparison.Ordinal);
         Assert.Contains("ListItemRenderer Row", generated, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ReportsAsyncVoidHandlers()
+    public void OrdinaryMethodsDoNotBecomeEventBindings()
     {
         const string source = """
             using Gpui;
@@ -60,7 +49,6 @@ public sealed class GeneratorTests
             [GpuiView]
             public sealed partial class InvalidView : View
             {
-                [GpuiEvent]
                 private async void Save() { await System.Threading.Tasks.Task.Yield(); }
 
                 protected override Element Render(ref RenderContext ui) => ui.Div();
@@ -69,7 +57,11 @@ public sealed class GeneratorTests
 
         var result = RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == "GPUI004");
+        Assert.Empty(
+            result.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+        );
+        var generated = Assert.Single(result.GeneratedTrees).ToString();
+        Assert.DoesNotContain("Save", generated, StringComparison.Ordinal);
     }
 
     private static GeneratorDriverRunResult RunGenerator(string source)

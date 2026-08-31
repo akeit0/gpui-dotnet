@@ -46,7 +46,7 @@ public static partial class ElementExtensions
     /// <summary>
     /// Declares the stable model identity of a virtualized list row. Declare it on the element
     /// returned by a [GpuiListItem] renderer. Native uses the ID for splice-stable element
-    /// identity inside the row, and payload-less OnClick events on the row deliver the ID as
+    /// identity inside the row, and OnClick events without an explicit payload deliver the ID as
     /// their event payload instead of the positional index. IDs must be unique within one list;
     /// payload 0 is reserved and cannot be used as an ID.
     /// </summary>

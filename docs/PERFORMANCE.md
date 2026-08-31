@@ -11,7 +11,7 @@ After arena warmup:
 - `RenderContext` is stack-only;
 - `Element<TTag>` is a small value;
 - child APIs accept spans;
-- generated event/list tokens are values rather than delegate registry entries;
+- view-bound event tokens are compact values into recyclable managed entries;
 - framework View activation uses generated factories;
 - native snapshot ops/children use flat ranges and reusable scratch buffers.
 

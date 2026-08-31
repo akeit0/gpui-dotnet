@@ -101,7 +101,7 @@ internal sealed unsafe partial class ManagedSession
         var handlerId = (uint)eventToken;
         if (viewHandle == 0 || handlerId == 0)
         {
-            throw new InvalidOperationException("Malformed generated event token.");
+            throw new InvalidOperationException("Malformed event token.");
         }
         if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
         {

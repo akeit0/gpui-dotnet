@@ -9,13 +9,6 @@ internal sealed partial class CustomTitleBarWindowView : View
 
     internal GpuiWindow? Window { get; set; }
 
-    [GpuiEvent]
-    private void Increment()
-    {
-        _localCount++;
-        Invalidate();
-    }
-
     protected override Element Render(ref RenderContext ui)
     {
         var titleBar = SampleTitleBar.Render(
@@ -35,7 +28,14 @@ internal sealed partial class CustomTitleBarWindowView : View
                             .FontSize(Px(20))
                             .TextColor(Rgb(79, 70, 229)),
                         ui.Button("custom-titlebar-increment", "Increment content")
-                            .OnClick(Events.Increment)
+                            .OnClick(
+                                this,
+                                (view, _) =>
+                                {
+                                    view._localCount++;
+                                    view.Invalidate();
+                                }
+                            )
                             .Padding(Px(10))
                             .Background(Rgb(238, 242, 255))
                             .BorderColor(Rgb(165, 180, 252))

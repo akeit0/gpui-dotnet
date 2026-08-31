@@ -10,7 +10,6 @@ internal sealed partial class SampleShellView : View
     internal GpuiApplication? Application { get; init; }
     internal GpuiWindow? Window { get; set; }
 
-    [GpuiEvent]
     private void OpenNewWindow()
     {
         var application =
@@ -35,7 +34,6 @@ internal sealed partial class SampleShellView : View
         window.Activate();
     }
 
-    [GpuiEvent]
     private void OpenCustomTitleBarWindow()
     {
         var application =
@@ -58,33 +56,11 @@ internal sealed partial class SampleShellView : View
         window.SetTitle($"GPUI.NET Custom Title Bar — Window {window.Id}");
     }
 
-    [GpuiEvent]
     private void CloseWindow()
     {
         (
             Window ?? throw new InvalidOperationException("The sample root has no window handle.")
         ).Close();
-    }
-
-    [GpuiEvent]
-    private void ShowOverview()
-    {
-        _page = SamplePage.Overview;
-        Invalidate();
-    }
-
-    [GpuiEvent]
-    private void ShowActivity()
-    {
-        _page = SamplePage.Activity;
-        Invalidate();
-    }
-
-    [GpuiEvent]
-    private void ShowTables()
-    {
-        _page = SamplePage.Tables;
-        Invalidate();
     }
 
     protected override Element Render(ref RenderContext ui)
@@ -141,7 +117,7 @@ internal sealed partial class SampleShellView : View
                 routeHeader,
                 ui.Spacer(),
                 ui.Button("close-window", "Close")
-                    .OnClick(Events.CloseWindow)
+                    .OnClick(this, (view, _) => view.CloseWindow())
                     .Padding(Px(7))
                     .Background(Rgb(255, 255, 255))
                     .BorderColor(Rgb(203, 213, 225)),
@@ -178,15 +154,28 @@ internal sealed partial class SampleShellView : View
             TitleBarMenuTrigger(ref ui, "titlebar-file"u8, "File"u8),
             MenuSurface(
                 ref ui,
-                MenuItem(ref ui, "menu-new-window"u8, "New window"u8, Events.OpenNewWindow),
+                MenuItem(
+                    ref ui,
+                    "menu-new-window"u8,
+                    "New window"u8,
+                    this,
+                    (view, _) => view.OpenNewWindow()
+                ),
                 MenuItem(
                     ref ui,
                     "menu-custom-window"u8,
                     "New custom-title-bar window"u8,
-                    Events.OpenCustomTitleBarWindow
+                    this,
+                    (view, _) => view.OpenCustomTitleBarWindow()
                 ),
                 ui.Divider(),
-                MenuItem(ref ui, "menu-close-window"u8, "Close window"u8, Events.CloseWindow)
+                MenuItem(
+                    ref ui,
+                    "menu-close-window"u8,
+                    "Close window"u8,
+                    this,
+                    (view, _) => view.CloseWindow()
+                )
             )
         );
         var viewMenu = ui.PopoverMenu(
@@ -194,13 +183,83 @@ internal sealed partial class SampleShellView : View
             TitleBarMenuTrigger(ref ui, "titlebar-view"u8, "View"u8),
             MenuSurface(
                 ref ui,
-                MenuItem(ref ui, "menu-overview"u8, "Scroll view"u8, Events.ShowOverview),
-                MenuItem(ref ui, "menu-activity"u8, "Virtual list"u8, Events.ShowActivity),
-                MenuItem(ref ui, "menu-tables"u8, "Virtual table"u8, Events.ShowTables),
-                MenuItem(ref ui, "menu-images"u8, "Images"u8, Events.ShowImages),
-                MenuItem(ref ui, "menu-inputs"u8, "Inputs"u8, Events.ShowInputs),
-                MenuItem(ref ui, "menu-overlays"u8, "Overlays + tooltips"u8, Events.ShowOverlays),
-                MenuItem(ref ui, "menu-windows"u8, "Windows"u8, Events.ShowWindows)
+                MenuItem(
+                    ref ui,
+                    "menu-overview"u8,
+                    "Scroll view"u8,
+                    this,
+                    (view, _) =>
+                    {
+                        view._page = SamplePage.Overview;
+                        view.Invalidate();
+                    }
+                ),
+                MenuItem(
+                    ref ui,
+                    "menu-activity"u8,
+                    "Virtual list"u8,
+                    this,
+                    (view, _) =>
+                    {
+                        view._page = SamplePage.Activity;
+                        view.Invalidate();
+                    }
+                ),
+                MenuItem(
+                    ref ui,
+                    "menu-tables"u8,
+                    "Virtual table"u8,
+                    this,
+                    (view, _) =>
+                    {
+                        view._page = SamplePage.Tables;
+                        view.Invalidate();
+                    }
+                ),
+                MenuItem(
+                    ref ui,
+                    "menu-images"u8,
+                    "Images"u8,
+                    this,
+                    (view, _) =>
+                    {
+                        view._page = SamplePage.Images;
+                        view.Invalidate();
+                    }
+                ),
+                MenuItem(
+                    ref ui,
+                    "menu-inputs"u8,
+                    "Inputs"u8,
+                    this,
+                    (view, _) =>
+                    {
+                        view._page = SamplePage.Inputs;
+                        view.Invalidate();
+                    }
+                ),
+                MenuItem(
+                    ref ui,
+                    "menu-overlays"u8,
+                    "Overlays + tooltips"u8,
+                    this,
+                    (view, _) =>
+                    {
+                        view._page = SamplePage.Overlays;
+                        view.Invalidate();
+                    }
+                ),
+                MenuItem(
+                    ref ui,
+                    "menu-windows"u8,
+                    "Windows"u8,
+                    this,
+                    (view, _) =>
+                    {
+                        view._page = SamplePage.Windows;
+                        view.Invalidate();
+                    }
+                )
             )
         );
         var helpMenu = ui.PopoverMenu(
@@ -208,12 +267,27 @@ internal sealed partial class SampleShellView : View
             TitleBarMenuTrigger(ref ui, "titlebar-help"u8, "Help"u8),
             MenuSurface(
                 ref ui,
-                MenuItem(ref ui, "menu-about"u8, "About GPUI.NET"u8, Events.ShowOverview),
+                MenuItem(
+                    ref ui,
+                    "menu-about"u8,
+                    "About GPUI.NET"u8,
+                    this,
+                    (view, _) =>
+                    {
+                        view._page = SamplePage.Overview;
+                        view.Invalidate();
+                    }
+                ),
                 MenuItem(
                     ref ui,
                     "menu-overlay-guide"u8,
                     "Open overlay gallery"u8,
-                    Events.ShowOverlays
+                    this,
+                    (view, _) =>
+                    {
+                        view._page = SamplePage.Overlays;
+                        view.Invalidate();
+                    }
                 )
             )
         );
@@ -250,10 +324,11 @@ internal sealed partial class SampleShellView : View
         ref RenderContext ui,
         ReadOnlySpan<byte> id,
         ReadOnlySpan<byte> label,
-        Callback<ClickEvent> callback
+        SampleShellView view,
+        Action<SampleShellView, ClickEvent> callback
     ) =>
         ui.Button(id, label)
-            .OnClick(callback)
+            .OnClick(view, callback)
             .Width(Percent(100))
             .Padding(Px(8))
             .FontSize(Px(12))
@@ -276,43 +351,92 @@ internal sealed partial class SampleShellView : View
                 ui.Text("SIDEBAR"u8).FontSize(Px(11)).TextColor(Rgb(148, 163, 184)),
                 ui.Divider().Background(Rgb(51, 65, 85)),
                 ui.Button("show-overview", "Scroll view")
-                    .OnClick(Events.ShowOverview)
+                    .OnClick(
+                        this,
+                        (view, _) =>
+                        {
+                            view._page = SamplePage.Overview;
+                            view.Invalidate();
+                        }
+                    )
                     .Padding(Px(10))
                     .Background(overviewSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
                     .BorderColor(overviewSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
                     .TextColor(Rgb(255, 255, 255)),
                 ui.Button("show-activity", "Virtual list")
-                    .OnClick(Events.ShowActivity)
+                    .OnClick(
+                        this,
+                        (view, _) =>
+                        {
+                            view._page = SamplePage.Activity;
+                            view.Invalidate();
+                        }
+                    )
                     .Padding(Px(10))
                     .Background(activitySelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
                     .BorderColor(activitySelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
                     .TextColor(Rgb(255, 255, 255)),
                 ui.Button("show-tables", "Virtual table")
-                    .OnClick(Events.ShowTables)
+                    .OnClick(
+                        this,
+                        (view, _) =>
+                        {
+                            view._page = SamplePage.Tables;
+                            view.Invalidate();
+                        }
+                    )
                     .Padding(Px(10))
                     .Background(tablesSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
                     .BorderColor(tablesSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
                     .TextColor(Rgb(255, 255, 255)),
                 ui.Button("show-images", "Images")
-                    .OnClick(Events.ShowImages)
+                    .OnClick(
+                        this,
+                        (view, _) =>
+                        {
+                            view._page = SamplePage.Images;
+                            view.Invalidate();
+                        }
+                    )
                     .Padding(Px(10))
                     .Background(imagesSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
                     .BorderColor(imagesSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
                     .TextColor(Rgb(255, 255, 255)),
                 ui.Button("show-inputs", "Inputs")
-                    .OnClick(Events.ShowInputs)
+                    .OnClick(
+                        this,
+                        (view, _) =>
+                        {
+                            view._page = SamplePage.Inputs;
+                            view.Invalidate();
+                        }
+                    )
                     .Padding(Px(10))
                     .Background(inputsSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
                     .BorderColor(inputsSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
                     .TextColor(Rgb(255, 255, 255)),
                 ui.Button("show-overlays", "Overlays + tooltips")
-                    .OnClick(Events.ShowOverlays)
+                    .OnClick(
+                        this,
+                        (view, _) =>
+                        {
+                            view._page = SamplePage.Overlays;
+                            view.Invalidate();
+                        }
+                    )
                     .Padding(Px(10))
                     .Background(overlaysSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
                     .BorderColor(overlaysSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
                     .TextColor(Rgb(255, 255, 255)),
                 ui.Button("show-windows", "Windows")
-                    .OnClick(Events.ShowWindows)
+                    .OnClick(
+                        this,
+                        (view, _) =>
+                        {
+                            view._page = SamplePage.Windows;
+                            view.Invalidate();
+                        }
+                    )
                     .Padding(Px(10))
                     .Background(windowsSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
                     .BorderColor(windowsSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
@@ -327,34 +451,6 @@ internal sealed partial class SampleShellView : View
             .Width(Px(220))
             .Height(Percent(100))
             .Background(Rgb(15, 23, 42));
-    }
-
-    [GpuiEvent]
-    private void ShowImages()
-    {
-        _page = SamplePage.Images;
-        Invalidate();
-    }
-
-    [GpuiEvent]
-    private void ShowInputs()
-    {
-        _page = SamplePage.Inputs;
-        Invalidate();
-    }
-
-    [GpuiEvent]
-    private void ShowOverlays()
-    {
-        _page = SamplePage.Overlays;
-        Invalidate();
-    }
-
-    [GpuiEvent]
-    private void ShowWindows()
-    {
-        _page = SamplePage.Windows;
-        Invalidate();
     }
 
     private Element RenderWindowGallery(ref RenderContext ui) =>
@@ -372,13 +468,13 @@ internal sealed partial class SampleShellView : View
                             .TextColor(Rgb(71, 85, 105)),
                         ui.HStack(
                                 ui.Button("open-companion-window", "System title bar")
-                                    .OnClick(Events.OpenNewWindow)
+                                    .OnClick(this, (view, _) => view.OpenNewWindow())
                                     .Padding(Px(11))
                                     .Background(Rgb(79, 70, 229))
                                     .BorderColor(Rgb(67, 56, 202))
                                     .TextColor(Rgb(255, 255, 255)),
                                 ui.Button("open-custom-titlebar", "Custom title bar")
-                                    .OnClick(Events.OpenCustomTitleBarWindow)
+                                    .OnClick(this, (view, _) => view.OpenCustomTitleBarWindow())
                                     .Padding(Px(11))
                                     .Background(Rgb(15, 23, 42))
                                     .BorderColor(Rgb(51, 65, 85))

@@ -67,6 +67,10 @@ internal sealed unsafe partial class ManagedSession
             throw new InvalidOperationException("Nested managed list rendering is not supported.");
         }
         Volatile.Write(ref _notifyAfterRender, 0);
+        owner.BeginEventBindingPass(ViewEventBindingScope.ListRange);
+        var previousEventBindingOwner = View.CurrentEventBindingOwner;
+        View.CurrentEventBindingOwner = owner;
+        var completed = false;
         try
         {
             var ui = new RenderContext(arena);
@@ -79,11 +83,20 @@ internal sealed unsafe partial class ManagedSession
             }
 
             ManagedValidator.Validate(arena, batchRoot);
+            completed = true;
             return batchRoot;
         }
         finally
         {
-            EndRendering();
+            try
+            {
+                owner.CompleteEventBindingPass(ViewEventBindingScope.ListRange, completed);
+            }
+            finally
+            {
+                View.CurrentEventBindingOwner = previousEventBindingOwner;
+                EndRendering();
+            }
         }
     }
 

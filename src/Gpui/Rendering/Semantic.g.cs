@@ -669,31 +669,5 @@ namespace Gpui
             return element;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> OnClick<TTag>(this Element<TTag> element, Callback<ClickEvent> callback)
-            where TTag : unmanaged, IInteractiveElementTag
-        {
-            if (callback.IsDefault)
-            {
-                throw new ArgumentException("Event token 0 is reserved.", nameof(callback));
-            }
-
-            ArenaWriter.AddCallback(element.Inner, OpCode.OnClick, callback.Token);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> OnClick<TTag>(this Element<TTag> element, Callback<ClickEvent> callback, ulong payload)
-            where TTag : unmanaged, IInteractiveElementTag
-        {
-            if (callback.IsDefault)
-            {
-                throw new ArgumentException("Event token 0 is reserved.", nameof(callback));
-            }
-
-            ArenaWriter.AddCallback(element.Inner, OpCode.OnClick, callback.Token, payload);
-            return element;
-        }
-
     }
 }

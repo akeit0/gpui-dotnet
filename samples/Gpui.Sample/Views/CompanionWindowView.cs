@@ -10,14 +10,6 @@ internal sealed partial class CompanionWindowView : View
     internal string Origin { get; init; } = "Opened by the sample";
     internal GpuiWindow? Window { get; set; }
 
-    [GpuiEvent]
-    private void Increment()
-    {
-        _localCount++;
-        Invalidate();
-    }
-
-    [GpuiEvent]
     private void CloseWindow()
     {
         (
@@ -43,7 +35,7 @@ internal sealed partial class CompanionWindowView : View
                             .TextColor(Rgb(22, 101, 52))
                             .Padding(Px(8)),
                         ui.Button("close-companion", "Close this window")
-                            .OnClick(Events.CloseWindow)
+                            .OnClick(this, (view, _) => view.CloseWindow())
                             .Padding(Px(9))
                     )
                     .Gap(Px(10))
@@ -57,7 +49,14 @@ internal sealed partial class CompanionWindowView : View
                                     .FontSize(Px(28))
                                     .TextColor(Rgb(79, 70, 229)),
                                 ui.Button("increment-companion", "Increment only this window")
-                                    .OnClick(Events.Increment)
+                                    .OnClick(
+                                        this,
+                                        (view, _) =>
+                                        {
+                                            view._localCount++;
+                                            view.Invalidate();
+                                        }
+                                    )
                                     .Padding(Px(10))
                                     .Background(Rgb(238, 242, 255))
                                     .BorderColor(Rgb(165, 180, 252))

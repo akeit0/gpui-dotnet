@@ -79,39 +79,3 @@ public readonly unsafe ref partial struct RenderContext
         ArenaWriter.AddChild(element.Inner, child);
     }
 }
-
-public static partial class ElementExtensions
-{
-    /// <summary>Invoked when the overlay requests dismissal through its backdrop or Escape.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<OverlayTag> OnDismiss(
-        this Element<OverlayTag> element,
-        Callback<ClickEvent> callback
-    )
-    {
-        if (callback.IsDefault)
-        {
-            throw new ArgumentException("Event token 0 is reserved.", nameof(callback));
-        }
-
-        ArenaWriter.AddCallback(element.Inner, OpCode.OverlayOnDismiss, callback.Token);
-        return element;
-    }
-
-    /// <summary>Invoked with an unmanaged payload when the overlay requests dismissal.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<OverlayTag> OnDismiss(
-        this Element<OverlayTag> element,
-        Callback<ClickEvent> callback,
-        ulong payload
-    )
-    {
-        if (callback.IsDefault)
-        {
-            throw new ArgumentException("Event token 0 is reserved.", nameof(callback));
-        }
-
-        ArenaWriter.AddCallback(element.Inner, OpCode.OverlayOnDismiss, callback.Token, payload);
-        return element;
-    }
-}

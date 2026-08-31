@@ -10,10 +10,6 @@ internal sealed partial class ActivityView : View
     private int _selected = -1;
     private ulong _contentRevision;
 
-    [GpuiEvent]
-    private void JumpToMiddle() => _list.ScrollToItem(ItemCount / 2);
-
-    [GpuiEvent]
     private void SelectRow(ClickEvent e)
     {
         var next = checked((int)e.Payload);
@@ -41,7 +37,7 @@ internal sealed partial class ActivityView : View
         var heightHint = index % 7 == 0 ? "variable height" : "normal row";
 
         return ui.Button("activity-row", $"#{index:N0}  •  {heightHint}")
-            .OnClick(Events.SelectRow, checked((ulong)index))
+            .OnClick(this, (view, e) => view.SelectRow(e), checked((ulong)index))
             .Padding(
                 Px(
                     selected ? 18
@@ -60,7 +56,7 @@ internal sealed partial class ActivityView : View
                 ui.Text($"{ItemCount:N0} virtual rows").FontSize(Px(14)).TextColor(Rgb(30, 41, 59)),
                 ui.Spacer(),
                 ui.Button("jump-middle", "Jump to 10,000")
-                    .OnClick(Events.JumpToMiddle)
+                    .OnClick(this, (view, _) => view._list.ScrollToItem(ItemCount / 2))
                     .Padding(Px(8))
             )
             .ItemsCenter();

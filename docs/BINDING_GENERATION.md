@@ -21,11 +21,11 @@ dotnet run --project tools/Gpui.Bindings.Generator -- verify
 
 `Scroll`, `List`, `Input`, `Overlay`, `Tooltip`, `ContextMenu`, and `PopoverMenu` are manual factories because they encode retained resource metadata or component-specific invariants in addition to normal semantic component identity. Styling operations are still capability-generated.
 
-For callback operations the generated managed fluent API has two forms:
+Callback operations use manual view-bound fluent APIs rather than generated delegate tokens:
 
 ```csharp
-.OnClick(Events.Save)
-.OnClick(Events.SelectRow, payload)
+.OnClick(this, (view, _) => view.Save())
+.OnClick(this, (view, e) => view.SelectRow(e), payload)
 ```
 
 `payload` is written to `OpRecord.B`; it is not a delegate or GCHandle.
@@ -38,30 +38,16 @@ Project: `src/Gpui.Generators`
 
 Generates an AOT-safe static factory implementing `IGeneratedViewFactory<T>`. Framework-owned `ui.Child<T>()` therefore requires no reflection.
 
-### `[GpuiEvent]`
+Event callbacks are bound directly at the element call site through `OnClick`, `OnChanged`,
+`OnSubmitted`, `OnFocusChanged`, and `OnDismiss`. Click callbacks always receive `ClickEvent`; use
+`_` when the event is not needed. `ClickEvent` remains the way to receive payload and pointer context. The render
+owner stores callbacks in an internal recyclable entry list. Successful render passes sweep entries
+not used by the current pass, while failed passes preserve the previous bindings. A callback may
+target any mounted View, and invocation checks the target's concrete type.
 
-Accepted signatures:
-
-```csharp
-void Handler()
-void Handler(ClickEvent e)
-void Handler(InputEvent e)
-Task Handler()
-Task Handler(ClickEvent e)
-Task Handler(InputEvent e)
-ValueTask Handler()
-ValueTask Handler(ClickEvent e)
-ValueTask Handler(InputEvent e)
-```
-
-The generator emits:
-
-- nonzero deterministic handler IDs;
-- `Events.Handler` callback tokens;
-- direct switch-based `DispatchClickAsync` and `DispatchInputAsync` overrides as needed;
-- diagnostics for invalid/duplicate/reserved handlers and ID collisions.
-
-`async void` is rejected.
+`Gpui.Generators` intentionally does not inspect ordinary event methods. It only generates view
+factories and list-item renderers, so no event attributes or generated event dispatch overrides
+are required.
 
 ### `[GpuiListItem]`
 

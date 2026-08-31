@@ -9,49 +9,38 @@ internal sealed partial class InputGalleryView : View
     private string _value = "Type in the first field";
     private string _lastEvent = "No input event yet";
 
-    [GpuiEvent]
-    private void SearchChanged(InputEvent input)
-    {
-        _value = input.Value;
-        _lastEvent = $"Changed · revision {input.Revision} · {input.Utf8Value.Length} UTF-8 bytes";
-        Invalidate();
-    }
-
-    [GpuiEvent]
-    private void SearchSubmitted(InputEvent input)
-    {
-        _lastEvent = $"Submitted “{input.Value}” · revision {input.Revision}";
-        Invalidate();
-    }
-
-    [GpuiEvent]
-    private void SearchFocusChanged(InputEvent input)
-    {
-        _lastEvent = input.IsFocused ? "Focused" : "Blurred";
-        Invalidate();
-    }
-
-    [GpuiEvent]
-    private void FocusSearch() => _search.Focus();
-
-    [GpuiEvent]
-    private void SelectSearch() => _search.SelectAll();
-
-    [GpuiEvent]
-    private void SetJapanese() => _search.SetValue("東京からこんにちは"u8);
-
-    [GpuiEvent]
-    private void ClearSearch() => _search.SetValue(ReadOnlySpan<byte>.Empty);
-
     protected override Element Render(ref RenderContext ui)
     {
         var search = Field(
             ref ui,
             "Interactive + UTF-8 events",
             ui.Input(ref _search, new Utf8InputOptions(placeholder: "Search or enter 日本語…"u8))
-                .OnChanged(Events.SearchChanged)
-                .OnSubmitted(Events.SearchSubmitted)
-                .OnFocusChanged(Events.SearchFocusChanged)
+                .OnChanged(
+                    this,
+                    (view, input) =>
+                    {
+                        view._value = input.Value;
+                        view._lastEvent =
+                            $"Changed · revision {input.Revision} · {input.Utf8Value.Length} UTF-8 bytes";
+                        view.Invalidate();
+                    }
+                )
+                .OnSubmitted(
+                    this,
+                    (view, input) =>
+                    {
+                        view._lastEvent = $"Submitted “{input.Value}” · revision {input.Revision}";
+                        view.Invalidate();
+                    }
+                )
+                .OnFocusChanged(
+                    this,
+                    (view, input) =>
+                    {
+                        view._lastEvent = input.IsFocused ? "Focused" : "Blurred";
+                        view.Invalidate();
+                    }
+                )
                 .Width(Percent(100))
         );
         var password = Field(
@@ -80,12 +69,18 @@ internal sealed partial class InputGalleryView : View
         );
 
         var controls = ui.HStack(
-                ui.Button("focus-search", "Focus").OnClick(Events.FocusSearch).Padding(Px(8)),
-                ui.Button("select-search", "Select all")
-                    .OnClick(Events.SelectSearch)
+                ui.Button("focus-search", "Focus")
+                    .OnClick(this, (view, _) => view._search.Focus())
                     .Padding(Px(8)),
-                ui.Button("set-japanese", "Set UTF-8").OnClick(Events.SetJapanese).Padding(Px(8)),
-                ui.Button("clear-search", "Clear").OnClick(Events.ClearSearch).Padding(Px(8))
+                ui.Button("select-search", "Select all")
+                    .OnClick(this, (view, _) => view._search.SelectAll())
+                    .Padding(Px(8)),
+                ui.Button("set-japanese", "Set UTF-8")
+                    .OnClick(this, (view, _) => view._search.SetValue("東京からこんにちは"u8))
+                    .Padding(Px(8)),
+                ui.Button("clear-search", "Clear")
+                    .OnClick(this, (view, _) => view._search.SetValue(ReadOnlySpan<byte>.Empty))
+                    .Padding(Px(8))
             )
             .Gap(Px(8));
 

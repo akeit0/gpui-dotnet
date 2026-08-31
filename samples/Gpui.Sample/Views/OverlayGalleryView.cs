@@ -9,41 +9,6 @@ internal sealed partial class OverlayGalleryView : View
     private int _backgroundClicks;
     private int _contextMenuActions;
 
-    [GpuiEvent]
-    private void OpenDialog()
-    {
-        _open = OverlayDemo.Dialog;
-        Invalidate();
-    }
-
-    [GpuiEvent]
-    private void OpenSheet()
-    {
-        _open = OverlayDemo.Sheet;
-        Invalidate();
-    }
-
-    [GpuiEvent]
-    private void CloseOverlay()
-    {
-        _open = OverlayDemo.None;
-        Invalidate();
-    }
-
-    [GpuiEvent]
-    private void CountBackgroundClick()
-    {
-        _backgroundClicks++;
-        Invalidate();
-    }
-
-    [GpuiEvent]
-    private void RunContextMenuAction()
-    {
-        _contextMenuActions++;
-        Invalidate();
-    }
-
     protected override Element Render(ref RenderContext ui)
     {
         var page = ui.VStack(
@@ -52,16 +17,37 @@ internal sealed partial class OverlayGalleryView : View
                     .TextColor(Rgb(71, 85, 105)),
                 ui.HStack(
                         ui.Button("open-dialog", "Open centered dialog")
-                            .OnClick(Events.OpenDialog)
+                            .OnClick(
+                                this,
+                                (view, _) =>
+                                {
+                                    view._open = OverlayDemo.Dialog;
+                                    view.Invalidate();
+                                }
+                            )
                             .Padding(Px(10))
                             .Background(Rgb(79, 70, 229))
                             .BorderColor(Rgb(99, 102, 241))
                             .TextColor(Rgb(255, 255, 255)),
                         ui.Button("open-sheet", "Open right sheet")
-                            .OnClick(Events.OpenSheet)
+                            .OnClick(
+                                this,
+                                (view, _) =>
+                                {
+                                    view._open = OverlayDemo.Sheet;
+                                    view.Invalidate();
+                                }
+                            )
                             .Padding(Px(10)),
                         ui.Button("background-action", $"Background action · {_backgroundClicks}")
-                            .OnClick(Events.CountBackgroundClick)
+                            .OnClick(
+                                this,
+                                (view, _) =>
+                                {
+                                    view._backgroundClicks++;
+                                    view.Invalidate();
+                                }
+                            )
                             .Padding(Px(10))
                     )
                     .Gap(Px(10)),
@@ -125,7 +111,14 @@ internal sealed partial class OverlayGalleryView : View
                                         "run-context-action"u8,
                                         $"Run action · {_contextMenuActions:N0}"
                                     )
-                                    .OnClick(Events.RunContextMenuAction)
+                                    .OnClick(
+                                        this,
+                                        (view, _) =>
+                                        {
+                                            view._contextMenuActions++;
+                                            view.Invalidate();
+                                        }
+                                    )
                                     .Width(Percent(100))
                                     .Padding(Px(9))
                                     .Background(Rgb(255, 255, 255))
@@ -173,7 +166,14 @@ internal sealed partial class OverlayGalleryView : View
                         ui.Text(title).FontSize(Px(18)).TextColor(Rgb(15, 23, 42)),
                         ui.Spacer(),
                         ui.Button("close-overlay", "Close")
-                            .OnClick(Events.CloseOverlay)
+                            .OnClick(
+                                this,
+                                (view, _) =>
+                                {
+                                    view._open = OverlayDemo.None;
+                                    view.Invalidate();
+                                }
+                            )
                             .Padding(Px(8))
                     )
                     .ItemsCenter(),
@@ -210,7 +210,15 @@ internal sealed partial class OverlayGalleryView : View
             margin: isSheet ? 12 : 24,
             backdrop: Rgba(15, 23, 42, 150)
         );
-        var overlay = ui.Overlay("sample-overlay"u8, panel, options).OnDismiss(Events.CloseOverlay);
+        var overlay = ui.Overlay("sample-overlay"u8, panel, options)
+            .OnDismiss(
+                this,
+                (view, _) =>
+                {
+                    view._open = OverlayDemo.None;
+                    view.Invalidate();
+                }
+            );
 
         return ui.VStack(page, overlay).Grow().Height(Percent(100));
     }

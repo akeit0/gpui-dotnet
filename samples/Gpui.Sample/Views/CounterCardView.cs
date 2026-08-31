@@ -6,8 +6,7 @@ internal sealed partial class CounterCardView : View
 {
     private int _count;
 
-    [GpuiEvent]
-    private async ValueTask Increment(ClickEvent _)
+    private async ValueTask Increment()
     {
         await Task.Delay(100, Lifetime);
         _count++;
@@ -17,7 +16,9 @@ internal sealed partial class CounterCardView : View
     protected override Element Render(ref RenderContext ui) =>
         ui.VStack(
                 ui.Text($"Counter: {_count:N0}"),
-                ui.Button("increment", "Async increment").OnClick(Events.Increment).Padding(Px(10))
+                ui.Button("increment", "Async increment")
+                    .OnClick(this, (view, _) => view.Increment())
+                    .Padding(Px(10))
             )
             .Gap(Px(10));
 }
