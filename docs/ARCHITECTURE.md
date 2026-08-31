@@ -34,10 +34,10 @@ The managed implementation is split by responsibility rather than by operating s
 - `Gpui.Core` contains the platform-neutral public render API, View lifecycle/composition,
   controllers, semantic bindings, arena writer, managed validator, application/window hosting,
   callbacks, managed sessions, native loading, and the generated managed ABI contract;
-- `Gpui.Runtime` is a pack-only RID native asset package; it contains no managed implementation
-  assembly;
-- `Gpui` is a compile-output-free meta package that carries the source generator and depends on
-  Core and Runtime.
+- `GPUI.NET.Native` is a pack-only aggregate package for the RID-specific native packages;
+  `GPUI.NET.Native.<rid>` contains one native asset and no managed implementation assembly;
+- `GPUI.NET` is a compile-output-free meta package that carries the source generator and depends
+  on Core and Native.
 
 The package boundary is intentionally extensible: future packages may add managed assemblies and
 their own RID-native host. `NativeRuntimeOptions.LibraryPath` lets an application opt into such a

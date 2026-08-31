@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+    <metadata>
+        <id>$id$</id>
+        <version>$version$</version>
+        <authors>GPUI.NET contributors</authors>
+        <readme>README.md</readme>
+        <description>RID-specific native assets for GPUI.NET.</description>
+        <dependencies>
+            <group targetFramework="net10.0">
+                <dependency id="GPUI.NET.Native.win-x64" version="$version$" />
+                <dependency id="GPUI.NET.Native.linux-x64" version="$version$" />
+                <dependency id="GPUI.NET.Native.osx-x64" version="$version$" />
+                <dependency id="GPUI.NET.Native.osx-arm64" version="$version$" />
+            </group>
+        </dependencies>
+    </metadata>
+    <files>
+        <file src="..\..\README.md" target="" />
+    </files>
+</package>

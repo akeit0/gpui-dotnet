@@ -3,7 +3,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <RootNamespace>Gpui</RootNamespace>
         <AssemblyName>Gpui.Core</AssemblyName>
-        <PackageId>Gpui.Core</PackageId>
+        <PackageId>GPUI.NET.Core</PackageId>
         <Version>0.4.0</Version>
         <Description>Managed API and application runtime for GPUI.NET.</Description>
         <IsPackable>true</IsPackable>
@@ -27,6 +27,7 @@
         <NativeLibraryPath>$(NativeCrateDir)/target/$(NativeCargoProfile)/$(NativeLibraryName)</NativeLibraryPath>
         <NativeBuildStamp>$(NativeCrateDir)/target/$(NativeCargoProfile)/.gpui-msbuild.stamp</NativeBuildStamp>
         <NativeBindingsPath>$(MSBuildThisFileDirectory)../Gpui/Interop/NativeMethods.g.cs</NativeBindingsPath>
+        <BuildGpuiNative Condition="'$(BuildGpuiNative)' == ''">true</BuildGpuiNative>
     </PropertyGroup>
 
     <ItemGroup>

@@ -427,21 +427,30 @@ The package family keeps the default install convenient while allowing extension
 managed code and native assets independently:
 
 ```text
-Gpui.nupkg
-  lib/net10.0/Gpui.dll
+GPUI.NET.nupkg
   analyzers/dotnet/cs/Gpui.Generators.dll
 
-Gpui.Core.nupkg
+GPUI.NET.Core.nupkg
   lib/net10.0/Gpui.Core.dll
 
-Gpui.Runtime.nupkg
+GPUI.NET.Native.nupkg
+  dependencies on the RID-specific native packages
+
+GPUI.NET.Native.win-x64.nupkg
   runtimes/win-x64/native/gpui_dotnet.dll
+
+GPUI.NET.Native.linux-x64.nupkg
   runtimes/linux-x64/native/libgpui_dotnet.so
+
+GPUI.NET.Native.osx-x64.nupkg
   runtimes/osx-x64/native/libgpui_dotnet.dylib
+
+GPUI.NET.Native.osx-arm64.nupkg
   runtimes/osx-arm64/native/libgpui_dotnet.dylib
 ```
 
-`Gpui` is the meta package. It depends on `Gpui.Core` and `Gpui.Runtime`; `Gpui.Core` contains
-the managed ABI contract. `Gpui.Runtime` contains native binaries only.
+`GPUI.NET` is the meta package. It depends on `GPUI.NET.Core` and `GPUI.NET.Native`;
+`GPUI.NET.Core` contains the managed ABI contract. `GPUI.NET.Native` aggregates the
+RID-specific native packages, each of which contains one native binary.
 See `docs/` for architecture, ABI, component/resource authoring, lifecycle, performance,
 generation and packaging details.

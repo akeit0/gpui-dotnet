@@ -22,7 +22,11 @@ foreach ($relative in $required) {
 $packOutput = Join-Path $root 'artifacts/packages'
 $packProjects = @(
     'src/Gpui.Core/Gpui.Core.csproj',
-    'src/Gpui.Runtime/Gpui.Runtime.csproj',
+    'src/Gpui.Native/Gpui.Native.win-x64.csproj',
+    'src/Gpui.Native/Gpui.Native.linux-x64.csproj',
+    'src/Gpui.Native/Gpui.Native.osx-x64.csproj',
+    'src/Gpui.Native/Gpui.Native.osx-arm64.csproj',
+    'src/Gpui.Native/Gpui.Native.csproj',
     'src/Gpui/Gpui.csproj'
 )
 

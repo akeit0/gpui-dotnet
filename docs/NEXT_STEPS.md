@@ -72,9 +72,10 @@ Add CI gates for:
 - NuGet consumer tests without a Rust toolchain;
 - ABI C header/layout assertions.
 
-The managed/native boundary now follows the Core/Runtime convention: `Gpui.Core` owns the
+The managed/native boundary now follows the Core/Native convention: `Gpui.Core` owns the
 platform-neutral render API, generated ABI layouts, application hosting, and managed native
-bridge; `Gpui.Runtime` carries native assets only; and `Gpui` is the convenient meta package.
+bridge; `GPUI.NET.Native.<rid>` carries one native asset per package, with `GPUI.NET.Native`
+aggregating those packages; and `GPUI.NET` is the convenient meta package.
 
 ## 7. Review follow-ups (2026-08-31)
 

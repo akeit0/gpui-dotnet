@@ -1,7 +1,7 @@
 # Extensions and custom native hosts
 
-The `Gpui` package is the application-facing meta package. Future extension packages can
-reference `Gpui.Core` for managed APIs and `Gpui.Runtime` for native assets, then add managed
+The `GPUI.NET` package is the application-facing meta package. Future extension packages can
+reference `GPUI.NET.Core` for managed APIs and `GPUI.NET.Native.<rid>` for native assets, then add managed
 controls, generators, semantic components, or platform assets without changing the base host.
 
 An extension that needs Rust-side behavior may ship a separate native host with a unique file
@@ -34,7 +34,7 @@ When `LibraryPath` is omitted, the existing RID-native `gpui_dotnet` resolution 
 
 Extension package guidance:
 
-- keep managed extension APIs in their own assembly/package and reference `Gpui`;
+- keep managed extension APIs in their own assembly/package and reference `GPUI.NET`;
 - put a custom native host under the extension package's RID-specific native assets;
 - use a unique native file name when it must coexist with the base host;
 - preserve the versioned GPUI.NET C ABI and rebuild against the compatible GPUI revision;
