@@ -233,6 +233,10 @@ public readonly unsafe ref partial struct RenderContext
             OpCode.TableShowHeader,
             options.EffectiveShowHeader ? 1u : 0u
         );
+        foreach (var column in columns)
+        {
+            ArenaWriter.AddU64(element.Inner, OpCode.TableColumn, PackTableColumn(column));
+        }
         return element;
     }
 
@@ -318,29 +322,30 @@ public readonly unsafe ref partial struct RenderContext
         }
     }
 
+    /// <summary>
+    /// Encodes the table's strings: the row-engine key followed by one NUL-separated
+    /// key/header pair per column. Numeric column data travels as one packed
+    /// <see cref="OpCode.TableColumn"/> op per column (see <see cref="PackTableColumn"/>).
+    /// </summary>
     private static string EncodeTableData(ReadOnlySpan<char> key, ReadOnlySpan<TableColumn> columns)
     {
         var builder = new System.Text.StringBuilder();
         builder.Append(key);
-        for (var i = 0; i < columns.Length; i++)
+        foreach (var column in columns)
         {
-            builder.Append('\0');
-            builder
-                .Append(columns[i].Key)
-                .Append('\u001F')
-                .Append(columns[i].Header)
-                .Append('\u001F')
-                .Append(
-                    columns[i]
-                        .Width.ToString("R", System.Globalization.CultureInfo.InvariantCulture)
-                )
-                .Append('\u001F')
-                .Append((int)columns[i].Unit)
-                .Append('\u001F')
-                .Append(columns[i].AlignmentCode);
+            builder.Append('\0').Append(column.Key).Append('\0').Append(column.Header);
         }
         return builder.ToString();
     }
+
+    /// <summary>
+    /// Packs one column's numeric record: width f32 bits in the low word, unit in bits
+    /// 32..34, alignment in bits 34..36. Must mirror the native <c>unpack_table_column</c>.
+    /// </summary>
+    private static ulong PackTableColumn(TableColumn column) =>
+        BitConverter.SingleToUInt32Bits(column.Width)
+        | ((ulong)(uint)column.Unit << 32)
+        | ((ulong)(uint)column.Alignment << 34);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private uint CurrentResourceOwner()

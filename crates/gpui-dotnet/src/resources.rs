@@ -21,7 +21,8 @@ use crate::{
         OP_INPUT_ON_SUBMITTED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT,
         OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
         OP_LIST_ITEM_COUNT, OP_LIST_ITEM_ID, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER,
-        OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, component_metadata,
+        OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_TABLE_COLUMN,
+        component_metadata,
     },
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
 };
@@ -347,9 +348,6 @@ pub(crate) struct TableColumnSpec {
 pub(crate) struct TableSpec {
     pub(crate) columns: Vec<TableColumnSpec>,
 }
-
-/// Field separator inside one column record of the table node data blob (unit separator).
-const TABLE_FIELD_SEPARATOR: char = '\u{1F}';
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ScrollbarDrag {
@@ -833,35 +831,49 @@ pub(crate) fn resource_key(
     Some(ResourceKey::new(owner, node.data.clone()))
 }
 
-/// Table node data is `rowEngineKey` followed by one `\0`-separated record per column; each
-/// record is `key<US>header<US>width<US>unit<US>alignment` with US = unit separator.
-pub(crate) fn parse_table_data(data: &str) -> Option<(SharedString, Vec<TableColumnSpec>)> {
-    let mut records = data.split('\0');
-    let key = records.next()?;
-    if key.is_empty() {
+/// Packs one column's numeric record into an OP_TABLE_COLUMN payload: width f32 bits in the
+/// low word, unit in bits 32..34, alignment in bits 34..36. Bits 36+ must be zero.
+pub(crate) const fn pack_table_column(width_bits: u32, unit: u32, alignment: u32) -> u64 {
+    width_bits as u64 | ((unit as u64) << 32) | ((alignment as u64) << 34)
+}
+
+fn unpack_table_column(record: u64) -> Option<(f32, bool, u32)> {
+    if record >> 36 != 0 {
         return None;
     }
-    let mut columns = Vec::new();
-    for record in records {
-        let mut fields = record.split(TABLE_FIELD_SEPARATOR);
-        let column_key = fields.next()?;
-        let header = fields.next()?;
-        let width: f32 = fields.next()?.parse().ok()?;
-        let unit = fields.next()?;
-        let alignment: u32 = fields.next()?.parse().ok()?;
-        if column_key.is_empty() || !width.is_finite() || width <= 0.0 || alignment > 2 {
+    let unit = ((record >> 32) & 0b11) as u32;
+    let alignment = ((record >> 34) & 0b11) as u32;
+    if unit > 1 || alignment > 2 {
+        return None;
+    }
+    let width = f32::from_bits((record & 0xFFFF_FFFF) as u32);
+    if !width.is_finite() || width <= 0.0 || (unit == 1 && width > 1.0) {
+        return None;
+    }
+    Some((width, unit == 1, alignment))
+}
+
+/// Table node data is the row-engine key followed by one NUL-separated key/header string pair
+/// per column; the numeric width/unit/alignment records arrive as one OP_TABLE_COLUMN op per
+/// column in the same order. Malformed combinations return `None`; the materializer falls back
+/// to an error element.
+pub(crate) fn parse_table_spec(
+    data: &str,
+    records: &[u64],
+) -> Option<(SharedString, Vec<TableColumnSpec>)> {
+    let strings: Vec<&str> = data.split('\0').collect();
+    let key = strings.first()?;
+    if key.is_empty() || strings.len() - 1 != records.len() * 2 {
+        return None;
+    }
+    let mut columns = Vec::with_capacity(records.len());
+    for (index, record) in records.iter().enumerate() {
+        let column_key = strings[1 + index * 2];
+        let header = strings[2 + index * 2];
+        if column_key.is_empty() {
             return None;
         }
-        let width_is_fraction = match unit {
-            "0" => false,
-            "1" => {
-                if width > 1.0 {
-                    return None;
-                }
-                true
-            }
-            _ => return None,
-        };
+        let (width, width_is_fraction, alignment) = unpack_table_column(*record)?;
         columns.push(TableColumnSpec {
             key: shared(column_key),
             header: shared(header),
@@ -881,8 +893,11 @@ pub(crate) fn table_key(
     if owner == 0 || node.data.is_empty() {
         return None;
     }
-    let (key, _) = parse_table_data(&node.data)?;
-    Some(ResourceKey::new(owner, key))
+    let key = node.data.split('\0').next()?;
+    if key.is_empty() {
+        return None;
+    }
+    Some(ResourceKey::new(owner, shared(key)))
 }
 
 pub(crate) fn table_configuration(
@@ -893,7 +908,13 @@ pub(crate) fn table_configuration(
     if owner == 0 || node.data.is_empty() {
         return None;
     }
-    let (key, columns) = parse_table_data(&node.data)?;
+    let records: Vec<u64> = snapshot
+        .ops(node)
+        .iter()
+        .filter(|op| op.code == OP_TABLE_COLUMN)
+        .map(|op| op.a)
+        .collect();
+    let (key, columns) = parse_table_spec(&node.data, &records)?;
     Some((ResourceKey::new(owner, key), Rc::new(TableSpec { columns })))
 }
 
@@ -1229,11 +1250,13 @@ mod tests {
     }
 
     #[test]
-    fn parse_table_data_reads_column_records() {
-        let (key, columns) = parse_table_data(
-            "rows\0name\u{1F}Name\u{1F}120\u{1F}0\u{1F}0\0size\u{1F}Size\u{1F}0.3\u{1F}1\u{1F}2",
-        )
-        .expect("valid table data");
+    fn parse_table_spec_reads_string_pairs_and_packed_records() {
+        let data = "rows\0name\0Name\0size\0Size";
+        let records = [
+            pack_table_column(120.0f32.to_bits(), 0, 0),
+            pack_table_column(0.3f32.to_bits(), 1, 2),
+        ];
+        let (key, columns) = parse_table_spec(data, &records).expect("valid table data");
         assert_eq!(key, shared("rows"));
         assert_eq!(columns.len(), 2);
         assert_eq!(columns[0].key, shared("name"));
@@ -1246,42 +1269,50 @@ mod tests {
         assert_eq!(columns[1].alignment, 2);
 
         // A key-only blob is a headerless table with no columns.
-        let (key, columns) = parse_table_data("rows").expect("valid key-only table data");
+        let (key, columns) = parse_table_spec("rows", &[]).expect("valid key-only table data");
         assert_eq!(key, shared("rows"));
         assert!(columns.is_empty());
     }
 
     #[test]
-    fn parse_table_data_rejects_malformed_records() {
-        assert_eq!(parse_table_data(""), None);
-        assert_eq!(
-            parse_table_data("\0name\u{1F}Name\u{1F}10\u{1F}0\u{1F}0"),
-            None
-        );
-        assert_eq!(
-            parse_table_data("rows\0name\u{1F}Name\u{1F}-4\u{1F}0\u{1F}0"),
-            None
-        );
-        assert_eq!(
-            parse_table_data("rows\0name\u{1F}Name\u{1F}10\u{1F}2\u{1F}0"),
-            None
-        );
-        assert_eq!(
-            parse_table_data("rows\0name\u{1F}Name\u{1F}1.4\u{1F}1\u{1F}0"),
-            None
-        );
-        assert_eq!(
-            parse_table_data("rows\0name\u{1F}Name\u{1F}10\u{1F}0\u{1F}3"),
-            None
-        );
-        assert_eq!(
-            parse_table_data("rows\0name\u{1F}Name\u{1F}10\u{1F}0"),
-            None
-        );
-        assert_eq!(
-            parse_table_data("rows\0\u{1F}Name\u{1F}10\u{1F}0\u{1F}0"),
-            None
-        );
+    fn parse_table_spec_rejects_malformed_specs() {
+        let good = pack_table_column(120.0f32.to_bits(), 0, 0);
+        let bad_unit = pack_table_column(120.0f32.to_bits(), 2, 0);
+        let bad_alignment = pack_table_column(120.0f32.to_bits(), 0, 3);
+        let bad_width = pack_table_column((-4.0f32).to_bits(), 0, 0);
+        let bad_fraction = pack_table_column(1.4f32.to_bits(), 1, 0);
+        let noncanonical = pack_table_column(120.0f32.to_bits(), 0, 0) | (1 << 36);
+
+        // String count must be exactly two per record.
+        assert_eq!(parse_table_spec("", &[good]), None);
+        assert_eq!(parse_table_spec("\0name\0Name", &[good]), None);
+        assert_eq!(parse_table_spec("rows\0name\0Name\0extra", &[good]), None);
+        assert_eq!(parse_table_spec("rows\0name\0Name\0x", &[good, good]), None);
+        assert_eq!(parse_table_spec("rows\0name\0Name\0x\0y\0z", &[good]), None);
+        // An empty column key is rejected.
+        assert_eq!(parse_table_spec("rows\0\0Name", &[good]), None);
+        // Numeric records must unpack cleanly.
+        assert_eq!(parse_table_spec("rows\0name\0Name", &[bad_unit]), None);
+        assert_eq!(parse_table_spec("rows\0name\0Name", &[bad_alignment]), None);
+        assert_eq!(parse_table_spec("rows\0name\0Name", &[bad_width]), None);
+        assert_eq!(parse_table_spec("rows\0name\0Name", &[bad_fraction]), None);
+        assert_eq!(parse_table_spec("rows\0name\0Name", &[noncanonical]), None);
+    }
+
+    #[test]
+    fn unpack_table_column_round_trips_packed_records() {
+        for (width, unit, alignment) in [
+            (8.0f32, 0u32, 0u32),
+            (120.0, 0, 2),
+            (0.5, 1, 1),
+            (1.0, 1, 2),
+        ] {
+            let record = pack_table_column(width.to_bits(), unit, alignment);
+            let unpacked = unpack_table_column(record).expect("record round-trips");
+            assert_eq!(unpacked.0, width);
+            assert_eq!(unpacked.1, unit == 1);
+            assert_eq!(unpacked.2, alignment);
+        }
     }
 
     #[test]

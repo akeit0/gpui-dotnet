@@ -1,3 +1,4 @@
+using Gpui.Interop;
 using static Gpui.Colors;
 using static Gpui.Units;
 
@@ -414,7 +415,40 @@ public sealed class SemanticRenderTests
 
             var stats = arena.GetStats();
             Assert.Equal(1, stats.Nodes);
-            Assert.Equal(12, stats.Ops);
+            // 12 fixed ops + one packed column record op per declared column.
+            Assert.Equal(12 + 2, stats.Ops);
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void ManagedValidatorRejectsMalformedTableColumnRecords()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var table = ui.Table(
+                "grid",
+                new ListDataSource(10, 0),
+                view.Row,
+                new TableColumn("n", "Name", 120)
+            );
+
+            // Undefined alignment (3) inside the packed record must fail managed validation
+            // exactly like the native validator would.
+            ArenaWriter.AddU64(
+                table.Inner,
+                OpCode.TableColumn,
+                BitConverter.SingleToUInt32Bits(120f) | (3UL << 34)
+            );
+
+            Assert.Throws<InvalidOperationException>(() => arena.Validate(table));
         }
         finally
         {

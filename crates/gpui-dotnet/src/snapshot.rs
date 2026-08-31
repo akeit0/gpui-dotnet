@@ -13,9 +13,9 @@ use crate::{
         OP_OVERLAY_DISMISS_ON_BACKDROP, OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX,
         OP_OVERLAY_MODAL, OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_POPOVER_MENU_MARGIN_PX,
         OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH,
-        OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX,
-        OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA, ValueKind,
-        component_metadata, operation_metadata,
+        OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TABLE_COLUMN, OP_TOOLTIP_ALIGNMENT,
+        OP_TOOLTIP_GAP_PX, OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA,
+        ValueKind, component_metadata, operation_metadata,
     },
 };
 
@@ -376,6 +376,20 @@ fn validate_with_scratch(
             let width = f32::from_bits(op.a as u32);
             if !width.is_finite() || !(3.0..=32.0).contains(&width) {
                 return Err(-29);
+            }
+        }
+        if op.code == OP_TABLE_COLUMN {
+            let unit = (op.a >> 32) & 0b11;
+            let alignment = (op.a >> 34) & 0b11;
+            let width = f32::from_bits(op.a as u32);
+            if op.a >> 36 != 0
+                || unit > 1
+                || alignment > 2
+                || !width.is_finite()
+                || width <= 0.0
+                || (unit == 1 && width > 1.0)
+            {
+                return Err(-57);
             }
         }
         if op.code == OP_OVERLAY_PLACEMENT && op.a > 8 {

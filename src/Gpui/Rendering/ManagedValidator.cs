@@ -232,6 +232,26 @@ internal static unsafe class ManagedValidator
                 }
             }
 
+            if (code == OpCode.TableColumn)
+            {
+                var unit = (operation.A >> 32) & 0b11;
+                var alignment = (operation.A >> 34) & 0b11;
+                var width = BitConverter.UInt32BitsToSingle((uint)operation.A);
+                if (
+                    (operation.A >> 36) != 0
+                    || unit > 1
+                    || alignment > 2
+                    || !float.IsFinite(width)
+                    || width <= 0
+                    || (unit == 1 && width > 1f)
+                )
+                {
+                    throw new InvalidOperationException(
+                        $"Operation {i} has a malformed table column record."
+                    );
+                }
+            }
+
             if (code == OpCode.OverlayPlacement && operation.A > (uint)OverlayPlacement.TopLeft)
             {
                 throw new InvalidOperationException(

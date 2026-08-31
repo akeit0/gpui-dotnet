@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 19,
+  "schemaVersion": 20,
   "capabilities": [
     "styled",
     "parent",
@@ -781,6 +781,14 @@
       "csharp": "ScrollbarWidth",
       "value": "f32",
       "requires": "native_state",
+      "managedApi": null
+    },
+    {
+      "id": 322,
+      "name": "table_column",
+      "csharp": "TableColumn",
+      "value": "u64",
+      "requires": "table",
       "managedApi": null
     }
   ]
