@@ -1,8 +1,8 @@
 use gpui::{
-    AppContext, Axis, Bounds, Context, DragMoveEvent, ElementId, Empty, EntityId,
-    InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseUpEvent, ParentElement,
-    Pixels, Point, Render, StatefulInteractiveElement, Styled, Window, canvas, div,
-    prelude::FluentBuilder, px, relative, rgba,
+    App, AppContext, Axis, Bounds, Context, DragMoveEvent, ElementId, Empty, EntityId, FocusHandle,
+    Focusable, InteractiveElement, IntoElement, KeyDownEvent, KeyUpEvent, MouseButton,
+    MouseDownEvent, MouseUpEvent, ParentElement, Pixels, Point, Render, StatefulInteractiveElement,
+    Styled, Window, canvas, div, prelude::FluentBuilder, px, relative, rgba,
 };
 
 use crate::{
@@ -74,6 +74,7 @@ impl Render for SliderDrag {
 pub(crate) struct ManagedSlider {
     session_id: u64,
     callbacks: ManagedCallbacks,
+    focus_handle: FocusHandle,
     min: f32,
     max: f32,
     step: f32,
@@ -83,6 +84,8 @@ pub(crate) struct ManagedSlider {
     logarithmic: bool,
     bounds: Bounds<Pixels>,
     dragging: bool,
+    active_thumb_is_start: bool,
+    keyboard_active: bool,
     bindings: SliderBindings,
     revision: u64,
     callback_error: Option<i32>,
@@ -93,6 +96,7 @@ impl ManagedSlider {
         session_id: u64,
         callbacks: ManagedCallbacks,
         configuration: &SliderConfiguration,
+        cx: &mut Context<Self>,
     ) -> Self {
         let value = configuration
             .initial_value
@@ -101,6 +105,7 @@ impl ManagedSlider {
         Self {
             session_id,
             callbacks,
+            focus_handle: cx.focus_handle().tab_stop(!configuration.disabled),
             min: configuration.min,
             max: configuration.max,
             step: configuration.step,
@@ -110,6 +115,8 @@ impl ManagedSlider {
             logarithmic: configuration.logarithmic,
             bounds: Bounds::default(),
             dragging: false,
+            active_thumb_is_start: false,
+            keyboard_active: false,
             bindings: configuration.bindings,
             revision: 0,
             callback_error: None,
@@ -121,6 +128,7 @@ impl ManagedSlider {
         configuration: &SliderConfiguration,
         cx: &mut Context<Self>,
     ) {
+        let disabled_changed = self.disabled != configuration.disabled;
         let changed = self.min != configuration.min
             || self.max != configuration.max
             || self.step != configuration.step
@@ -136,12 +144,16 @@ impl ManagedSlider {
         self.disabled = configuration.disabled;
         self.logarithmic = configuration.logarithmic;
         self.bindings = configuration.bindings;
+        if disabled_changed {
+            self.focus_handle = self.focus_handle.clone().tab_stop(!self.disabled);
+        }
         let value = self.value.clamp(self.min, self.max);
         if value != self.value {
             self.value = value;
         }
         if self.disabled {
             self.dragging = false;
+            self.keyboard_active = false;
         }
         if changed {
             cx.notify();
@@ -228,6 +240,10 @@ impl ManagedSlider {
         };
         let value = self.min
             + ((self.percentage_to_value(percentage) - self.min) / self.step).round() * self.step;
+        self.update_value(value, is_start, cx);
+    }
+
+    fn update_value(&mut self, value: f32, is_start: bool, cx: &mut Context<Self>) {
         let previous = self.value;
         if is_start {
             self.value.set_start(value.clamp(self.min, self.max));
@@ -249,10 +265,48 @@ impl ManagedSlider {
         self.emit(self.bindings.released, EVENT_RELEASED, cx);
     }
 
+    fn on_key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if self.disabled || !is_slider_key(&event.keystroke.key) {
+            return;
+        }
+
+        let is_start = self.value.is_range() && self.active_thumb_is_start;
+        let current = if is_start {
+            self.value.start()
+        } else {
+            self.value.end()
+        };
+        let next = match event.keystroke.key.as_str() {
+            "home" => self.min,
+            "end" => self.max,
+            "left" if self.axis == Axis::Horizontal => current - self.step,
+            "right" if self.axis == Axis::Horizontal => current + self.step,
+            "up" if self.axis == Axis::Vertical => current + self.step,
+            "down" if self.axis == Axis::Vertical => current - self.step,
+            "pageup" => current + self.step * 10.,
+            "pagedown" => current - self.step * 10.,
+            _ => return,
+        };
+
+        self.keyboard_active = true;
+        self.dragging = false;
+        self.update_value(next, is_start, cx);
+        cx.stop_propagation();
+    }
+
+    fn on_key_up(&mut self, event: &KeyUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.keyboard_active || !is_slider_key(&event.keystroke.key) {
+            return;
+        }
+        self.keyboard_active = false;
+        self.emit(self.bindings.released, EVENT_RELEASED, cx);
+        cx.stop_propagation();
+    }
+
     fn on_track_mouse_down(
         &mut self,
         event: &MouseDownEvent,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         let (start, end) = self.percentages();
@@ -274,7 +328,23 @@ impl ManagedSlider {
         } else {
             false
         };
+        self.active_thumb_is_start = is_start;
+        self.keyboard_active = false;
+        self.focus_handle.focus(window);
         self.update_value_by_position(event.position, is_start, cx);
+    }
+
+    fn on_thumb_mouse_down(
+        &mut self,
+        _: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        is_start: bool,
+    ) {
+        self.active_thumb_is_start = is_start;
+        self.keyboard_active = false;
+        self.focus_handle.focus(window);
+        cx.stop_propagation();
     }
 
     fn on_drag_move(
@@ -326,6 +396,19 @@ impl ManagedSlider {
     }
 }
 
+fn is_slider_key(key: &str) -> bool {
+    matches!(
+        key,
+        "home" | "end" | "left" | "right" | "up" | "down" | "pageup" | "pagedown"
+    )
+}
+
+impl Focusable for ManagedSlider {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
+        self.focus_handle.clone()
+    }
+}
+
 impl Render for ManagedSlider {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if let Some(status) = self.callback_error {
@@ -344,6 +427,7 @@ impl Render for ManagedSlider {
         let axis = self.axis;
         let disabled = self.disabled;
         let slider = cx.entity();
+        let focus_handle = self.focus_handle.clone();
 
         let mut track = div()
             .id(("managed-slider-track", entity_id))
@@ -394,6 +478,7 @@ impl Render for ManagedSlider {
             .absolute()
             .size_full(),
         );
+        track = track.debug_selector(|| "managed-slider-track".to_owned());
 
         if !disabled {
             track = track
@@ -428,7 +513,13 @@ impl Render for ManagedSlider {
                     thumb.bottom(relative(position)).left(px(4.)).mb(-px(8.))
                 };
                 thumb
-                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .debug_selector(|| "managed-slider-thumb".to_owned())
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |slider, event, window, cx| {
+                            slider.on_thumb_mouse_down(event, window, cx, is_start);
+                        }),
+                    )
                     .on_drag(SliderDrag((entity_id, is_start)), |drag, _, _, cx| {
                         cx.stop_propagation();
                         cx.new(|_| drag.clone())
@@ -443,7 +534,7 @@ impl Render for ManagedSlider {
         }
 
         let root = div()
-            .id(("managed-slider", entity_id))
+            .id(&focus_handle)
             .size_full()
             .min_w_0()
             .relative()
@@ -454,6 +545,11 @@ impl Render for ManagedSlider {
                 this.on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
                     .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             })
+            .track_focus(&focus_handle)
+            .focus_visible(|style| style.border(px(2.)).border_color(rgba(0x1D4ED8FF)))
+            .key_context("GpuiDotnetSlider")
+            .on_key_down(cx.listener(Self::on_key_down))
+            .on_key_up(cx.listener(Self::on_key_up))
             .child(track);
         root.into_any_element()
     }
@@ -461,7 +557,15 @@ impl Render for ManagedSlider {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
+
+    use gpui::{KeyUpEvent, Keystroke, Modifiers, TestAppContext, point, px, size};
+
     use super::*;
+
+    thread_local! {
+        static EVENTS: RefCell<Vec<(u16, u64, SliderValue)>> = const { RefCell::new(Vec::new()) };
+    }
 
     #[test]
     fn slider_values_clamp_without_changing_their_shape() {
@@ -475,8 +579,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn linear_percentage_mapping_is_stable() {
+    #[gpui::test]
+    fn linear_percentage_mapping_is_stable(cx: &mut TestAppContext) {
         let configuration = SliderConfiguration {
             key: crate::resources::ResourceKey::new(1, gpui::SharedString::new("slider")),
             min: 10.,
@@ -488,8 +592,234 @@ mod tests {
             logarithmic: false,
             bindings: SliderBindings::default(),
         };
-        let slider = ManagedSlider::new(1, callbacks(), &configuration);
-        assert_eq!(slider.percentages(), (0., 0.5));
+        let (slider, _) =
+            cx.add_window_view(|_, cx| ManagedSlider::new(1, callbacks(), &configuration, cx));
+        slider.update(cx, |slider, _| assert_eq!(slider.percentages(), (0., 0.5)));
+    }
+
+    #[gpui::test]
+    fn track_click_emits_changed_and_release_events(cx: &mut TestAppContext) {
+        clear_events();
+        let configuration = configuration(SliderValue::Single(0.));
+        let (_, cx) =
+            cx.add_window_view(|_, cx| ManagedSlider::new(7, callbacks(), &configuration, cx));
+        cx.simulate_resize(size(px(240.), px(80.)));
+        cx.update(|window, _| window.refresh());
+
+        let bounds = cx
+            .debug_bounds("managed-slider-track")
+            .expect("slider track should be laid out");
+        let position = point(bounds.left() + bounds.size.width * 0.75, bounds.center().y);
+        cx.simulate_mouse_down(position, MouseButton::Left, Modifiers::none());
+
+        let recorded = events();
+        assert_eq!(recorded.len(), 1);
+        assert_eq!(recorded[0].0, EVENT_CHANGED);
+        assert_eq!(recorded[0].2, SliderValue::Single(75.));
+
+        cx.simulate_mouse_up(position, MouseButton::Left, Modifiers::none());
+        let recorded = events();
+        assert_eq!(recorded.len(), 2);
+        assert_eq!(recorded[1].0, EVENT_RELEASED);
+        assert_eq!(recorded[1].1, 1);
+        assert_eq!(recorded[1].2, SliderValue::Single(75.));
+    }
+
+    #[gpui::test]
+    fn range_track_click_moves_the_nearest_thumb_and_preserves_range_shape(
+        cx: &mut TestAppContext,
+    ) {
+        clear_events();
+        let configuration = configuration(SliderValue::Range(25., 75.));
+        let (_, cx) =
+            cx.add_window_view(|_, cx| ManagedSlider::new(8, callbacks(), &configuration, cx));
+        cx.simulate_resize(size(px(240.), px(80.)));
+        cx.update(|window, _| window.refresh());
+
+        let bounds = cx
+            .debug_bounds("managed-slider-track")
+            .expect("slider track should be laid out");
+        let position = point(bounds.left() + bounds.size.width * 0.1, bounds.center().y);
+        cx.simulate_mouse_down(position, MouseButton::Left, Modifiers::none());
+        cx.simulate_mouse_up(position, MouseButton::Left, Modifiers::none());
+
+        let events = events();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].2, SliderValue::Range(10., 75.));
+        assert_eq!(events[1].0, EVENT_RELEASED);
+        assert_eq!(events[1].2, SliderValue::Range(10., 75.));
+    }
+
+    #[gpui::test]
+    fn vertical_logarithmic_track_click_uses_the_native_axis_mapping(cx: &mut TestAppContext) {
+        clear_events();
+        let mut configuration = configuration(SliderValue::Single(1.));
+        configuration.min = 1.;
+        configuration.max = 100.;
+        configuration.step = 1.;
+        configuration.axis = Axis::Vertical;
+        configuration.logarithmic = true;
+        let (_, cx) =
+            cx.add_window_view(|_, cx| ManagedSlider::new(13, callbacks(), &configuration, cx));
+        cx.simulate_resize(size(px(80.), px(240.)));
+        cx.update(|window, _| window.refresh());
+
+        let bounds = cx
+            .debug_bounds("managed-slider-track")
+            .expect("slider track should be laid out");
+        let position = point(bounds.center().x, bounds.top() + bounds.size.height * 0.5);
+        cx.simulate_mouse_down(position, MouseButton::Left, Modifiers::none());
+        cx.simulate_mouse_up(position, MouseButton::Left, Modifiers::none());
+
+        let recorded = events();
+        assert_eq!(recorded[0].2, SliderValue::Single(10.));
+        assert_eq!(recorded[1].0, EVENT_RELEASED);
+    }
+
+    #[gpui::test]
+    fn disabled_slider_ignores_pointer_input(cx: &mut TestAppContext) {
+        clear_events();
+        let mut configuration = configuration(SliderValue::Single(40.));
+        configuration.disabled = true;
+        let (_, cx) =
+            cx.add_window_view(|_, cx| ManagedSlider::new(9, callbacks(), &configuration, cx));
+        cx.simulate_resize(size(px(240.), px(80.)));
+        cx.update(|window, _| window.refresh());
+
+        let bounds = cx
+            .debug_bounds("managed-slider-track")
+            .expect("slider track should be laid out");
+        let position = point(bounds.left() + bounds.size.width * 0.9, bounds.center().y);
+        cx.simulate_mouse_down(position, MouseButton::Left, Modifiers::none());
+        cx.simulate_mouse_up(position, MouseButton::Left, Modifiers::none());
+
+        assert!(events().is_empty());
+    }
+
+    #[gpui::test]
+    fn programmatic_set_value_does_not_emit_interaction_events(cx: &mut TestAppContext) {
+        clear_events();
+        let configuration = configuration(SliderValue::Single(10.));
+        let (slider, _) =
+            cx.add_window_view(|_, cx| ManagedSlider::new(10, callbacks(), &configuration, cx));
+        let command = ResourceCommand {
+            key: crate::resources::ResourceKey::new(1, gpui::SharedString::new("slider")),
+            resource_kind: 4,
+            command: 30,
+            a: (20f32.to_bits() as u64) | ((20f32.to_bits() as u64) << 32),
+            b: 0,
+            data: gpui::SharedString::new(""),
+        };
+        slider.update(cx, |slider, cx| slider.apply_command(&command, cx));
+
+        assert!(events().is_empty());
+        slider.update(cx, |slider, _| {
+            assert_eq!(slider.value, SliderValue::Single(20.))
+        });
+    }
+
+    #[gpui::test]
+    fn keyboard_step_emits_changed_then_released(cx: &mut TestAppContext) {
+        clear_events();
+        let configuration = configuration(SliderValue::Single(50.));
+        let (slider, cx) =
+            cx.add_window_view(|_, cx| ManagedSlider::new(11, callbacks(), &configuration, cx));
+        cx.simulate_resize(size(px(240.), px(80.)));
+        cx.update(|window, _| window.refresh());
+        cx.update(|window, app| {
+            slider.update(app, |slider, _| slider.focus_handle.focus(window));
+        });
+
+        cx.simulate_keystrokes("right");
+        assert_eq!(events(), vec![(EVENT_CHANGED, 1, SliderValue::Single(55.))]);
+
+        cx.simulate_event(KeyUpEvent {
+            keystroke: Keystroke::parse("right").unwrap(),
+        });
+        assert_eq!(
+            events(),
+            vec![
+                (EVENT_CHANGED, 1, SliderValue::Single(55.)),
+                (EVENT_RELEASED, 1, SliderValue::Single(55.)),
+            ]
+        );
+    }
+
+    #[gpui::test]
+    fn thumb_drag_emits_changed_and_released(cx: &mut TestAppContext) {
+        clear_events();
+        let configuration = configuration(SliderValue::Single(25.));
+        let (_, cx) =
+            cx.add_window_view(|_, cx| ManagedSlider::new(12, callbacks(), &configuration, cx));
+        cx.simulate_resize(size(px(240.), px(80.)));
+        cx.update(|window, _| window.refresh());
+
+        let thumb = cx
+            .debug_bounds("managed-slider-thumb")
+            .expect("slider thumb should be laid out");
+        let track = cx
+            .debug_bounds("managed-slider-track")
+            .expect("slider track should be laid out");
+        let start = thumb.center();
+        let end = point(track.left() + track.size.width * 0.75, start.y);
+        cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
+        cx.simulate_mouse_move(end, Some(MouseButton::Left), Modifiers::none());
+        cx.simulate_mouse_move(end, Some(MouseButton::Left), Modifiers::none());
+        cx.simulate_mouse_up(end, MouseButton::Left, Modifiers::none());
+
+        let recorded = events();
+        assert_eq!(
+            recorded.last().copied(),
+            Some((EVENT_RELEASED, 1, SliderValue::Single(75.)))
+        );
+        assert!(
+            recorded
+                .iter()
+                .any(|event| event.0 == EVENT_CHANGED && event.2 == SliderValue::Single(75.))
+        );
+    }
+
+    fn configuration(value: SliderValue) -> SliderConfiguration {
+        SliderConfiguration {
+            key: crate::resources::ResourceKey::new(1, gpui::SharedString::new("slider")),
+            min: 0.,
+            max: 100.,
+            step: 5.,
+            initial_value: Some(value),
+            axis: Axis::Horizontal,
+            disabled: false,
+            logarithmic: false,
+            bindings: SliderBindings {
+                changed: 1,
+                released: 2,
+            },
+        }
+    }
+
+    fn clear_events() {
+        EVENTS.with(|events| events.borrow_mut().clear());
+    }
+
+    fn events() -> Vec<(u16, u64, SliderValue)> {
+        EVENTS.with(|events| events.borrow().clone())
+    }
+
+    unsafe extern "C" fn capture_event(_: u64, _: u64, event: *const NativeControlEvent) -> i32 {
+        let event = unsafe { &*event };
+        let bytes = unsafe { std::slice::from_raw_parts(event.data, event.data_length as usize) };
+        let start = f32::from_le_bytes(bytes[..4].try_into().unwrap());
+        let value = if event.flags & 2 != 0 {
+            let end = f32::from_le_bytes(bytes[4..8].try_into().unwrap());
+            SliderValue::Range(start, end)
+        } else {
+            SliderValue::Single(start)
+        };
+        EVENTS.with(|events| {
+            events
+                .borrow_mut()
+                .push((event.kind, event.revision, value))
+        });
+        0
     }
 
     fn callbacks() -> ManagedCallbacks {
@@ -498,7 +828,7 @@ mod tests {
             render: None,
             click: None,
             list_render_range: None,
-            control_event: None,
+            control_event: Some(capture_event),
             application_started: None,
             window_closed: None,
         }

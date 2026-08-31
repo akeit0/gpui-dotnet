@@ -24,3 +24,8 @@ windows = { version = "0.61", features = [
 
 [build-dependencies]
 csbindgen = "1.9.8"
+
+[dev-dependencies]
+gpui = { git = "https://github.com/zed-industries/zed", rev = "2ead8c42fb6792095d7cb02f7b89e467421dc8a0", features = [
+    "test-support",
+] }

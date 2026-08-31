@@ -107,10 +107,10 @@ internal static unsafe class ManagedValidator
                 );
             }
 
-            if (operation.B != 0 && code is not (OpCode.OnClick or OpCode.OverlayOnDismiss))
+            if (operation.B != 0 && !SemanticRegistry.AllowsPayload(code))
             {
                 throw new InvalidOperationException(
-                    $"Operation {i} uses payload word B outside an OnClick event binding."
+                    $"Operation {i} uses payload word B outside an event binding."
                 );
             }
 
@@ -151,176 +151,11 @@ internal static unsafe class ManagedValidator
                 throw new InvalidOperationException($"Operation {i} uses reserved event token 0.");
             }
 
-            if (code == OpCode.Checked && operation.A > 1)
-            {
-                throw new InvalidOperationException($"Operation {i} has an invalid boolean value.");
-            }
-
-            if (code == OpCode.ResourceOwner && operation.A == 0)
+            var payloadError = SemanticRegistry.PayloadError(code, operation.A);
+            if (payloadError != 0)
             {
                 throw new InvalidOperationException(
-                    $"Operation {i} uses reserved managed View handle 0."
-                );
-            }
-
-            if (code == OpCode.ScrollAxis && operation.A > (uint)ScrollAxis.Both)
-            {
-                throw new InvalidOperationException($"Operation {i} has an invalid scroll axis.");
-            }
-
-            if (code is OpCode.SliderAxis or OpCode.SliderScale && operation.A > 1)
-            {
-                throw new InvalidOperationException(
-                    $"Operation {i} has an invalid slider enum value."
-                );
-            }
-
-            if (code == OpCode.WindowControlArea && operation.A > (uint)WindowControlArea.Close)
-            {
-                throw new InvalidOperationException(
-                    $"Operation {i} has an invalid window control area."
-                );
-            }
-
-            if (
-                code
-                    is OpCode.SmoothScroll
-                        or OpCode.ShowScrollbar
-                        or OpCode.ScrollbarGutter
-                        or OpCode.InputDisabled
-                        or OpCode.InputReadOnly
-                        or OpCode.InputPassword
-                        or OpCode.SliderDisabled
-                        or OpCode.OverlayModal
-                        or OpCode.OverlayDismissOnBackdrop
-                        or OpCode.OverlayDismissOnEscape
-                && operation.A > 1
-            )
-            {
-                throw new InvalidOperationException($"Operation {i} has an invalid boolean value.");
-            }
-
-            if (code == OpCode.ImageGrayscale && operation.A > 1)
-            {
-                throw new InvalidOperationException($"Operation {i} has an invalid boolean value.");
-            }
-
-            if (code == OpCode.ImageObjectFit && operation.A > (uint)ImageFit.None)
-            {
-                throw new InvalidOperationException($"Operation {i} has an invalid image fit.");
-            }
-
-            if (code == OpCode.ListBatchSize && operation.A is < 1 or > 512)
-            {
-                throw new InvalidOperationException(
-                    $"Operation {i} has an invalid list batch size."
-                );
-            }
-
-            if (code == OpCode.ListAlignment && operation.A > (uint)ListAlignment.Bottom)
-            {
-                throw new InvalidOperationException(
-                    $"Operation {i} has an invalid list alignment."
-                );
-            }
-
-            if (
-                code == OpCode.ListOverdrawPx
-                && BitConverter.UInt32BitsToSingle((uint)operation.A) < 0
-            )
-            {
-                throw new InvalidOperationException($"Operation {i} has a negative list overdraw.");
-            }
-
-            if (
-                code == OpCode.ListEstimatedItemHeightPx
-                && BitConverter.UInt32BitsToSingle((uint)operation.A) <= 0
-            )
-            {
-                throw new InvalidOperationException(
-                    $"Operation {i} has a non-positive estimated list item height."
-                );
-            }
-
-            if (code == OpCode.ScrollbarWidth)
-            {
-                var width = BitConverter.UInt32BitsToSingle((uint)operation.A);
-                if (!float.IsFinite(width) || width is < 3f or > 32f)
-                {
-                    throw new InvalidOperationException(
-                        $"Operation {i} has a scrollbar width outside 3..32 px."
-                    );
-                }
-            }
-
-            if (code == OpCode.TableColumn)
-            {
-                var unit = (operation.A >> 32) & 0b11;
-                var alignment = (operation.A >> 34) & 0b11;
-                var width = BitConverter.UInt32BitsToSingle((uint)operation.A);
-                if (
-                    (operation.A >> 36) != 0
-                    || unit > 1
-                    || alignment > 2
-                    || !float.IsFinite(width)
-                    || width <= 0
-                    || (unit == 1 && width > 1f)
-                )
-                {
-                    throw new InvalidOperationException(
-                        $"Operation {i} has a malformed table column record."
-                    );
-                }
-            }
-
-            if (code == OpCode.OverlayPlacement && operation.A > (uint)OverlayPlacement.TopLeft)
-            {
-                throw new InvalidOperationException(
-                    $"Operation {i} has an invalid overlay placement."
-                );
-            }
-
-            if (
-                code == OpCode.OverlayMarginPx
-                && BitConverter.UInt32BitsToSingle((uint)operation.A) < 0
-            )
-            {
-                throw new InvalidOperationException(
-                    $"Operation {i} has a negative overlay margin."
-                );
-            }
-
-            if (code == OpCode.TooltipPlacement && operation.A > (uint)TooltipPlacement.Left)
-            {
-                throw new InvalidOperationException(
-                    $"Operation {i} has an invalid tooltip placement."
-                );
-            }
-
-            if (code == OpCode.TooltipAlignment && operation.A > (uint)TooltipAlignment.End)
-            {
-                throw new InvalidOperationException(
-                    $"Operation {i} has an invalid tooltip alignment."
-                );
-            }
-
-            if (
-                code is OpCode.TooltipGapPx or OpCode.TooltipMarginPx
-                && BitConverter.UInt32BitsToSingle((uint)operation.A) < 0
-            )
-            {
-                throw new InvalidOperationException(
-                    $"Operation {i} has a negative tooltip distance."
-                );
-            }
-
-            if (
-                code is OpCode.ContextMenuMarginPx or OpCode.PopoverMenuMarginPx
-                && BitConverter.UInt32BitsToSingle((uint)operation.A) < 0
-            )
-            {
-                throw new InvalidOperationException(
-                    $"Operation {i} has a negative context-menu margin."
+                    $"Operation {i} has a payload that violates the schema constraint ({payloadError})."
                 );
             }
         }

@@ -111,7 +111,7 @@ int32_t control_event(
     const gpui_native_control_event* event);
 ```
 
-`gpui_native_control_event` carries a typed event kind, flags, native state revision, and a borrowed data range. Input emits Changed, Submitted, and FocusChanged with UTF-8 payloads. Slider emits Changed (`kind = 4`) during pointer movement and Released (`kind = 5`) on pointer release; its payload is one little-endian `f32` for a single value or two ordered `f32` values for a range, with flag bit 1 marking the range form. Managed code validates the record and copies the bytes before returning through FFI, making event payloads safe for asynchronous handlers. UTF-16 decoding is deferred until `InputEvent.Value` is accessed.
+`gpui_native_control_event` carries a typed event kind, flags, native state revision, and a borrowed data range. Input emits Changed, Submitted, and FocusChanged with UTF-8 payloads. Slider emits Changed (`kind = 4`) during pointer or keyboard movement and Released (`kind = 5`) when the pointer is released or a keyboard interaction ends; its payload is one little-endian `f32` for a single value or two ordered `f32` values for a range, with flag bit 1 marking the range form. Managed code validates the record and copies the bytes before returning through FFI, making event payloads safe for asynchronous handlers. UTF-16 decoding is deferred until `InputEvent.Value` is accessed.
 
 ## Render arena
 

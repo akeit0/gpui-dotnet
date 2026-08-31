@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use gpui::{
-    AnyElement, ClickEvent, Context, ElementId, Entity, FocusHandle, InteractiveElement,
-    IntoElement, KeyDownEvent, ObjectFit, ParentElement, SharedString, StatefulInteractiveElement,
-    Styled, StyledImage, WeakFocusHandle, Window, WindowControlArea, anchored, deferred, div, img,
-    list, point, px, relative, rgba,
+    AnyElement, App, ClickEvent, Context, ElementId, Entity, FocusHandle, InteractiveElement,
+    IntoElement, KeyDownEvent, ListState, ObjectFit, ParentElement, SharedString,
+    StatefulInteractiveElement, Styled, StyledImage, WeakFocusHandle, Window, WindowControlArea,
+    anchored, deferred, div, img, list, point, px, relative, rgba,
 };
 
 use crate::{
@@ -53,8 +53,8 @@ impl ManagedView {
 
         match metadata.adapter {
             NativeAdapter::Scroll => self.materialize_scroll(node_id, node, snapshot, window, cx),
-            NativeAdapter::List => self.materialize_list(node, snapshot),
-            NativeAdapter::Table => self.materialize_table(node, snapshot),
+            NativeAdapter::List => self.materialize_list(node, snapshot, window, cx),
+            NativeAdapter::Table => self.materialize_table(node, snapshot, window, cx),
             NativeAdapter::Image => materialize_image(node, snapshot),
             NativeAdapter::Input => self.materialize_input(node, snapshot, window, cx),
             NativeAdapter::Slider => self.materialize_slider(node, snapshot, cx),
@@ -190,7 +190,13 @@ impl ManagedView {
         element.child(scrollable).child(overlay).into_any_element()
     }
 
-    fn materialize_list(&self, node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> AnyElement {
+    fn materialize_list(
+        &self,
+        node: &SnapshotNode,
+        snapshot: &ValidatedSnapshot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let Some(key) = resource_key(snapshot, node) else {
             return div()
                 .child("List resource is missing its owner/key.")
@@ -205,6 +211,18 @@ impl ManagedView {
             .resources
             .list_resource(&key, &configuration, self.snapshot_revision);
         let state = resource.borrow().state.clone();
+        let focus_state = window.use_keyed_state(
+            collection_focus_id("managed-list-focus", &key),
+            cx,
+            |_, cx| CollectionFocusState {
+                focus: cx.focus_handle().tab_stop(true),
+                active_index: 0,
+            },
+        );
+        let focus = focus_state.read(cx).focus.clone();
+        let keyboard_state = focus_state.clone();
+        let keyboard_list = state.clone();
+        let item_count = configuration.item_count;
         let resources = self.resources.clone();
         let row_scope = key.clone();
         let row_resource = resource.clone();
@@ -227,10 +245,25 @@ impl ManagedView {
         );
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
         element = element.min_h_0().min_w_0();
+        let mut host = element
+            .id(&focus)
+            .track_focus(&focus)
+            .focus_visible(|style| style.border(px(2.)).border_color(rgba(0x1D4ED8FF)))
+            .key_context("GpuiDotnetList")
+            .on_key_down(move |event, window, cx| {
+                handle_collection_key_down(
+                    event,
+                    window,
+                    cx,
+                    &keyboard_state,
+                    &keyboard_list,
+                    item_count,
+                );
+            });
         if configuration.scrollbar.gutter > px(0.) {
             // Reserve the bar's width: the virtualized content excludes the gutter, so rows
             // never extend under the scrollbar.
-            element = element.child(
+            host = host.child(
                 div()
                     .flex()
                     .flex_row()
@@ -241,15 +274,21 @@ impl ManagedView {
                     .child(gutter_spacer(configuration.scrollbar.gutter)),
             );
         } else {
-            element = element.child(list_element);
+            host = host.child(list_element);
         }
-        element.child(overlay).into_any_element()
+        host.child(overlay).into_any_element()
     }
 
     /// A table is a virtualized list whose rows are reconciled against declared columns. The
     /// row engine, its commands, and its batch cache are exactly the list machinery; columns
     /// are declarative IR that only changes how the header strip and row cells are laid out.
-    fn materialize_table(&self, node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> AnyElement {
+    fn materialize_table(
+        &self,
+        node: &SnapshotNode,
+        snapshot: &ValidatedSnapshot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let Some((key, spec)) = table_configuration(snapshot, node) else {
             return div()
                 .child("Table resource is missing its owner/key or declares malformed columns.")
@@ -266,6 +305,18 @@ impl ManagedView {
         self.resources
             .bind_table_spec(&key, spec.clone(), &resource);
         let state = resource.borrow().state.clone();
+        let focus_state = window.use_keyed_state(
+            collection_focus_id("managed-table-focus", &key),
+            cx,
+            |_, cx| CollectionFocusState {
+                focus: cx.focus_handle().tab_stop(true),
+                active_index: 0,
+            },
+        );
+        let focus = focus_state.read(cx).focus.clone();
+        let keyboard_state = focus_state.clone();
+        let keyboard_list = state.clone();
+        let item_count = configuration.item_count;
         let resources = self.resources.clone();
         let row_scope = key.clone();
         let row_resource = resource.clone();
@@ -288,12 +339,27 @@ impl ManagedView {
         );
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
         element = element.min_h_0().min_w_0();
+        let mut host = element
+            .id(&focus)
+            .track_focus(&focus)
+            .focus_visible(|style| style.border(px(2.)).border_color(rgba(0x1D4ED8FF)))
+            .key_context("GpuiDotnetTable")
+            .on_key_down(move |event, window, cx| {
+                handle_collection_key_down(
+                    event,
+                    window,
+                    cx,
+                    &keyboard_state,
+                    &keyboard_list,
+                    item_count,
+                );
+            });
         let show_header = last_op(snapshot, node, OP_TABLE_SHOW_HEADER).is_none_or(|op| op.a != 0);
         if show_header {
             let header = table_header_strip(&spec).flex_grow();
             if configuration.scrollbar.gutter > px(0.) {
                 // The header excludes the gutter too, so fraction columns align with row cells.
-                element = element.child(
+                host = host.child(
                     div()
                         .flex()
                         .flex_row()
@@ -302,11 +368,11 @@ impl ManagedView {
                         .child(gutter_spacer(configuration.scrollbar.gutter)),
                 );
             } else {
-                element = element.child(header);
+                host = host.child(header);
             }
         }
         if configuration.scrollbar.gutter > px(0.) {
-            element = element.child(
+            host = host.child(
                 div()
                     .flex()
                     .flex_row()
@@ -317,9 +383,9 @@ impl ManagedView {
                     .child(gutter_spacer(configuration.scrollbar.gutter)),
             );
         } else {
-            element = element.child(list_element);
+            host = host.child(list_element);
         }
-        element.child(overlay).into_any_element()
+        host.child(overlay).into_any_element()
     }
 
     fn materialize_input(
@@ -1060,6 +1126,59 @@ fn materialize_image(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> AnyEl
     apply_styles(element, node, snapshot).into_any_element()
 }
 
+struct CollectionFocusState {
+    focus: FocusHandle,
+    active_index: usize,
+}
+
+fn collection_focus_id(name: &'static str, key: &crate::resources::ResourceKey) -> ElementId {
+    let owner = key.owner_view.to_le_bytes();
+    ElementId::named_usize(name, stable_hash(&[&owner, key.key.as_bytes()]) as usize)
+}
+
+fn handle_collection_key_down(
+    event: &KeyDownEvent,
+    window: &mut Window,
+    cx: &mut App,
+    focus_state: &Entity<CollectionFocusState>,
+    list_state: &ListState,
+    item_count: usize,
+) {
+    if item_count == 0 {
+        return;
+    }
+    let modifiers = event.keystroke.modifiers;
+    if modifiers.control || modifiers.alt || modifiers.platform || modifiers.function {
+        return;
+    }
+
+    let current = focus_state
+        .read(cx)
+        .active_index
+        .min(item_count.saturating_sub(1));
+    let Some(next) = collection_key_target(&event.keystroke.key, current, item_count) else {
+        return;
+    };
+
+    focus_state.update(cx, |state, _| state.active_index = next);
+    list_state.scroll_to_reveal_item(next);
+    window.refresh();
+    cx.stop_propagation();
+}
+
+fn collection_key_target(key: &str, current: usize, item_count: usize) -> Option<usize> {
+    let last = item_count.checked_sub(1)?;
+    Some(match key {
+        "home" => 0,
+        "end" => last,
+        "up" => current.saturating_sub(1),
+        "down" => (current + 1).min(last),
+        "pageup" => current.saturating_sub(10),
+        "pagedown" => (current + 10).min(last),
+        _ => return None,
+    })
+}
+
 fn last_op<'a>(
     snapshot: &'a ValidatedSnapshot,
     node: &SnapshotNode,
@@ -1114,5 +1233,17 @@ mod tests {
                 "service-row"
             )
         );
+    }
+
+    #[test]
+    fn collection_keyboard_navigation_is_bounded() {
+        assert_eq!(collection_key_target("up", 0, 3), Some(0));
+        assert_eq!(collection_key_target("down", 2, 3), Some(2));
+        assert_eq!(collection_key_target("pageup", 8, 20), Some(0));
+        assert_eq!(collection_key_target("pagedown", 8, 20), Some(18));
+        assert_eq!(collection_key_target("home", 2, 3), Some(0));
+        assert_eq!(collection_key_target("end", 0, 3), Some(2));
+        assert_eq!(collection_key_target("left", 1, 3), None);
+        assert_eq!(collection_key_target("down", 0, 0), None);
     }
 }

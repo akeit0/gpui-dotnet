@@ -30,6 +30,11 @@ Callback operations use manual view-bound fluent APIs rather than generated dele
 
 `payload` is written to `OpRecord.B`; it is not a delegate or GCHandle.
 
+Operation payload legality and scalar constraints are declared beside each operation in
+`bindings/schema.json`. The generator emits the payload-kind table and constraint evaluator for
+both the managed and Rust validators, so adding operation validation does not require duplicating
+a switch in either runtime.
+
 ## Roslyn incremental generator
 
 Project: `src/Gpui.Generators`

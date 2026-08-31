@@ -137,10 +137,22 @@ pub(crate) fn end_frame(extra: &[(&'static str, u64)]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::AtomicU64;
+    use std::sync::Mutex;
+
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    fn reset_trace_state() {
+        for index in 0..STAGE_COUNT {
+            STAGE_NANOS[index].store(0, Ordering::Relaxed);
+            STAGE_COUNTS[index].store(0, Ordering::Relaxed);
+        }
+        FRAMES.store(0, Ordering::Relaxed);
+    }
 
     #[test]
     fn spans_accumulate_only_when_enabled() {
+        let _lock = TEST_LOCK.lock().unwrap();
+        reset_trace_state();
         set_enabled_for_tests(false);
         {
             let _span = Span::new(Stage::Materialize);
@@ -169,6 +181,8 @@ mod tests {
 
     #[test]
     fn end_frame_resets_and_reports_stages() {
+        let _lock = TEST_LOCK.lock().unwrap();
+        reset_trace_state();
         set_enabled_for_tests(true);
         {
             let _span = Span::new(Stage::ListBatchLoad);
@@ -183,6 +197,8 @@ mod tests {
 
     #[test]
     fn disabled_end_frame_is_a_no_op() {
+        let _lock = TEST_LOCK.lock().unwrap();
+        reset_trace_state();
         set_enabled_for_tests(false);
         end_frame(&[]);
         assert_eq!(FRAMES.load(Ordering::Relaxed), 0);

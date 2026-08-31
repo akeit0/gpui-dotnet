@@ -33,7 +33,7 @@ Continue only where applications demonstrate need:
 
 The single-line Input establishes the native-entity ABI for focus, IME, selection, subscriptions, UTF-8 values, and imperative commands. Harden it before expanding the same foundation into a multiline Editor:
 
-- accessibility role/value/selection exposure and platform verification;
+- platform accessibility role/value/selection exposure and verification (the pinned GPUI revision has no accessibility-tree API; Input and Slider now participate in native focus traversal);
 - word navigation, undo/redo, double/triple-click selection, and richer platform keymaps;
 - validation/error/help presentation without moving edit state into managed renders;
 - composition/IME tests across Windows, macOS, and Linux;
@@ -58,8 +58,8 @@ The virtualized Table shares the list row engine end to end: `ui.Table` reuses t
 Continue where applications demonstrate need:
 
 - header click/sort events and column visibility/reorder IR refinements;
-- accessibility roles (table/row/columnheader/cell) as one semantic batch with list rows;
-- keyboard navigation and roving selection across rows;
+- accessibility roles (table/row/columnheader/cell) as one semantic batch with list rows (blocked on the pinned GPUI accessibility-tree API);
+- row activation and full roving selection semantics across rows;
 - cell-level virtualization, frozen columns, and native resize chrome only if benchmarks or applications prove the need.
 
 Tree deliberately has no native component: a visible tree is a flat list, so managed-owned flattening plus `Splice` for expand/collapse preserves measurements precisely. Reopen native hierarchy only for accessibility tree semantics or very large forests.
@@ -75,11 +75,11 @@ Add CI gates for:
 
 ## 7. Review follow-ups (2026-08-31)
 
-Addressed already: List/Table resource-key collisions are rejected at snapshot validation; empty required IDs are guarded by generated factories and managed validation; managed validator drift (scrollbar gutter/width) closed; table column key uniqueness and enum validation; controller pending-command contract documented to match actual lifecycle; `struct_size` prefix read and panic barriers on every exported FFI entrypoint; controller UTF-8 keys pre-encoded; CI/README solution-name typo fixed; table column metadata now travels as packed u64 `table_column` op records (width bits, unit, alignment) instead of a UTF-8 text blob — node data carries only the NUL-separated key/header strings, and both validators enforce the record layout; interactive virtualized-row state ids use structured `NamedInteger` element ids (fixed namespace + deterministic 64-bit hash of list/row/node identity), removing all per-frame string formatting and allocation from the row hot path.
+Addressed already: List/Table resource-key collisions are rejected at snapshot validation; empty required IDs are guarded by generated factories and managed validation; managed validator drift (scrollbar gutter/width) closed; table column key uniqueness and enum validation; controller pending-command contract documented to match actual lifecycle; `struct_size` prefix read and panic barriers on every exported FFI entrypoint; controller UTF-8 keys pre-encoded; CI/README solution-name typo fixed; table column metadata now travels as packed u64 `table_column` op records (width bits, unit, alignment) instead of a UTF-8 text blob — node data carries only the NUL-separated key/header strings, and both validators enforce the record layout; interactive virtualized-row state ids use structured `NamedInteger` element ids (fixed namespace + deterministic 64-bit hash of list/row/node identity), removing all per-frame string formatting and allocation from the row hot path; slider pointer/range/release/programmatic and keyboard/drag paths have GPUI integration coverage; operation payload constraints and event-payload legality are generated from `bindings/schema.json` into both validators; retained Slider/Input/List/Table controls participate in keyboard focus traversal.
 
 Deferred, in priority order:
 
-- generate validation constraint tables from `bindings/schema.json` for both validators (the remaining drift risk; Rust stays authoritative);
+- platform accessibility roles, labels, values, and announcements once GPUI exposes a cross-platform accessibility tree;
 - generated `include/gpui_dotnet.h` plus `sizeof`/`offsetof` assertions on every shipped RID in CI;
 - symbolic native status diagnostics instead of raw integers;
 - explicit coalescing policy for unbounded native command channels (title/resize last-wins);

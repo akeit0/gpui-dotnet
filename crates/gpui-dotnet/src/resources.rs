@@ -224,7 +224,7 @@ impl ResourceStore {
             existing
         } else {
             let created =
-                cx.new(|_| ManagedSlider::new(self.session_id, self.callbacks, configuration));
+                cx.new(|cx| ManagedSlider::new(self.session_id, self.callbacks, configuration, cx));
             self.sliders
                 .borrow_mut()
                 .insert(configuration.key.clone(), created.clone());

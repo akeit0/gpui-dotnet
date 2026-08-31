@@ -186,6 +186,8 @@ The source generator emits `Rows.Method`, which contains a 64-bit renderer token
 
 Lists also use smooth native wheel scrolling and a draggable scrollbar by default. `estimatedItemHeight` keeps the thumb stable and lets dragging jump through an unmeasured virtual list without eagerly rendering every row.
 
+The virtualized list is also a keyboard-focusable viewport: Up/Down, Home/End, and PageUp/PageDown move the retained active row and reveal it without materializing the full datasource. Tables use the same focus and navigation contract. The pinned GPUI revision does not expose a platform accessibility-tree API, so native role/name/value announcements remain a follow-up behind that dependency boundary.
+
 List row renderers are intentionally **Element-only**. They cannot create managed child Views, nested retained `Scroll`, or nested `List` resources. This keeps virtualization lifetime independent from the normal managed View tree. Row events remain supported; `OnClick(this, (view, e) => view.SelectRow(e), payload)` stores an unmanaged `ulong` payload directly in the render IR.
 
 Optional `ListController` operations:
@@ -259,6 +261,8 @@ protected override Element Render(ref RenderContext ui) =>
 ```
 
 `OnChanged` fires continuously while the pointer changes the value; `OnReleased` fires once when the pointer interaction ends. `SliderEvent.Value` preserves whether the slider is single-valued or a range. The native slider retains its value across managed rerenders, and `SliderController.SetValue` updates it imperatively.
+
+Sliders are keyboard-focusable. Horizontal sliders use Left/Right, vertical sliders use Up/Down, and both orientations support Home/End and PageUp/PageDown. Keyboard interaction emits one `Changed` event per value change and one `Released` event when the key is released.
 
 ## Overlays
 

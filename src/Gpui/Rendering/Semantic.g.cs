@@ -117,8 +117,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 20;
-        internal const ulong SchemaHash = 0xE1A60A8C5899C638UL;
+        internal const uint SchemaVersion = 21;
+        internal const ulong SchemaHash = 0xCC17A01D9191AEACUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -351,6 +351,50 @@ namespace Gpui.Interop
             var required = RequiredCapability(operation);
             return required != 0 && (Capabilities(component) & required) == required;
         }
+
+        internal static bool AllowsPayload(OpCode operation) => operation switch
+        {
+            OpCode.OnClick => true,
+            OpCode.OverlayOnDismiss => true,
+            _ => false,
+        };
+
+        internal static int PayloadError(OpCode operation, ulong a) => operation switch
+        {
+            OpCode.Checked when !(a <= 1UL) => -21,
+            OpCode.WindowControlArea when !(a <= 3UL) => -39,
+            OpCode.ResourceOwner when !(a >= 1UL) => -25,
+            OpCode.ScrollAxis when !(a <= 2UL) => -26,
+            OpCode.SmoothScroll when !(a <= 1UL) => -21,
+            OpCode.ShowScrollbar when !(a <= 1UL) => -21,
+            OpCode.ListBatchSize when !(a >= 1UL && a <= 512UL) => -27,
+            OpCode.ListOverdrawPx when !(BitConverter.UInt32BitsToSingle((uint)a) >= 0f) => -29,
+            OpCode.ListAlignment when !(a <= 1UL) => -28,
+            OpCode.ListEstimatedItemHeightPx when !(BitConverter.UInt32BitsToSingle((uint)a) > 0f) => -29,
+            OpCode.ImageObjectFit when !(a <= 4UL) => -30,
+            OpCode.ImageGrayscale when !(a <= 1UL) => -21,
+            OpCode.InputDisabled when !(a <= 1UL) => -21,
+            OpCode.InputReadOnly when !(a <= 1UL) => -21,
+            OpCode.InputPassword when !(a <= 1UL) => -21,
+            OpCode.OverlayPlacement when !(a <= 8UL) => -33,
+            OpCode.OverlayMarginPx when !(BitConverter.UInt32BitsToSingle((uint)a) >= 0f) => -34,
+            OpCode.OverlayModal when !(a <= 1UL) => -21,
+            OpCode.OverlayDismissOnBackdrop when !(a <= 1UL) => -21,
+            OpCode.OverlayDismissOnEscape when !(a <= 1UL) => -21,
+            OpCode.TooltipPlacement when !(a <= 4UL) => -35,
+            OpCode.TooltipAlignment when !(a <= 2UL) => -36,
+            OpCode.TooltipGapPx when !(BitConverter.UInt32BitsToSingle((uint)a) >= 0f) => -37,
+            OpCode.TooltipMarginPx when !(BitConverter.UInt32BitsToSingle((uint)a) >= 0f) => -37,
+            OpCode.ContextMenuMarginPx when !(BitConverter.UInt32BitsToSingle((uint)a) >= 0f) => -40,
+            OpCode.PopoverMenuMarginPx when !(BitConverter.UInt32BitsToSingle((uint)a) >= 0f) => -40,
+            OpCode.ScrollbarGutter when !(a <= 1UL) => -21,
+            OpCode.ScrollbarWidth when !(BitConverter.UInt32BitsToSingle((uint)a) >= 3f && BitConverter.UInt32BitsToSingle((uint)a) <= 32f) => -29,
+            OpCode.TableColumn when !((a >> 36) == 0 && ((a >> 32) & 0b11) <= 1 && ((a >> 34) & 0b11) <= 2 && float.IsFinite(BitConverter.UInt32BitsToSingle((uint)a)) && BitConverter.UInt32BitsToSingle((uint)a) > 0f && (((a >> 32) & 0b11) != 1 || BitConverter.UInt32BitsToSingle((uint)a) <= 1f)) => -57,
+            OpCode.SliderAxis when !(a <= 1UL) => -43,
+            OpCode.SliderDisabled when !(a <= 1UL) => -21,
+            OpCode.SliderScale when !(a <= 1UL) => -43,
+            _ => 0,
+        };
     }
 }
 

@@ -7,16 +7,8 @@ use crate::{
     semantic::{
         COMPONENT_CONTEXT_MENU, COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_OVERLAY,
         COMPONENT_POPOVER_MENU, COMPONENT_SLIDER, COMPONENT_TABLE, COMPONENT_TOOLTIP, DataKind,
-        OP_CHECKED, OP_CONTEXT_MENU_MARGIN_PX, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT,
-        OP_INPUT_DISABLED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT,
-        OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_OVERDRAW_PX, OP_ON_CLICK,
-        OP_OVERLAY_DISMISS_ON_BACKDROP, OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX,
-        OP_OVERLAY_MODAL, OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_POPOVER_MENU_MARGIN_PX,
-        OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH,
-        OP_SHOW_SCROLLBAR, OP_SLIDER_AXIS, OP_SLIDER_DISABLED, OP_SLIDER_SCALE, OP_SMOOTH_SCROLL,
-        OP_TABLE_COLUMN, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_MARGIN_PX,
-        OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA, ValueKind, component_metadata,
-        operation_metadata,
+        OP_RESOURCE_OWNER, ValueKind, allows_payload, component_metadata, operation_metadata,
+        payload_error,
     },
 };
 
@@ -319,7 +311,7 @@ fn validate_with_scratch(
         if op.value_kind != metadata.value_kind as u16 {
             return Err(-16);
         }
-        if op.b != 0 && !matches!(op.code, OP_ON_CLICK | OP_OVERLAY_ON_DISMISS) {
+        if op.b != 0 && !allows_payload(op.code) {
             return Err(-23);
         }
         match metadata.value_kind {
@@ -336,98 +328,9 @@ fn validate_with_scratch(
         if metadata.value_kind == ValueKind::Callback && op.a == 0 {
             return Err(-19);
         }
-        if op.code == OP_CHECKED && op.a > 1 {
-            return Err(-21);
-        }
-        if op.code == OP_RESOURCE_OWNER && op.a == 0 {
-            return Err(-25);
-        }
-        if op.code == OP_SCROLL_AXIS && op.a > 2 {
-            return Err(-26);
-        }
-        if matches!(op.code, OP_SLIDER_AXIS | OP_SLIDER_SCALE) && op.a > 1 {
-            return Err(-43);
-        }
-        if op.code == OP_WINDOW_CONTROL_AREA && op.a > 3 {
-            return Err(-39);
-        }
-        if matches!(
-            op.code,
-            OP_SMOOTH_SCROLL
-                | OP_SHOW_SCROLLBAR
-                | OP_SCROLLBAR_GUTTER
-                | OP_INPUT_DISABLED
-                | OP_INPUT_READ_ONLY
-                | OP_INPUT_PASSWORD
-                | OP_SLIDER_DISABLED
-                | OP_OVERLAY_MODAL
-                | OP_OVERLAY_DISMISS_ON_BACKDROP
-                | OP_OVERLAY_DISMISS_ON_ESCAPE
-        ) && op.a > 1
-        {
-            return Err(-21);
-        }
-        if op.code == OP_IMAGE_GRAYSCALE && op.a > 1 {
-            return Err(-21);
-        }
-        if op.code == OP_IMAGE_OBJECT_FIT && op.a > 4 {
-            return Err(-30);
-        }
-        if op.code == OP_LIST_BATCH_SIZE && !(1..=512).contains(&(op.a as u32)) {
-            return Err(-27);
-        }
-        if op.code == OP_LIST_ALIGNMENT && op.a > 1 {
-            return Err(-28);
-        }
-        if op.code == OP_LIST_OVERDRAW_PX && f32::from_bits(op.a as u32) < 0.0 {
-            return Err(-29);
-        }
-        if op.code == OP_LIST_ESTIMATED_ITEM_HEIGHT_PX && f32::from_bits(op.a as u32) <= 0.0 {
-            return Err(-29);
-        }
-        if op.code == OP_SCROLLBAR_WIDTH {
-            let width = f32::from_bits(op.a as u32);
-            if !width.is_finite() || !(3.0..=32.0).contains(&width) {
-                return Err(-29);
-            }
-        }
-        if op.code == OP_TABLE_COLUMN {
-            let unit = (op.a >> 32) & 0b11;
-            let alignment = (op.a >> 34) & 0b11;
-            let width = f32::from_bits(op.a as u32);
-            if op.a >> 36 != 0
-                || unit > 1
-                || alignment > 2
-                || !width.is_finite()
-                || width <= 0.0
-                || (unit == 1 && width > 1.0)
-            {
-                return Err(-57);
-            }
-        }
-        if op.code == OP_OVERLAY_PLACEMENT && op.a > 8 {
-            return Err(-33);
-        }
-        if op.code == OP_OVERLAY_MARGIN_PX && f32::from_bits(op.a as u32) < 0.0 {
-            return Err(-34);
-        }
-        if op.code == OP_TOOLTIP_PLACEMENT && op.a > 4 {
-            return Err(-35);
-        }
-        if op.code == OP_TOOLTIP_ALIGNMENT && op.a > 2 {
-            return Err(-36);
-        }
-        if matches!(op.code, OP_TOOLTIP_GAP_PX | OP_TOOLTIP_MARGIN_PX)
-            && f32::from_bits(op.a as u32) < 0.0
-        {
-            return Err(-37);
-        }
-        if matches!(
-            op.code,
-            OP_CONTEXT_MENU_MARGIN_PX | OP_POPOVER_MENU_MARGIN_PX
-        ) && f32::from_bits(op.a as u32) < 0.0
-        {
-            return Err(-40);
+        let payload_error = payload_error(op.code, op.a);
+        if payload_error != 0 {
+            return Err(payload_error);
         }
     }
 
@@ -545,7 +448,7 @@ mod tests {
             COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_OVERLAY, COMPONENT_POPOVER_MENU,
             COMPONENT_TEXT, COMPONENT_TOOLTIP, OP_CHECKED, OP_GAP_PX, OP_IMAGE_OBJECT_FIT,
             OP_INPUT_DISABLED, OP_LIST_ITEM_ID, OP_ON_CLICK, OP_OVERLAY_PLACEMENT, OP_PADDING_PX,
-            OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA,
+            OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA,
         },
     };
 
@@ -671,7 +574,6 @@ mod tests {
         arena.utf8_capacity = 1;
         assert_eq!(validate(&arena, 0), Err(-21));
 
-        gutter.a = 1;
         let mut width = OpRecord {
             code: OP_SCROLLBAR_WIDTH,
             value_kind: ValueKind::U64 as u16,
@@ -1016,7 +918,7 @@ mod tests {
         nodes: &mut [NodeRecord],
         utf8: &mut [u8],
         owners: &mut [OpRecord],
-    ) -> RenderArena {
+    ) -> (RenderArena, Vec<ChildRecord>) {
         for (slot, op) in owners.iter_mut().enumerate() {
             op.node = slot as u32 + 1;
             op.code = OP_RESOURCE_OWNER;
@@ -1030,7 +932,7 @@ mod tests {
                 child: index as u32,
             });
         }
-        RenderArena {
+        let arena = RenderArena {
             nodes: nodes.as_mut_ptr(),
             node_length: nodes.len() as i32,
             node_capacity: nodes.len() as i32,
@@ -1049,7 +951,8 @@ mod tests {
             required_op_capacity: 0,
             required_child_capacity: 0,
             required_utf8_capacity: 0,
-        }
+        };
+        (arena, children)
     }
 
     #[test]
@@ -1072,7 +975,7 @@ mod tests {
             },
         ];
         let mut owners = [OpRecord::default(), OpRecord::default()];
-        let arena = resource_collision_arena(&mut nodes, &mut utf8, &mut owners);
+        let (arena, _children) = resource_collision_arena(&mut nodes, &mut utf8, &mut owners);
         assert_eq!(validate(&arena, 0), Err(-56));
     }
 
@@ -1096,7 +999,7 @@ mod tests {
             },
         ];
         let mut owners = [OpRecord::default(), OpRecord::default()];
-        let arena = resource_collision_arena(&mut nodes, &mut utf8, &mut owners);
+        let (arena, _children) = resource_collision_arena(&mut nodes, &mut utf8, &mut owners);
         assert_eq!(validate(&arena, 0), Err(-56));
     }
 

@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -284,6 +285,141 @@ internal static class BindingGenerator
                     $"Operation {operation.Name} managedApi is incompatible with value kind {operation.Value}."
                 );
             }
+
+            if (operation.Payload is not (null or "none" or "event"))
+            {
+                throw new InvalidOperationException(
+                    $"Operation {operation.Name} has unknown payload kind '{operation.Payload}'."
+                );
+            }
+            if (operation.Payload == "event" && operation.Value != "callback")
+            {
+                throw new InvalidOperationException(
+                    $"Operation {operation.Name} event payloads require callback values."
+                );
+            }
+
+            ValidateValidation(operation);
+        }
+    }
+
+    private static void ValidateValidation(Operation operation)
+    {
+        var validation = operation.Validation;
+        if (validation is null)
+        {
+            return;
+        }
+        if (validation.Status >= 0)
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} validation status must be negative."
+            );
+        }
+
+        if (
+            validation.Kind
+            is not ("bool" or "u32Min" or "u32Max" or "u32Range" or "f32Min" or "f32Range" or "packedTableColumn")
+        )
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} has unknown validation kind '{validation.Kind}'."
+            );
+        }
+
+        if (
+            validation.Kind is "bool" or "u32Min" or "u32Max" or "u32Range"
+            && operation.Value != "u32"
+        )
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} uses a {validation.Kind} validation but is not u32."
+            );
+        }
+        if (
+            validation.Kind is "f32Min" or "f32Range"
+            && operation.Value != "f32"
+        )
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} uses a {validation.Kind} validation but is not f32."
+            );
+        }
+        if (validation.Kind == "packedTableColumn" && operation.Value != "u64")
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} uses packedTableColumn validation but is not u64."
+            );
+        }
+        if (validation.MinExclusive && validation.Kind != "f32Min")
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} can use minExclusive only with f32Min validation."
+            );
+        }
+
+        if (validation.Kind is "u32Min" or "u32Max" or "u32Range")
+        {
+            if (validation.Kind is "u32Min" or "u32Range")
+            {
+                ValidateIntegerBound(validation.Min, operation, "min");
+            }
+            if (validation.Kind is "u32Max" or "u32Range")
+            {
+                ValidateIntegerBound(validation.Max, operation, "max");
+            }
+            if (
+                validation.Kind == "u32Range"
+                && validation.Min!.Value > validation.Max!.Value
+            )
+            {
+                throw new InvalidOperationException(
+                    $"Operation {operation.Name} has a validation range with min greater than max."
+                );
+            }
+        }
+        else if (validation.Kind is "f32Min" or "f32Range")
+        {
+            if (validation.Min is not double min || !double.IsFinite(min))
+            {
+                throw new InvalidOperationException(
+                    $"Operation {operation.Name} requires a finite validation min."
+                );
+            }
+            if (
+                validation.Kind == "f32Range"
+                && (validation.Max is not double max || !double.IsFinite(max))
+            )
+            {
+                throw new InvalidOperationException(
+                    $"Operation {operation.Name} requires a finite validation max."
+                );
+            }
+            if (
+                validation.Kind == "f32Range"
+                && validation.Min!.Value > validation.Max!.Value
+            )
+            {
+                throw new InvalidOperationException(
+                    $"Operation {operation.Name} has a validation range with min greater than max."
+                );
+            }
+        }
+    }
+
+    private static void ValidateIntegerBound(double? value, Operation operation, string name)
+    {
+        if (
+            value is not double bound
+            || !double.IsFinite(bound)
+            || bound < 0
+            || bound != Math.Truncate(bound)
+            || bound > uint.MaxValue
+        )
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} requires a non-negative integer validation {name}."
+            );
         }
     }
 
@@ -396,6 +532,34 @@ internal static class BindingGenerator
             "            return required != 0 && (Capabilities(component) & required) == required;"
         );
         builder.AppendLine("        }");
+        builder.AppendLine();
+        builder.AppendLine(
+            "        internal static bool AllowsPayload(OpCode operation) => operation switch"
+        );
+        builder.AppendLine("        {");
+        foreach (
+            var operation in schema.Operations.Where(operation => operation.Payload == "event")
+        )
+        {
+            builder.AppendLine($"            OpCode.{Pascal(operation.Name)} => true,");
+        }
+        builder.AppendLine("            _ => false,");
+        builder.AppendLine("        };");
+        builder.AppendLine();
+        builder.AppendLine(
+            "        internal static int PayloadError(OpCode operation, ulong a) => operation switch"
+        );
+        builder.AppendLine("        {");
+        foreach (
+            var operation in schema.Operations.Where(operation => operation.Validation is not null)
+        )
+        {
+            builder.AppendLine(
+                $"            OpCode.{Pascal(operation.Name)} when !({CSharpValidationExpression(operation.Validation!)}) => {operation.Validation!.Status},"
+            );
+        }
+        builder.AppendLine("            _ => 0,");
+        builder.AppendLine("        };");
         builder.AppendLine("    }");
         builder.AppendLine("}");
         builder.AppendLine();
@@ -787,6 +951,49 @@ internal static class BindingGenerator
         builder.AppendLine("    OPERATIONS.iter().find(|metadata| metadata.id == id)");
         builder.AppendLine("}");
         builder.AppendLine();
+        var payloadOperations = schema
+            .Operations
+            .Where(operation => operation.Payload == "event")
+            .Select(operation => $"OP_{UpperSnake(operation.Name)}")
+            .ToArray();
+        builder.AppendLine("pub fn allows_payload(operation: u16) -> bool {");
+        builder.AppendLine(
+            payloadOperations.Length == 0
+                ? "    false"
+                : $"    matches!(operation, {string.Join(" | ", payloadOperations)})"
+        );
+        builder.AppendLine("}");
+        builder.AppendLine();
+        builder.AppendLine("fn f32_payload_in_range(a: u64, min: f32, max: f32) -> bool {");
+        builder.AppendLine("    let value = f32::from_bits(a as u32);");
+        builder.AppendLine("    value >= min && value <= max");
+        builder.AppendLine("}");
+        builder.AppendLine();
+        builder.AppendLine("fn valid_packed_table_column(a: u64) -> bool {");
+        builder.AppendLine("    a >> 36 == 0");
+        builder.AppendLine("        && (a >> 32) & 0b11 <= 1");
+        builder.AppendLine("        && (a >> 34) & 0b11 <= 2");
+        builder.AppendLine("        && f32::from_bits(a as u32).is_finite()");
+        builder.AppendLine("        && f32::from_bits(a as u32) > 0.0");
+        builder.AppendLine(
+            "        && ((a >> 32) & 0b11 != 1 || f32::from_bits(a as u32) <= 1.0)"
+        );
+        builder.AppendLine("}");
+        builder.AppendLine();
+        builder.AppendLine("pub fn payload_error(operation: u16, a: u64) -> i32 {");
+        builder.AppendLine("    match operation {");
+        foreach (
+            var operation in schema.Operations.Where(operation => operation.Validation is not null)
+        )
+        {
+            builder.AppendLine(
+                $"        OP_{UpperSnake(operation.Name)} if !({RustValidationExpression(operation.Validation!)}) => {operation.Validation!.Status},"
+            );
+        }
+        builder.AppendLine("        _ => 0,");
+        builder.AppendLine("    }");
+        builder.AppendLine("}");
+        builder.AppendLine();
         builder.AppendLine("#[cfg(test)]");
         builder.AppendLine("mod tests {");
         builder.AppendLine("    use super::*;");
@@ -912,6 +1119,50 @@ internal static class BindingGenerator
 
     private static string UpperSnake(string value) => value.ToUpperInvariant();
 
+    private static string CSharpValidationExpression(Validation validation) =>
+        validation.Kind switch
+        {
+            "bool" => "a <= 1UL",
+            "u32Min" => $"a >= {CSharpUnsignedLiteral(validation.Min!.Value)}",
+            "u32Max" => $"a <= {CSharpUnsignedLiteral(validation.Max!.Value)}",
+            "u32Range" =>
+                $"a >= {CSharpUnsignedLiteral(validation.Min!.Value)} && a <= {CSharpUnsignedLiteral(validation.Max!.Value)}",
+            "f32Min" =>
+                $"BitConverter.UInt32BitsToSingle((uint)a) {(validation.MinExclusive ? ">" : ">=")} {CSharpFloatLiteral(validation.Min!.Value)}",
+            "f32Range" =>
+                $"BitConverter.UInt32BitsToSingle((uint)a) >= {CSharpFloatLiteral(validation.Min!.Value)} && BitConverter.UInt32BitsToSingle((uint)a) <= {CSharpFloatLiteral(validation.Max!.Value)}",
+            "packedTableColumn" =>
+                "(a >> 36) == 0 && ((a >> 32) & 0b11) <= 1 && ((a >> 34) & 0b11) <= 2 && float.IsFinite(BitConverter.UInt32BitsToSingle((uint)a)) && BitConverter.UInt32BitsToSingle((uint)a) > 0f && (((a >> 32) & 0b11) != 1 || BitConverter.UInt32BitsToSingle((uint)a) <= 1f)",
+            _ => throw new InvalidOperationException($"Unknown validation kind '{validation.Kind}'."),
+        };
+
+    private static string RustValidationExpression(Validation validation) =>
+        validation.Kind switch
+        {
+            "bool" => "a <= 1",
+            "u32Min" => $"a >= {RustUnsignedLiteral(validation.Min!.Value)}",
+            "u32Max" => $"a <= {RustUnsignedLiteral(validation.Max!.Value)}",
+            "u32Range" =>
+                $"a >= {RustUnsignedLiteral(validation.Min!.Value)} && a <= {RustUnsignedLiteral(validation.Max!.Value)}",
+            "f32Min" =>
+                $"f32::from_bits(a as u32) {(validation.MinExclusive ? ">" : ">=")} {RustFloatLiteral(validation.Min!.Value)}",
+            "f32Range" =>
+                $"f32_payload_in_range(a, {RustFloatLiteral(validation.Min!.Value)}, {RustFloatLiteral(validation.Max!.Value)})",
+            "packedTableColumn" =>
+                "valid_packed_table_column(a)",
+            _ => throw new InvalidOperationException($"Unknown validation kind '{validation.Kind}'."),
+        };
+
+    private static string CSharpUnsignedLiteral(double value) => $"{checked((ulong)value)}UL";
+
+    private static string RustUnsignedLiteral(double value) => $"{checked((ulong)value)}u64";
+
+    private static string CSharpFloatLiteral(double value) =>
+        $"{value.ToString("R", CultureInfo.InvariantCulture)}f";
+
+    private static string RustFloatLiteral(double value) =>
+        $"{value.ToString("R", CultureInfo.InvariantCulture)}f32";
+
     private static string Normalize(string value) => value.Replace("\r\n", "\n");
 }
 
@@ -940,5 +1191,15 @@ internal sealed record Operation(
     [property: JsonPropertyName("csharp")] string CSharp,
     string Value,
     string Requires,
-    string? ManagedApi
+    string? ManagedApi,
+    string? Payload,
+    Validation? Validation
+);
+
+internal sealed record Validation(
+    string Kind,
+    double? Min,
+    double? Max,
+    bool MinExclusive,
+    int Status
 );
