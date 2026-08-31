@@ -19,8 +19,8 @@ use crate::{
         NativeAdapter, OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED,
         OP_INPUT_ON_SUBMITTED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT,
         OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
-        OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_RESOURCE_OWNER,
-        component_metadata,
+        OP_LIST_ITEM_COUNT, OP_LIST_ITEM_ID, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER,
+        OP_RESOURCE_OWNER, component_metadata,
     },
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
 };
@@ -650,14 +650,21 @@ impl ManagedListResource {
         let batch = self.batches.get_mut(&start_u32).expect("batch was loaded");
         batch.last_used = self.use_clock;
         let local = index - start;
-        let roots = batch
-            .snapshot
-            .children(&batch.snapshot.nodes[batch.snapshot.root as usize]);
+        let row_node = &batch.snapshot.nodes[batch.snapshot.root as usize];
+        let roots = batch.snapshot.children(row_node);
         let Some(root) = roots.get(local).copied() else {
             return div()
                 .child("Managed list batch returned the wrong item count.")
                 .into_any_element();
         };
+        let row_id = batch
+            .snapshot
+            .ops(&batch.snapshot.nodes[root as usize])
+            .iter()
+            .rev()
+            .find(|op| op.code == OP_LIST_ITEM_ID)
+            .map(|op| op.a)
+            .filter(|id| *id != 0);
 
         crate::materializer::materialize_snapshot_node_detached(
             root,
@@ -667,6 +674,7 @@ impl ManagedListResource {
             resources,
             list_key,
             index,
+            row_id,
         )
     }
 

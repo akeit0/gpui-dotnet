@@ -556,6 +556,9 @@ fn cycle_overlay_focus(
 
 /// Materialization used by native list batch caches. It deliberately has no ManagedView Context,
 /// so row clicks dispatch directly and row trees cannot create another virtualized List recursively.
+/// `item_id` is the stable model identity declared on the row root via OP_LIST_ITEM_ID; it keeps
+/// stateful element identity stable across splices and supplies the default event payload for
+/// rows that do not bake an explicit payload. A missing ID falls back to the positional index.
 pub(crate) fn materialize_snapshot_node_detached(
     node_id: u32,
     snapshot: &ValidatedSnapshot,
@@ -564,6 +567,7 @@ pub(crate) fn materialize_snapshot_node_detached(
     _resources: &ResourceStore,
     list_key: &crate::resources::ResourceKey,
     item_index: usize,
+    item_id: Option<u64>,
 ) -> AnyElement {
     let node = &snapshot.nodes[node_id as usize];
     let metadata = component_metadata(node.component).unwrap();
@@ -593,7 +597,7 @@ pub(crate) fn materialize_snapshot_node_detached(
     }
     for child in snapshot.children(node) {
         element = element.child(materialize_snapshot_node_detached(
-            *child, snapshot, session_id, callbacks, _resources, list_key, item_index,
+            *child, snapshot, session_id, callbacks, _resources, list_key, item_index, item_id,
         ));
     }
     element = apply_styles(element, node, snapshot);
@@ -602,18 +606,32 @@ pub(crate) fn materialize_snapshot_node_detached(
         let event_binding = last_op(snapshot, node, OP_ON_CLICK);
         let event_token = event_binding.map_or(0, |op| op.a);
         let event_payload = event_binding.map_or(0, |op| op.b);
+        // Rows without an explicit payload deliver the stable model ID so handlers survive
+        // splices; payload 0 means "unset" in the ON_CLICK encoding.
+        let event_payload = match (event_payload, item_id) {
+            (0, Some(id)) => id,
+            (payload, _) => payload,
+        };
         if event_token != 0 {
             // Node data is only a user-local element id. Virtualized rows repeat the same
-            // rendered shape, so scope every stateful GPUI id by list identity + item index.
+            // rendered shape, so scope every stateful GPUI id by list identity + row identity.
+            // The stable model ID is preferred so state survives splices; without one, the
+            // positional index keeps today's behavior.
             let local_id = if node.data.is_empty() {
                 node_id.to_string()
             } else {
                 node.data.to_string()
             };
-            let element_id = format!(
-                "managed-list-{}-{}-{item_index}-{local_id}",
-                list_key.owner_view, list_key.key
-            );
+            let element_id = match item_id {
+                Some(id) => format!(
+                    "managed-list-{}-{}-id{id}-{local_id}",
+                    list_key.owner_view, list_key.key
+                ),
+                None => format!(
+                    "managed-list-{}-{}-{item_index}-{local_id}",
+                    list_key.owner_view, list_key.key
+                ),
+            };
             let element = element.id(SharedString::from(element_id)).cursor_pointer();
             let element = if let Some(op) = last_op(snapshot, node, OP_HOVER_BACKGROUND_RGBA) {
                 let color = rgba(op.a as u32);

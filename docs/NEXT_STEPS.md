@@ -2,17 +2,16 @@
 
 The repository now has framework-owned dynamic managed Views, an ABI v5 multi-window application/session model, typed native-control events, retained native Scroll and Input state, virtualized ListState, deferred window Overlay, trigger-relative Tooltip, pointer-anchored ContextMenu, and trigger-attached PopoverMenu layers, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
 
-## 1. List datasource refinement — high priority
+## 1. List datasource refinement — foundation complete
 
-`ListDataSource(count, contentRevision)` now separates datasource identity from the managed root snapshot revision. Native row batches survive unrelated parent renders while the explicit content revision is stable; changing it invalidates row snapshots without discarding `ListState`. The existing item-count overload remains correctness-first and conservatively invalidates batches after every managed snapshot.
+`ListDataSource(count, contentRevision)` separates datasource identity from the managed root snapshot revision. Native row batches survive unrelated parent renders while the explicit content revision is stable; changing it invalidates row snapshots without discarding `ListState`. The item-count overload remains correctness-first and conservatively invalidates batches after every managed snapshot.
 
-Continue the datasource foundation before Table/Tree:
+`ListController.Refresh`/`Splice` now invalidate only the cached batches their ranges intersect: splices keep batches entirely before the start index, refreshes keep non-intersecting batches, and validation failures still fall back to a full native reset. `ListController.RefreshRanges` queues several stable ranges as standard Refresh commands; native commits the queued sequence in one pass. Rows may declare a stable model identity with `.ItemId(id)` on the row root: stateful element identity inside the row survives splices, and payload-less `OnClick` events deliver the ID as their payload without per-row closures (ID 0 is reserved). Native cache telemetry (loads, hits, evictions, invalidations, crossings, rendered rows) exists for native tests; exposing it to C# requires an ABI v6 query path, which is deferred until benchmarks justify it.
 
-- invalidate only cache batches intersecting `ListController.Refresh`/`Splice` ranges;
-- add stable model-ID payload helpers that do not require per-row closures;
-- add batched multi-range invalidation;
-- expose cache/overscan/crossing telemetry for benchmarks and diagnostics;
-- evaluate a uniform-height fast path behind the same `ui.List` API;
+Continue only where applications demonstrate need:
+
+- expose cache/overscan telemetry to C# as part of a future ABI v6;
+- uniform-height fast path behind `ui.List` was evaluated and deferred: batch caching already amortizes materialization and uniform rows converge after first measurement, so the exact-scrollbar win does not yet justify a dual `ListState`/`UniformListState` implementation split;
 - add dedicated item-scoped retained state only if real applications prove it necessary.
 
 Do not expose GPUI's uniform/variable implementation split directly unless it provides durable semantic value.

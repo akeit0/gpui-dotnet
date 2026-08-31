@@ -447,11 +447,11 @@ mod tests {
     use crate::{
         abi::{ChildRecord, NodeRecord, OpRecord},
         semantic::{
-            COMPONENT_CHECKBOX, COMPONENT_CONTEXT_MENU, COMPONENT_DIV, COMPONENT_IMAGE,
-            COMPONENT_INPUT, COMPONENT_OVERLAY, COMPONENT_POPOVER_MENU, COMPONENT_TEXT,
-            COMPONENT_TOOLTIP, OP_CHECKED, OP_GAP_PX, OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED,
-            OP_ON_CLICK, OP_OVERLAY_PLACEMENT, OP_PADDING_PX, OP_TOOLTIP_PLACEMENT,
-            OP_WINDOW_CONTROL_AREA,
+            COMPONENT_BUTTON, COMPONENT_CHECKBOX, COMPONENT_CONTEXT_MENU, COMPONENT_DIV,
+            COMPONENT_IMAGE, COMPONENT_INPUT, COMPONENT_OVERLAY, COMPONENT_POPOVER_MENU,
+            COMPONENT_TEXT, COMPONENT_TOOLTIP, OP_CHECKED, OP_GAP_PX, OP_IMAGE_OBJECT_FIT,
+            OP_INPUT_DISABLED, OP_LIST_ITEM_ID, OP_ON_CLICK, OP_OVERLAY_PLACEMENT, OP_PADDING_PX,
+            OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA,
         },
     };
 
@@ -553,6 +553,32 @@ mod tests {
         };
         let arena = arena_with(&mut node, Some(&mut operation));
         assert_eq!(validate(&arena, 0), Err(-17));
+    }
+
+    #[test]
+    fn accepts_list_item_id_on_styled_components() {
+        let mut node = NodeRecord {
+            component: COMPONENT_DIV,
+            ..Default::default()
+        };
+        let mut operation = OpRecord {
+            code: OP_LIST_ITEM_ID,
+            value_kind: ValueKind::U64 as u16,
+            a: (1_u64 << 40) | 42,
+            ..Default::default()
+        };
+        let arena = arena_with(&mut node, Some(&mut operation));
+        assert_eq!(validate(&arena, 0), Ok(()));
+
+        // The reserved ID 0 is treated as "no ID" by the list materializer.
+        operation.a = 0;
+        let arena = arena_with(&mut node, Some(&mut operation));
+        assert_eq!(validate(&arena, 0), Ok(()));
+
+        // Value kind must still match the registry.
+        operation.value_kind = ValueKind::U32 as u16;
+        let arena = arena_with(&mut node, Some(&mut operation));
+        assert_eq!(validate(&arena, 0), Err(-16));
     }
 
     #[test]

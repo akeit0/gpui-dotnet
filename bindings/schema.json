@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 16,
+  "schemaVersion": 17,
   "capabilities": [
     "styled",
     "parent",
@@ -516,6 +516,14 @@
       "csharp": "ListContentRevision",
       "value": "u64",
       "requires": "virtualized",
+      "managedApi": null
+    },
+    {
+      "id": 317,
+      "name": "list_item_id",
+      "csharp": "ListItemId",
+      "value": "u64",
+      "requires": "styled",
       "managedApi": null
     },
     {

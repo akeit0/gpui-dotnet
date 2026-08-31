@@ -344,6 +344,49 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void ListItemIdPassesManagedValidation()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var button = ui.Button("row", "label").ItemId((1UL << 40) | 7).OnClick(view.Click);
+
+            arena.Validate(button);
+
+            var stats = arena.GetStats();
+            Assert.Equal(2, stats.Nodes);
+            Assert.Equal(2, stats.Ops);
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void ListItemIdRejectsReservedZero()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+            {
+                using var arena = new RenderArenaOwner();
+                var ui = arena.BeginRender(new NoopRenderer(), view);
+                ui.Button("row", "label").ItemId(0);
+            });
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
     public void ListDatasourceRejectsNegativeCount()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new ListDataSource(-1, 0));

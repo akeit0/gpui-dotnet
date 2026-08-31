@@ -42,4 +42,24 @@ public static partial class ElementExtensions
 
         return element;
     }
+
+    /// <summary>
+    /// Declares the stable model identity of a virtualized list row. Declare it on the element
+    /// returned by a [GpuiListItem] renderer. Native uses the ID for splice-stable element
+    /// identity inside the row, and payload-less OnClick events on the row deliver the ID as
+    /// their event payload instead of the positional index. IDs must be unique within one list;
+    /// payload 0 is reserved and cannot be used as an ID.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> ItemId<TTag>(this Element<TTag> element, ulong itemId)
+        where TTag : unmanaged, IStyledElementTag
+    {
+        if (itemId == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(itemId), "Item ID 0 is reserved.");
+        }
+
+        ArenaWriter.AddU64(element.Inner, OpCode.ListItemId, itemId);
+        return element;
+    }
 }
