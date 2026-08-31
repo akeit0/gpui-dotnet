@@ -326,6 +326,37 @@ impl ManagedScrollResource {
     }
 }
 
+/// Coarse list-cache telemetry for benchmarks and diagnostics. Counters are monotonic and
+/// cheap to read; the ABI does not expose them yet, so they are asserted from native tests.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ListTelemetry {
+    pub(crate) batch_loads: u64,
+    pub(crate) batch_cache_hits: u64,
+    pub(crate) batch_evictions: u64,
+    pub(crate) batch_invalidations: u64,
+    pub(crate) full_invalidations: u64,
+    pub(crate) batch_crossings: u64,
+    pub(crate) rendered_rows: u64,
+}
+
+/// A queued structural hint normalized for validation and replay. Every entry uses the item
+/// indices produced by all entries before it, so a queued Refresh after a Splice refers to
+/// post-splice indices.
+#[derive(Clone, Copy, Debug)]
+enum ListChange {
+    ScrollTo(usize),
+    Splice {
+        start: usize,
+        removed: usize,
+        inserted: usize,
+    },
+    Reset(usize),
+    Refresh {
+        start: usize,
+        count: usize,
+    },
+}
+
 pub(crate) struct ManagedListResource {
     session_id: u64,
     callbacks: ManagedCallbacks,
@@ -341,6 +372,8 @@ pub(crate) struct ManagedListResource {
     batches: HashMap<u32, CachedBatch>,
     pending_commands: Vec<ResourceCommand>,
     use_clock: u64,
+    last_batch: Option<u32>,
+    telemetry: ListTelemetry,
 }
 
 impl ManagedListResource {
@@ -369,6 +402,8 @@ impl ManagedListResource {
             batches: HashMap::new(),
             pending_commands: Vec::new(),
             use_clock: 0,
+            last_batch: None,
+            telemetry: ListTelemetry::default(),
         }
     }
 
@@ -394,7 +429,7 @@ impl ManagedListResource {
             self.alignment = configuration.alignment;
             self.overdraw = configuration.overdraw;
             self.pending_commands.clear();
-            self.batches.clear();
+            self.clear_batches();
         } else if revision_changed && !self.pending_commands.is_empty() {
             self.commit_pending_commands(configuration.item_count);
         } else if self.item_count != configuration.item_count {
@@ -402,7 +437,7 @@ impl ManagedListResource {
             // be correct; it simply cannot preserve the old per-item measurements precisely.
             self.state.reset(configuration.item_count);
             self.item_count = configuration.item_count;
-            self.batches.clear();
+            self.clear_batches();
         }
 
         if self.renderer_token != configuration.renderer_token
@@ -410,13 +445,13 @@ impl ManagedListResource {
         {
             self.renderer_token = configuration.renderer_token;
             self.batch_size = configuration.batch_size;
-            self.batches.clear();
+            self.clear_batches();
         }
         if revision_changed {
             self.snapshot_revision = snapshot_revision;
         }
         if content_changed {
-            self.batches.clear();
+            self.clear_batches();
         }
         self.content_revision = configuration.content_revision;
     }
@@ -433,7 +468,8 @@ impl ManagedListResource {
                 // Structural list commands are measurement-preservation hints. Applying them
                 // immediately can race a frame that still materializes the previous managed
                 // snapshot. Queue them until snapshot_revision advances, then commit the whole
-                // command sequence against the new declarative item_count.
+                // command sequence against the new declarative item_count. Multi-range refresh
+                // arrives as several queued Refresh commands and is batched here.
                 self.pending_commands.push(command.clone());
             }
             _ => {}
@@ -441,31 +477,31 @@ impl ManagedListResource {
     }
 
     fn commit_pending_commands(&mut self, declared_item_count: usize) {
+        let changes = self.parse_pending_changes();
+
         let mut expected_count = self.item_count;
         let mut valid = true;
-        for command in &self.pending_commands {
-            match command.command {
-                10 => {}
-                11 => {
-                    let start = command.a as usize;
-                    let removed = (command.b >> 32) as usize;
-                    let inserted = command.b as u32 as usize;
+        for change in &changes {
+            match *change {
+                ListChange::ScrollTo(_) => {}
+                ListChange::Splice {
+                    start,
+                    removed,
+                    inserted,
+                } => {
                     if start > expected_count || removed > expected_count.saturating_sub(start) {
                         valid = false;
                         break;
                     }
                     expected_count = expected_count - removed + inserted;
                 }
-                12 => expected_count = command.a as usize,
-                13 => {
-                    let start = command.a as usize;
-                    let count = command.b as usize;
+                ListChange::Reset(count) => expected_count = count,
+                ListChange::Refresh { start, count } => {
                     if start > expected_count || count > expected_count.saturating_sub(start) {
                         valid = false;
                         break;
                     }
                 }
-                _ => {}
             }
         }
 
@@ -473,44 +509,97 @@ impl ManagedListResource {
             // Managed state is authoritative. If the hints do not describe the snapshot that was
             // actually committed, fall back to a full native list reset rather than risking
             // measurement/index corruption.
-            self.state.reset(declared_item_count);
-            self.item_count = declared_item_count;
-            self.pending_commands.clear();
-            self.batches.clear();
+            self.reset_native_state(declared_item_count);
             return;
         }
 
         let mut current_count = self.item_count;
-        let pending_commands = std::mem::take(&mut self.pending_commands);
-        for command in pending_commands {
-            match command.command {
-                10 => {
-                    let index = command.a as usize;
+        for change in changes {
+            match change {
+                ListChange::ScrollTo(index) => {
                     if index < current_count {
                         self.scroll_to_item(index);
                     }
                 }
-                11 => {
-                    let start = command.a as usize;
-                    let removed = (command.b >> 32) as usize;
-                    let inserted = command.b as u32 as usize;
+                ListChange::Splice {
+                    start,
+                    removed,
+                    inserted,
+                } => {
+                    // Items at or after `start` shift, so every cached batch that reaches into
+                    // that suffix is stale. Batches entirely before `start` survive.
+                    let batch = self.batch_size.max(1) as u32;
+                    self.invalidate_batches_from((start as u32 / batch) * batch);
                     self.state.splice(start..start + removed, inserted);
                     current_count = current_count - removed + inserted;
                 }
-                12 => {
-                    current_count = command.a as usize;
-                    self.state.reset(current_count);
+                ListChange::Reset(count) => {
+                    current_count = count;
+                    self.state.reset(count);
+                    self.clear_batches();
                 }
-                13 => {
-                    let start = command.a as usize;
-                    let count = command.b as usize;
+                ListChange::Refresh { start, count } => {
+                    self.invalidate_batches_intersecting(start, count);
                     self.state.splice(start..start + count, count);
                 }
-                _ => {}
             }
         }
         self.item_count = declared_item_count;
+        self.pending_commands.clear();
+    }
+
+    fn parse_pending_changes(&self) -> Vec<ListChange> {
+        let mut changes = Vec::new();
+        for command in &self.pending_commands {
+            match command.command {
+                10 => changes.push(ListChange::ScrollTo(command.a as usize)),
+                11 => changes.push(ListChange::Splice {
+                    start: command.a as usize,
+                    removed: (command.b >> 32) as usize,
+                    inserted: command.b as u32 as usize,
+                }),
+                12 => changes.push(ListChange::Reset(command.a as usize)),
+                13 => changes.push(ListChange::Refresh {
+                    start: command.a as usize,
+                    count: command.b as usize,
+                }),
+                _ => {}
+            }
+        }
+        changes
+    }
+
+    fn reset_native_state(&mut self, declared_item_count: usize) {
+        self.state.reset(declared_item_count);
+        self.item_count = declared_item_count;
+        self.pending_commands.clear();
+        self.clear_batches();
+    }
+
+    fn clear_batches(&mut self) {
+        if !self.batches.is_empty() {
+            self.telemetry.full_invalidations += 1;
+        }
         self.batches.clear();
+        self.last_batch = None;
+    }
+
+    fn invalidate_batches_from(&mut self, first_batch: u32) {
+        let before = self.batches.len();
+        self.batches.retain(|&key, _| key < first_batch);
+        self.telemetry.batch_invalidations += (before - self.batches.len()) as u64;
+    }
+
+    fn invalidate_batches_intersecting(&mut self, start: usize, count: usize) {
+        if count == 0 {
+            return;
+        }
+        let batch = self.batch_size.max(1) as u32;
+        let first = (start as u32 / batch) * batch;
+        let last = ((start + count - 1) as u32 / batch) * batch;
+        let before = self.batches.len();
+        self.batches.retain(|&key, _| key < first || key > last);
+        self.telemetry.batch_invalidations += (before - self.batches.len()) as u64;
     }
 
     fn scroll_to_item(&mut self, index: usize) {
@@ -540,6 +629,11 @@ impl ManagedListResource {
         let start = (index / batch_size) * batch_size;
         let start_u32 = start as u32;
         self.use_clock = self.use_clock.wrapping_add(1).max(1);
+        self.telemetry.rendered_rows += 1;
+        if self.last_batch != Some(start_u32) {
+            self.telemetry.batch_crossings += 1;
+            self.last_batch = Some(start_u32);
+        }
         if !self.batches.contains_key(&start_u32) {
             if let Err(status) = self.load_batch(start_u32) {
                 return div()
@@ -549,6 +643,8 @@ impl ManagedListResource {
                     .into_any_element();
             }
             self.trim_batches();
+        } else {
+            self.telemetry.batch_cache_hits += 1;
         }
 
         let batch = self.batches.get_mut(&start_u32).expect("batch was loaded");
@@ -612,6 +708,7 @@ impl ManagedListResource {
         }
         batch.last_used = self.use_clock;
         self.batches.insert(start, batch);
+        self.telemetry.batch_loads += 1;
         Ok(())
     }
 
@@ -623,7 +720,15 @@ impl ManagedListResource {
                 break;
             };
             self.batches.remove(&oldest);
+            self.telemetry.batch_evictions += 1;
         }
+    }
+
+    /// Reads the monotonic telemetry counters. The ABI does not expose them yet, so this is
+    /// currently only reachable from native tests and future benchmarks.
+    #[cfg(test)]
+    pub(crate) fn telemetry(&self) -> ListTelemetry {
+        self.telemetry
     }
 }
 
@@ -816,5 +921,156 @@ mod tests {
 
         resource.configure(&configuration(None), 2);
         assert!(resource.batches.is_empty());
+    }
+
+    fn command(command: u16, a: u64, b: u64, data: &str) -> ResourceCommand {
+        ResourceCommand {
+            key: ResourceKey::new(7, shared("list")),
+            resource_kind: 2,
+            command,
+            a,
+            b,
+            data: shared(data),
+        }
+    }
+
+    fn resource_with_batches(keys: &[u32]) -> ManagedListResource {
+        let mut resource = ManagedListResource::new(1, callbacks(), &configuration(None), 1);
+        for &key in keys {
+            resource.batches.insert(key, CachedBatch::new());
+        }
+        resource
+    }
+
+    fn batch_keys(resource: &ManagedListResource) -> Vec<u32> {
+        let mut keys: Vec<_> = resource.batches.keys().copied().collect();
+        keys.sort_unstable();
+        keys
+    }
+
+    #[test]
+    fn refresh_invalidates_only_intersecting_batches() {
+        let mut resource = resource_with_batches(&[0, 48, 96, 144]);
+        resource.apply_command(&command(13, 50, 1, ""));
+        resource.commit_pending_commands(100);
+
+        assert_eq!(batch_keys(&resource), vec![0, 96, 144]);
+        let telemetry = resource.telemetry();
+        assert_eq!(telemetry.batch_invalidations, 1);
+        assert_eq!(telemetry.full_invalidations, 0);
+    }
+
+    #[test]
+    fn refresh_spanning_multiple_batches_invalidates_each_one() {
+        let mut resource = resource_with_batches(&[0, 48, 96, 144]);
+        resource.apply_command(&command(13, 40, 20, ""));
+        resource.commit_pending_commands(100);
+
+        // [40, 60) touches batch 0 ([0, 48)) and batch 48 ([48, 96)).
+        assert_eq!(batch_keys(&resource), vec![96, 144]);
+        assert_eq!(resource.telemetry().batch_invalidations, 2);
+    }
+
+    #[test]
+    fn splice_preserves_batches_entirely_before_start() {
+        let mut resource = resource_with_batches(&[0, 48, 96, 144]);
+        resource.apply_command(&command(11, 90, (10_u64 << 32) | 10, ""));
+        resource.commit_pending_commands(100);
+
+        // The suffix at or after batch 48 contains index 90 and shifts; batch 0 is untouched.
+        assert_eq!(batch_keys(&resource), vec![0]);
+        assert_eq!(resource.telemetry().batch_invalidations, 3);
+    }
+
+    #[test]
+    fn splice_at_head_invalidates_every_cached_batch() {
+        let mut resource = resource_with_batches(&[0, 48, 96]);
+        resource.apply_command(&command(11, 0, (5_u64 << 32) | 2, ""));
+        resource.commit_pending_commands(97);
+
+        assert!(resource.batches.is_empty());
+        assert_eq!(resource.telemetry().batch_invalidations, 3);
+    }
+
+    #[test]
+    fn splice_suffix_start_snaps_to_batch_boundary() {
+        let mut resource = resource_with_batches(&[0, 48, 96]);
+        resource.apply_command(&command(11, 60, (1_u64 << 32) | 1, ""));
+        resource.commit_pending_commands(100);
+
+        // Batch 48 covers [48, 96), which contains index 60, so it is stale; batch 0 survives.
+        assert_eq!(batch_keys(&resource), vec![0]);
+        assert_eq!(resource.telemetry().batch_invalidations, 2);
+    }
+
+    #[test]
+    fn reset_command_clears_every_batch() {
+        let mut resource = resource_with_batches(&[0, 48, 96]);
+        resource.apply_command(&command(12, 50, 0, ""));
+        resource.commit_pending_commands(50);
+
+        assert!(resource.batches.is_empty());
+        let telemetry = resource.telemetry();
+        assert_eq!(telemetry.full_invalidations, 1);
+        assert_eq!(telemetry.batch_invalidations, 0);
+    }
+
+    #[test]
+    fn multi_range_refresh_invalidates_exactly_the_intersecting_batches() {
+        let mut resource = resource_with_batches(&[0, 48, 96, 144]);
+        resource.item_count = 200;
+        resource.apply_command(&command(13, 50, 1, ""));
+        resource.apply_command(&command(13, 150, 3, ""));
+        resource.commit_pending_commands(200);
+
+        assert_eq!(batch_keys(&resource), vec![0, 96]);
+        assert_eq!(resource.telemetry().batch_invalidations, 2);
+    }
+
+    #[test]
+    fn multi_range_refresh_after_splice_uses_post_splice_indices() {
+        let mut resource = resource_with_batches(&[0, 48, 96, 144]);
+        resource.apply_command(&command(11, 40, (2_u64 << 32) | 2, ""));
+        resource.apply_command(&command(13, 38, 1, ""));
+        resource.commit_pending_commands(100);
+
+        // The splice at 40 has batch boundary 0, so every cached batch is already stale; the
+        // following refresh finds nothing left to invalidate and must not underflow or panic.
+        assert!(resource.batches.is_empty());
+        assert_eq!(resource.telemetry().batch_invalidations, 4);
+    }
+
+    #[test]
+    fn hints_disagreeing_with_declared_count_fall_back_to_full_reset() {
+        let mut resource = resource_with_batches(&[0, 48, 96]);
+        resource.apply_command(&command(13, 10, 5, ""));
+        resource.commit_pending_commands(101);
+
+        assert!(resource.batches.is_empty());
+        assert_eq!(resource.item_count, 101);
+        assert_eq!(resource.telemetry().full_invalidations, 1);
+    }
+
+    #[test]
+    fn refresh_zero_count_is_a_no_op() {
+        let mut resource = resource_with_batches(&[0, 48]);
+        resource.apply_command(&command(13, 10, 0, ""));
+        resource.commit_pending_commands(100);
+
+        assert_eq!(batch_keys(&resource), vec![0, 48]);
+        let telemetry = resource.telemetry();
+        assert_eq!(telemetry.batch_invalidations, 0);
+        assert_eq!(telemetry.full_invalidations, 0);
+    }
+
+    #[test]
+    fn refresh_zero_count_after_real_range_preserves_earlier_invalidation() {
+        let mut resource = resource_with_batches(&[0, 48, 96]);
+        resource.apply_command(&command(13, 50, 1, ""));
+        resource.apply_command(&command(13, 10, 0, ""));
+        resource.commit_pending_commands(100);
+
+        assert_eq!(batch_keys(&resource), vec![0, 96]);
+        assert_eq!(resource.telemetry().batch_invalidations, 1);
     }
 }

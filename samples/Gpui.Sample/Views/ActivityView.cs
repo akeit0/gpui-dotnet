@@ -26,13 +26,17 @@ internal sealed partial class ActivityView : View
         _selected = next;
         _contentRevision++;
 
-        // The item count and ordering did not change. Refresh only the affected measurements;
-        // the controller also invalidates this View so the row content is regenerated.
+        // The item count and ordering did not change. Refresh only the affected measurements
+        // with one queued command; the controller also invalidates this View so the row
+        // content is regenerated.
         if (previous >= 0)
         {
-            _list.Refresh(previous, 1);
+            _list.RefreshRanges((previous, 1), (next, 1));
         }
-        _list.Refresh(next, 1);
+        else
+        {
+            _list.Refresh(next, 1);
+        }
     }
 
     [GpuiListItem]

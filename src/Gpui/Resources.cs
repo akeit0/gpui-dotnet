@@ -229,6 +229,35 @@ public readonly struct ListController
     {
         ArgumentOutOfRangeException.ThrowIfNegative(start);
         ArgumentOutOfRangeException.ThrowIfNegative(count);
+        DispatchRefresh(start, count);
+        Owner.InvalidateFromController();
+    }
+
+    /// <summary>
+    /// Invalidates multiple stable item ranges with one managed update. Each range is queued as
+    /// a standard Refresh command; native commits the whole queued sequence in one pass, so
+    /// cached batches and measurements are discarded only where the ranges intersect. Ranges use
+    /// the item indices of the snapshot that carries them, exactly like <see cref="Refresh"/>.
+    /// </summary>
+    public void RefreshRanges(params ReadOnlySpan<(int Start, int Count)> ranges)
+    {
+        if (ranges.Length == 0)
+        {
+            throw new ArgumentException("At least one refresh range is required.", nameof(ranges));
+        }
+        foreach (var (start, count) in ranges)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(start);
+            ArgumentOutOfRangeException.ThrowIfNegative(count);
+        }
+        foreach (var (start, count) in ranges)
+        {
+            DispatchRefresh(start, count);
+        }
+        Owner.InvalidateFromController();
+    }
+
+    private void DispatchRefresh(int start, int count) =>
         Owner.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.List,
@@ -238,8 +267,6 @@ public readonly struct ListController
                 checked((uint)count)
             )
         );
-        Owner.InvalidateFromController();
-    }
 
     public void Reset(int itemCount)
     {

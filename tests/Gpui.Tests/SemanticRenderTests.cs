@@ -349,6 +349,18 @@ public sealed class SemanticRenderTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new ListDataSource(-1, 0));
     }
 
+    [Fact]
+    public void ListRefreshRangesValidatesBeforeDispatch()
+    {
+        ListController controller = default;
+
+        Assert.Throws<ArgumentException>(() => controller.RefreshRanges());
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.RefreshRanges((0, 1), (-1, 1)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.RefreshRanges((0, -1)));
+        // A detached controller still rejects the command only after argument validation.
+        Assert.Throws<InvalidOperationException>(() => controller.RefreshRanges((0, 1)));
+    }
+
     private static void Attach(ProbeView view) =>
         view.AttachRuntime(
             1,
