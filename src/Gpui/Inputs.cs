@@ -99,3 +99,70 @@ public sealed class InputEvent
     public bool IsFocused { get; }
     public ulong Revision { get; }
 }
+
+/// <summary>
+/// Imperative handle for a retained native input declared by the same View with ui.Input().
+/// Native user edits do not require controller calls.
+/// </summary>
+public readonly struct InputController
+{
+    private readonly View? _owner;
+    private readonly byte[]? _utf8Key;
+
+    internal InputController(View owner, string key)
+    {
+        _owner = owner;
+        _utf8Key = Encoding.UTF8.GetBytes(key);
+    }
+
+    internal InputController(View owner, ReadOnlySpan<byte> utf8Key)
+    {
+        _owner = owner;
+        _utf8Key = utf8Key.ToArray();
+    }
+
+    public bool IsDefault => _owner is null;
+
+    public void Focus() => Dispatch(ResourceCommandKind.InputFocus);
+
+    public void Blur() => Dispatch(ResourceCommandKind.InputBlur);
+
+    public void SelectAll() => Dispatch(ResourceCommandKind.InputSelectAll);
+
+    /// <summary>Replaces the native value and moves the caret to its end.</summary>
+    public void SetValue(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        Owner.DispatchResourceCommand(
+            new ResourceCommand(
+                ResourceKind.Input,
+                ResourceCommandKind.InputSetValue,
+                null,
+                0,
+                0,
+                value,
+                Utf8KeyArray
+            )
+        );
+    }
+
+    /// <summary>
+    /// Replaces the native value from UTF-8 and moves the caret to its end. The bytes are
+    /// trusted: they must contain valid UTF-8 with no interior NUL, and are copied so the
+    /// command remains safe after this call returns.
+    /// </summary>
+    public void SetValue(ReadOnlySpan<byte> utf8Value)
+    {
+        Owner.DispatchUtf8InputValue(Utf8KeyArray, utf8Value);
+    }
+
+    private void Dispatch(ResourceCommandKind command) =>
+        Owner.DispatchResourceCommand(
+            new ResourceCommand(ResourceKind.Input, command, null, 0, 0, null, Utf8KeyArray)
+        );
+
+    private View Owner =>
+        _owner ?? throw new InvalidOperationException("Default InputController cannot be used.");
+    private byte[] Utf8KeyArray =>
+        _utf8Key ?? throw new InvalidOperationException("Default InputController cannot be used.");
+}

@@ -336,7 +336,7 @@ public sealed class SemanticRenderTests
 
             var stats = arena.GetStats();
             Assert.Equal(1, stats.Nodes);
-            Assert.Equal(12, stats.Ops);
+            Assert.Equal(4, stats.Ops);
         }
         finally
         {
@@ -416,7 +416,7 @@ public sealed class SemanticRenderTests
             var stats = arena.GetStats();
             Assert.Equal(1, stats.Nodes);
             // 12 fixed ops + one packed column record op per declared column.
-            Assert.Equal(12 + 2, stats.Ops);
+            Assert.Equal(4 + 2, stats.Ops);
         }
         finally
         {

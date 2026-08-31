@@ -48,23 +48,28 @@ public readonly unsafe ref partial struct RenderContext
 
         var element = ArenaWriter.AddNode<ScrollTag>(_arena, ComponentId.Scroll, key);
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
-        ArenaWriter.AddU32(element.Inner, OpCode.ScrollAxis, (uint)axis);
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.SmoothScroll,
-            options.EffectiveSmoothScrolling ? 1u : 0u
-        );
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.ShowScrollbar,
-            options.EffectiveShowScrollbar ? 1u : 0u
-        );
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.ScrollbarGutter,
-            options.EffectiveScrollbarGutter ? 1u : 0u
-        );
-        ArenaWriter.AddF32(element.Inner, OpCode.ScrollbarWidth, options.EffectiveScrollbarWidth);
+        // Every scroll option has a native default, so options equal to their default are not
+        // written at all: the common scroll container emits a single op.
+        if (axis != ScrollAxis.Vertical)
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ScrollAxis, (uint)axis);
+        }
+        if (!options.EffectiveSmoothScrolling)
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SmoothScroll, 0);
+        }
+        if (!options.EffectiveShowScrollbar)
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ShowScrollbar, 0);
+        }
+        if (options.EffectiveScrollbarGutter)
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ScrollbarGutter, 1);
+        }
+        if (options.EffectiveScrollbarWidth != 8)
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.ScrollbarWidth, options.EffectiveScrollbarWidth);
+        }
         ArenaWriter.AddChildren(element.Inner, children);
         return element;
     }
@@ -123,38 +128,52 @@ public readonly unsafe ref partial struct RenderContext
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
         ArenaWriter.AddU32(element.Inner, OpCode.ListItemCount, checked((uint)itemCount));
         ArenaWriter.AddCallback(element.Inner, OpCode.ListRenderer, renderer.Token);
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.ListBatchSize,
-            checked((uint)options.EffectiveBatchSize)
-        );
-        ArenaWriter.AddF32(element.Inner, OpCode.ListOverdrawPx, options.EffectiveOverdraw);
-        ArenaWriter.AddU32(element.Inner, OpCode.ListAlignment, (uint)options.EffectiveAlignment);
-        ArenaWriter.AddF32(
-            element.Inner,
-            OpCode.ListEstimatedItemHeightPx,
-            options.EffectiveEstimatedItemHeight
-        );
+        // As with Scroll, every option below has a native default; default-valued options are
+        // omitted so the common list declares only owner, count, renderer, and revision.
+        if (options.EffectiveBatchSize != 48)
+        {
+            ArenaWriter.AddU32(
+                element.Inner,
+                OpCode.ListBatchSize,
+                checked((uint)options.EffectiveBatchSize)
+            );
+        }
+        if (options.EffectiveOverdraw != 240)
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.ListOverdrawPx, options.EffectiveOverdraw);
+        }
+        if (options.EffectiveAlignment != ListAlignment.Top)
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ListAlignment, (uint)options.EffectiveAlignment);
+        }
+        if (options.EffectiveEstimatedItemHeight != 40)
+        {
+            ArenaWriter.AddF32(
+                element.Inner,
+                OpCode.ListEstimatedItemHeightPx,
+                options.EffectiveEstimatedItemHeight
+            );
+        }
         if (contentRevision is { } revision)
         {
             ArenaWriter.AddU64(element.Inner, OpCode.ListContentRevision, revision);
         }
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.SmoothScroll,
-            options.EffectiveSmoothScrolling ? 1u : 0u
-        );
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.ShowScrollbar,
-            options.EffectiveShowScrollbar ? 1u : 0u
-        );
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.ScrollbarGutter,
-            options.EffectiveScrollbarGutter ? 1u : 0u
-        );
-        ArenaWriter.AddF32(element.Inner, OpCode.ScrollbarWidth, options.EffectiveScrollbarWidth);
+        if (!options.EffectiveSmoothScrolling)
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SmoothScroll, 0);
+        }
+        if (!options.EffectiveShowScrollbar)
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ShowScrollbar, 0);
+        }
+        if (options.EffectiveScrollbarGutter)
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ScrollbarGutter, 1);
+        }
+        if (options.EffectiveScrollbarWidth != 8)
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.ScrollbarWidth, options.EffectiveScrollbarWidth);
+        }
         return element;
     }
 
@@ -200,39 +219,49 @@ public readonly unsafe ref partial struct RenderContext
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
         ArenaWriter.AddU32(element.Inner, OpCode.ListItemCount, checked((uint)dataSource.Count));
         ArenaWriter.AddCallback(element.Inner, OpCode.ListRenderer, renderer.Token);
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.ListBatchSize,
-            checked((uint)options.EffectiveBatchSize)
-        );
-        ArenaWriter.AddF32(element.Inner, OpCode.ListOverdrawPx, options.EffectiveOverdraw);
-        ArenaWriter.AddF32(
-            element.Inner,
-            OpCode.ListEstimatedItemHeightPx,
-            options.EffectiveEstimatedItemHeight
-        );
+        // Same default-skipping contract as ListCore: options equal to their native defaults
+        // are omitted from the arena.
+        if (options.EffectiveBatchSize != 48)
+        {
+            ArenaWriter.AddU32(
+                element.Inner,
+                OpCode.ListBatchSize,
+                checked((uint)options.EffectiveBatchSize)
+            );
+        }
+        if (options.EffectiveOverdraw != 240)
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.ListOverdrawPx, options.EffectiveOverdraw);
+        }
+        if (options.EffectiveEstimatedItemHeight != 40)
+        {
+            ArenaWriter.AddF32(
+                element.Inner,
+                OpCode.ListEstimatedItemHeightPx,
+                options.EffectiveEstimatedItemHeight
+            );
+        }
         ArenaWriter.AddU64(element.Inner, OpCode.ListContentRevision, dataSource.ContentRevision);
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.SmoothScroll,
-            options.EffectiveSmoothScrolling ? 1u : 0u
-        );
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.ShowScrollbar,
-            options.EffectiveShowScrollbar ? 1u : 0u
-        );
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.ScrollbarGutter,
-            options.EffectiveScrollbarGutter ? 1u : 0u
-        );
-        ArenaWriter.AddF32(element.Inner, OpCode.ScrollbarWidth, options.EffectiveScrollbarWidth);
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.TableShowHeader,
-            options.EffectiveShowHeader ? 1u : 0u
-        );
+        if (!options.EffectiveSmoothScrolling)
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SmoothScroll, 0);
+        }
+        if (!options.EffectiveShowScrollbar)
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ShowScrollbar, 0);
+        }
+        if (options.EffectiveScrollbarGutter)
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ScrollbarGutter, 1);
+        }
+        if (options.EffectiveScrollbarWidth != 8)
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.ScrollbarWidth, options.EffectiveScrollbarWidth);
+        }
+        if (!options.EffectiveShowHeader)
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.TableShowHeader, 0);
+        }
         foreach (var column in columns)
         {
             ArenaWriter.AddU64(element.Inner, OpCode.TableColumn, PackTableColumn(column));
