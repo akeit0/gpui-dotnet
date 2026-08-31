@@ -75,7 +75,7 @@ Add CI gates for:
 
 ## 7. Review follow-ups (2026-08-31)
 
-Addressed already: List/Table resource-key collisions are rejected at snapshot validation; empty required IDs are guarded by generated factories and managed validation; managed validator drift (scrollbar gutter/width) closed; table column key uniqueness and enum validation; controller pending-command contract documented to match actual lifecycle; `struct_size` prefix read and panic barriers on every exported FFI entrypoint; controller UTF-8 keys pre-encoded; CI/README solution-name typo fixed; table column metadata now travels as packed u64 `table_column` op records (width bits, unit, alignment) instead of a UTF-8 text blob — node data carries only the NUL-separated key/header strings, and both validators enforce the record layout.
+Addressed already: List/Table resource-key collisions are rejected at snapshot validation; empty required IDs are guarded by generated factories and managed validation; managed validator drift (scrollbar gutter/width) closed; table column key uniqueness and enum validation; controller pending-command contract documented to match actual lifecycle; `struct_size` prefix read and panic barriers on every exported FFI entrypoint; controller UTF-8 keys pre-encoded; CI/README solution-name typo fixed; table column metadata now travels as packed u64 `table_column` op records (width bits, unit, alignment) instead of a UTF-8 text blob — node data carries only the NUL-separated key/header strings, and both validators enforce the record layout; interactive virtualized-row state ids use structured `NamedInteger` element ids (fixed namespace + deterministic 64-bit hash of list/row/node identity), removing all per-frame string formatting and allocation from the row hot path.
 
 Deferred, in priority order:
 
@@ -83,5 +83,4 @@ Deferred, in priority order:
 - generated `include/gpui_dotnet.h` plus `sizeof`/`offsetof` assertions on every shipped RID in CI;
 - symbolic native status diagnostics instead of raw integers;
 - explicit coalescing policy for unbounded native command channels (title/resize last-wins);
-- decide whether the full managed validator belongs in Release renders or Debug/tests only;
-- per-row GPUI element-id string allocations in interactive virtualized rows (profile first).
+- decide whether the full managed validator belongs in Release renders or Debug/tests only.

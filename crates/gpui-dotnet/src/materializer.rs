@@ -718,26 +718,13 @@ pub(crate) fn materialize_snapshot_node_detached(
             (payload, _) => payload,
         };
         if event_token != 0 {
-            // Node data is only a user-local element id. Virtualized rows repeat the same
-            // rendered shape, so scope every stateful GPUI id by list identity + row identity.
-            // The stable model ID is preferred so state survives splices; without one, the
-            // positional index keeps today's behavior.
-            let local_id = if node.data.is_empty() {
-                node_id.to_string()
-            } else {
-                node.data.to_string()
-            };
-            let element_id = match item_id {
-                Some(id) => format!(
-                    "managed-list-{}-{}-id{id}-{local_id}",
-                    list_key.owner_view, list_key.key
-                ),
-                None => format!(
-                    "managed-list-{}-{}-{item_index}-{local_id}",
-                    list_key.owner_view, list_key.key
-                ),
-            };
-            let element = element.id(SharedString::from(element_id)).cursor_pointer();
+            // GPUI element ids are path-scoped state keys. Interactive row nodes use a
+            // structured NamedInteger id — a fixed namespace plus a deterministic hash of the
+            // list identity, row identity, and node identity — so the virtualized-row hot path
+            // performs no string formatting or allocation. The stable model ID is preferred so
+            // state survives splices; without one, the positional index keeps prior behavior.
+            let state_id = row_state_id(list_key, item_index, item_id, node_id, &node.data);
+            let element = element.id(("managed-list-row", state_id)).cursor_pointer();
             let element = if let Some(op) = last_op(snapshot, node, OP_HOVER_BACKGROUND_RGBA) {
                 let color = rgba(op.a as u32);
                 element.hover(move |style| style.bg(color))
@@ -885,6 +872,49 @@ fn apply_table_cell_layout(
     }
 }
 
+/// FNV-1a over length-delimited parts, finalized with the splitmix64 avalanche. Length
+/// prefixes keep concatenation unambiguous; the avalanche spreads structured inputs evenly.
+fn stable_hash(parts: &[&[u8]]) -> u64 {
+    const FNV_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+    const FNV_PRIME: u64 = 0x1000_0000_01b3;
+    let mut h = FNV_BASIS;
+    for part in parts {
+        h ^= (part.len() as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+        h = h.wrapping_mul(FNV_PRIME);
+        for byte in *part {
+            h ^= *byte as u64;
+            h = h.wrapping_mul(FNV_PRIME);
+        }
+    }
+    let mut z = h;
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    z ^ (z >> 33)
+}
+
+/// Deterministic GPUI state id for an interactive node inside a virtualized row. Combines the
+/// list identity, the row identity (stable model ID when declared, positional index otherwise),
+/// and the node identity into one 64-bit value so `ElementId::NamedInteger` needs no per-frame
+/// allocation. Hash collisions across distinct identities are 64-bit improbable.
+fn row_state_id(
+    list_key: &crate::resources::ResourceKey,
+    item_index: usize,
+    item_id: Option<u64>,
+    node_id: u32,
+    node_data: &str,
+) -> u64 {
+    let identity = item_id.unwrap_or(item_index as u64).to_le_bytes();
+    let owner = list_key.owner_view.to_le_bytes();
+    let node_tag = node_id.to_le_bytes();
+    stable_hash(&[
+        &owner,
+        list_key.key.as_bytes(),
+        &identity,
+        &node_tag,
+        node_data.as_bytes(),
+    ])
+}
+
 /// Resolves scrollbar chrome from the declared visual width and gutter mode.
 fn scrollbar_metrics(snapshot: &ValidatedSnapshot, node: &SnapshotNode) -> ScrollbarMetrics {
     let width = last_op(snapshot, node, OP_SCROLLBAR_WIDTH).map_or(DEFAULT_SCROLLBAR_WIDTH, |op| {
@@ -1014,4 +1044,53 @@ fn last_op<'a>(
     code: u16,
 ) -> Option<&'a crate::abi::OpRecord> {
     snapshot.ops(node).iter().rev().find(|op| op.code == code)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::resources::ResourceKey;
+
+    fn key() -> ResourceKey {
+        ResourceKey::new(4, "service-grid".into())
+    }
+
+    #[test]
+    fn row_state_ids_are_deterministic_for_identical_inputs() {
+        let a = row_state_id(&key(), 12, Some(7), 40, "service-row");
+        let b = row_state_id(&key(), 12, Some(7), 40, "service-row");
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn row_state_ids_distinguish_identity_inputs() {
+        let base = row_state_id(&key(), 12, Some(7), 40, "service-row");
+        // Different row identity (model ID vs positional fallback).
+        assert_ne!(base, row_state_id(&key(), 12, Some(8), 40, "service-row"));
+        assert_ne!(base, row_state_id(&key(), 12, None, 40, "service-row"));
+        // Different node within the row subtree.
+        assert_ne!(base, row_state_id(&key(), 12, Some(7), 41, "service-row"));
+        assert_ne!(base, row_state_id(&key(), 12, Some(7), 40, "chevron"));
+        // Different list identity.
+        assert_ne!(
+            base,
+            row_state_id(
+                &ResourceKey::new(5, "service-grid".into()),
+                12,
+                Some(7),
+                40,
+                "service-row"
+            )
+        );
+        assert_ne!(
+            base,
+            row_state_id(
+                &ResourceKey::new(4, "other-grid".into()),
+                12,
+                Some(7),
+                40,
+                "service-row"
+            )
+        );
+    }
 }

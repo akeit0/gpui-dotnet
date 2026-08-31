@@ -419,7 +419,6 @@ pub(crate) struct ManagedListResource {
     alignment: ListAlignment,
     snapshot_revision: u64,
     content_revision: Option<u64>,
-    pub(crate) scrollbar: ScrollbarMetrics,
     batches: HashMap<u32, CachedBatch>,
     pending_commands: Vec<ResourceCommand>,
     use_clock: u64,
@@ -450,7 +449,6 @@ impl ManagedListResource {
             alignment: configuration.alignment,
             snapshot_revision,
             content_revision: configuration.content_revision,
-            scrollbar: configuration.scrollbar,
             batches: HashMap::new(),
             pending_commands: Vec::new(),
             use_clock: 0,
@@ -832,7 +830,9 @@ pub(crate) fn resource_key(
 }
 
 /// Packs one column's numeric record into an OP_TABLE_COLUMN payload: width f32 bits in the
-/// low word, unit in bits 32..34, alignment in bits 34..36. Bits 36+ must be zero.
+/// low word, unit in bits 32..34, alignment in bits 34..36. Bits 36+ must be zero. Mirrored by
+/// the managed `PackTableColumn`; kept for native tests of the record layout.
+#[cfg(test)]
 pub(crate) const fn pack_table_column(width_bits: u32, unit: u32, alignment: u32) -> u64 {
     width_bits as u64 | ((unit as u64) << 32) | ((alignment as u64) << 34)
 }
