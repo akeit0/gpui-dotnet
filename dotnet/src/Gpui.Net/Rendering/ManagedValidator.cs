@@ -144,6 +144,16 @@ internal static unsafe class ManagedValidator
             }
 
             if (
+                code == OpCode.WindowControlArea
+                && operation.A > (uint)WindowControlArea.Close
+            )
+            {
+                throw new InvalidOperationException(
+                    $"Operation {i} has an invalid window control area."
+                );
+            }
+
+            if (
                 code
                     is OpCode.SmoothScroll
                         or OpCode.ShowScrollbar

@@ -12,8 +12,8 @@ use crate::{
         OP_OVERLAY_DISMISS_ON_BACKDROP, OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX,
         OP_OVERLAY_MODAL, OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_RESOURCE_OWNER,
         OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TOOLTIP_ALIGNMENT,
-        OP_TOOLTIP_GAP_PX, OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, ValueKind,
-        component_metadata, operation_metadata,
+        OP_TOOLTIP_GAP_PX, OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA,
+        ValueKind, component_metadata, operation_metadata,
     },
 };
 
@@ -277,6 +277,9 @@ fn validate_with_scratch(
         if op.code == OP_SCROLL_AXIS && op.a > 2 {
             return Err(-26);
         }
+        if op.code == OP_WINDOW_CONTROL_AREA && op.a > 3 {
+            return Err(-39);
+        }
         if matches!(
             op.code,
             OP_SMOOTH_SCROLL
@@ -429,7 +432,7 @@ mod tests {
             COMPONENT_CHECKBOX, COMPONENT_DIV, COMPONENT_IMAGE, COMPONENT_INPUT, COMPONENT_OVERLAY,
             COMPONENT_TEXT, COMPONENT_TOOLTIP, OP_CHECKED, OP_GAP_PX, OP_IMAGE_OBJECT_FIT,
             OP_INPUT_DISABLED, OP_ON_CLICK, OP_OVERLAY_PLACEMENT, OP_PADDING_PX,
-            OP_TOOLTIP_PLACEMENT,
+            OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA,
         },
     };
 
@@ -552,6 +555,22 @@ mod tests {
         arena.utf8_length = 1;
         arena.utf8_capacity = 1;
         assert_eq!(validate(&arena, 0), Err(-21));
+    }
+
+    #[test]
+    fn rejects_invalid_window_control_area() {
+        let mut node = NodeRecord {
+            component: COMPONENT_DIV,
+            ..Default::default()
+        };
+        let mut operation = OpRecord {
+            code: OP_WINDOW_CONTROL_AREA,
+            value_kind: ValueKind::U32 as u16,
+            a: 4,
+            ..Default::default()
+        };
+        let arena = arena_with(&mut node, Some(&mut operation));
+        assert_eq!(validate(&arena, 0), Err(-39));
     }
 
     #[test]

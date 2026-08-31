@@ -50,6 +50,30 @@ Each `GpuiWindow` has a stable 64-bit ID and its own root View tree, retained re
 
 For a single window, `GpuiApplication.Run(view, options)` is a convenience over the same model.
 
+Window title bars can be system-provided (the default), custom, or hidden. Custom title bars keep presentation in managed composition while native GPUI hit-test regions perform window dragging and caption actions without routing pointer motion through .NET:
+
+```csharp
+var window = application.OpenWindow(
+    new DocumentView(),
+    new GpuiWindowOptions
+    {
+        Title = "Document",
+        TitleBarStyle = WindowTitleBarStyle.Custom,
+    });
+
+var titleBar = ui.HStack(
+        ui.Text("Document").Grow(),
+        ui.Button("minimize", "—")
+            .WindowControlArea(WindowControlArea.Minimize),
+        ui.Button("maximize", "□")
+            .WindowControlArea(WindowControlArea.Maximize),
+        ui.Button("close", "×")
+            .WindowControlArea(WindowControlArea.Close))
+    .WindowControlArea(WindowControlArea.Drag);
+```
+
+Child caption regions override the parent drag region. On macOS, `Custom` retains the native traffic lights; applications should reserve their space instead of drawing duplicate caption buttons. `Hidden` removes the platform title-bar surface entirely but still allows explicit native control regions.
+
 ## Managed Views: framework ownership by default
 
 Normal composition does not require child View fields:
@@ -288,7 +312,7 @@ ABI v5 makes application ownership distinct from window/render sessions. It adds
 - stable 64-bit window/session IDs and per-window resource namespaces;
 - shutdown only after the final application-owned window closes.
 
-Managed startup validates both ABI version and semantic schema hash (`0x920C821394FBE3D4`). See [docs/ABI.md](docs/ABI.md).
+Managed startup validates both ABI version and semantic schema hash (`0x696851575D1BF2C5`). See [docs/ABI.md](docs/ABI.md).
 
 ## Build
 
@@ -303,7 +327,7 @@ dotnet build gpui-dotnet.slnx
 dotnet run --project dotnet/samples/Gpui.Net.Sample
 ```
 
-The sample contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, centered-dialog/right-sheet Overlay demos, delayed trigger-relative tooltips, and a Windows gallery. The Windows route launches a distinct companion root with isolated local state; closing it leaves the main gallery running. To open that companion automatically at startup:
+The sample contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, centered-dialog/right-sheet Overlay demos, delayed trigger-relative tooltips, and a Windows gallery. The Windows route launches distinct system-title-bar and custom-title-bar roots with isolated local state; native drag/minimize/maximize/close regions are demonstrated by the custom window. Closing either companion leaves the main gallery running. To open the system-title-bar companion automatically at startup:
 
 ```powershell
 dotnet run --project dotnet/samples/Gpui.Net.Sample -- --multi-window

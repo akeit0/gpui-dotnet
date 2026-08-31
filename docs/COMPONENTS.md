@@ -8,9 +8,15 @@
 | Retained container | Scroll | render IR reference + native state keyed by View/key |
 | Virtualized datasource | List | retained native state + batched managed row renderer |
 | Native entity component | Input; future editor/select | opaque native handle + commands/events |
-| App/window service | future dialogs/clipboard/notifications | control commands |
+| App/window service | title-bar presentation; future dialogs/clipboard/notifications | control commands + semantic hit-test regions |
 
 Do not force all classes into one ABI shape.
+
+## Window chrome
+
+`GpuiWindowOptions.TitleBarStyle` selects `System`, `Custom`, or `Hidden` when a window opens. System chrome requires no managed elements. Custom chrome extends managed content into a transparent native title-bar surface; Hidden removes that surface entirely.
+
+Managed Div and Button elements can use `WindowControlArea(Drag|Minimize|Maximize|Close)`. Rust maps the semantic operation to GPUI's native window-control hit testing, so window movement and caption actions do not become managed pointer/click traffic. A parent Drag region can contain child caption controls because the most specific child hit region wins. macOS custom windows retain native traffic lights, so managed title-bar layouts should reserve their space.
 
 ## Snapshot component adapters
 

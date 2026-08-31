@@ -19,7 +19,7 @@ const gpui_dotnet_api_v5* gpui_dotnet_get_api(uint32_t requested_version);
 - `dispatch_command`;
 - `dispatch_application_command`.
 
-The current schema hash is `0x920C821394FBE3D4`.
+The current schema hash is `0x696851575D1BF2C5`.
 
 ## Managed callbacks
 
@@ -162,13 +162,21 @@ typedef struct gpui_native_application_command {
 
 | Command | Payload |
 |---|---|
-| `Open` | UTF-8 title, positive size, optional positioned flag + finite `left`/`top`, optional activate flag |
+| `Open` | UTF-8 title, positive size, optional positioned flag + finite `left`/`top`, optional activate flag, title-bar style |
 | `Close` | none |
 | `Activate` | none |
 | `SetTitle` | non-empty UTF-8 title |
 | `Resize` | positive finite width/height |
 
-The call copies borrowed UTF-8 before returning and enqueues the owned command. All GPUI window mutation occurs on the native UI thread. Initial position is supported by `Open`; runtime resize is supported, but runtime reposition is absent because the pinned GPUI API has no durable cross-platform operation for it.
+For `Open`, flag bit 0 means the position fields are present, bit 1 requests activation, and bits 2–3 encode `System = 0`, `Custom = 1`, or `Hidden = 2`. All higher bits and the unused value 3 are rejected. `Custom` uses a transparent platform title-bar surface with client decorations; `Hidden` removes the title-bar surface and keeps the UTF-8 title as the native window/task-switcher title.
+
+The call copies borrowed UTF-8 before returning and enqueues the owned command. All GPUI window mutation occurs on the native UI thread. Initial position is supported by `Open`; runtime resize is supported, but runtime reposition is absent because the pinned GPUI API has no durable cross-platform operation for it. The command record layout remains ABI v5; the schema hash rejects native/managed pairs that disagree about the extended flag semantics.
+
+## Native window-control regions
+
+Semantic operation `WindowControlArea` (`201`, `U32`) marks a Div or Button as a native title-bar hit-test region. Values are `Drag = 0`, `Minimize = 1`, `Maximize = 2`, and `Close = 3`; all others are rejected by both managed and native validation. Child regions override an enclosing drag region through normal GPUI hit testing.
+
+These regions are part of the render snapshot, not managed click callbacks. GPUI and the platform process drag and caption interaction directly, so pointer motion and window-management gestures do not cross the ABI.
 
 ## Retained native resource commands
 

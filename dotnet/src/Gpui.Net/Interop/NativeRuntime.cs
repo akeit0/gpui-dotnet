@@ -430,7 +430,11 @@ public sealed unsafe class NativeRuntime
                     snapshot.Top ?? 0,
                     snapshot.Width,
                     snapshot.Height,
-                    (ushort)((snapshot.Left.HasValue ? 1 : 0) | (snapshot.Activate ? 2 : 0))
+                    (ushort)(
+                        (snapshot.Left.HasValue ? 1 : 0)
+                        | (snapshot.Activate ? 2 : 0)
+                        | ((ushort)snapshot.TitleBarStyle << 2)
+                    )
                 );
             }
             catch

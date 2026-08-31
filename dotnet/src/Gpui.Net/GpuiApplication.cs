@@ -3,6 +3,19 @@ using Gpui.Interop;
 
 namespace Gpui;
 
+/// <summary>Native title-bar presentation selected when a window is opened.</summary>
+public enum WindowTitleBarStyle : ushort
+{
+    /// <summary>Use platform-provided title-bar chrome.</summary>
+    System,
+
+    /// <summary>Extend managed content into the title bar and provide custom control regions.</summary>
+    Custom,
+
+    /// <summary>Remove title-bar chrome entirely.</summary>
+    Hidden,
+}
+
 /// <summary>Initial native window placement and presentation.</summary>
 public sealed class GpuiWindowOptions
 {
@@ -12,11 +25,16 @@ public sealed class GpuiWindowOptions
     public float? Left { get; init; }
     public float? Top { get; init; }
     public bool Activate { get; init; } = true;
+    public WindowTitleBarStyle TitleBarStyle { get; init; } = WindowTitleBarStyle.System;
 
     internal GpuiWindowSnapshot ValidateAndSnapshot()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(Title);
         ValidateSize(Width, Height);
+        if (!Enum.IsDefined(TitleBarStyle))
+        {
+            throw new ArgumentOutOfRangeException(nameof(TitleBarStyle));
+        }
         if (Left.HasValue != Top.HasValue)
         {
             throw new ArgumentException("Left and Top must either both be set or both be omitted.");
@@ -25,7 +43,15 @@ public sealed class GpuiWindowOptions
         {
             throw new ArgumentOutOfRangeException(nameof(Left));
         }
-        return new GpuiWindowSnapshot(Title, Width, Height, Left, Top, Activate);
+        return new GpuiWindowSnapshot(
+            Title,
+            Width,
+            Height,
+            Left,
+            Top,
+            Activate,
+            TitleBarStyle
+        );
     }
 
     internal static void ValidateSize(float width, float height)
@@ -377,7 +403,8 @@ internal readonly record struct GpuiWindowSnapshot(
     float Height,
     float? Left,
     float? Top,
-    bool Activate
+    bool Activate,
+    WindowTitleBarStyle TitleBarStyle
 );
 
 internal readonly record struct GpuiWindowOpenRequest(

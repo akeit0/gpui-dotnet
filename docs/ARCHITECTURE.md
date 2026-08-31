@@ -21,6 +21,7 @@ GPUI.NET deliberately does not mirror GPUI's Rust API one-to-one.
 - `ScrollHandle` and `ListState`;
 - retained `ManagedInput` entities and GPUI input handlers;
 - deferred overlay/tooltip stacking, viewport placement, modal input interception, timing, and dismissal;
+- title-bar presentation and native window drag/minimize/maximize/close hit testing;
 - virtual-list viewport/measurement state and row batch cache;
 - high-frequency wheel/trackpad/scrollbar behavior.
 
@@ -30,7 +31,9 @@ The boundary rule is: **cross the ABI for state transitions or coarse data batch
 
 `GpuiApplication` is the managed owner of one native `gpui::Application`. Each `GpuiWindow` owns an independent managed render session rooted at one `View`; window IDs are globally stable for the process lifetime and are also the native callback session IDs. Opening another window never constructs a second GPUI application.
 
-The native application host keeps a window registry and a UI-thread command channel. Open/close/activate/title/resize calls may originate on any managed thread, but GPUI window mutation occurs only when the native event loop consumes the command. Initial positioned bounds are supported. The pinned GPUI API exposes runtime resize but no cross-platform runtime reposition operation, so that capability is deliberately absent rather than emulated.
+The native application host keeps a window registry and a UI-thread command channel. Open/close/activate/title/resize calls may originate on any managed thread, but GPUI window mutation occurs only when the native event loop consumes the command. Initial positioned bounds and system/custom/hidden title-bar styles are supported. The pinned GPUI API exposes runtime resize but no cross-platform runtime reposition operation, so that capability is deliberately absent rather than emulated.
+
+Custom title bars preserve the same boundary: C# composes the visual header, while semantic `WindowControlArea` operations become GPUI/platform hit-test regions. Dragging, double-click maximize, and caption controls therefore stay native instead of emitting high-frequency managed events. On macOS, the transparent custom title-bar mode retains platform traffic lights; managed composition owns the reserved visual space.
 
 Each window has a separate `ManagedSession`, View-handle allocator, render snapshots, retained resources, list caches, and lifecycle teardown. A failure is recorded against the affected window session while other windows keep running; the application reports the first failure when the final window closes. Closing one window unmounts only its View tree. Closing the final window quits the shared GPUI application.
 

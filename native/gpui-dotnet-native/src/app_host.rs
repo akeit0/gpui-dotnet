@@ -11,7 +11,8 @@ use std::{
 use async_channel::{Receiver, Sender, TrySendError};
 use gpui::{
     AnyWindowHandle, App, AppContext, Application, Bounds, Context, IntoElement, Render,
-    TitlebarOptions, Window, WindowBounds, WindowOptions, div, point, prelude::*, px, rgb, size,
+    TitlebarOptions, Window, WindowBounds, WindowDecorations, WindowOptions, div, point,
+    prelude::*, px, rgb, size,
 };
 
 use crate::{
@@ -85,6 +86,7 @@ pub(crate) enum ApplicationCommand {
         width: f32,
         height: f32,
         activate: bool,
+        title_bar_style: WindowTitleBarStyle,
     },
     Close(u64),
     Activate(u64),
@@ -97,6 +99,13 @@ pub(crate) enum ApplicationCommand {
         width: f32,
         height: f32,
     },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WindowTitleBarStyle {
+    System,
+    Custom,
+    Hidden,
 }
 
 #[derive(Clone)]
@@ -405,6 +414,7 @@ fn apply_application_command(
             width,
             height,
             activate,
+            title_bar_style,
         } => {
             let result = open_managed_window(
                 cx,
@@ -416,6 +426,7 @@ fn apply_application_command(
                 width,
                 height,
                 activate,
+                title_bar_style,
             );
             if let Err(status) = result {
                 record_status(application_status, status);
@@ -477,6 +488,7 @@ fn open_managed_window(
     width: f32,
     height: f32,
     activate: bool,
+    title_bar_style: WindowTitleBarStyle,
 ) -> Result<(), i32> {
     if windows.borrow().contains_key(&window_id) {
         return Err(-44);
@@ -496,15 +508,27 @@ fn open_managed_window(
         || Bounds::centered(None, size(px(width), px(height)), cx),
         |(left, top)| Bounds::new(point(px(left), px(top)), size(px(width), px(height))),
     );
+    let titlebar = match title_bar_style {
+        WindowTitleBarStyle::System => Some(TitlebarOptions {
+            title: Some(title.to_owned().into()),
+            ..Default::default()
+        }),
+        WindowTitleBarStyle::Custom => Some(TitlebarOptions {
+            title: Some(title.to_owned().into()),
+            appears_transparent: true,
+            ..Default::default()
+        }),
+        WindowTitleBarStyle::Hidden => None,
+    };
+    let window_decorations =
+        (title_bar_style != WindowTitleBarStyle::System).then_some(WindowDecorations::Client);
     let handle = cx
         .open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
-                titlebar: Some(TitlebarOptions {
-                    title: Some(title.to_owned().into()),
-                    ..Default::default()
-                }),
+                titlebar,
                 focus: activate,
+                window_decorations,
                 ..Default::default()
             },
             move |_, cx| {
@@ -521,6 +545,10 @@ fn open_managed_window(
             _view_registration: view_registration,
         },
     );
+    if title_bar_style == WindowTitleBarStyle::Hidden {
+        let title = title.to_owned();
+        let _ = handle.update(cx, move |_, window, _| window.set_window_title(&title));
+    }
     if activate {
         let _ = handle.update(cx, |_, window, _| window.activate_window());
     }

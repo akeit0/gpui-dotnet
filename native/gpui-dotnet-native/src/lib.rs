@@ -133,13 +133,15 @@ unsafe extern "C" fn dispatch_application_command(
     let no_title = command.title_length == 0;
     let no_position = command.left == 0.0 && command.top == 0.0;
     let no_size = command.width == 0.0 && command.height == 0.0;
+    let title_bar_style = (command.flags >> 2) & 0b11;
     let size_valid = command.width.is_finite()
         && command.height.is_finite()
         && command.width > 0.0
         && command.height > 0.0;
     let payload_valid = match command.command {
         1 => {
-            command.flags & !0b11 == 0
+            command.flags & !0b1111 == 0
+                && title_bar_style <= 2
                 && !no_title
                 && size_valid
                 && if command.flags & 1 != 0 {
@@ -177,6 +179,12 @@ unsafe extern "C" fn dispatch_application_command(
             width: command.width,
             height: command.height,
             activate: command.flags & 2 != 0,
+            title_bar_style: match title_bar_style {
+                0 => app_host::WindowTitleBarStyle::System,
+                1 => app_host::WindowTitleBarStyle::Custom,
+                2 => app_host::WindowTitleBarStyle::Hidden,
+                _ => unreachable!("title-bar style was validated"),
+            },
         },
         2 => app_host::ApplicationCommand::Close(command.window_id),
         3 => app_host::ApplicationCommand::Activate(command.window_id),

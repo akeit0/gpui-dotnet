@@ -13,7 +13,7 @@ public sealed class ApplicationModelTests
     }
 
     [Fact]
-    public void WindowOptionsValidatePositionAndSize()
+    public void WindowOptionsValidatePositionSizeAndTitleBar()
     {
         var application = new GpuiApplication();
 
@@ -22,6 +22,12 @@ public sealed class ApplicationModelTests
         );
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             application.OpenWindow(new ProbeView(), new GpuiWindowOptions { Width = float.NaN })
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            application.OpenWindow(
+                new ProbeView(),
+                new GpuiWindowOptions { TitleBarStyle = (WindowTitleBarStyle)99 }
+            )
         );
     }
 
@@ -37,6 +43,7 @@ public sealed class ApplicationModelTests
         Assert.Equal("Updated", window.Snapshot.Title);
         Assert.Equal(900, window.Snapshot.Width);
         Assert.Equal(600, window.Snapshot.Height);
+        Assert.Equal(WindowTitleBarStyle.System, window.Snapshot.TitleBarStyle);
 
         window.Close();
 
@@ -51,11 +58,15 @@ public sealed class ApplicationModelTests
         var application = new GpuiApplication();
         var firstRoot = new ProbeView();
         var first = application.OpenWindow(firstRoot);
-        var second = application.OpenWindow(new ProbeView());
+        var second = application.OpenWindow(
+            new ProbeView(),
+            new GpuiWindowOptions { TitleBarStyle = WindowTitleBarStyle.Custom }
+        );
 
         Assert.NotEqual(first.Id, second.Id);
         Assert.False(first.Snapshot.Activate);
         Assert.True(second.Snapshot.Activate);
+        Assert.Equal(WindowTitleBarStyle.Custom, second.Snapshot.TitleBarStyle);
         Assert.Throws<InvalidOperationException>(() => application.OpenWindow(firstRoot));
 
         first.Close();

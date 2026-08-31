@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use gpui::{
     AnyElement, ClickEvent, Context, ElementId, Entity, FocusHandle, InteractiveElement,
     IntoElement, KeyDownEvent, ObjectFit, ParentElement, SharedString, StatefulInteractiveElement,
-    Styled, StyledImage, WeakFocusHandle, Window, anchored, deferred, div, img, list, point, px,
-    relative, rgba,
+    Styled, StyledImage, WeakFocusHandle, Window, WindowControlArea, anchored, deferred, div, img,
+    list, point, px, relative, rgba,
 };
 
 use crate::{
@@ -25,7 +25,7 @@ use crate::{
         OP_RADIUS_PX, OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL,
         OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS,
         OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK,
-        OP_WIDTH_PERCENT, OP_WIDTH_PX, component_metadata,
+        OP_WIDTH_PERCENT, OP_WIDTH_PX, OP_WINDOW_CONTROL_AREA, component_metadata,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
     tooltip::{TooltipConfiguration, tooltip},
@@ -77,6 +77,7 @@ impl ManagedView {
             // otherwise a descendant scroll viewport expands to its full content height.
             element = element.min_h_0();
         }
+        element = apply_window_control_area(element, node, snapshot);
 
         if metadata.capabilities & CAPABILITY_INTERACTIVE != 0 {
             let event_binding = last_op(snapshot, node, OP_ON_CLICK);
@@ -525,6 +526,7 @@ pub(crate) fn materialize_snapshot_node_detached(
         ));
     }
     element = apply_styles(element, node, snapshot);
+    element = apply_window_control_area(element, node, snapshot);
     if metadata.capabilities & CAPABILITY_INTERACTIVE != 0 {
         let event_binding = last_op(snapshot, node, OP_ON_CLICK);
         let event_token = event_binding.map_or(0, |op| op.a);
@@ -648,6 +650,24 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
         };
     }
     element
+}
+
+fn apply_window_control_area(
+    element: gpui::Div,
+    node: &SnapshotNode,
+    snapshot: &ValidatedSnapshot,
+) -> gpui::Div {
+    let Some(operation) = last_op(snapshot, node, OP_WINDOW_CONTROL_AREA) else {
+        return element;
+    };
+    let area = match operation.a {
+        0 => WindowControlArea::Drag,
+        1 => WindowControlArea::Min,
+        2 => WindowControlArea::Max,
+        3 => WindowControlArea::Close,
+        _ => unreachable!("window control areas are validated before materialization"),
+    };
+    element.window_control_area(area)
 }
 
 fn materialize_image(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> AnyElement {

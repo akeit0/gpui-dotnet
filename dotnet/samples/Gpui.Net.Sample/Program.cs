@@ -81,6 +81,27 @@ internal sealed partial class SampleShellView : View
     }
 
     [GpuiEvent]
+    private void OpenCustomTitleBarWindow()
+    {
+        var application = Application ?? throw new InvalidOperationException(
+            "The sample root is not associated with its application."
+        );
+        var root = new CustomTitleBarWindowView();
+        var window = application.OpenWindow(
+            root,
+            new GpuiWindowOptions
+            {
+                Title = "GPUI.NET Custom Title Bar",
+                Width = 820,
+                Height = 560,
+                TitleBarStyle = WindowTitleBarStyle.Custom,
+            }
+        );
+        root.Window = window;
+        window.SetTitle($"GPUI.NET Custom Title Bar — Window {window.Id}");
+    }
+
+    [GpuiEvent]
     private void CloseWindow()
     {
         (Window ?? throw new InvalidOperationException("The sample root has no window handle."))
@@ -266,11 +287,17 @@ internal sealed partial class SampleShellView : View
                             .FontSize(Px(13))
                             .TextColor(Rgb(71, 85, 105)),
                         ui.HStack(
-                                ui.Button("open-companion-window", "Launch companion window")
+                                ui.Button("open-companion-window", "System title bar")
                                     .OnClick(Events.OpenNewWindow)
                                     .Padding(Px(11))
                                     .Background(Rgb(79, 70, 229))
                                     .BorderColor(Rgb(67, 56, 202))
+                                    .TextColor(Rgb(255, 255, 255)),
+                                ui.Button("open-custom-titlebar", "Custom title bar")
+                                    .OnClick(Events.OpenCustomTitleBarWindow)
+                                    .Padding(Px(11))
+                                    .Background(Rgb(15, 23, 42))
+                                    .BorderColor(Rgb(51, 65, 85))
                                     .TextColor(Rgb(255, 255, 255)),
                                 ui.Badge(ui.Text($"Gallery window ID: {Window?.Id ?? 0}"))
                                     .Background(Rgb(224, 231, 255))
@@ -286,12 +313,128 @@ internal sealed partial class SampleShellView : View
                     .BorderWidth(Px(1))
                     .BorderColor(Rgb(226, 232, 240))
                     .Radius(Px(12)),
-                ui.Text("The companion includes local state so window isolation is easy to verify."u8)
+                ui.Text(
+                        "The custom variant uses native drag/minimize/maximize/close hit-test regions while its visuals remain managed."u8
+                    )
                     .FontSize(Px(12))
                     .TextColor(Rgb(100, 116, 139))
             )
             .Gap(Px(14))
             .Grow();
+}
+
+[GpuiView]
+internal sealed partial class CustomTitleBarWindowView : View
+{
+    private int _localCount;
+
+    internal GpuiWindow? Window { get; set; }
+
+    [GpuiEvent]
+    private void Increment()
+    {
+        _localCount++;
+        Invalidate();
+    }
+
+    protected override Element Render(ref RenderContext ui)
+    {
+        var dragRegion = ui.HStack(
+                ui.Div().Width(Px(OperatingSystem.IsMacOS() ? 64 : 0)),
+                ui.Text($"GPUI.NET  /  Custom window {Window?.Id ?? 0}")
+                    .FontSize(Px(13))
+                    .TextColor(Rgb(226, 232, 240)),
+                ui.Spacer()
+            )
+            .ItemsCenter()
+            .Padding(Px(9))
+            .Grow()
+            .Height(Percent(100))
+            .WindowControlArea(WindowControlArea.Drag);
+
+        var titleBar = OperatingSystem.IsMacOS()
+            ? ui.HStack(dragRegion)
+            : ui.HStack(
+                dragRegion,
+                TitleBarButton(
+                    ref ui,
+                    "titlebar-minimize"u8,
+                    "—"u8,
+                    WindowControlArea.Minimize,
+                    44
+                ),
+                TitleBarButton(
+                    ref ui,
+                    "titlebar-maximize"u8,
+                    "□"u8,
+                    WindowControlArea.Maximize,
+                    44
+                ),
+                TitleBarButton(
+                    ref ui,
+                    "titlebar-close"u8,
+                    "×"u8,
+                    WindowControlArea.Close,
+                    48
+                )
+            );
+        titleBar = titleBar
+            .Height(Px(38))
+            .Width(Percent(100))
+            .Background(Rgb(15, 23, 42));
+
+        var content = ui.VStack(
+                ui.Text("Managed visuals, native window behavior"u8)
+                    .FontSize(Px(24))
+                    .TextColor(Rgb(15, 23, 42)),
+                ui.Text(
+                        "Drag the dark header, double-click it to maximize, or use its native caption regions. No pointer motion crosses into .NET."u8
+                    )
+                    .FontSize(Px(13))
+                    .TextColor(Rgb(71, 85, 105)),
+                ui.VStack(
+                        ui.Text($"Local content state: {_localCount:N0}")
+                            .FontSize(Px(20))
+                            .TextColor(Rgb(79, 70, 229)),
+                        ui.Button("custom-titlebar-increment", "Increment content")
+                            .OnClick(Events.Increment)
+                            .Padding(Px(10))
+                            .Background(Rgb(238, 242, 255))
+                            .BorderColor(Rgb(165, 180, 252))
+                    )
+                    .Gap(Px(12))
+                    .Padding(Px(20))
+                    .Background(Rgb(255, 255, 255))
+                    .BorderWidth(Px(1))
+                    .BorderColor(Rgb(226, 232, 240))
+                    .Radius(Px(12))
+            )
+            .Gap(Px(18))
+            .Padding(Px(28))
+            .Grow();
+
+        return ui.VStack(titleBar, content)
+            .Width(Percent(100))
+            .Height(Percent(100))
+            .Background(Rgb(241, 245, 249));
+    }
+
+    private static Element TitleBarButton(
+        ref RenderContext ui,
+        ReadOnlySpan<byte> id,
+        ReadOnlySpan<byte> label,
+        WindowControlArea area,
+        float width
+    ) =>
+        ui.Button(id, label)
+            .WindowControlArea(area)
+            .Width(Px(width))
+            .Height(Percent(100))
+            .ItemsCenter()
+            .JustifyCenter()
+            .Background(Rgb(15, 23, 42))
+            .BorderColor(Rgb(15, 23, 42))
+            .TextColor(Rgb(248, 250, 252));
 }
 
 [GpuiView]

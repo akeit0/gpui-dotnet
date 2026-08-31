@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 12,
+  "schemaVersion": 13,
   "capabilities": [
     "styled",
     "parent",
@@ -12,7 +12,8 @@
     "image",
     "input",
     "overlay",
-    "tooltip"
+    "tooltip",
+    "window_control"
   ],
   "components": [
     {
@@ -26,7 +27,8 @@
       "capabilities": [
         "styled",
         "parent",
-        "layout"
+        "layout",
+        "window_control"
       ],
       "nativeAdapter": "div"
     },
@@ -54,7 +56,8 @@
       "capabilities": [
         "styled",
         "parent",
-        "interactive"
+        "interactive",
+        "window_control"
       ],
       "nativeAdapter": "button"
     },
@@ -376,6 +379,14 @@
       "value": "callback",
       "requires": "interactive",
       "managedApi": "click"
+    },
+    {
+      "id": 201,
+      "name": "window_control_area",
+      "csharp": "WindowControlArea",
+      "value": "u32",
+      "requires": "window_control",
+      "managedApi": null
     },
     {
       "id": 300,

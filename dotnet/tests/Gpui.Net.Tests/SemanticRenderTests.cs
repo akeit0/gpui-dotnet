@@ -50,6 +50,25 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void WindowControlAreasPassManagedValidation()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var root = ui.HStack(
+                ui.Text("Custom title bar"u8),
+                ui.Button("minimize"u8, "—"u8)
+                    .WindowControlArea(WindowControlArea.Minimize),
+                ui.Button("close"u8, "×"u8).WindowControlArea(WindowControlArea.Close)
+            )
+            .WindowControlArea(WindowControlArea.Drag);
+
+        arena.Validate(root);
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            root.WindowControlArea((WindowControlArea)99)
+        );
+    }
+
+    [Fact]
     public void Utf8InputConfigurationPassesManagedValidation()
     {
         var view = new ProbeView();

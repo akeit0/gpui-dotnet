@@ -19,12 +19,13 @@ Do not expose GPUI's uniform/variable implementation split directly unless it pr
 
 ## 2. Multi-window application refinement — foundation complete
 
-`GpuiApplication` now owns one native event loop and multiple independent `GpuiWindow` sessions. Windows have stable IDs, per-window View/resource namespaces, deterministic mount/unmount, isolated failures, thread-safe open/close/activate/title/resize commands, and final-window shutdown. `GpuiApplication.Run(view, options)` remains a one-window convenience.
+`GpuiApplication` now owns one native event loop and multiple independent `GpuiWindow` sessions. Windows have stable IDs, per-window View/resource namespaces, deterministic mount/unmount, isolated failures, thread-safe open/close/activate/title/resize commands, system/custom/hidden title bars with native caption hit testing, and final-window shutdown. `GpuiApplication.Run(view, options)` remains a one-window convenience.
 
 Continue only where applications demonstrate need:
 
 - managed application/window-opened/window-closed events;
-- minimum size, maximized/fullscreen, decorations, and persistence options;
+- minimum/maximum size, initial maximized/fullscreen state, and bounds persistence;
+- platform verification and accessibility semantics for custom title-bar controls;
 - shared application services that do not leak GPUI types into C#;
 - runtime repositioning if GPUI exposes a durable cross-platform operation;
 - integration tests on every supported desktop platform.

@@ -44,6 +44,7 @@ namespace Gpui.Interop
         TextRgba = 111,
         FontSizePx = 112,
         OnClick = 200,
+        WindowControlArea = 201,
         ResourceOwner = 300,
         ScrollAxis = 301,
         SmoothScroll = 302,
@@ -90,8 +91,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 12;
-        internal const ulong SchemaHash = 0x920C821394FBE3D4UL;
+        internal const uint SchemaVersion = 13;
+        internal const ulong SchemaHash = 0x696851575D1BF2C5UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -134,6 +135,7 @@ namespace Gpui.Interop
             OpCode.TextRgba => ValueKind.U32,
             OpCode.FontSizePx => ValueKind.F32,
             OpCode.OnClick => ValueKind.Callback,
+            OpCode.WindowControlArea => ValueKind.U32,
             OpCode.ResourceOwner => ValueKind.U32,
             OpCode.ScrollAxis => ValueKind.U32,
             OpCode.SmoothScroll => ValueKind.U32,
@@ -172,9 +174,9 @@ namespace Gpui.Interop
 
         private static ulong Capabilities(ComponentId component) => component switch
         {
-            ComponentId.Div => 0x0000000000000007UL,
+            ComponentId.Div => 0x0000000000001007UL,
             ComponentId.Text => 0x0000000000000001UL,
-            ComponentId.Button => 0x000000000000000BUL,
+            ComponentId.Button => 0x000000000000100BUL,
             ComponentId.Checkbox => 0x000000000000001BUL,
             ComponentId.Radio => 0x000000000000001BUL,
             ComponentId.Badge => 0x0000000000000003UL,
@@ -211,6 +213,7 @@ namespace Gpui.Interop
             OpCode.TextRgba => 0x0000000000000001UL,
             OpCode.FontSizePx => 0x0000000000000001UL,
             OpCode.OnClick => 0x0000000000000008UL,
+            OpCode.WindowControlArea => 0x0000000000001000UL,
             OpCode.ResourceOwner => 0x0000000000000020UL,
             OpCode.ScrollAxis => 0x0000000000000040UL,
             OpCode.SmoothScroll => 0x0000000000000020UL,
@@ -269,10 +272,11 @@ namespace Gpui
     public interface IInputElementTag { }
     public interface IOverlayElementTag { }
     public interface ITooltipElementTag { }
+    public interface IWindowControlElementTag { }
 
-    public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag { }
+    public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
-    public readonly struct ButtonTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag { }
+    public readonly struct ButtonTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, IWindowControlElementTag { }
     public readonly struct CheckboxTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag { }
     public readonly struct RadioTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag { }
     public readonly struct BadgeTag : IStyledElementTag, IParentElementTag { }
