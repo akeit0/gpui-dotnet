@@ -9,7 +9,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 async-channel = "2"
-gpui = "0.2.2"
+# crates.io 0.2.2 predates the Windows IME fix in Zed PR #41259.
+# Return to a crates.io version after that fix is included in a release.
+gpui = { git = "https://github.com/zed-industries/zed", rev = "2ead8c42fb6792095d7cb02f7b89e467421dc8a0" }
 unicode-segmentation = "1.13.3"
 
 [build-dependencies]

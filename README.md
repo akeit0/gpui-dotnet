@@ -199,6 +199,8 @@ protected override Element Render(ref RenderContext ui) =>
 
 Events are opt-in: `OnChanged`, `OnSubmitted`, and `OnFocusChanged`. Without them, native edits do not cross into managed code. `InputController` provides `Focus`, `Blur`, `SelectAll`, and `SetValue`; the initial value is consumed only when the keyed native resource is first created.
 
+On Windows, focused inputs use the active system IME, including composition text and hardware language-mode keys such as Japanese Hankaku/Zenkaku. The native dependency is pinned to the official Zed commit for [PR #41259](https://github.com/zed-industries/zed/pull/41259), which routes IME-owned keys through the standard Win32 message translation flow. Applications do not need to toggle the IME themselves.
+
 ## Overlays
 
 `ui.Overlay` paints ordinary semantic content in a deferred, window-relative layer. The default is a centered modal with a dim backdrop, 16-pixel viewport margin, backdrop dismissal, and Escape dismissal:
