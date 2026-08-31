@@ -93,9 +93,9 @@ ContextMenu keys use the owning View namespace and ContextMenu is disallowed ins
 
 `ui.PopoverMenu(key, trigger, content, options)` is the left-click, trigger-attached counterpart to ContextMenu. Rust measures the first child during prepaint and positions the second child below its leading edge in a deferred layer. GPUI's anchored element snaps the menu to the configured viewport margin.
 
-Pointer-down on the trigger opens the menu and transfers focus into it. Selection, Escape, or pointer-down outside the content closes it and restores prior focus. An outside pointer-down continues to its underlying target; pressing the same trigger is intercepted so it closes instead of immediately reopening. Menu visuals and item actions remain ordinary managed elements. `PopoverMenuOptions` configures priority and margin.
+Pointer-down on the trigger opens the menu and transfers focus into it. While one menu is open, hovering another PopoverMenu in the same View transfers the active menu without another click and preserves the original focus-restoration target. Selection, Escape, or pointer-down outside the content closes it and restores prior focus. An outside pointer-down continues to its underlying target; pressing the same trigger is intercepted so it closes instead of immediately reopening. Menu visuals and item actions remain ordinary managed elements. `PopoverMenuOptions` configures priority and margin.
 
-PopoverMenu keys are scoped by the owning View and the component is disallowed inside cached List rows. Native keyboard item navigation, disabled/check/radio item roles, and hover switching across a menu bar remain higher-level menu behavior.
+PopoverMenu keys are scoped by the owning View and the component is disallowed inside cached List rows. Native keyboard item navigation and disabled/check/radio item roles remain higher-level menu behavior.
 
 ## List
 

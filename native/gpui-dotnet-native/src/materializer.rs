@@ -469,7 +469,16 @@ impl ManagedView {
                 .map_or(8.0, |op| f32::from_bits(op.a as u32)),
         };
         let host = apply_styles(div(), node, snapshot);
-        popover_menu(key, host, trigger, content, configuration, window, cx)
+        popover_menu(
+            key,
+            host,
+            trigger,
+            content,
+            configuration,
+            self.popover_menus.clone(),
+            window,
+            cx,
+        )
     }
 }
 
@@ -739,7 +748,11 @@ fn apply_window_control_area(
     let element = if area == WindowControlArea::Drag {
         element
     } else {
-        element.font_family(windows_caption_font())
+        element
+            .flex()
+            .items_center()
+            .justify_center()
+            .font_family(windows_caption_font())
     };
     element.window_control_area(area)
 }

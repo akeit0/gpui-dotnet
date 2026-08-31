@@ -1,10 +1,13 @@
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use gpui::{
     AnyElement, App, Bounds, Context, Display, Element, ElementId, Entity, FocusHandle,
     GlobalElementId, InspectorElementId, InteractiveElement, IntoElement, KeyDownEvent, LayoutId,
-    MouseButton, MouseDownEvent, ParentElement, Pixels, Position, Size, Style, Styled,
-    WeakFocusHandle, Window, canvas, deferred, div, point, px,
+    MouseButton, MouseDownEvent, ParentElement, Pixels, Position, Size, StatefulInteractiveElement,
+    Style, Styled, WeakEntity, WeakFocusHandle, Window, canvas, deferred, div, point, px,
 };
 
 use crate::{app_host::ManagedView, resources::ResourceKey};
@@ -21,6 +24,37 @@ struct PopoverMenuState {
     previous_focus: Option<WeakFocusHandle>,
 }
 
+#[derive(Default)]
+pub(crate) struct PopoverMenuGroup {
+    active: RefCell<Option<WeakEntity<PopoverMenuState>>>,
+}
+
+impl PopoverMenuGroup {
+    fn active(&self) -> Option<Entity<PopoverMenuState>> {
+        self.active.borrow().as_ref().and_then(WeakEntity::upgrade)
+    }
+
+    fn has_open_menu(&self, cx: &App) -> bool {
+        self.active().is_some_and(|state| state.read(cx).visible)
+    }
+
+    fn set_active(&self, state: &Entity<PopoverMenuState>) {
+        self.active.replace(Some(state.downgrade()));
+    }
+
+    fn clear_if_active(&self, state: &Entity<PopoverMenuState>) -> bool {
+        let is_active = self
+            .active
+            .borrow()
+            .as_ref()
+            .is_some_and(|active| active == state);
+        if is_active {
+            self.active.replace(None);
+        }
+        is_active
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn popover_menu(
     key: ResourceKey,
@@ -28,6 +62,7 @@ pub(crate) fn popover_menu(
     trigger: AnyElement,
     content: AnyElement,
     configuration: PopoverMenuConfiguration,
+    group: Rc<PopoverMenuGroup>,
     window: &mut Window,
     cx: &mut Context<ManagedView>,
 ) -> AnyElement {
@@ -52,27 +87,29 @@ pub(crate) fn popover_menu(
 
     let open_state = state.clone();
     let open_focus = state.read(cx).focus.clone();
+    let hover_state = state.clone();
+    let hover_focus = open_focus.clone();
+    let hover_group = group.clone();
+    let open_group = group.clone();
     let mut host = host
         .relative()
         .flex()
         .flex_none()
         .id((menu_id.clone(), "trigger"))
+        .on_hover(move |hovered, window, cx| {
+            if *hovered && !hover_state.read(cx).visible && hover_group.has_open_menu(cx) {
+                open_popover_menu(&hover_state, &hover_focus, &hover_group, window, cx);
+            }
+        })
         .on_mouse_down(MouseButton::Left, move |_: &MouseDownEvent, window, cx| {
             cx.stop_propagation();
             window.prevent_default();
             if open_state.read(cx).visible {
-                close_popover_menu(&open_state, window, cx);
+                close_popover_menu(&open_state, &open_group, window, cx);
                 return;
             }
 
-            let previous_focus = window.focused(cx).map(|focus| focus.downgrade());
-            open_state.update(cx, |state, cx| {
-                state.visible = true;
-                state.previous_focus = previous_focus;
-                cx.notify();
-            });
-            open_focus.focus(window);
-            window.refresh();
+            open_popover_menu(&open_state, &open_focus, &open_group, window, cx);
         })
         .child(trigger)
         .child(measurement);
@@ -83,30 +120,33 @@ pub(crate) fn popover_menu(
 
     let focus = state.read(cx).focus.clone();
     let outside_state = state.clone();
+    let outside_group = group.clone();
     let outside_trigger_bounds = trigger_bounds.clone();
     let selected_state = state.clone();
+    let selected_group = group.clone();
     let escape_state = state.clone();
+    let escape_group = group;
     let content = div()
         .id((menu_id, "content"))
         .occlude()
         .track_focus(&focus)
         .on_mouse_down_out(move |event: &MouseDownEvent, window, cx| {
             let trigger_pressed = outside_trigger_bounds.get().contains(&event.position);
-            close_popover_menu(&outside_state, window, cx);
+            close_popover_menu(&outside_state, &outside_group, window, cx);
             if trigger_pressed {
                 cx.stop_propagation();
                 window.prevent_default();
             }
         })
         .on_mouse_up(MouseButton::Left, move |_, window, cx| {
-            close_popover_menu(&selected_state, window, cx);
+            close_popover_menu(&selected_state, &selected_group, window, cx);
         })
         .on_key_down(move |event: &KeyDownEvent, window, cx| {
             if event.keystroke.key != "escape" {
                 return;
             }
             cx.stop_propagation();
-            close_popover_menu(&escape_state, window, cx);
+            close_popover_menu(&escape_state, &escape_group, window, cx);
         })
         .child(content);
     let menu =
@@ -115,7 +155,46 @@ pub(crate) fn popover_menu(
     host.into_any_element()
 }
 
-fn close_popover_menu(state: &Entity<PopoverMenuState>, window: &mut Window, cx: &mut App) {
+fn open_popover_menu(
+    state: &Entity<PopoverMenuState>,
+    focus: &FocusHandle,
+    group: &PopoverMenuGroup,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let active = group.active();
+    let transferring = active.as_ref().is_some_and(|active| active != state);
+    let previous_focus = if let Some(active) = active.filter(|active| active != state) {
+        active.update(cx, |active, cx| {
+            active.visible = false;
+            cx.notify();
+            active.previous_focus.take()
+        })
+    } else {
+        None
+    };
+    let previous_focus = if transferring {
+        previous_focus
+    } else {
+        window.focused(cx).map(|focus| focus.downgrade())
+    };
+
+    state.update(cx, |state, cx| {
+        state.visible = true;
+        state.previous_focus = previous_focus;
+        cx.notify();
+    });
+    group.set_active(state);
+    focus.focus(window);
+    window.refresh();
+}
+
+fn close_popover_menu(
+    state: &Entity<PopoverMenuState>,
+    group: &PopoverMenuGroup,
+    window: &mut Window,
+    cx: &mut App,
+) {
     let (changed, previous_focus) = state.update(cx, |state, cx| {
         if !state.visible {
             return (false, None);
@@ -125,6 +204,10 @@ fn close_popover_menu(state: &Entity<PopoverMenuState>, window: &mut Window, cx:
         (true, state.previous_focus.take())
     });
     if !changed {
+        return;
+    }
+    if !group.clear_if_active(state) {
+        window.refresh();
         return;
     }
     if let Some(previous_focus) = previous_focus.and_then(|focus| focus.upgrade()) {

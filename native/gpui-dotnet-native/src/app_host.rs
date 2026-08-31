@@ -18,6 +18,7 @@ use gpui::{
 use crate::{
     abi::ManagedCallbacks,
     arena::OwnedRenderArena,
+    popover_menu::PopoverMenuGroup,
     resources::{ResourceCommand, ResourceStore},
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
 };
@@ -34,6 +35,7 @@ pub(crate) struct ManagedView {
     dirty: bool,
     pub(crate) error: Option<String>,
     pub(crate) resources: Rc<ResourceStore>,
+    pub(crate) popover_menus: Rc<PopoverMenuGroup>,
 }
 
 enum ViewMessage {
@@ -230,6 +232,7 @@ impl ManagedView {
             dirty: true,
             error: None,
             resources: Rc::new(ResourceStore::new(view_id, callbacks)),
+            popover_menus: Rc::new(PopoverMenuGroup::default()),
         }
     }
 
