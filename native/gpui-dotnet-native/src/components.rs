@@ -38,7 +38,8 @@ pub(crate) fn apply_defaults(
         | NativeAdapter::Input
         | NativeAdapter::Overlay
         | NativeAdapter::Tooltip
-        | NativeAdapter::ContextMenu => element,
+        | NativeAdapter::ContextMenu
+        | NativeAdapter::PopoverMenu => element,
     }
 }
 

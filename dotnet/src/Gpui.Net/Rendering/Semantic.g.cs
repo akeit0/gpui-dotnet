@@ -21,6 +21,7 @@ namespace Gpui.Interop
         Overlay = 13,
         Tooltip = 14,
         ContextMenu = 15,
+        PopoverMenu = 16,
     }
 
     internal enum OpCode : ushort
@@ -82,6 +83,8 @@ namespace Gpui.Interop
         TooltipMarginPx = 615,
         ContextMenuPriority = 620,
         ContextMenuMarginPx = 621,
+        PopoverMenuPriority = 630,
+        PopoverMenuMarginPx = 631,
     }
 
     internal enum ValueKind : ushort
@@ -95,8 +98,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 15;
-        internal const ulong SchemaHash = 0x40CC2B99AD0A4ED2UL;
+        internal const uint SchemaVersion = 16;
+        internal const ulong SchemaHash = 0x66378CABCEE9092CUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -115,6 +118,7 @@ namespace Gpui.Interop
             ComponentId.Overlay => true,
             ComponentId.Tooltip => true,
             ComponentId.ContextMenu => true,
+            ComponentId.PopoverMenu => true,
             _ => false,
         };
 
@@ -177,6 +181,8 @@ namespace Gpui.Interop
             OpCode.TooltipMarginPx => ValueKind.F32,
             OpCode.ContextMenuPriority => ValueKind.U32,
             OpCode.ContextMenuMarginPx => ValueKind.F32,
+            OpCode.PopoverMenuPriority => ValueKind.U32,
+            OpCode.PopoverMenuMarginPx => ValueKind.F32,
             _ => null,
         };
 
@@ -197,6 +203,7 @@ namespace Gpui.Interop
             ComponentId.Overlay => 0x0000000000000422UL,
             ComponentId.Tooltip => 0x0000000000000822UL,
             ComponentId.ContextMenu => 0x0000000000002023UL,
+            ComponentId.PopoverMenu => 0x0000000000004023UL,
             _ => 0,
         };
 
@@ -259,6 +266,8 @@ namespace Gpui.Interop
             OpCode.TooltipMarginPx => 0x0000000000000800UL,
             OpCode.ContextMenuPriority => 0x0000000000002000UL,
             OpCode.ContextMenuMarginPx => 0x0000000000002000UL,
+            OpCode.PopoverMenuPriority => 0x0000000000004000UL,
+            OpCode.PopoverMenuMarginPx => 0x0000000000004000UL,
             _ => 0,
         };
 
@@ -286,6 +295,7 @@ namespace Gpui
     public interface ITooltipElementTag { }
     public interface IWindowControlElementTag { }
     public interface IContextMenuElementTag { }
+    public interface IPopoverMenuElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
@@ -302,6 +312,7 @@ namespace Gpui
     public readonly struct OverlayTag : IParentElementTag, INativeStateElementTag, IOverlayElementTag { }
     public readonly struct TooltipTag : IParentElementTag, INativeStateElementTag, ITooltipElementTag { }
     public readonly struct ContextMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IContextMenuElementTag { }
+    public readonly struct PopoverMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IPopoverMenuElementTag { }
 
     public readonly unsafe ref partial struct RenderContext
     {

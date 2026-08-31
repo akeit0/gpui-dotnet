@@ -284,6 +284,50 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public unsafe void Utf8PopoverMenuConfigurationPassesManagedValidation()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var menu = ui.PopoverMenu(
+                "file-menu"u8,
+                ui.Button("file-trigger"u8, "File"u8),
+                ui.VStack(
+                    ui.Button("new-window"u8, "New window"u8),
+                    ui.Button("close-window"u8, "Close window"u8)
+                ),
+                new PopoverMenuOptions(priority: 325, margin: 10)
+            );
+
+            arena.Validate(menu);
+
+            var stats = arena.GetStats();
+            Assert.Equal(8, stats.Nodes);
+            Assert.Equal(7, stats.Children);
+            Assert.Equal(4, stats.Ops);
+
+            arena.NativeArena->ChildLength--;
+            Assert.Throws<InvalidOperationException>(() => arena.Validate(menu));
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void PopoverMenuOptionsRejectInvalidMargin()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new PopoverMenuOptions(margin: -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new PopoverMenuOptions(margin: float.NaN)
+        );
+    }
+
+    [Fact]
     public void ExplicitListDatasourcePassesManagedValidation()
     {
         var view = new ProbeView();

@@ -19,7 +19,7 @@ const gpui_dotnet_api_v5* gpui_dotnet_get_api(uint32_t requested_version);
 - `dispatch_command`;
 - `dispatch_application_command`.
 
-The current schema hash is `0x40CC2B99AD0A4ED2`.
+The current schema hash is `0x66378CABCEE9092C`.
 
 ## Managed callbacks
 
@@ -189,6 +189,10 @@ Semantic component `ContextMenu` (`15`) is keyed and requires exactly two childr
 Rust owns right-button interception, pointer anchoring, viewport snapping, focus entry/restoration, a transparent full-window input backdrop, and dismissal. Right mouse-down on the trigger stops propagation and suppresses the platform default before opening. Outside left/right press and Escape close immediately. A left mouse-up inside content closes after the target's normal click sequence, so managed `OnClick` actions run before the menu disappears. Menu presentation and actions remain ordinary managed semantic elements.
 
 ContextMenu state is scoped by `(window session, managed View handle, local UTF-8 key)`. It is rejected in virtualized List row snapshots, which do not have a mounted View lifetime.
+
+Semantic component `PopoverMenu` (`16`) is keyed and requires exactly two children: a normal-layout trigger followed by deferred menu content. `PopoverMenuPriority` (`630`, `U32`) and `PopoverMenuMarginPx` (`631`, finite non-negative `F32`) configure its native layer; defaults are priority 300 and an 8-pixel viewport margin.
+
+The native adapter measures the trigger, opens on left pointer-down, attaches content below the trigger's leading edge, snaps it inside the viewport, and owns selection/outside/Escape dismissal plus focus restoration. PopoverMenu uses the owning View namespace and is rejected in virtualized List rows.
 
 `HoverBackgroundRgba` (`113`, canonical `U32`) applies only to interactive components and changes their native hover fill without callbacks. It is independent from ContextMenu and is used by custom caption controls and ordinary application buttons.
 

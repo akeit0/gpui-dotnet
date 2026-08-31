@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 15,
+  "schemaVersion": 16,
   "capabilities": [
     "styled",
     "parent",
@@ -14,7 +14,8 @@
     "overlay",
     "tooltip",
     "window_control",
-    "context_menu"
+    "context_menu",
+    "popover_menu"
   ],
   "components": [
     {
@@ -240,6 +241,22 @@
         "context_menu"
       ],
       "nativeAdapter": "context_menu"
+    },
+    {
+      "id": 16,
+      "name": "popover_menu",
+      "csharp": "PopoverMenu",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "parent",
+        "native_state",
+        "popover_menu"
+      ],
+      "nativeAdapter": "popover_menu"
     }
   ],
   "operations": [
@@ -691,6 +708,22 @@
       "csharp": "ContextMenuMarginPx",
       "value": "f32",
       "requires": "context_menu",
+      "managedApi": null
+    },
+    {
+      "id": 630,
+      "name": "popover_menu_priority",
+      "csharp": "PopoverMenuPriority",
+      "value": "u32",
+      "requires": "popover_menu",
+      "managedApi": null
+    },
+    {
+      "id": 631,
+      "name": "popover_menu_margin_px",
+      "csharp": "PopoverMenuMarginPx",
+      "value": "f32",
+      "requires": "popover_menu",
       "managedApi": null
     }
   ]

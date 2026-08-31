@@ -20,7 +20,7 @@ GPUI.NET deliberately does not mirror GPUI's Rust API one-to-one.
 - semantic component materialization;
 - `ScrollHandle` and `ListState`;
 - retained `ManagedInput` entities and GPUI input handlers;
-- deferred Overlay/Tooltip/ContextMenu stacking, viewport placement, input interception, timing, and dismissal;
+- deferred Overlay/Tooltip/ContextMenu/PopoverMenu stacking, viewport placement, input interception, timing, and dismissal;
 - title-bar presentation and native window drag/minimize/maximize/close hit testing;
 - virtual-list viewport/measurement state and row batch cache;
 - high-frequency wheel/trackpad/scrollbar behavior.
@@ -47,7 +47,7 @@ Each window has a separate `ManagedSession`, View-handle allocator, render snaps
 - pointer, keyboard, focus, accessibility, overlay, virtualization, and reduced-motion behavior are part of a component contract;
 - one retained handle represents one logical viewport or control instance.
 
-These principles guide Scroll/List/Image/Input/Overlay/Tooltip/ContextMenu today and future editor, select, popover, dialog, tree, table, and notification work. GPUI.NET does not directly depend on `gpui-component`/`gpui-base`: those crates must use the exact same GPUI revision as their consumer. This repository pins GPUI to the official Zed merge commit for [PR #41259](https://github.com/zed-industries/zed/pull/41259), allowing system IME keys and composition to follow normal Win32 translation without carrying a framework fork. Concepts are adapted behind GPUI.NET's semantic ABI instead. Attribution is recorded in the root [NOTICE](../NOTICE).
+These principles guide Scroll/List/Image/Input/Overlay/Tooltip/ContextMenu/PopoverMenu today and future editor, select, dialog, tree, table, and notification work. GPUI.NET does not directly depend on `gpui-component`/`gpui-base`: those crates must use the exact same GPUI revision as their consumer. This repository pins GPUI to the official Zed merge commit for [PR #41259](https://github.com/zed-industries/zed/pull/41259), allowing system IME keys and composition to follow normal Win32 translation without carrying a framework fork. Concepts are adapted behind GPUI.NET's semantic ABI instead. Attribution is recorded in the root [NOTICE](../NOTICE).
 
 ## Three planes
 
@@ -63,7 +63,7 @@ Some UI state must survive independently of a managed render snapshot. A resourc
 (window session, managed View handle, local string key, resource kind)
 ```
 
-The render snapshot declares that a resource is active. Imperative controllers send commands through the ABI; wheel/trackpad operations remain native. Each native window owns a separate resource store, so equal View handles and keys in different windows cannot collide. Overlay, Tooltip, and ContextMenu are keyed snapshot components rather than retained resources: native keyed state holds focus entry/restoration, hover timing, or menu visibility/position while each component remains in consecutive snapshots.
+The render snapshot declares that a resource is active. Imperative controllers send commands through the ABI; wheel/trackpad operations remain native. Each native window owns a separate resource store, so equal View handles and keys in different windows cannot collide. Overlay, Tooltip, ContextMenu, and PopoverMenu are keyed snapshot components rather than retained resources: native keyed state holds focus entry/restoration, hover timing, or menu visibility/position while each component remains in consecutive snapshots.
 
 Current retained resources:
 
@@ -106,7 +106,7 @@ A `[GpuiListItem]` renderer produces an Element subtree in a list-owned arena. I
 - retained `ui.Scroll()`;
 - nested retained `ui.List()`;
 - retained `ui.Input()`;
-- window-level `ui.Overlay()`, `ui.Tooltip()`, and `ui.ContextMenu()`.
+- window-level `ui.Overlay()`, `ui.Tooltip()`, `ui.ContextMenu()`, and `ui.PopoverMenu()`.
 
 This avoids coupling item cache eviction to managed View mount/unmount rules. Interactive row elements remain valid because event tokens target the owning View, and GPUI element IDs are namespaced by list identity + item index.
 

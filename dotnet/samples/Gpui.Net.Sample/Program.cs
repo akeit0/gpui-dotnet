@@ -189,10 +189,107 @@ internal sealed partial class SampleShellView : View
             .Width(Percent(100))
             .Grow()
             .Background(Rgb(241, 245, 249));
-        return ui.VStack(SampleTitleBar.Render(ref ui, "GPUI.NET  /  Components"u8), gallery)
+        var menuBar = RenderMenuBar(ref ui);
+        return ui.VStack(
+                SampleTitleBar.Render(ref ui, "GPUI.NET  /  Components"u8, menuBar),
+                gallery
+            )
             .Width(Percent(100))
             .Height(Percent(100));
     }
+
+    private Element RenderMenuBar(ref RenderContext ui)
+    {
+        var fileMenu = ui.PopoverMenu(
+            "titlebar-file-menu"u8,
+            TitleBarMenuTrigger(ref ui, "titlebar-file"u8, "File"u8),
+            MenuSurface(
+                ref ui,
+                MenuItem(ref ui, "menu-new-window"u8, "New window"u8, Events.OpenNewWindow),
+                MenuItem(
+                    ref ui,
+                    "menu-custom-window"u8,
+                    "New custom-title-bar window"u8,
+                    Events.OpenCustomTitleBarWindow
+                ),
+                ui.Divider(),
+                MenuItem(ref ui, "menu-close-window"u8, "Close window"u8, Events.CloseWindow)
+            )
+        );
+        var viewMenu = ui.PopoverMenu(
+            "titlebar-view-menu"u8,
+            TitleBarMenuTrigger(ref ui, "titlebar-view"u8, "View"u8),
+            MenuSurface(
+                ref ui,
+                MenuItem(ref ui, "menu-overview"u8, "Scroll view"u8, Events.ShowOverview),
+                MenuItem(ref ui, "menu-activity"u8, "Virtual list"u8, Events.ShowActivity),
+                MenuItem(ref ui, "menu-images"u8, "Images"u8, Events.ShowImages),
+                MenuItem(ref ui, "menu-inputs"u8, "Inputs"u8, Events.ShowInputs),
+                MenuItem(ref ui, "menu-overlays"u8, "Overlays + tooltips"u8, Events.ShowOverlays),
+                MenuItem(ref ui, "menu-windows"u8, "Windows"u8, Events.ShowWindows)
+            )
+        );
+        var helpMenu = ui.PopoverMenu(
+            "titlebar-help-menu"u8,
+            TitleBarMenuTrigger(ref ui, "titlebar-help"u8, "Help"u8),
+            MenuSurface(
+                ref ui,
+                MenuItem(ref ui, "menu-about"u8, "About GPUI.NET"u8, Events.ShowOverview),
+                MenuItem(
+                    ref ui,
+                    "menu-overlay-guide"u8,
+                    "Open overlay gallery"u8,
+                    Events.ShowOverlays
+                )
+            )
+        );
+
+        return ui.HStack(fileMenu, viewMenu, helpMenu)
+            .Height(Percent(100))
+            .ItemsCenter();
+    }
+
+    private static Element TitleBarMenuTrigger(
+        ref RenderContext ui,
+        ReadOnlySpan<byte> id,
+        ReadOnlySpan<byte> label
+    ) =>
+        ui.Button(id, label)
+            .Height(Percent(100))
+            .Padding(Px(9))
+            .FontSize(Px(12))
+            .Background(Rgb(15, 23, 42))
+            .HoverBackground(Rgb(30, 41, 59))
+            .BorderWidth(Px(0))
+            .Radius(Px(0))
+            .TextColor(Rgb(226, 232, 240));
+
+    private static Element MenuSurface(ref RenderContext ui, params ReadOnlySpan<Element> items) =>
+        ui.VStack(items)
+            .Gap(Px(2))
+            .Padding(Px(6))
+            .Width(Px(224))
+            .Background(Rgb(255, 255, 255))
+            .BorderWidth(Px(1))
+            .BorderColor(Rgb(203, 213, 225))
+            .Radius(Px(7));
+
+    private static Element MenuItem(
+        ref RenderContext ui,
+        ReadOnlySpan<byte> id,
+        ReadOnlySpan<byte> label,
+        Callback<ClickEvent> callback
+    ) =>
+        ui.Button(id, label)
+            .OnClick(callback)
+            .Width(Percent(100))
+            .Padding(Px(8))
+            .FontSize(Px(12))
+            .Background(Rgb(255, 255, 255))
+            .HoverBackground(Rgb(241, 245, 249))
+            .BorderWidth(Px(0))
+            .Radius(Px(4))
+            .TextColor(Rgb(15, 23, 42));
 
     private Element RenderSidebar(ref RenderContext ui)
     {
@@ -355,7 +452,7 @@ internal sealed partial class CustomTitleBarWindowView : View
                     .FontSize(Px(24))
                     .TextColor(Rgb(15, 23, 42)),
                 ui.Text(
-                        "Drag or double-click the dark header; right-click it for the operating system window menu. Pointer motion stays in GPUI."u8
+                        "Drag or double-click the dark header. Pointer motion stays in GPUI."u8
                     )
                     .FontSize(Px(13))
                     .TextColor(Rgb(71, 85, 105)),
@@ -392,34 +489,55 @@ internal static class SampleTitleBar
     internal static Element Render(ref RenderContext ui, ReadOnlySpan<byte> utf8Title) =>
         Render(
             ref ui,
-            ui.Text(utf8Title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240))
+            ui.Text(utf8Title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)),
+            null
+        );
+
+    internal static Element Render(
+        ref RenderContext ui,
+        ReadOnlySpan<byte> utf8Title,
+        Element menuBar
+    ) =>
+        Render(
+            ref ui,
+            ui.Text(utf8Title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)),
+            menuBar
         );
 
     internal static Element Render(ref RenderContext ui, ReadOnlySpan<char> title) =>
-        Render(ref ui, ui.Text(title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)));
+        Render(
+            ref ui,
+            ui.Text(title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)),
+            null
+        );
 
-    private static Element Render(ref RenderContext ui, Element title)
+    private static Element Render(ref RenderContext ui, Element title, Element? menuBar)
     {
         var windowsCaptionGlyphs = OperatingSystem.IsWindows();
         ReadOnlySpan<byte> minimizeGlyph = windowsCaptionGlyphs ? "\uE921"u8 : "−"u8;
         ReadOnlySpan<byte> maximizeGlyph = windowsCaptionGlyphs ? "\uE922"u8 : "□"u8;
         ReadOnlySpan<byte> closeGlyph = windowsCaptionGlyphs ? "\uE8BB"u8 : "×"u8;
         var glyphSize = windowsCaptionGlyphs ? 10 : 15;
-        var dragRegion = ui.HStack(
+        var titleRegion = ui.HStack(
                 ui.Div().Width(Px(OperatingSystem.IsMacOS() ? 64 : 0)),
-                title,
-                ui.Spacer()
+                title
             )
             .ItemsCenter()
             .Padding(Px(9))
+            .Height(Percent(100))
+            .WindowControlArea(WindowControlArea.Drag);
+        var trailingDragRegion = ui.Div()
             .Grow()
             .Height(Percent(100))
             .WindowControlArea(WindowControlArea.Drag);
+        var dragAndMenus = menuBar.HasValue
+            ? ui.HStack(titleRegion, menuBar.Value, trailingDragRegion).Grow()
+            : ui.HStack(titleRegion, trailingDragRegion).Grow();
 
         var titleBar = OperatingSystem.IsMacOS()
-            ? ui.HStack(dragRegion)
+            ? ui.HStack(dragAndMenus)
             : ui.HStack(
-                dragRegion,
+                dragAndMenus,
                 Button(
                     ref ui,
                     "titlebar-minimize"u8,

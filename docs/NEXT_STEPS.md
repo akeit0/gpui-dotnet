@@ -1,6 +1,6 @@
 # Next steps
 
-The repository now has framework-owned dynamic managed Views, an ABI v5 multi-window application/session model, typed native-control events, retained native Scroll and Input state, virtualized ListState, deferred window Overlay, trigger-relative Tooltip, and pointer-anchored ContextMenu layers, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
+The repository now has framework-owned dynamic managed Views, an ABI v5 multi-window application/session model, typed native-control events, retained native Scroll and Input state, virtualized ListState, deferred window Overlay, trigger-relative Tooltip, pointer-anchored ContextMenu, and trigger-attached PopoverMenu layers, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
 
 ## 1. List datasource refinement — high priority
 
@@ -42,11 +42,10 @@ The single-line Input establishes the native-entity ABI for focus, IME, selectio
 
 ## 4. Overlay compositions
 
-The generic window-relative Overlay is the modal geometry and event foundation. Pointer ContextMenu now supplies native right-click interception, pointer anchoring, viewport snapping, focus restoration, outside/Escape/selection dismissal, and managed content/actions. Continue with semantic compositions instead of rebuilding these behaviors:
+The generic window-relative Overlay is the modal geometry and event foundation. Pointer ContextMenu supplies native right-click interception and pointer anchoring. PopoverMenu supplies left-click trigger measurement and attachment. Both own viewport snapping, focus restoration, outside/Escape/selection dismissal, and managed content/actions. Continue with semantic compositions instead of rebuilding these behaviors:
 
 - Dialog and Sheet semantics on the generic modal focus trap, including initial-focus selection and deterministic stacked-overlay dismissal policy;
-- keyboard navigation, roving selection, disabled/check/radio item semantics, and accessibility for ContextMenu;
-- Popover with trigger measurement, anchor flipping/snapping, focus policy, and outside-click dismissal;
+- keyboard navigation, roving selection, disabled/check/radio item semantics, accessibility, and hover switching for menu bars;
 - Tooltip accessibility descriptions and keyboard/focus-triggered visibility in addition to pointer hover;
 - Toast/notification host with retained ordering, timeouts, pause-on-hover, and reduced-motion policy;
 - accessibility roles, labels, focus announcements, and platform verification.

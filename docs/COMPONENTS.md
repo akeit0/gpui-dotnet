@@ -69,7 +69,7 @@ ui.Input("name"u8, new Utf8InputOptions(placeholder: "Name"u8));
 
 `ui.Overlay(key, child, options)` gives one ordinary semantic child a deferred window-relative layer. Rust owns viewport placement, deferred paint priority, modal backdrop input interception, initial focus, Tab/Shift+Tab containment, previous-focus restoration, and native backdrop/Escape detection. Dismissal crosses into managed code only through an explicit `OnDismiss` callback.
 
-The default options are a centered modal, 16-pixel viewport margin, priority 10, a translucent black backdrop, and backdrop/Escape dismissal. `OverlayPlacement` also covers every window edge and corner, providing the low-level geometry for dialogs and sheets without exposing GPUI element types through the ABI. A modal uses native non-tab-stop boundary handles to wrap GPUI focus traversal without enumerating managed children. Popover interaction, toast lifecycle, and higher-level Dialog/Sheet/Popover components remain separate composition work.
+The default options are a centered modal, 16-pixel viewport margin, priority 10, a translucent black backdrop, and backdrop/Escape dismissal. `OverlayPlacement` also covers every window edge and corner, providing the low-level geometry for dialogs and sheets without exposing GPUI element types through the ABI. A modal uses native non-tab-stop boundary handles to wrap GPUI focus traversal without enumerating managed children. Toast lifecycle and higher-level Dialog/Sheet compositions remain separate work.
 
 Overlay keys are scoped by the owning managed View. This prevents two reusable child Views with the same local overlay key from sharing GPUI focus state.
 
@@ -88,6 +88,14 @@ Tooltip keys use the same `(managed View handle, local key)` identity rule as re
 A transparent native backdrop blocks input behind the open menu and dismisses on outside left/right press. Escape, a right press in the menu, or left mouse-up after a menu selection also dismisses, then focus returns to the previously focused element. Content and action bindings remain managed, so the component imposes no product styling or fixed item model. ContextMenu is for application content; custom title-bar Drag regions should remain unwrapped so platform non-client behavior is not replaced by an application menu.
 
 ContextMenu keys use the owning View namespace and ContextMenu is disallowed inside cached List rows for the same lifetime reason as Tooltip and Overlay.
+
+## PopoverMenu
+
+`ui.PopoverMenu(key, trigger, content, options)` is the left-click, trigger-attached counterpart to ContextMenu. Rust measures the first child during prepaint and positions the second child below its leading edge in a deferred layer. GPUI's anchored element snaps the menu to the configured viewport margin.
+
+Pointer-down on the trigger opens the menu and transfers focus into it. Selection, Escape, or pointer-down outside the content closes it and restores prior focus. An outside pointer-down continues to its underlying target; pressing the same trigger is intercepted so it closes instead of immediately reopening. Menu visuals and item actions remain ordinary managed elements. `PopoverMenuOptions` configures priority and margin.
+
+PopoverMenu keys are scoped by the owning View and the component is disallowed inside cached List rows. Native keyboard item navigation, disabled/check/radio item roles, and hover switching across a menu bar remain higher-level menu behavior.
 
 ## List
 
@@ -116,7 +124,7 @@ An explicit `ListDataSource` revision keeps cached row snapshots across unrelate
 
 ### Row renderer restrictions
 
-Rows are pure Element renderers, not retained managed View roots. `RenderContext` for a list range intentionally has no managed child resolver and no native resource owner. `ui.Child`, retained `ui.Scroll`, nested retained `ui.List`, retained `ui.Input`, window-level `ui.Overlay`, `ui.Tooltip`, and `ui.ContextMenu` therefore fail rather than creating ambiguous lifetimes.
+Rows are pure Element renderers, not retained managed View roots. `RenderContext` for a list range intentionally has no managed child resolver and no native resource owner. `ui.Child`, retained `ui.Scroll`, nested retained `ui.List`, retained `ui.Input`, window-level `ui.Overlay`, `ui.Tooltip`, `ui.ContextMenu`, and `ui.PopoverMenu` therefore fail rather than creating ambiguous lifetimes.
 
 If item-scoped managed state is needed in the future, implement a dedicated virtualized-item state mechanism instead of silently reusing normal View slots.
 

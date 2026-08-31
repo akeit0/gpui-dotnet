@@ -5,6 +5,7 @@ mod components;
 mod context_menu;
 mod input;
 mod materializer;
+mod popover_menu;
 mod resources;
 mod scrolling;
 #[path = "semantic.g.rs"]

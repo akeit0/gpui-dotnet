@@ -303,7 +303,18 @@ var documentCard = ui.Text("Right-click this document")
 return ui.ContextMenu("document-actions"u8, documentCard, documentMenu);
 ```
 
-Rust owns right-button interception, pointer placement, viewport clamping, deferred priority, focus restoration, and dismissal on outside click, Escape, selection, or another right-click. Managed code owns menu visuals and actions through normal generated event bindings. `ContextMenuOptions` configures priority and viewport margin. Context menus are keyed to the owning View and are intentionally unavailable inside virtualized List rows. Use them for application content; a custom title-bar Drag region should preserve the platform's own window context menu.
+Rust owns right-button interception, pointer placement, viewport clamping, deferred priority, focus restoration, and dismissal on outside click, Escape, selection, or another right-click. Managed code owns menu visuals and actions through normal generated event bindings. `ContextMenuOptions` configures priority and viewport margin. Context menus are keyed to the owning View and are intentionally unavailable inside virtualized List rows. Use them for application content; leave a custom title-bar Drag region unwrapped so platform non-client behavior remains unclaimed.
+
+`ui.PopoverMenu(key, trigger, content, options)` uses the same two-child ownership model for a left-click trigger. Rust measures the trigger, attaches the deferred menu below its leading edge, snaps it to the viewport, moves focus into it, and dismisses it after selection, outside pointer-down, or Escape. This is the primitive used by the sample's File/View/Help title-bar menu:
+
+```csharp
+return ui.PopoverMenu(
+    "file-menu"u8,
+    ui.Button("file-trigger"u8, "File"u8),
+    ui.VStack(
+        ui.Button("new-window"u8, "New window"u8).OnClick(Events.NewWindow),
+        ui.Button("close-window"u8, "Close window"u8).OnClick(Events.CloseWindow)));
+```
 
 ## Generated events
 
@@ -333,7 +344,7 @@ ABI v5 makes application ownership distinct from window/render sessions. It adds
 - stable 64-bit window/session IDs and per-window resource namespaces;
 - shutdown only after the final application-owned window closes.
 
-Managed startup validates both ABI version and semantic schema hash (`0x40CC2B99AD0A4ED2`). See [docs/ABI.md](docs/ABI.md).
+Managed startup validates both ABI version and semantic schema hash (`0x66378CABCEE9092C`). See [docs/ABI.md](docs/ABI.md).
 
 ## Build
 
@@ -348,7 +359,7 @@ dotnet build gpui-dotnet.slnx
 dotnet run --project dotnet/samples/Gpui.Net.Sample
 ```
 
-The sample starts with custom chrome and compact platform-style caption controls. It also contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, centered-dialog/right-sheet Overlay demos, delayed trigger-relative tooltips, an application-content ContextMenu demo, and a multi-window gallery. Closing either companion leaves the main gallery running. To open the system-title-bar companion automatically at startup:
+The sample starts with custom chrome, compact platform-style caption controls, and File/View/Help popover menus in the title bar. It also contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, centered-dialog/right-sheet Overlay demos, delayed trigger-relative tooltips, an application-content ContextMenu demo, and a multi-window gallery. Closing either companion leaves the main gallery running. To open the system-title-bar companion automatically at startup:
 
 ```powershell
 dotnet run --project dotnet/samples/Gpui.Net.Sample -- --multi-window

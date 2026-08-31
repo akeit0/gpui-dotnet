@@ -258,7 +258,7 @@ internal static unsafe class ManagedValidator
             }
 
             if (
-                code == OpCode.ContextMenuMarginPx
+                code is OpCode.ContextMenuMarginPx or OpCode.PopoverMenuMarginPx
                 && BitConverter.UInt32BitsToSingle((uint)operation.A) < 0
             )
             {
@@ -305,7 +305,12 @@ internal static unsafe class ManagedValidator
                 var component = (ComponentId)arena->Nodes[nodeIndex].Component;
                 if (
                     component
-                        is not (ComponentId.Overlay or ComponentId.Tooltip or ComponentId.ContextMenu)
+                        is not (
+                            ComponentId.Overlay
+                            or ComponentId.Tooltip
+                            or ComponentId.ContextMenu
+                            or ComponentId.PopoverMenu
+                        )
                 )
                 {
                     continue;
