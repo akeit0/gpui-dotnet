@@ -5,6 +5,7 @@ mod components;
 mod context_menu;
 mod input;
 mod materializer;
+mod overlay;
 mod popover_menu;
 mod resources;
 mod scrolling;

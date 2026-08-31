@@ -10,7 +10,11 @@ use gpui::{
     Style, Styled, WeakEntity, WeakFocusHandle, Window, canvas, deferred, div, point, px,
 };
 
-use crate::{app_host::ManagedView, resources::ResourceKey};
+use crate::{
+    app_host::ManagedView,
+    overlay::{OverlayStack, OverlayToken},
+    resources::ResourceKey,
+};
 
 #[derive(Clone, Copy)]
 pub(crate) struct PopoverMenuConfiguration {
@@ -63,6 +67,8 @@ pub(crate) fn popover_menu(
     content: AnyElement,
     configuration: PopoverMenuConfiguration,
     group: Rc<PopoverMenuGroup>,
+    overlay_stack: Rc<OverlayStack>,
+    overlay_token: OverlayToken,
     window: &mut Window,
     cx: &mut Context<ManagedView>,
 ) -> AnyElement {
@@ -119,18 +125,28 @@ pub(crate) fn popover_menu(
     }
 
     let focus = state.read(cx).focus.clone();
+    overlay_stack.set_captures_input(&overlay_token, true);
     let outside_state = state.clone();
+    let outside_stack = overlay_stack.clone();
+    let outside_token = overlay_token.clone();
     let outside_group = group.clone();
     let outside_trigger_bounds = trigger_bounds.clone();
     let selected_state = state.clone();
+    let selected_stack = overlay_stack.clone();
+    let selected_token = overlay_token.clone();
     let selected_group = group.clone();
     let escape_state = state.clone();
+    let escape_stack = overlay_stack;
+    let escape_token = overlay_token;
     let escape_group = group;
     let content = div()
         .id((menu_id, "content"))
         .occlude()
         .track_focus(&focus)
         .on_mouse_down_out(move |event: &MouseDownEvent, window, cx| {
+            if !outside_stack.is_topmost(&outside_token) {
+                return;
+            }
             let trigger_pressed = outside_trigger_bounds.get().contains(&event.position);
             close_popover_menu(&outside_state, &outside_group, window, cx);
             if trigger_pressed {
@@ -139,10 +155,16 @@ pub(crate) fn popover_menu(
             }
         })
         .on_mouse_up(MouseButton::Left, move |_, window, cx| {
+            if !selected_stack.is_topmost(&selected_token) {
+                return;
+            }
             close_popover_menu(&selected_state, &selected_group, window, cx);
         })
         .on_key_down(move |event: &KeyDownEvent, window, cx| {
             if event.keystroke.key != "escape" {
+                return;
+            }
+            if !escape_stack.is_topmost(&escape_token) {
                 return;
             }
             cx.stop_propagation();

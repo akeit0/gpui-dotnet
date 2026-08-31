@@ -18,6 +18,7 @@ use gpui::{
 use crate::{
     abi::ManagedCallbacks,
     arena::OwnedRenderArena,
+    overlay::OverlayStack,
     popover_menu::PopoverMenuGroup,
     resources::{ResourceCommand, ResourceStore},
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
@@ -37,6 +38,7 @@ pub(crate) struct ManagedView {
     pub(crate) error: Option<String>,
     pub(crate) resources: Rc<ResourceStore>,
     pub(crate) popover_menus: Rc<PopoverMenuGroup>,
+    pub(crate) overlay_stack: Rc<OverlayStack>,
 }
 
 enum ViewMessage {
@@ -234,6 +236,7 @@ impl ManagedView {
             error: None,
             resources: Rc::new(ResourceStore::new(view_id, callbacks)),
             popover_menus: Rc::new(PopoverMenuGroup::default()),
+            overlay_stack: OverlayStack::new(),
         }
     }
 
@@ -331,6 +334,7 @@ impl ManagedView {
 impl Render for ManagedView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.refresh_if_dirty();
+        self.overlay_stack.begin_frame();
 
         let content = {
             let _stage = trace::span(trace::Stage::Materialize);

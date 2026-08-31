@@ -206,19 +206,20 @@ internal sealed partial class OverlayGalleryView : View
             .Radius(Px(14));
 
         var options = new OverlayOptions(
-            placement: isSheet ? OverlayPlacement.Right : OverlayPlacement.Center,
             margin: isSheet ? 12 : 24,
             backdrop: Rgba(15, 23, 42, 150)
         );
-        var overlay = ui.Overlay("sample-overlay"u8, panel, options)
-            .OnDismiss(
-                this,
-                (view, _) =>
-                {
-                    view._open = OverlayDemo.None;
-                    view.Invalidate();
-                }
-            );
+        var overlay = isSheet
+            ? ui.Sheet("sample-overlay"u8, panel, SheetSide.Right, options)
+            : ui.Dialog("sample-overlay"u8, panel, options);
+        overlay = overlay.OnDismiss(
+            this,
+            (view, _) =>
+            {
+                view._open = OverlayDemo.None;
+                view.Invalidate();
+            }
+        );
 
         return ui.VStack(page, overlay).Grow().Height(Percent(100));
     }

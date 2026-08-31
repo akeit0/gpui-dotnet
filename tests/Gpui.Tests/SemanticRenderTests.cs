@@ -280,6 +280,74 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public unsafe void DialogAndSheetNormalizeOverlaySemantics()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using (var dialogArena = new RenderArenaOwner())
+            {
+                var ui = dialogArena.BeginRender(new NoopRenderer(), view);
+                var dialog = ui.Dialog(
+                    "dialog"u8,
+                    ui.Text("Dialog"u8),
+                    new OverlayOptions(placement: OverlayPlacement.Right, modal: false)
+                );
+
+                dialogArena.Validate(dialog);
+                Assert.Equal((ulong)OverlayPlacement.Center, dialogArena.NativeArena->Ops[1].A);
+                Assert.Equal(1UL, dialogArena.NativeArena->Ops[4].A);
+            }
+
+            using (var sheetArena = new RenderArenaOwner())
+            {
+                var ui = sheetArena.BeginRender(new NoopRenderer(), view);
+                var sheet = ui.Sheet(
+                    "sheet"u8,
+                    ui.Text("Sheet"u8),
+                    SheetSide.Left,
+                    new OverlayOptions(placement: OverlayPlacement.Center, modal: false)
+                );
+
+                sheetArena.Validate(sheet);
+                Assert.Equal((ulong)OverlayPlacement.Left, sheetArena.NativeArena->Ops[1].A);
+                Assert.Equal(1UL, sheetArena.NativeArena->Ops[4].A);
+            }
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void SheetRejectsInvalidSide()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var threw = false;
+            try
+            {
+                _ = ui.Sheet("sheet"u8, ui.Text("Sheet"u8), (SheetSide)4);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                threw = true;
+            }
+            Assert.True(threw);
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
     public unsafe void Utf8TooltipConfigurationPassesManagedValidation()
     {
         var view = new ProbeView();

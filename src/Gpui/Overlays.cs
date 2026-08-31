@@ -14,6 +14,15 @@ public enum OverlayPlacement : uint
     TopLeft = 8,
 }
 
+/// <summary>Window edge used by the semantic <see cref="RenderContext.Sheet"/> composition.</summary>
+public enum SheetSide : uint
+{
+    Right = 0,
+    Left = 1,
+    Top = 2,
+    Bottom = 3,
+}
+
 /// <summary>Window overlay behavior and presentation.</summary>
 public readonly struct OverlayOptions
 {

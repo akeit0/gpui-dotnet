@@ -12,6 +12,7 @@ use crate::{
     app_host::ManagedView,
     components,
     context_menu::{ContextMenuConfiguration, context_menu},
+    overlay::OverlayKind,
     popover_menu::{PopoverMenuConfiguration, popover_menu},
     resources::{
         ResourceStore, TableSpec, input_configuration, list_configuration, resource_key,
@@ -448,8 +449,6 @@ impl ManagedView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let child_id = snapshot.children(node)[0];
-        let child = self.materialize_node(child_id, snapshot, window, cx);
         let placement = last_op(snapshot, node, OP_OVERLAY_PLACEMENT).map_or(0, |op| op.a);
         let priority = last_op(snapshot, node, OP_OVERLAY_PRIORITY).map_or(10, |op| op.a);
         let margin = last_op(snapshot, node, OP_OVERLAY_MARGIN_PX)
@@ -482,12 +481,32 @@ impl ManagedView {
             });
         let focus = focus_state.read(cx).focus.clone();
         let end_focus = focus_state.read(cx).end_focus.clone();
+        let overlay_stack = self.overlay_stack.clone();
+        let overlay_token = overlay_stack.register(
+            key,
+            OverlayKind::Overlay,
+            priority as u32,
+            modal || (dismiss_token != 0 && dismiss_on_escape),
+        );
         if focus_state.read(cx).focus_pending {
             focus_state.update(cx, |state, _| state.focus_pending = false);
             let deferred_focus = focus.clone();
-            window.defer(cx, move |window, _| deferred_focus.focus(window));
+            let deferred_focus_state = overlay_stack.clone();
+            let deferred_focus_token = overlay_token.clone();
+            window.defer(cx, move |window, cx| {
+                if !deferred_focus_state.is_topmost(&deferred_focus_token) {
+                    return;
+                }
+                deferred_focus.focus(window);
+                window.focus_next();
+                if !deferred_focus.contains_focused(window, cx) {
+                    deferred_focus.focus(window);
+                }
+            });
         }
 
+        let child_id = snapshot.children(node)[0];
+        let child = self.materialize_node(child_id, snapshot, window, cx);
         let content_id = (overlay_id.clone(), "content");
         let content = place_overlay_content(
             div().id(content_id).occlude().child(child),
@@ -508,6 +527,8 @@ impl ManagedView {
             let callbacks = self.callbacks;
             let session_id = self.view_id;
             let backdrop_state = focus_state.clone();
+            let backdrop_stack = overlay_stack.clone();
+            let backdrop_token = overlay_token.clone();
             let mut backdrop = div()
                 .absolute()
                 .inset_0()
@@ -517,6 +538,9 @@ impl ManagedView {
             if dismiss_on_backdrop && dismiss_token != 0 {
                 backdrop =
                     backdrop.on_click(cx.listener(move |this, event: &ClickEvent, window, cx| {
+                        if !backdrop_stack.is_topmost(&backdrop_token) {
+                            return;
+                        }
                         restore_overlay_focus(&backdrop_state, window, cx);
                         let status = invoke_click(
                             callbacks,
@@ -551,8 +575,13 @@ impl ManagedView {
             let callbacks = self.callbacks;
             let session_id = self.view_id;
             let escape_state = focus_state.clone();
+            let escape_stack = overlay_stack;
+            let escape_token = overlay_token;
             host = host.on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
                 if event.keystroke.key != "escape" {
+                    return;
+                }
+                if !escape_stack.is_topmost(&escape_token) {
                     return;
                 }
                 cx.stop_propagation();
@@ -596,6 +625,9 @@ impl ManagedView {
                 .child("Tooltip is missing its owner/key.")
                 .into_any_element();
         };
+        let _tooltip_token =
+            self.overlay_stack
+                .register(key.clone(), OverlayKind::Tooltip, 200, false);
         let children = snapshot.children(node);
         let trigger = self.materialize_node(children[0], snapshot, window, cx);
         let content = self.materialize_node(children[1], snapshot, window, cx);
@@ -624,6 +656,12 @@ impl ManagedView {
                 .child("ContextMenu is missing its owner/key.")
                 .into_any_element();
         };
+        let overlay_token = self.overlay_stack.register(
+            key.clone(),
+            OverlayKind::ContextMenu,
+            last_op(snapshot, node, OP_CONTEXT_MENU_PRIORITY).map_or(300, |op| op.a as u32),
+            false,
+        );
         let children = snapshot.children(node);
         let trigger = self.materialize_node(children[0], snapshot, window, cx);
         let content = self.materialize_node(children[1], snapshot, window, cx);
@@ -634,7 +672,17 @@ impl ManagedView {
                 .map_or(8.0, |op| f32::from_bits(op.a as u32)),
         };
         let host = apply_styles(div(), node, snapshot);
-        context_menu(key, host, trigger, content, configuration, window, cx)
+        context_menu(
+            key,
+            host,
+            trigger,
+            content,
+            configuration,
+            self.overlay_stack.clone(),
+            overlay_token,
+            window,
+            cx,
+        )
     }
 
     fn materialize_popover_menu(
@@ -649,6 +697,12 @@ impl ManagedView {
                 .child("PopoverMenu is missing its owner/key.")
                 .into_any_element();
         };
+        let overlay_token = self.overlay_stack.register(
+            key.clone(),
+            OverlayKind::PopoverMenu,
+            last_op(snapshot, node, OP_POPOVER_MENU_PRIORITY).map_or(300, |op| op.a as u32),
+            false,
+        );
         let children = snapshot.children(node);
         let trigger = self.materialize_node(children[0], snapshot, window, cx);
         let content = self.materialize_node(children[1], snapshot, window, cx);
@@ -666,6 +720,8 @@ impl ManagedView {
             content,
             configuration,
             self.popover_menus.clone(),
+            self.overlay_stack.clone(),
+            overlay_token,
             window,
             cx,
         )

@@ -41,9 +41,8 @@ The single-line Input establishes the native-entity ABI for focus, IME, selectio
 
 ## 4. Overlay compositions
 
-The generic window-relative Overlay is the modal geometry and event foundation. Pointer ContextMenu supplies native right-click interception and pointer anchoring. PopoverMenu supplies left-click trigger measurement and attachment. Both own viewport snapping, focus restoration, outside/Escape/selection dismissal, and managed content/actions. Continue with semantic compositions instead of rebuilding these behaviors:
+The generic window-relative Overlay is the modal geometry and event foundation. Pointer ContextMenu supplies native right-click interception and pointer anchoring. PopoverMenu supplies left-click trigger measurement and attachment. Both own viewport snapping, focus restoration, outside/Escape/selection dismissal, and managed content/actions. Dialog/Sheet compositions, first-focus selection, and deterministic window-owned stacking are now provided by the generic Overlay foundation. Remaining overlay work:
 
-- Dialog and Sheet semantics on the generic modal focus trap, including initial-focus selection and deterministic stacked-overlay dismissal policy;
 - keyboard navigation, roving selection, disabled/check/radio item semantics, accessibility, and hover switching for menu bars;
 - Tooltip accessibility descriptions and keyboard/focus-triggered visibility in addition to pointer hover;
 - Toast/notification host with retained ordering, timeouts, pause-on-hover, and reduced-motion policy;

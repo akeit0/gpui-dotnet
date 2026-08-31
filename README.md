@@ -283,6 +283,8 @@ return ui.Overlay("preferences"u8, dialog)
 
 `OverlayOptions` supports nine viewport placements, modal/non-modal behavior, priority, margin, backdrop color, and independent backdrop/Escape dismissal. Modal overlays block pointer and wheel input behind the backdrop, move focus into the overlay on open, keep Tab/Shift+Tab traversal inside it, and restore the previous focus when native dismissal runs. Escape is handled in the bubble phase so a focused child control receives it first. Content can contain normal managed child Views and retained controls such as Input; overlays are intentionally unavailable inside virtualized List rows.
 
+`ui.Dialog` and `ui.Sheet` are semantic compositions over `Overlay`: Dialog forces centered modal placement, while Sheet forces a window-edge placement (`SheetSide.Right`, `Left`, `Top`, or `Bottom`). Both select the first available focus stop on open, retain the generic focus trap, and preserve managed content and styling. A window-owned overlay stack resolves priority first and declaration order second, so only the deterministic topmost dismissible layer handles Escape, backdrop, or menu dismissal.
+
 `ui.Tooltip(key, trigger, content, options)` adds native hover timing to any semantic trigger and paints ordinary semantic content in a deferred layer. Defaults follow the interaction model used by GPUI Component: a 500 ms show delay, a 300 ms grace period for crossing from trigger to content, automatic side selection, centered alignment, an 8-pixel gap, and an 8-pixel viewport margin.
 
 ```csharp

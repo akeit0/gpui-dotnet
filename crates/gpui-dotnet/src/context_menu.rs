@@ -1,10 +1,16 @@
+use std::rc::Rc;
+
 use gpui::{
     AnyElement, App, Context, ElementId, Entity, FocusHandle, InteractiveElement, IntoElement,
     KeyDownEvent, MouseButton, MouseDownEvent, ParentElement, Point, Styled, WeakFocusHandle,
     Window, anchored, deferred, div, point, px,
 };
 
-use crate::{app_host::ManagedView, resources::ResourceKey};
+use crate::{
+    app_host::ManagedView,
+    overlay::{OverlayStack, OverlayToken},
+    resources::ResourceKey,
+};
 
 #[derive(Clone, Copy)]
 pub(crate) struct ContextMenuConfiguration {
@@ -26,6 +32,8 @@ pub(crate) fn context_menu(
     trigger: AnyElement,
     content: AnyElement,
     configuration: ContextMenuConfiguration,
+    overlay_stack: Rc<OverlayStack>,
+    overlay_token: OverlayToken,
     window: &mut Window,
     cx: &mut Context<ManagedView>,
 ) -> AnyElement {
@@ -74,16 +82,27 @@ pub(crate) fn context_menu(
 
     let focus = state.read(cx).focus.clone();
     let position = state.read(cx).position;
+    overlay_stack.set_captures_input(&overlay_token, true);
 
     let selected_state = state.clone();
+    let selected_stack = overlay_stack.clone();
+    let selected_token = overlay_token.clone();
     let right_pressed_state = state.clone();
+    let right_pressed_stack = overlay_stack.clone();
+    let right_pressed_token = overlay_token.clone();
     let content = div()
         .id((menu_id.clone(), "content"))
         .occlude()
         .on_mouse_up(MouseButton::Left, move |_, window, cx| {
+            if !selected_stack.is_topmost(&selected_token) {
+                return;
+            }
             close_context_menu(&selected_state, window, cx);
         })
         .on_mouse_down(MouseButton::Right, move |_, window, cx| {
+            if !right_pressed_stack.is_topmost(&right_pressed_token) {
+                return;
+            }
             cx.stop_propagation();
             window.prevent_default();
             close_context_menu(&right_pressed_state, window, cx);
@@ -95,24 +114,36 @@ pub(crate) fn context_menu(
         .child(content);
 
     let left_backdrop_state = state.clone();
+    let left_backdrop_stack = overlay_stack.clone();
+    let left_backdrop_token = overlay_token.clone();
     let right_backdrop_state = state.clone();
+    let right_backdrop_stack = overlay_stack.clone();
+    let right_backdrop_token = overlay_token.clone();
     let backdrop = div()
         .absolute()
         .inset_0()
         .id((menu_id, "backdrop"))
         .occlude()
         .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+            if !left_backdrop_stack.is_topmost(&left_backdrop_token) {
+                return;
+            }
             cx.stop_propagation();
             window.prevent_default();
             close_context_menu(&left_backdrop_state, window, cx);
         })
         .on_mouse_down(MouseButton::Right, move |_, window, cx| {
+            if !right_backdrop_stack.is_topmost(&right_backdrop_token) {
+                return;
+            }
             cx.stop_propagation();
             window.prevent_default();
             close_context_menu(&right_backdrop_state, window, cx);
         });
 
     let escape_state = state;
+    let escape_stack = overlay_stack;
+    let escape_token = overlay_token;
     let viewport = window.viewport_size();
     let layer = div()
         .relative()
@@ -121,6 +152,9 @@ pub(crate) fn context_menu(
         .track_focus(&focus)
         .on_key_down(move |event: &KeyDownEvent, window, cx| {
             if event.keystroke.key != "escape" {
+                return;
+            }
+            if !escape_stack.is_topmost(&escape_token) {
                 return;
             }
             cx.stop_propagation();
