@@ -2,8 +2,6 @@ using Gpui;
 using static Gpui.Colors;
 using static Gpui.Units;
 
-internal readonly record struct RouteHeaderProps(string Title, string Detail);
-
 [GpuiView]
 internal sealed partial class RouteHeaderView : View<RouteHeaderProps>
 {

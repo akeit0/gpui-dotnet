@@ -2,13 +2,6 @@ using Gpui;
 using static Gpui.Colors;
 using static Gpui.Units;
 
-internal enum OverlayDemo
-{
-    None,
-    Dialog,
-    Sheet,
-}
-
 [GpuiView]
 internal sealed partial class OverlayGalleryView : View
 {
