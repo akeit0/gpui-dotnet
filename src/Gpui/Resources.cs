@@ -96,6 +96,7 @@ internal enum ResourceKind : ushort
     Scroll = 1,
     List = 2,
     Input = 3,
+    Slider = 4,
 }
 
 internal enum ResourceCommandKind : ushort
@@ -111,6 +112,7 @@ internal enum ResourceCommandKind : ushort
     InputBlur = 21,
     InputSetValue = 22,
     InputSelectAll = 23,
+    SliderSetValue = 30,
 }
 
 internal readonly record struct ResourceCommand(

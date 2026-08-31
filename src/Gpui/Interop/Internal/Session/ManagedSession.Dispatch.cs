@@ -176,4 +176,26 @@ internal sealed unsafe partial class ManagedSession
             }
         }
     }
+
+    internal void DispatchSlider(ulong eventToken, SliderEvent sliderEvent)
+    {
+        var viewHandle = (uint)(eventToken >> 32);
+        var handlerId = (uint)eventToken;
+        if (viewHandle == 0 || handlerId == 0)
+        {
+            throw new InvalidOperationException("Malformed slider event token.");
+        }
+        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
+        {
+            throw new InvalidOperationException(
+                $"Slider event references detached or unknown view handle {viewHandle}."
+            );
+        }
+
+        var pending = owner.DispatchSliderCore(handlerId, sliderEvent);
+        if (!pending.IsCompletedSuccessfully)
+        {
+            ObserveEventTask(pending);
+        }
+    }
 }

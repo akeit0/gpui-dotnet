@@ -111,7 +111,7 @@ int32_t control_event(
     const gpui_native_control_event* event);
 ```
 
-`gpui_native_control_event` carries a typed event kind, flags, native state revision, and a borrowed UTF-8 data range. Input currently emits Changed, Submitted, and FocusChanged. Managed code validates the record and copies the bytes before returning through FFI, making `InputEvent.Utf8Value` safe for asynchronous handlers. UTF-16 decoding is deferred until `InputEvent.Value` is accessed.
+`gpui_native_control_event` carries a typed event kind, flags, native state revision, and a borrowed data range. Input emits Changed, Submitted, and FocusChanged with UTF-8 payloads. Slider emits Changed (`kind = 4`) during pointer movement and Released (`kind = 5`) on pointer release; its payload is one little-endian `f32` for a single value or two ordered `f32` values for a range, with flag bit 1 marking the range form. Managed code validates the record and copies the bytes before returning through FFI, making event payloads safe for asynchronous handlers. UTF-16 decoding is deferred until `InputEvent.Value` is accessed.
 
 ## Render arena
 
@@ -198,7 +198,7 @@ The native adapter measures the trigger, opens on left pointer-down, attaches co
 
 ## Retained native resource commands
 
-Scroll, List, and Input state are not rebuilt from managed objects. Commands use:
+Scroll, List, Input, and Slider state are not rebuilt from managed objects. Commands use:
 
 ```c
 typedef struct gpui_native_resource_command {
@@ -232,6 +232,7 @@ Current commands:
 | Input | `Blur` | none |
 | Input | `SetValue` | UTF-8 `data` |
 | Input | `SelectAll` | none |
+| Slider | `SetValue` | `a` packs start/end `f32` bits; `b = 0` single, `b = 1` range |
 
 Commands are sent through the native UI message channel and handled on the GPUI thread. Scroll commands and `List.ScrollToItem` apply immediately. `List.Splice/Reset/Refresh` are measurement-preservation hints: when a List already exists they are queued and committed only with the next managed snapshot revision, so they cannot race materialization of the previous declarative `itemCount`. A hint/snapshot mismatch falls back to a full `ListState.reset`.
 

@@ -68,6 +68,19 @@ internal static unsafe class ManagedValidator
                     );
                 }
             }
+            else if ((ComponentId)node.Component == ComponentId.Slider)
+            {
+                var payload = new ReadOnlySpan<byte>(
+                    arena->Utf8 + node.DataOffset,
+                    checked((int)node.DataLength)
+                );
+                if (payload.Contains((byte)0))
+                {
+                    throw new InvalidOperationException(
+                        $"Slider node {i} must contain a single resource key."
+                    );
+                }
+            }
         }
 
         for (var i = 0; i < arena->OpLength; i++)
@@ -155,6 +168,13 @@ internal static unsafe class ManagedValidator
                 throw new InvalidOperationException($"Operation {i} has an invalid scroll axis.");
             }
 
+            if (code is OpCode.SliderAxis or OpCode.SliderScale && operation.A > 1)
+            {
+                throw new InvalidOperationException(
+                    $"Operation {i} has an invalid slider enum value."
+                );
+            }
+
             if (code == OpCode.WindowControlArea && operation.A > (uint)WindowControlArea.Close)
             {
                 throw new InvalidOperationException(
@@ -170,6 +190,7 @@ internal static unsafe class ManagedValidator
                         or OpCode.InputDisabled
                         or OpCode.InputReadOnly
                         or OpCode.InputPassword
+                        or OpCode.SliderDisabled
                         or OpCode.OverlayModal
                         or OpCode.OverlayDismissOnBackdrop
                         or OpCode.OverlayDismissOnEscape

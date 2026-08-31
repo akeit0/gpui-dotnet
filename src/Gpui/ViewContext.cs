@@ -53,6 +53,20 @@ public readonly ref struct ViewContext
         return new InputController(_view, utf8Key);
     }
 
+    /// <summary>Creates an imperative controller for a ui.Slider() resource owned by this View.</summary>
+    public SliderController CreateSliderController(string key)
+    {
+        ValidateResourceKey(key);
+        return new SliderController(_view, key);
+    }
+
+    /// <summary>Creates a slider controller whose retained resource key is already UTF-8.</summary>
+    public SliderController CreateSliderController(ReadOnlySpan<byte> utf8Key)
+    {
+        ValidateResourceKey(utf8Key);
+        return new SliderController(_view, utf8Key);
+    }
+
     private static void ValidateResourceKey(string key)
     {
         ArgumentNullException.ThrowIfNull(key);

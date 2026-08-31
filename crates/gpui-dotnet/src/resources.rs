@@ -21,9 +21,12 @@ use crate::{
         OP_INPUT_ON_SUBMITTED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT,
         OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
         OP_LIST_ITEM_COUNT, OP_LIST_ITEM_ID, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER,
-        OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_TABLE_COLUMN,
-        component_metadata,
+        OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SLIDER_AXIS,
+        OP_SLIDER_DISABLED, OP_SLIDER_MAX, OP_SLIDER_MIN, OP_SLIDER_ON_CHANGED,
+        OP_SLIDER_ON_RELEASED, OP_SLIDER_RANGE_END, OP_SLIDER_RANGE_START, OP_SLIDER_SCALE,
+        OP_SLIDER_STEP, OP_SLIDER_VALUE, OP_TABLE_COLUMN, component_metadata,
     },
+    slider::{ManagedSlider, SliderValue},
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
 };
 
@@ -69,6 +72,7 @@ pub(crate) struct ResourceStore {
     lists: RefCell<HashMap<ResourceKey, Rc<RefCell<ManagedListResource>>>>,
     tables: RefCell<HashMap<ResourceKey, Rc<TableSpec>>>,
     inputs: RefCell<HashMap<ResourceKey, Entity<ManagedInput>>>,
+    sliders: RefCell<HashMap<ResourceKey, Entity<ManagedSlider>>>,
     pending: RefCell<HashMap<(u16, ResourceKey), Vec<ResourceCommand>>>,
     active_scratch: RefCell<HashSet<(u16, ResourceKey)>>,
 }
@@ -82,6 +86,7 @@ impl ResourceStore {
             lists: RefCell::new(HashMap::new()),
             tables: RefCell::new(HashMap::new()),
             inputs: RefCell::new(HashMap::new()),
+            sliders: RefCell::new(HashMap::new()),
             pending: RefCell::new(HashMap::new()),
             active_scratch: RefCell::new(HashSet::new()),
         }
@@ -209,11 +214,40 @@ impl ResourceStore {
         resource
     }
 
+    pub(crate) fn slider_resource(
+        &self,
+        configuration: &SliderConfiguration,
+        cx: &mut Context<ManagedView>,
+    ) -> Entity<ManagedSlider> {
+        let existing = self.sliders.borrow().get(&configuration.key).cloned();
+        let resource = if let Some(existing) = existing {
+            existing
+        } else {
+            let created =
+                cx.new(|_| ManagedSlider::new(self.session_id, self.callbacks, configuration));
+            self.sliders
+                .borrow_mut()
+                .insert(configuration.key.clone(), created.clone());
+            created
+        };
+
+        resource.update(cx, |slider, cx| slider.configure(configuration, cx));
+        let pending = self
+            .pending
+            .borrow_mut()
+            .remove(&(4, configuration.key.clone()))
+            .unwrap_or_default();
+        for command in pending {
+            resource.update(cx, |slider, cx| slider.apply_command(&command, cx));
+        }
+        resource
+    }
+
     pub(crate) fn dispatch(&self, command: ResourceCommand) -> bool {
         let applied = match command.resource_kind {
             1 => self.apply_scroll_command(&command),
             2 => self.apply_list_command(&command),
-            3 => false,
+            3 | 4 => false,
             _ => true,
         };
         if !applied {
@@ -286,18 +320,21 @@ impl ResourceStore {
                     | NativeAdapter::List
                     | NativeAdapter::Table
                     | NativeAdapter::Input
+                    | NativeAdapter::Slider
             ) {
                 continue;
             }
-            let active_resource = match metadata.adapter {
-                NativeAdapter::Scroll => resource_key(snapshot, node).map(|key| (1, key)),
-                NativeAdapter::List => resource_key(snapshot, node).map(|key| (2, key)),
-                NativeAdapter::Table => table_key(snapshot, node).map(|key| (2, key)),
-                NativeAdapter::Input => {
-                    input_configuration(snapshot, node).map(|configuration| (3, configuration.key))
-                }
-                _ => None,
-            };
+            let active_resource =
+                match metadata.adapter {
+                    NativeAdapter::Scroll => resource_key(snapshot, node).map(|key| (1, key)),
+                    NativeAdapter::List => resource_key(snapshot, node).map(|key| (2, key)),
+                    NativeAdapter::Table => table_key(snapshot, node).map(|key| (2, key)),
+                    NativeAdapter::Input => input_configuration(snapshot, node)
+                        .map(|configuration| (3, configuration.key)),
+                    NativeAdapter::Slider => slider_configuration(snapshot, node)
+                        .map(|configuration| (4, configuration.key)),
+                    _ => None,
+                };
             if let Some(resource) = active_resource {
                 active.insert(resource);
             }
@@ -314,6 +351,9 @@ impl ResourceStore {
         self.inputs
             .borrow_mut()
             .retain(|key, _| active.contains(&(3, key.clone())));
+        self.sliders
+            .borrow_mut()
+            .retain(|key, _| active.contains(&(4, key.clone())));
         self.pending
             .borrow_mut()
             .retain(|(kind, key), _| active.contains(&(*kind, key.clone())));
@@ -328,6 +368,33 @@ pub(crate) struct InputConfiguration {
     pub(crate) read_only: bool,
     pub(crate) password: bool,
     pub(crate) bindings: InputBindings,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct SliderBindings {
+    pub(crate) changed: u64,
+    pub(crate) released: u64,
+}
+
+impl Default for SliderBindings {
+    fn default() -> Self {
+        Self {
+            changed: 0,
+            released: 0,
+        }
+    }
+}
+
+pub(crate) struct SliderConfiguration {
+    pub(crate) key: ResourceKey,
+    pub(crate) min: f32,
+    pub(crate) max: f32,
+    pub(crate) step: f32,
+    pub(crate) initial_value: Option<SliderValue>,
+    pub(crate) axis: gpui::Axis,
+    pub(crate) disabled: bool,
+    pub(crate) logarithmic: bool,
+    pub(crate) bindings: SliderBindings,
 }
 
 pub(crate) struct ListConfiguration {
@@ -958,6 +1025,54 @@ pub(crate) fn input_configuration(
             changed: last_callback(snapshot, node, OP_INPUT_ON_CHANGED),
             submitted: last_callback(snapshot, node, OP_INPUT_ON_SUBMITTED),
             focus_changed: last_callback(snapshot, node, OP_INPUT_ON_FOCUS_CHANGED),
+        },
+    })
+}
+
+pub(crate) fn slider_configuration(
+    snapshot: &ValidatedSnapshot,
+    node: &crate::snapshot::SnapshotNode,
+) -> Option<SliderConfiguration> {
+    let key = resource_key(snapshot, node)?;
+    let min = last_op_bits_f32(snapshot, node, OP_SLIDER_MIN).unwrap_or(0.0);
+    let max = last_op_bits_f32(snapshot, node, OP_SLIDER_MAX).unwrap_or(100.0);
+    let step = last_op_bits_f32(snapshot, node, OP_SLIDER_STEP).unwrap_or(1.0);
+    if !min.is_finite() || !max.is_finite() || min >= max || !step.is_finite() || step <= 0.0 {
+        return None;
+    }
+
+    let axis = match last_u32(snapshot, node, OP_SLIDER_AXIS).unwrap_or(0) {
+        0 => gpui::Axis::Horizontal,
+        1 => gpui::Axis::Vertical,
+        _ => return None,
+    };
+    let logarithmic = match last_u32(snapshot, node, OP_SLIDER_SCALE).unwrap_or(0) {
+        0 => false,
+        1 if min > 0.0 => true,
+        _ => return None,
+    };
+    let single = last_op_bits_f32(snapshot, node, OP_SLIDER_VALUE);
+    let range_start = last_op_bits_f32(snapshot, node, OP_SLIDER_RANGE_START);
+    let range_end = last_op_bits_f32(snapshot, node, OP_SLIDER_RANGE_END);
+    let initial_value = match (single, range_start, range_end) {
+        (Some(value), None, None) => Some(SliderValue::Single(value)),
+        (None, Some(start), Some(end)) if start <= end => Some(SliderValue::Range(start, end)),
+        (None, None, None) => None,
+        _ => return None,
+    };
+
+    Some(SliderConfiguration {
+        key,
+        min,
+        max,
+        step,
+        initial_value,
+        axis,
+        disabled: last_u32(snapshot, node, OP_SLIDER_DISABLED).unwrap_or(0) != 0,
+        logarithmic,
+        bindings: SliderBindings {
+            changed: last_callback(snapshot, node, OP_SLIDER_ON_CHANGED),
+            released: last_callback(snapshot, node, OP_SLIDER_ON_RELEASED),
         },
     })
 }

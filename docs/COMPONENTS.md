@@ -78,6 +78,12 @@ ui.Input("name"u8, new Utf8InputOptions(placeholder: "Name"u8));
 
 `OnChanged`, `OnSubmitted`, and `OnFocusChanged` are opt-in view-bound event bindings. `InputEvent.Utf8Value` is the owned no-transcode payload; `Value` is a lazy string convenience. `InputController` supports focus, blur, selection, and programmatic value replacement. Input is retained and therefore intentionally rejected inside a virtualized List row, whose cache lifetime is not a managed View/resource lifetime.
 
+## Slider
+
+`ui.Slider(key, options)` materializes a retained native slider. `ui.Slider(ref controller, options)` assigns a stable per-View resource key on first render, matching the ref-bound controller pattern used by Input and List. `SliderOptions` supports bounds, step, horizontal/vertical orientation, disabled state, linear/logarithmic scale, and either `SliderValue.Single(value)` or `SliderValue.Range(start, end)`.
+
+`OnChanged` emits `SliderEventKind.Changed` continuously during pointer movement. `OnReleased` emits `SliderEventKind.Released` once when the active pointer interaction ends, including release outside the slider. `SliderEvent.Value` preserves single versus range shape; `SliderController.SetValue` changes native state without synthesizing a managed interaction event. Slider is retained and is not available inside cached List rows.
+
 ## Overlay
 
 `ui.Overlay(key, child, options)` gives one ordinary semantic child a deferred window-relative layer. Rust owns viewport placement, deferred paint priority, modal backdrop input interception, initial focus, Tab/Shift+Tab containment, previous-focus restoration, and native backdrop/Escape detection. Dismissal crosses into managed code only through an explicit `OnDismiss` callback.

@@ -610,4 +610,19 @@ public readonly unsafe ref partial struct RenderContext
         );
         return controller;
     }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private SliderController BindAutoController(ref SliderController controller)
+    {
+        if (controller.IsBound)
+        {
+            return controller;
+        }
+        var owner = OwnerView;
+        controller = new SliderController(
+            owner,
+            ResourceKeys.EncodeAutoKey(owner.NextResourceKeyId())
+        );
+        return controller;
+    }
 }

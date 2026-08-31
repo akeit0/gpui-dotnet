@@ -6,8 +6,11 @@ using static Gpui.Units;
 internal sealed partial class InputGalleryView : View
 {
     private InputController _search;
+    private SliderController _volume;
     private string _value = "Type in the first field";
     private string _lastEvent = "No input event yet";
+    private string _lastSliderEvent = "No slider event yet";
+    private float _volumeValue = 40;
 
     protected override Element Render(ref RenderContext ui)
     {
@@ -67,6 +70,32 @@ internal sealed partial class InputGalleryView : View
             ui.Input("disabled"u8, new Utf8InputOptions("Cannot focus or edit"u8, disabled: true))
                 .Width(Percent(100))
         );
+        var volume = Field(
+            ref ui,
+            "Slider + native Change/Release events",
+            ui.Slider(
+                    ref _volume,
+                    new SliderOptions(min: 0, max: 100, step: 5, value: _volumeValue)
+                )
+                .OnChanged(
+                    this,
+                    (view, slider) =>
+                    {
+                        view._volumeValue = slider.End;
+                        view._lastSliderEvent = $"Changed · {slider.End:0}";
+                        view.Invalidate();
+                    }
+                )
+                .OnReleased(
+                    this,
+                    (view, slider) =>
+                    {
+                        view._lastSliderEvent = $"Released · {slider.End:0}";
+                        view.Invalidate();
+                    }
+                )
+                .Width(Percent(100))
+        );
 
         var controls = ui.HStack(
                 ui.Button("focus-search", "Focus")
@@ -92,10 +121,12 @@ internal sealed partial class InputGalleryView : View
                     .TextColor(Rgb(71, 85, 105)),
                 ui.HStack(search, password).Gap(Px(14)),
                 ui.HStack(readOnly, disabled).Gap(Px(14)),
+                ui.HStack(volume).Gap(Px(14)),
                 controls,
                 ui.VStack(
                         ui.Text($"Value: {_value}").TextColor(Rgb(30, 41, 59)),
-                        ui.Text(_lastEvent).FontSize(Px(12)).TextColor(Rgb(79, 70, 229))
+                        ui.Text(_lastEvent).FontSize(Px(12)).TextColor(Rgb(79, 70, 229)),
+                        ui.Text(_lastSliderEvent).FontSize(Px(12)).TextColor(Rgb(5, 150, 105))
                     )
                     .Gap(Px(5))
                     .Padding(Px(12))

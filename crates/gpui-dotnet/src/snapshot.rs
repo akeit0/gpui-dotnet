@@ -6,16 +6,17 @@ use crate::{
     abi::{NodeRecord, OpRecord, RenderArena},
     semantic::{
         COMPONENT_CONTEXT_MENU, COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_OVERLAY,
-        COMPONENT_POPOVER_MENU, COMPONENT_TABLE, COMPONENT_TOOLTIP, DataKind, OP_CHECKED,
-        OP_CONTEXT_MENU_MARGIN_PX, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED,
-        OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
-        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_OVERDRAW_PX, OP_ON_CLICK,
+        COMPONENT_POPOVER_MENU, COMPONENT_SLIDER, COMPONENT_TABLE, COMPONENT_TOOLTIP, DataKind,
+        OP_CHECKED, OP_CONTEXT_MENU_MARGIN_PX, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT,
+        OP_INPUT_DISABLED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT,
+        OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_OVERDRAW_PX, OP_ON_CLICK,
         OP_OVERLAY_DISMISS_ON_BACKDROP, OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX,
         OP_OVERLAY_MODAL, OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_POPOVER_MENU_MARGIN_PX,
         OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH,
-        OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TABLE_COLUMN, OP_TOOLTIP_ALIGNMENT,
-        OP_TOOLTIP_GAP_PX, OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA,
-        ValueKind, component_metadata, operation_metadata,
+        OP_SHOW_SCROLLBAR, OP_SLIDER_AXIS, OP_SLIDER_DISABLED, OP_SLIDER_SCALE, OP_SMOOTH_SCROLL,
+        OP_TABLE_COLUMN, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_MARGIN_PX,
+        OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA, ValueKind, component_metadata,
+        operation_metadata,
     },
 };
 
@@ -154,7 +155,7 @@ pub struct SnapshotScratch {
     op_counts: Vec<usize>,
     op_offsets: Vec<usize>,
     op_cursor: Vec<usize>,
-    resource_keys: Vec<(u32, u32, u32)>,
+    resource_keys: Vec<(u32, u32, u32, u16)>,
 }
 
 impl SnapshotScratch {
@@ -180,10 +181,10 @@ pub fn validate(arena: &RenderArena, root: u32) -> Result<(), i32> {
 }
 
 /// Virtualized lists and tables share one row-engine namespace per owner view, so a List and a
-/// Table (or two of either) must not declare the same `(owner, key)`. Keyed lookups are by
-/// `(owner, key)` alone; a collision would silently share ListState, the row cache, and the
-/// scrollbar between two elements. The count of list/table nodes per snapshot is tiny, so the
-/// O(K²) pairwise comparison over reusable scratch memory is cheaper than hashing strings.
+/// Table (or two of either) must not declare the same `(owner, key)`. Slider resources use a
+/// separate kind namespace and are checked independently. The count of retained nodes per
+/// snapshot is tiny, so the O(K²) pairwise comparison over reusable scratch memory is cheaper
+/// than hashing strings.
 fn validate_resource_key_uniqueness(
     nodes: &[NodeRecord],
     ops: &[OpRecord],
@@ -193,7 +194,7 @@ fn validate_resource_key_uniqueness(
     // Last OP_RESOURCE_OWNER per node wins, matching the materializer's lookup.
     let owners = &mut scratch.resource_keys;
     owners.clear();
-    owners.resize(nodes.len(), (0, 0, 0));
+    owners.resize(nodes.len(), (0, 0, 0, 0));
     for op in ops {
         if op.code == OP_RESOURCE_OWNER {
             let node = op.node as usize;
@@ -204,15 +205,19 @@ fn validate_resource_key_uniqueness(
     let mut count = 0usize;
     for index in 0..nodes.len() {
         let node = &nodes[index];
-        // A table's row-engine key is the first NUL-separated field of its data blob; a
-        // list's key is the whole payload.
-        let key_length = match node.component {
-            COMPONENT_LIST => node.data_length,
-            COMPONENT_TABLE => utf8
-                [node.data_offset as usize..node.data_offset as usize + node.data_length as usize]
-                .iter()
-                .position(|byte| *byte == 0)
-                .map_or(node.data_length, |position| position as u32),
+        // A table's row-engine key is the first NUL-separated field of its data blob; a list's
+        // key is the whole payload. The kind keeps Slider's separate resource namespace apart.
+        let (kind, key_length) = match node.component {
+            COMPONENT_LIST => (2, node.data_length),
+            COMPONENT_TABLE => (
+                2,
+                utf8[node.data_offset as usize
+                    ..node.data_offset as usize + node.data_length as usize]
+                    .iter()
+                    .position(|byte| *byte == 0)
+                    .map_or(node.data_length, |position| position as u32),
+            ),
+            COMPONENT_SLIDER => (4, node.data_length),
             _ => continue,
         };
         let owner = owners[index].0;
@@ -221,6 +226,7 @@ fn validate_resource_key_uniqueness(
         }
         for previous in &owners[..count] {
             if previous.0 == owner
+                && previous.3 == kind
                 && previous.2 == key_length
                 && utf8[previous.1 as usize..previous.1 as usize + key_length as usize]
                     == utf8
@@ -229,7 +235,7 @@ fn validate_resource_key_uniqueness(
                 return Err(-56);
             }
         }
-        owners[count] = (owner, node.data_offset, key_length);
+        owners[count] = (owner, node.data_offset, key_length, kind);
         count += 1;
     }
     Ok(())
@@ -298,6 +304,9 @@ fn validate_with_scratch(
                 return Err(-31);
             }
         }
+        if node.component == COMPONENT_SLIDER && payload.contains(&0) {
+            return Err(-43);
+        }
     }
 
     for op in ops {
@@ -336,6 +345,9 @@ fn validate_with_scratch(
         if op.code == OP_SCROLL_AXIS && op.a > 2 {
             return Err(-26);
         }
+        if matches!(op.code, OP_SLIDER_AXIS | OP_SLIDER_SCALE) && op.a > 1 {
+            return Err(-43);
+        }
         if op.code == OP_WINDOW_CONTROL_AREA && op.a > 3 {
             return Err(-39);
         }
@@ -347,6 +359,7 @@ fn validate_with_scratch(
                 | OP_INPUT_DISABLED
                 | OP_INPUT_READ_ONLY
                 | OP_INPUT_PASSWORD
+                | OP_SLIDER_DISABLED
                 | OP_OVERLAY_MODAL
                 | OP_OVERLAY_DISMISS_ON_BACKDROP
                 | OP_OVERLAY_DISMISS_ON_ESCAPE

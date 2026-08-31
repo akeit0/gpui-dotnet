@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Gpui;
@@ -154,33 +155,89 @@ internal static unsafe class NativeCallbacks
                 || nativeEvent->reserved2 != 0
                 || nativeEvent->data_length < 0
                 || (nativeEvent->data_length != 0 && nativeEvent->data == null)
-                || nativeEvent->kind
-                    is < (ushort)InputEventKind.Changed
-                        or > (ushort)InputEventKind.FocusChanged
-                || (nativeEvent->flags & ~1u) != 0
                 || !NativeRegistry.Sessions.TryGetValue(sessionId, out var session)
             )
             {
                 return -112;
             }
 
-            var value =
-                nativeEvent->data_length == 0
-                    ? Array.Empty<byte>()
-                    : new ReadOnlySpan<byte>(nativeEvent->data, nativeEvent->data_length).ToArray();
             var previousContext = SynchronizationContext.Current;
             SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
             try
             {
-                session.DispatchInput(
-                    eventToken,
-                    new InputEvent(
-                        (InputEventKind)nativeEvent->kind,
-                        value,
-                        (nativeEvent->flags & 1) != 0,
-                        nativeEvent->revision
-                    )
-                );
+                if (
+                    nativeEvent->kind
+                    is >= (ushort)InputEventKind.Changed
+                        and <= (ushort)InputEventKind.FocusChanged
+                )
+                {
+                    if ((nativeEvent->flags & ~1u) != 0)
+                    {
+                        return -112;
+                    }
+
+                    var value =
+                        nativeEvent->data_length == 0
+                            ? Array.Empty<byte>()
+                            : new ReadOnlySpan<byte>(
+                                nativeEvent->data,
+                                nativeEvent->data_length
+                            ).ToArray();
+                    session.DispatchInput(
+                        eventToken,
+                        new InputEvent(
+                            (InputEventKind)nativeEvent->kind,
+                            value,
+                            (nativeEvent->flags & 1) != 0,
+                            nativeEvent->revision
+                        )
+                    );
+                }
+                else if (nativeEvent->kind is 4 or 5)
+                {
+                    if ((nativeEvent->flags & ~2u) != 0)
+                    {
+                        return -112;
+                    }
+
+                    var isRange = (nativeEvent->flags & 2) != 0;
+                    var expectedLength = isRange ? 8 : 4;
+                    if (nativeEvent->data_length != expectedLength)
+                    {
+                        return -112;
+                    }
+
+                    var data = new ReadOnlySpan<byte>(nativeEvent->data, nativeEvent->data_length);
+                    var start = BitConverter.Int32BitsToSingle(
+                        BinaryPrimitives.ReadInt32LittleEndian(data)
+                    );
+                    var end = isRange
+                        ? BitConverter.Int32BitsToSingle(
+                            BinaryPrimitives.ReadInt32LittleEndian(data[4..])
+                        )
+                        : start;
+                    if (!float.IsFinite(start) || !float.IsFinite(end) || (isRange && start > end))
+                    {
+                        return -112;
+                    }
+
+                    session.DispatchSlider(
+                        eventToken,
+                        new SliderEvent(
+                            nativeEvent->kind == 4
+                                ? SliderEventKind.Changed
+                                : SliderEventKind.Released,
+                            start,
+                            end,
+                            isRange,
+                            nativeEvent->revision
+                        )
+                    );
+                }
+                else
+                {
+                    return -112;
+                }
                 return 0;
             }
             finally

@@ -10,6 +10,7 @@ mod resources;
 mod scrolling;
 #[path = "semantic.g.rs"]
 mod semantic;
+mod slider;
 mod snapshot;
 mod tooltip;
 mod trace;
@@ -82,6 +83,7 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         1 => matches!(command.command, 1..=3),
         2 => matches!(command.command, 10..=13),
         3 => matches!(command.command, 20..=23),
+        4 => command.command == 30,
         _ => false,
     };
     if !valid_command {
@@ -104,6 +106,11 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         (2, 13) => command.data_length == 0 && command.a >> 32 == 0 && command.b >> 32 == 0,
         (3, 20 | 21 | 23) => command.data_length == 0 && command.a == 0 && command.b == 0,
         (3, 22) => command.a == 0 && command.b == 0,
+        (4, 30) => {
+            let start = f32::from_bits(command.a as u32);
+            let end = f32::from_bits((command.a >> 32) as u32);
+            command.data_length == 0 && command.b <= 1 && start.is_finite() && end.is_finite()
+        }
         _ => false,
     };
     if !payload_valid {

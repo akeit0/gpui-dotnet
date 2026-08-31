@@ -15,7 +15,7 @@ use crate::{
     popover_menu::{PopoverMenuConfiguration, popover_menu},
     resources::{
         ResourceStore, TableSpec, input_configuration, list_configuration, resource_key,
-        table_configuration,
+        slider_configuration, table_configuration,
     },
     scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics, list_overlay, scroll_overlay},
     semantic::{
@@ -57,6 +57,7 @@ impl ManagedView {
             NativeAdapter::Table => self.materialize_table(node, snapshot),
             NativeAdapter::Image => materialize_image(node, snapshot),
             NativeAdapter::Input => self.materialize_input(node, snapshot, window, cx),
+            NativeAdapter::Slider => self.materialize_slider(node, snapshot, cx),
             NativeAdapter::Overlay => self.materialize_overlay(node, snapshot, window, cx),
             NativeAdapter::Tooltip => self.materialize_tooltip(node, snapshot, window, cx),
             NativeAdapter::ContextMenu => self.materialize_context_menu(node, snapshot, window, cx),
@@ -348,6 +349,26 @@ impl ManagedView {
             .border_color(rgba(0xCBD5E1FF))
             .bg(rgba(0xFFFFFFFF))
             .child(input);
+        if disabled {
+            element = element.opacity(0.55);
+        }
+        apply_styles(element, node, snapshot).into_any_element()
+    }
+
+    fn materialize_slider(
+        &self,
+        node: &SnapshotNode,
+        snapshot: &ValidatedSnapshot,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let Some(configuration) = slider_configuration(snapshot, node) else {
+            return div()
+                .child("Slider resource is missing its owner or configuration.")
+                .into_any_element();
+        };
+        let disabled = configuration.disabled;
+        let slider = self.resources.slider_resource(&configuration, cx);
+        let mut element = div().w_full().h(px(24.)).min_w_0().child(slider);
         if disabled {
             element = element.opacity(0.55);
         }
@@ -680,6 +701,7 @@ pub(crate) fn materialize_snapshot_node_detached(
             | NativeAdapter::List
             | NativeAdapter::Table
             | NativeAdapter::Input
+            | NativeAdapter::Slider
             | NativeAdapter::Overlay
             | NativeAdapter::Tooltip
             | NativeAdapter::ContextMenu
@@ -687,7 +709,7 @@ pub(crate) fn materialize_snapshot_node_detached(
     ) {
         return div()
             .child(
-                "Retained Scroll/List/Table/Input resources and deferred layers inside a virtualized list row are not supported.",
+                "Retained Scroll/List/Table/Input/Slider resources and deferred layers inside a virtualized list row are not supported.",
             )
             .into_any_element();
     }

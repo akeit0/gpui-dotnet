@@ -153,6 +153,96 @@ public static partial class ElementExtensions
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> OnChanged<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Action<TView, SliderEvent> callback
+    )
+        where TTag : unmanaged, ISliderElementTag
+        where TView : View
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnChanged, view.BindSlider(callback));
+        return element;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> OnChanged<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Func<TView, SliderEvent, ValueTask> callback
+    )
+        where TTag : unmanaged, ISliderElementTag
+        where TView : View
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnChanged, view.BindSlider(callback));
+        return element;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> OnChanged<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Func<TView, SliderEvent, Task> callback
+    )
+        where TTag : unmanaged, ISliderElementTag
+        where TView : View
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnChanged, view.BindSlider(callback));
+        return element;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> OnReleased<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Action<TView, SliderEvent> callback
+    )
+        where TTag : unmanaged, ISliderElementTag
+        where TView : View
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnReleased, view.BindSlider(callback));
+        return element;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> OnReleased<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Func<TView, SliderEvent, ValueTask> callback
+    )
+        where TTag : unmanaged, ISliderElementTag
+        where TView : View
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnReleased, view.BindSlider(callback));
+        return element;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> OnReleased<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Func<TView, SliderEvent, Task> callback
+    )
+        where TTag : unmanaged, ISliderElementTag
+        where TView : View
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnReleased, view.BindSlider(callback));
+        return element;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Element<OverlayTag> OnDismiss<TView>(
         this Element<OverlayTag> element,
         TView view,

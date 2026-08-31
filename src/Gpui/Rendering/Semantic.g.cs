@@ -23,6 +23,7 @@ namespace Gpui.Interop
         ContextMenu = 15,
         PopoverMenu = 16,
         Table = 17,
+        Slider = 18,
     }
 
     internal enum OpCode : ushort
@@ -92,6 +93,17 @@ namespace Gpui.Interop
         ScrollbarGutter = 320,
         ScrollbarWidth = 321,
         TableColumn = 322,
+        SliderMin = 330,
+        SliderMax = 331,
+        SliderStep = 332,
+        SliderAxis = 333,
+        SliderDisabled = 334,
+        SliderScale = 335,
+        SliderValue = 336,
+        SliderRangeStart = 337,
+        SliderRangeEnd = 338,
+        SliderOnChanged = 339,
+        SliderOnReleased = 340,
     }
 
     internal enum ValueKind : ushort
@@ -106,7 +118,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 20;
-        internal const ulong SchemaHash = 0x7AECFB5C366E1EA2UL;
+        internal const ulong SchemaHash = 0xE1A60A8C5899C638UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -127,6 +139,7 @@ namespace Gpui.Interop
             ComponentId.ContextMenu => true,
             ComponentId.PopoverMenu => true,
             ComponentId.Table => true,
+            ComponentId.Slider => true,
             _ => false,
         };
 
@@ -144,6 +157,7 @@ namespace Gpui.Interop
             ComponentId.ContextMenu => true,
             ComponentId.PopoverMenu => true,
             ComponentId.Table => true,
+            ComponentId.Slider => true,
             _ => false,
         };
 
@@ -214,6 +228,17 @@ namespace Gpui.Interop
             OpCode.ScrollbarGutter => ValueKind.U32,
             OpCode.ScrollbarWidth => ValueKind.F32,
             OpCode.TableColumn => ValueKind.U64,
+            OpCode.SliderMin => ValueKind.F32,
+            OpCode.SliderMax => ValueKind.F32,
+            OpCode.SliderStep => ValueKind.F32,
+            OpCode.SliderAxis => ValueKind.U32,
+            OpCode.SliderDisabled => ValueKind.U32,
+            OpCode.SliderScale => ValueKind.U32,
+            OpCode.SliderValue => ValueKind.F32,
+            OpCode.SliderRangeStart => ValueKind.F32,
+            OpCode.SliderRangeEnd => ValueKind.F32,
+            OpCode.SliderOnChanged => ValueKind.Callback,
+            OpCode.SliderOnReleased => ValueKind.Callback,
             _ => null,
         };
 
@@ -236,6 +261,7 @@ namespace Gpui.Interop
             ComponentId.ContextMenu => 0x0000000000002023UL,
             ComponentId.PopoverMenu => 0x0000000000004023UL,
             ComponentId.Table => 0x00000000000080A1UL,
+            ComponentId.Slider => 0x0000000000010021UL,
             _ => 0,
         };
 
@@ -306,6 +332,17 @@ namespace Gpui.Interop
             OpCode.ScrollbarGutter => 0x0000000000000020UL,
             OpCode.ScrollbarWidth => 0x0000000000000020UL,
             OpCode.TableColumn => 0x0000000000008000UL,
+            OpCode.SliderMin => 0x0000000000010000UL,
+            OpCode.SliderMax => 0x0000000000010000UL,
+            OpCode.SliderStep => 0x0000000000010000UL,
+            OpCode.SliderAxis => 0x0000000000010000UL,
+            OpCode.SliderDisabled => 0x0000000000010000UL,
+            OpCode.SliderScale => 0x0000000000010000UL,
+            OpCode.SliderValue => 0x0000000000010000UL,
+            OpCode.SliderRangeStart => 0x0000000000010000UL,
+            OpCode.SliderRangeEnd => 0x0000000000010000UL,
+            OpCode.SliderOnChanged => 0x0000000000010000UL,
+            OpCode.SliderOnReleased => 0x0000000000010000UL,
             _ => 0,
         };
 
@@ -335,6 +372,7 @@ namespace Gpui
     public interface IContextMenuElementTag { }
     public interface IPopoverMenuElementTag { }
     public interface ITableElementTag { }
+    public interface ISliderElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
@@ -353,6 +391,7 @@ namespace Gpui
     public readonly struct ContextMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IContextMenuElementTag { }
     public readonly struct PopoverMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IPopoverMenuElementTag { }
     public readonly struct TableTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag, ITableElementTag { }
+    public readonly struct SliderTag : IStyledElementTag, INativeStateElementTag, ISliderElementTag { }
 
     public readonly unsafe ref partial struct RenderContext
     {

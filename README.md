@@ -244,6 +244,22 @@ Events are opt-in: `OnChanged`, `OnSubmitted`, and `OnFocusChanged`. Without the
 
 On Windows, focused inputs use the active system IME, including composition text and hardware language-mode keys such as Japanese Hankaku/Zenkaku. The native dependency is pinned to the official Zed commit for [PR #41259](https://github.com/zed-industries/zed/pull/41259), which routes IME-owned keys through the standard Win32 message translation flow. Applications do not need to toggle the IME themselves.
 
+## Slider
+
+`ui.Slider` is a retained native slider with linear or logarithmic mapping, optional vertical orientation, configurable bounds and step, and single-value or range state. Bind its interaction events directly to a View:
+
+```csharp
+private SliderController _volumeController;
+private float _volume;
+
+protected override Element Render(ref RenderContext ui) =>
+    ui.Slider(ref _volumeController, new SliderOptions(min: 0, max: 100, step: 5))
+        .OnChanged(this, (view, slider) => view._volume = slider.End)
+        .OnReleased(this, (view, slider) => view.SaveVolume(slider.End));
+```
+
+`OnChanged` fires continuously while the pointer changes the value; `OnReleased` fires once when the pointer interaction ends. `SliderEvent.Value` preserves whether the slider is single-valued or a range. The native slider retains its value across managed rerenders, and `SliderController.SetValue` updates it imperatively.
+
 ## Overlays
 
 `ui.Overlay` paints ordinary semantic content in a deferred, window-relative layer. The default is a centered modal with a dim backdrop, 16-pixel viewport margin, backdrop dismissal, and Escape dismissal:

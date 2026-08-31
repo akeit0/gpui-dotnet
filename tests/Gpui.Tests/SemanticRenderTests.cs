@@ -139,6 +139,65 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public async Task SliderConfigurationAndEventsPassManagedValidation()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var slider = ui.Slider(
+                    "volume"u8,
+                    new SliderOptions(
+                        min: 10,
+                        max: 110,
+                        step: 5,
+                        value: 35,
+                        axis: SliderAxis.Vertical,
+                        scale: SliderScale.Logarithmic
+                    )
+                )
+                .OnChanged(view, (owner, input) => owner.SliderEvents += input.End)
+                .OnReleased(view, (owner, input) => owner.SliderReleases += input.End);
+
+            arena.Validate(slider);
+
+            Assert.Equal(1, arena.GetStats().Nodes);
+            Assert.True(arena.GetStats().Ops >= 6);
+
+            var changed = ReadCallbackEventId(arena, OpCode.SliderOnChanged);
+            var released = ReadCallbackEventId(arena, OpCode.SliderOnReleased);
+            await view.DispatchSliderCore(
+                changed,
+                new SliderEvent(SliderEventKind.Changed, 50, 50, false, 4)
+            );
+            await view.DispatchSliderCore(
+                released,
+                new SliderEvent(SliderEventKind.Released, 55, 55, false, 5)
+            );
+
+            Assert.Equal(50, view.SliderEvents);
+            Assert.Equal(55, view.SliderReleases);
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void SliderOptionsRejectInvalidRangesAndScales()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SliderOptions(min: 10, max: 10));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SliderOptions(step: 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new SliderOptions(min: 0, scale: SliderScale.Logarithmic)
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SliderOptions(axis: (SliderAxis)99));
+    }
+
+    [Fact]
     public void InputEventOwnsUtf8AndDecodesOnlyOnce()
     {
         var input = new InputEvent(InputEventKind.Changed, "こんにちは"u8.ToArray(), true, 7);
@@ -850,11 +909,14 @@ public sealed class SemanticRenderTests
             static (_, _, _) => { }
         );
 
-    private static unsafe uint ReadCallbackEventId(RenderArenaOwner arena)
+    private static unsafe uint ReadCallbackEventId(RenderArenaOwner arena) =>
+        ReadCallbackEventId(arena, OpCode.OnClick);
+
+    private static unsafe uint ReadCallbackEventId(RenderArenaOwner arena, OpCode code)
     {
         for (var index = 0; index < arena.NativeArena->OpLength; index++)
         {
-            if (arena.NativeArena->Ops[index].Code == (ushort)OpCode.OnClick)
+            if (arena.NativeArena->Ops[index].Code == (ushort)code)
             {
                 return checked((uint)(arena.NativeArena->Ops[index].A & uint.MaxValue));
             }
@@ -878,6 +940,9 @@ public sealed class SemanticRenderTests
 
     private sealed class ProbeView : View
     {
+        internal float SliderEvents;
+        internal float SliderReleases;
+
         internal ListItemRenderer Row => BindListRenderer(1);
 
         internal void RecordClick() { }

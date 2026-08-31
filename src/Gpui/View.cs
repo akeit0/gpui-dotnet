@@ -55,6 +55,7 @@ public abstract class View
     {
         Click,
         Input,
+        Slider,
     }
 
     private readonly struct EventDispatch
@@ -64,6 +65,7 @@ public abstract class View
             Kind = EventDispatchKind.Click;
             Click = click;
             Input = null;
+            Slider = default;
         }
 
         internal EventDispatch(InputEvent input)
@@ -71,11 +73,21 @@ public abstract class View
             Kind = EventDispatchKind.Input;
             Click = default;
             Input = input;
+            Slider = default;
+        }
+
+        internal EventDispatch(SliderEvent slider)
+        {
+            Kind = EventDispatchKind.Slider;
+            Click = default;
+            Input = null;
+            Slider = slider;
         }
 
         internal EventDispatchKind Kind { get; }
         internal ClickEvent Click { get; }
         internal InputEvent? Input { get; }
+        internal SliderEvent Slider { get; }
     }
 
     private struct EventEntry
@@ -171,6 +183,15 @@ public abstract class View
 
     internal ulong BindInput<TView>(Func<TView, InputEvent, Task> callback)
         where TView : View => BindDynamicEvent(this, callback, InputTaskBinder<TView>.Index);
+
+    internal ulong BindSlider<TView>(Action<TView, SliderEvent> callback)
+        where TView : View => BindDynamicEvent(this, callback, SliderBinder<TView>.Index);
+
+    internal ulong BindSlider<TView>(Func<TView, SliderEvent, ValueTask> callback)
+        where TView : View => BindDynamicEvent(this, callback, SliderAsyncBinder<TView>.Index);
+
+    internal ulong BindSlider<TView>(Func<TView, SliderEvent, Task> callback)
+        where TView : View => BindDynamicEvent(this, callback, SliderTaskBinder<TView>.Index);
 
     private ulong BindDynamicEvent(View target, Delegate callback, int binderIndex)
     {
@@ -321,6 +342,21 @@ public abstract class View
         );
     }
 
+    private ValueTask DispatchDynamicSliderAsync(uint eventId, SliderEvent sliderEvent)
+    {
+        if (!TryGetDynamicEvent(eventId, out var entry))
+        {
+            return MissingDynamicEvent(eventId, "slider");
+        }
+
+        var dispatch = new EventDispatch(sliderEvent);
+        return EventBinderRegistry.Get(entry.BinderIndex)(
+            entry.Target!,
+            entry.Callback!,
+            in dispatch
+        );
+    }
+
     private bool TryGetDynamicEvent(uint eventId, out EventEntry entry)
     {
         if ((eventId & DynamicEventBit) == 0)
@@ -440,6 +476,9 @@ public abstract class View
 
     internal ValueTask DispatchInputCore(uint eventId, InputEvent inputEvent) =>
         DispatchDynamicInputAsync(eventId, inputEvent);
+
+    internal ValueTask DispatchSliderCore(uint eventId, SliderEvent sliderEvent) =>
+        DispatchDynamicSliderAsync(eventId, sliderEvent);
 
     internal uint RuntimeViewHandle => Volatile.Read(ref _runtimeViewHandle);
     internal bool IsMountedCore => Volatile.Read(ref _mounted) != 0;
@@ -815,6 +854,79 @@ public abstract class View
             }
 
             return new ValueTask(typedCallback(typedTarget, input));
+        }
+    }
+
+    private static class SliderBinder<TView>
+        where TView : View
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.Slider)
+            {
+                return WrongDispatchKind("slider");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "slider");
+            }
+            if (callback is not Action<TView, SliderEvent> typedCallback)
+            {
+                return WrongCallback("Action<TView, SliderEvent>", "slider");
+            }
+
+            typedCallback(typedTarget, dispatch.Slider);
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private static class SliderAsyncBinder<TView>
+        where TView : View
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.Slider)
+            {
+                return WrongDispatchKind("slider");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "slider");
+            }
+            if (callback is not Func<TView, SliderEvent, ValueTask> typedCallback)
+            {
+                return WrongCallback("Func<TView, SliderEvent, ValueTask>", "slider");
+            }
+
+            return typedCallback(typedTarget, dispatch.Slider);
+        }
+    }
+
+    private static class SliderTaskBinder<TView>
+        where TView : View
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.Slider)
+            {
+                return WrongDispatchKind("slider");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "slider");
+            }
+            if (callback is not Func<TView, SliderEvent, Task> typedCallback)
+            {
+                return WrongCallback("Func<TView, SliderEvent, Task>", "slider");
+            }
+
+            return new ValueTask(typedCallback(typedTarget, dispatch.Slider));
         }
     }
 

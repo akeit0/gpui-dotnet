@@ -16,7 +16,8 @@
     "window_control",
     "context_menu",
     "popover_menu",
-    "table"
+    "table",
+    "slider"
   ],
   "components": [
     {
@@ -274,6 +275,21 @@
         "table"
       ],
       "nativeAdapter": "table"
+    },
+    {
+      "id": 18,
+      "name": "slider",
+      "csharp": "Slider",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": false,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "native_state",
+        "slider"
+      ],
+      "nativeAdapter": "slider"
     }
   ],
   "operations": [
@@ -789,6 +805,94 @@
       "csharp": "TableColumn",
       "value": "u64",
       "requires": "table",
+      "managedApi": null
+    },
+    {
+      "id": 330,
+      "name": "slider_min",
+      "csharp": "SliderMin",
+      "value": "f32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 331,
+      "name": "slider_max",
+      "csharp": "SliderMax",
+      "value": "f32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 332,
+      "name": "slider_step",
+      "csharp": "SliderStep",
+      "value": "f32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 333,
+      "name": "slider_axis",
+      "csharp": "SliderAxis",
+      "value": "u32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 334,
+      "name": "slider_disabled",
+      "csharp": "SliderDisabled",
+      "value": "u32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 335,
+      "name": "slider_scale",
+      "csharp": "SliderScale",
+      "value": "u32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 336,
+      "name": "slider_value",
+      "csharp": "SliderValue",
+      "value": "f32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 337,
+      "name": "slider_range_start",
+      "csharp": "SliderRangeStart",
+      "value": "f32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 338,
+      "name": "slider_range_end",
+      "csharp": "SliderRangeEnd",
+      "value": "f32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 339,
+      "name": "slider_on_changed",
+      "csharp": "SliderOnChanged",
+      "value": "callback",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 340,
+      "name": "slider_on_released",
+      "csharp": "SliderOnReleased",
+      "value": "callback",
+      "requires": "slider",
       "managedApi": null
     }
   ]
