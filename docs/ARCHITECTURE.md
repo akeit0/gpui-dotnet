@@ -32,7 +32,9 @@ The boundary rule is: **cross the ABI for state transitions or coarse data batch
 The managed implementation is split by responsibility rather than by operating system:
 
 - `Gpui.Core` contains the platform-neutral public render API, View lifecycle/composition,
-  controllers, semantic bindings, ABI layouts, arena writer, and managed validator;
+  controllers, semantic bindings, arena writer, and managed validator;
+- `Gpui.Abi` contains the generated native ABI layouts and owns native binding generation/build
+  inputs without exposing them as public API;
 - `Gpui.Runtime` contains native library loading, application/window hosting, callbacks, and
   managed render sessions;
 - `Gpui` remains a small compatibility facade with type forwarders and owns the single NuGet

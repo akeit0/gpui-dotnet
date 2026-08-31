@@ -11,6 +11,7 @@
         <PackageTags>gpui;gui;dotnet;csharp;rust</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <RepositoryRoot>$(MSBuildThisFileDirectory)../..</RepositoryRoot>
+        <AbiAssemblyPath>$(MSBuildThisFileDirectory)../Gpui.Abi/bin/$(Configuration)/$(TargetFramework)/Gpui.Abi.dll</AbiAssemblyPath>
         <CoreAssemblyPath>$(MSBuildThisFileDirectory)../Gpui.Core/bin/$(Configuration)/$(TargetFramework)/Gpui.Core.dll</CoreAssemblyPath>
         <RuntimeAssemblyPath>$(MSBuildThisFileDirectory)../Gpui.Runtime/bin/$(Configuration)/$(TargetFramework)/Gpui.Runtime.dll</RuntimeAssemblyPath>
     </PropertyGroup>
@@ -18,6 +19,7 @@
     <ItemGroup>
         <Compile Include="TypeForwarders.cs" />
         <PackageReference Include="Utf8StringInterpolation" Version="1.3.2" />
+        <ProjectReference Include="../Gpui.Abi/Gpui.Abi.csproj" PrivateAssets="all" />
         <ProjectReference Include="../Gpui.Core/Gpui.Core.csproj" PrivateAssets="all" />
         <ProjectReference Include="../Gpui.Runtime/Gpui.Runtime.csproj" PrivateAssets="all" />
         <ProjectReference
@@ -30,6 +32,7 @@
     <ItemGroup>
         <None Include="$(RepositoryRoot)/README.md" Pack="true" PackagePath="\" />
         <None Include="$(RepositoryRoot)/NOTICE" Pack="true" PackagePath="\" />
+        <None Include="$(AbiAssemblyPath)" Pack="true" PackagePath="lib/$(TargetFramework)" Visible="false" />
         <None Include="$(CoreAssemblyPath)" Pack="true" PackagePath="lib/$(TargetFramework)" Visible="false" />
         <None Include="$(RuntimeAssemblyPath)" Pack="true" PackagePath="lib/$(TargetFramework)" Visible="false" />
         <None
@@ -66,6 +69,10 @@
     </ItemGroup>
 
     <Target Name="ValidateGpuiImplementationAssemblies" BeforeTargets="GenerateNuspec">
+        <Error
+            Condition="!Exists('$(AbiAssemblyPath)')"
+            Text="Gpui.Abi.dll was not built at $(AbiAssemblyPath)."
+        />
         <Error
             Condition="!Exists('$(CoreAssemblyPath)')"
             Text="Gpui.Core.dll was not built at $(CoreAssemblyPath)."

@@ -426,6 +426,7 @@ The intended distribution is one managed NuGet containing the source generator a
 ```text
 Gpui.nupkg
   lib/net10.0/Gpui.dll
+  lib/net10.0/Gpui.Abi.dll
   lib/net10.0/Gpui.Core.dll
   lib/net10.0/Gpui.Runtime.dll
   analyzers/dotnet/cs/Gpui.Generators.dll

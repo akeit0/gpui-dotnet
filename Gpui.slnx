@@ -1,5 +1,6 @@
 <Solution>
     <Project Path="src/Gpui/Gpui.csproj" />
+    <Project Path="src/Gpui.Abi/Gpui.Abi.csproj" />
     <Project Path="src/Gpui.Core/Gpui.Core.csproj" />
     <Project Path="src/Gpui.Runtime/Gpui.Runtime.csproj" />
     <Project Path="src/Gpui.Generators/Gpui.Generators.csproj" />

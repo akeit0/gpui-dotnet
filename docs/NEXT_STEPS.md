@@ -73,9 +73,9 @@ Add CI gates for:
 - ABI C header/layout assertions.
 
 The managed assemblies are now split by responsibility: `Gpui.Core` owns the platform-neutral
-render API/ABI, `Gpui.Runtime` owns native application hosting, and the `Gpui` assembly remains a
-type-forwarding compatibility facade. Keep these as one NuGet package while the public API is still
-evolving.
+render API, `Gpui.Abi` owns generated ABI layouts and native build inputs, `Gpui.Runtime` owns native
+application hosting, and the `Gpui` assembly remains a type-forwarding compatibility facade. Keep
+these as one NuGet package while the public API is still evolving.
 
 ## 7. Review follow-ups (2026-08-31)
 
