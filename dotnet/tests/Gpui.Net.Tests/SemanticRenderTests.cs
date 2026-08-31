@@ -110,6 +110,54 @@ public sealed class SemanticRenderTests
         }
     }
 
+    [Fact]
+    public unsafe void Utf8OverlayConfigurationPassesManagedValidation()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var child = ui.Text("設定"u8);
+            var overlay = ui
+                .Overlay(
+                    "settings"u8,
+                    child,
+                    new OverlayOptions(
+                        placement: OverlayPlacement.Right,
+                        margin: 24,
+                        backdrop: Rgba(15, 23, 42, 128)
+                    )
+                )
+                .OnDismiss(view.Click, 42);
+
+            arena.Validate(overlay);
+
+            var stats = arena.GetStats();
+            Assert.Equal(2, stats.Nodes);
+            Assert.Equal(1, stats.Children);
+            Assert.Equal(8, stats.Ops);
+            Assert.Equal("settings"u8.Length + "設定"u8.Length, stats.Utf8Bytes);
+
+            arena.NativeArena->ChildLength = 0;
+            Assert.Throws<InvalidOperationException>(() => arena.Validate(overlay));
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void OverlayOptionsRejectInvalidPlacementAndMargin()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new OverlayOptions(placement: (OverlayPlacement)9)
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() => new OverlayOptions(margin: -1));
+    }
+
     private static void Attach(ProbeView view) =>
         view.AttachRuntime(
             1,
@@ -121,6 +169,8 @@ public sealed class SemanticRenderTests
 
     private sealed class ProbeView : View
     {
+        internal Callback<ClickEvent> Click => BindClick(1);
+
         protected override Element Render(ref RenderContext ui) => ui.Div();
     }
 

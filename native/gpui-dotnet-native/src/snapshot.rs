@@ -5,11 +5,13 @@ use gpui::SharedString;
 use crate::{
     abi::{OpRecord, RenderArena},
     semantic::{
-        COMPONENT_INPUT, DataKind, OP_CHECKED, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT,
-        OP_INPUT_DISABLED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT,
-        OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_OVERDRAW_PX, OP_ON_CLICK,
-        OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, ValueKind,
-        component_metadata, operation_metadata,
+        COMPONENT_INPUT, COMPONENT_OVERLAY, DataKind, OP_CHECKED, OP_IMAGE_GRAYSCALE,
+        OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY,
+        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
+        OP_LIST_OVERDRAW_PX, OP_ON_CLICK, OP_OVERLAY_DISMISS_ON_BACKDROP,
+        OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
+        OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_RESOURCE_OWNER, OP_SCROLL_AXIS,
+        OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, ValueKind, component_metadata, operation_metadata,
     },
 };
 
@@ -247,7 +249,7 @@ fn validate_with_scratch(
         if op.value_kind != metadata.value_kind as u16 {
             return Err(-16);
         }
-        if op.b != 0 && op.code != OP_ON_CLICK {
+        if op.b != 0 && !matches!(op.code, OP_ON_CLICK | OP_OVERLAY_ON_DISMISS) {
             return Err(-23);
         }
         match metadata.value_kind {
@@ -280,6 +282,9 @@ fn validate_with_scratch(
                 | OP_INPUT_DISABLED
                 | OP_INPUT_READ_ONLY
                 | OP_INPUT_PASSWORD
+                | OP_OVERLAY_MODAL
+                | OP_OVERLAY_DISMISS_ON_BACKDROP
+                | OP_OVERLAY_DISMISS_ON_ESCAPE
         ) && op.a > 1
         {
             return Err(-21);
@@ -302,6 +307,12 @@ fn validate_with_scratch(
         if op.code == OP_LIST_ESTIMATED_ITEM_HEIGHT_PX && f32::from_bits(op.a as u32) <= 0.0 {
             return Err(-29);
         }
+        if op.code == OP_OVERLAY_PLACEMENT && op.a > 8 {
+            return Err(-33);
+        }
+        if op.code == OP_OVERLAY_MARGIN_PX && f32::from_bits(op.a as u32) < 0.0 {
+            return Err(-34);
+        }
     }
 
     scratch.prepare_nodes(node_len, child_len);
@@ -322,6 +333,12 @@ fn validate_with_scratch(
             return Err(-20);
         }
         scratch.child_counts[edge.parent as usize] += 1;
+    }
+
+    if nodes.iter().enumerate().any(|(index, node)| {
+        node.component == COMPONENT_OVERLAY && scratch.child_counts[index] != 1
+    }) {
+        return Err(-32);
     }
 
     if scratch.parents[root as usize] != u32::MAX {
@@ -391,9 +408,9 @@ mod tests {
     use crate::{
         abi::{ChildRecord, NodeRecord, OpRecord},
         semantic::{
-            COMPONENT_CHECKBOX, COMPONENT_DIV, COMPONENT_IMAGE, COMPONENT_INPUT, COMPONENT_TEXT,
-            OP_CHECKED, OP_GAP_PX, OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED, OP_ON_CLICK,
-            OP_PADDING_PX,
+            COMPONENT_CHECKBOX, COMPONENT_DIV, COMPONENT_IMAGE, COMPONENT_INPUT, COMPONENT_OVERLAY,
+            COMPONENT_TEXT, OP_CHECKED, OP_GAP_PX, OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED,
+            OP_ON_CLICK, OP_OVERLAY_PLACEMENT, OP_PADDING_PX,
         },
     };
 
@@ -575,6 +592,44 @@ mod tests {
         arena.utf8_capacity = payload.len() as i32;
 
         assert_eq!(validate(&arena, 0), Err(-21));
+    }
+
+    #[test]
+    fn rejects_overlay_without_exactly_one_child() {
+        let mut key = b'x';
+        let mut node = NodeRecord {
+            component: COMPONENT_OVERLAY,
+            data_length: 1,
+            ..Default::default()
+        };
+        let mut arena = arena_with(&mut node, None);
+        arena.utf8 = &mut key;
+        arena.utf8_length = 1;
+        arena.utf8_capacity = 1;
+
+        assert_eq!(validate(&arena, 0), Err(-32));
+    }
+
+    #[test]
+    fn rejects_invalid_overlay_placement() {
+        let mut key = b'x';
+        let mut node = NodeRecord {
+            component: COMPONENT_OVERLAY,
+            data_length: 1,
+            ..Default::default()
+        };
+        let mut operation = OpRecord {
+            code: OP_OVERLAY_PLACEMENT,
+            value_kind: ValueKind::U32 as u16,
+            a: 9,
+            ..Default::default()
+        };
+        let mut arena = arena_with(&mut node, Some(&mut operation));
+        arena.utf8 = &mut key;
+        arena.utf8_length = 1;
+        arena.utf8_capacity = 1;
+
+        assert_eq!(validate(&arena, 0), Err(-33));
     }
 
     #[test]

@@ -18,6 +18,7 @@ namespace Gpui.Interop
         List = 10,
         Image = 11,
         Input = 12,
+        Overlay = 13,
     }
 
     internal enum OpCode : ushort
@@ -60,6 +61,14 @@ namespace Gpui.Interop
         InputOnChanged = 503,
         InputOnSubmitted = 504,
         InputOnFocusChanged = 505,
+        OverlayPlacement = 600,
+        OverlayPriority = 601,
+        OverlayMarginPx = 602,
+        OverlayModal = 603,
+        OverlayBackdropRgba = 604,
+        OverlayDismissOnBackdrop = 605,
+        OverlayDismissOnEscape = 606,
+        OverlayOnDismiss = 607,
     }
 
     internal enum ValueKind : ushort
@@ -72,8 +81,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 9;
-        internal const ulong SchemaHash = 0x64EAD325E7854DAEUL;
+        internal const uint SchemaVersion = 10;
+        internal const ulong SchemaHash = 0x8B91513B238A37C7UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -89,6 +98,7 @@ namespace Gpui.Interop
             ComponentId.List => true,
             ComponentId.Image => true,
             ComponentId.Input => true,
+            ComponentId.Overlay => true,
             _ => false,
         };
 
@@ -132,6 +142,14 @@ namespace Gpui.Interop
             OpCode.InputOnChanged => ValueKind.Callback,
             OpCode.InputOnSubmitted => ValueKind.Callback,
             OpCode.InputOnFocusChanged => ValueKind.Callback,
+            OpCode.OverlayPlacement => ValueKind.U32,
+            OpCode.OverlayPriority => ValueKind.U32,
+            OpCode.OverlayMarginPx => ValueKind.F32,
+            OpCode.OverlayModal => ValueKind.U32,
+            OpCode.OverlayBackdropRgba => ValueKind.U32,
+            OpCode.OverlayDismissOnBackdrop => ValueKind.U32,
+            OpCode.OverlayDismissOnEscape => ValueKind.U32,
+            OpCode.OverlayOnDismiss => ValueKind.Callback,
             _ => null,
         };
 
@@ -149,6 +167,7 @@ namespace Gpui.Interop
             ComponentId.List => 0x00000000000000A1UL,
             ComponentId.Image => 0x0000000000000101UL,
             ComponentId.Input => 0x0000000000000221UL,
+            ComponentId.Overlay => 0x0000000000000402UL,
             _ => 0,
         };
 
@@ -192,6 +211,14 @@ namespace Gpui.Interop
             OpCode.InputOnChanged => 0x0000000000000200UL,
             OpCode.InputOnSubmitted => 0x0000000000000200UL,
             OpCode.InputOnFocusChanged => 0x0000000000000200UL,
+            OpCode.OverlayPlacement => 0x0000000000000400UL,
+            OpCode.OverlayPriority => 0x0000000000000400UL,
+            OpCode.OverlayMarginPx => 0x0000000000000400UL,
+            OpCode.OverlayModal => 0x0000000000000400UL,
+            OpCode.OverlayBackdropRgba => 0x0000000000000400UL,
+            OpCode.OverlayDismissOnBackdrop => 0x0000000000000400UL,
+            OpCode.OverlayDismissOnEscape => 0x0000000000000400UL,
+            OpCode.OverlayOnDismiss => 0x0000000000000400UL,
             _ => 0,
         };
 
@@ -215,6 +242,7 @@ namespace Gpui
     public interface IVirtualizedElementTag { }
     public interface IImageElementTag { }
     public interface IInputElementTag { }
+    public interface IOverlayElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
@@ -228,6 +256,7 @@ namespace Gpui
     public readonly struct ListTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag { }
     public readonly struct ImageTag : IStyledElementTag, IImageElementTag { }
     public readonly struct InputTag : IStyledElementTag, INativeStateElementTag, IInputElementTag { }
+    public readonly struct OverlayTag : IParentElementTag, IOverlayElementTag { }
 
     public readonly unsafe ref partial struct RenderContext
     {

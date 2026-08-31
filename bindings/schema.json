@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 9,
+  "schemaVersion": 10,
   "capabilities": [
     "styled",
     "parent",
@@ -10,7 +10,8 @@
     "scrollable",
     "virtualized",
     "image",
-    "input"
+    "input",
+    "overlay"
   ],
   "components": [
     {
@@ -188,6 +189,20 @@
         "input"
       ],
       "nativeAdapter": "input"
+    },
+    {
+      "id": 13,
+      "name": "overlay",
+      "csharp": "Overlay",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "parent",
+        "overlay"
+      ],
+      "nativeAdapter": "overlay"
     }
   ],
   "operations": [
@@ -487,6 +502,70 @@
       "csharp": "OnFocusChanged",
       "value": "callback",
       "requires": "input",
+      "managedApi": null
+    },
+    {
+      "id": 600,
+      "name": "overlay_placement",
+      "csharp": "OverlayPlacement",
+      "value": "u32",
+      "requires": "overlay",
+      "managedApi": null
+    },
+    {
+      "id": 601,
+      "name": "overlay_priority",
+      "csharp": "OverlayPriority",
+      "value": "u32",
+      "requires": "overlay",
+      "managedApi": null
+    },
+    {
+      "id": 602,
+      "name": "overlay_margin_px",
+      "csharp": "OverlayMarginPx",
+      "value": "f32",
+      "requires": "overlay",
+      "managedApi": null
+    },
+    {
+      "id": 603,
+      "name": "overlay_modal",
+      "csharp": "OverlayModal",
+      "value": "u32",
+      "requires": "overlay",
+      "managedApi": null
+    },
+    {
+      "id": 604,
+      "name": "overlay_backdrop_rgba",
+      "csharp": "OverlayBackdropRgba",
+      "value": "u32",
+      "requires": "overlay",
+      "managedApi": null
+    },
+    {
+      "id": 605,
+      "name": "overlay_dismiss_on_backdrop",
+      "csharp": "OverlayDismissOnBackdrop",
+      "value": "u32",
+      "requires": "overlay",
+      "managedApi": null
+    },
+    {
+      "id": 606,
+      "name": "overlay_dismiss_on_escape",
+      "csharp": "OverlayDismissOnEscape",
+      "value": "u32",
+      "requires": "overlay",
+      "managedApi": null
+    },
+    {
+      "id": 607,
+      "name": "overlay_on_dismiss",
+      "csharp": "OnDismiss",
+      "value": "callback",
+      "requires": "overlay",
       "managedApi": null
     }
   ]

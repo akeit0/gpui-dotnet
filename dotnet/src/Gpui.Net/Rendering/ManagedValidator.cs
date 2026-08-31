@@ -85,7 +85,10 @@ internal static unsafe class ManagedValidator
                 );
             }
 
-            if (operation.B != 0 && code != OpCode.OnClick)
+            if (
+                operation.B != 0
+                && code is not (OpCode.OnClick or OpCode.OverlayOnDismiss)
+            )
             {
                 throw new InvalidOperationException(
                     $"Operation {i} uses payload word B outside an OnClick event binding."
@@ -147,6 +150,9 @@ internal static unsafe class ManagedValidator
                         or OpCode.InputDisabled
                         or OpCode.InputReadOnly
                         or OpCode.InputPassword
+                        or OpCode.OverlayModal
+                        or OpCode.OverlayDismissOnBackdrop
+                        or OpCode.OverlayDismissOnEscape
                 && operation.A > 1
             )
             {
@@ -190,6 +196,26 @@ internal static unsafe class ManagedValidator
                     $"Operation {i} has a non-positive estimated list item height."
                 );
             }
+
+            if (
+                code == OpCode.OverlayPlacement
+                && operation.A > (uint)OverlayPlacement.TopLeft
+            )
+            {
+                throw new InvalidOperationException(
+                    $"Operation {i} has an invalid overlay placement."
+                );
+            }
+
+            if (
+                code == OpCode.OverlayMarginPx
+                && BitConverter.UInt32BitsToSingle((uint)operation.A) < 0
+            )
+            {
+                throw new InvalidOperationException(
+                    $"Operation {i} has a negative overlay margin."
+                );
+            }
         }
 
         var markedChildren = 0;
@@ -221,6 +247,29 @@ internal static unsafe class ManagedValidator
                 if (edge.Child == root.Node)
                 {
                     throw new InvalidOperationException("The root node cannot have a parent.");
+                }
+            }
+
+            for (var nodeIndex = 0; nodeIndex < arena->NodeLength; nodeIndex++)
+            {
+                if ((ComponentId)arena->Nodes[nodeIndex].Component != ComponentId.Overlay)
+                {
+                    continue;
+                }
+
+                var childCount = 0;
+                for (var edgeIndex = 0; edgeIndex < arena->ChildLength; edgeIndex++)
+                {
+                    if (arena->Children[edgeIndex].Parent == (uint)nodeIndex)
+                    {
+                        childCount++;
+                    }
+                }
+                if (childCount != 1)
+                {
+                    throw new InvalidOperationException(
+                        $"Overlay node {nodeIndex} must have exactly one child."
+                    );
                 }
             }
         }

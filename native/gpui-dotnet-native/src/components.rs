@@ -35,7 +35,8 @@ pub(crate) fn apply_defaults(
         | NativeAdapter::Scroll
         | NativeAdapter::List
         | NativeAdapter::Image
-        | NativeAdapter::Input => element,
+        | NativeAdapter::Input
+        | NativeAdapter::Overlay => element,
     }
 }
 

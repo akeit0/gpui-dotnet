@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use gpui::{
-    AnyElement, ClickEvent, Context, InteractiveElement, IntoElement, ObjectFit, ParentElement,
-    SharedString, StatefulInteractiveElement, Styled, StyledImage, Window, div, img, list, px,
+    AnyElement, ClickEvent, Context, ElementId, Entity, FocusHandle, InteractiveElement,
+    IntoElement, KeyDownEvent, ObjectFit, ParentElement, SharedString, StatefulInteractiveElement,
+    Styled, StyledImage, WeakFocusHandle, Window, anchored, deferred, div, img, list, point, px,
     relative, rgba,
 };
 
@@ -18,9 +19,11 @@ use crate::{
         OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_ITEMS_CENTER,
         OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
         OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX,
-        OP_LIST_RENDERER, OP_ON_CLICK, OP_PADDING_PX, OP_RADIUS_PX, OP_RESOURCE_OWNER,
-        OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TEXT_RGBA, OP_V_STACK,
-        OP_WIDTH_PERCENT, OP_WIDTH_PX, component_metadata,
+        OP_LIST_RENDERER, OP_ON_CLICK, OP_OVERLAY_BACKDROP_RGBA, OP_OVERLAY_DISMISS_ON_BACKDROP,
+        OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
+        OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY, OP_PADDING_PX,
+        OP_RADIUS_PX, OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL,
+        OP_TEXT_RGBA, OP_V_STACK, OP_WIDTH_PERCENT, OP_WIDTH_PX, component_metadata,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
 };
@@ -42,6 +45,7 @@ impl ManagedView {
             NativeAdapter::List => self.materialize_list(node, snapshot),
             NativeAdapter::Image => materialize_image(node, snapshot),
             NativeAdapter::Input => self.materialize_input(node, snapshot, window, cx),
+            NativeAdapter::Overlay => self.materialize_overlay(node, snapshot, window, cx),
             _ => self.materialize_regular(node_id, node, snapshot, window, cx),
         }
     }
@@ -234,6 +238,161 @@ impl ManagedView {
         }
         apply_styles(element, node, snapshot).into_any_element()
     }
+
+    fn materialize_overlay(
+        &self,
+        node: &SnapshotNode,
+        snapshot: &ValidatedSnapshot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let child_id = snapshot.children(node)[0];
+        let child = self.materialize_node(child_id, snapshot, window, cx);
+        let placement = last_op(snapshot, node, OP_OVERLAY_PLACEMENT).map_or(0, |op| op.a);
+        let priority = last_op(snapshot, node, OP_OVERLAY_PRIORITY).map_or(10, |op| op.a);
+        let margin = last_op(snapshot, node, OP_OVERLAY_MARGIN_PX)
+            .map_or(16.0, |op| f32::from_bits(op.a as u32));
+        let modal = last_op(snapshot, node, OP_OVERLAY_MODAL).is_none_or(|op| op.a != 0);
+        let backdrop_color =
+            last_op(snapshot, node, OP_OVERLAY_BACKDROP_RGBA).map_or(0x00000060, |op| op.a as u32);
+        let dismiss_on_backdrop =
+            last_op(snapshot, node, OP_OVERLAY_DISMISS_ON_BACKDROP).is_none_or(|op| op.a != 0);
+        let dismiss_on_escape =
+            last_op(snapshot, node, OP_OVERLAY_DISMISS_ON_ESCAPE).is_none_or(|op| op.a != 0);
+        let dismiss = last_op(snapshot, node, OP_OVERLAY_ON_DISMISS);
+        let dismiss_token = dismiss.map_or(0, |op| op.a);
+        let dismiss_payload = dismiss.map_or(0, |op| op.b);
+
+        let overlay_id: ElementId = (ElementId::from("managed-overlay"), node.data.clone()).into();
+        let previous_focus = window.focused(cx).map(|focus| focus.downgrade());
+        let focus_state =
+            window.use_keyed_state(overlay_id.clone(), cx, move |_, cx| OverlayFocusState {
+                focus: cx.focus_handle().tab_stop(false),
+                previous_focus,
+                focus_pending: modal,
+            });
+        let focus = focus_state.read(cx).focus.clone();
+        if focus_state.read(cx).focus_pending {
+            focus_state.update(cx, |state, _| state.focus_pending = false);
+            let deferred_focus = focus.clone();
+            window.defer(cx, move |window, _| deferred_focus.focus(window));
+        }
+
+        let content_id = (overlay_id.clone(), "content");
+        let content = div()
+            .id(content_id)
+            .on_any_mouse_down(|_, _, cx| cx.stop_propagation())
+            .on_scroll_wheel(|_, _, cx| cx.stop_propagation())
+            .child(child);
+
+        let viewport = window.viewport_size();
+        let mut host = div()
+            .relative()
+            .flex()
+            .w(viewport.width)
+            .h(viewport.height)
+            .p(px(margin))
+            .track_focus(&focus);
+        host = place_overlay(host, placement as u32);
+
+        if modal {
+            let callbacks = self.callbacks;
+            let session_id = self.view_id;
+            let backdrop_state = focus_state.clone();
+            let mut backdrop = div()
+                .absolute()
+                .inset_0()
+                .bg(rgba(backdrop_color))
+                .id((overlay_id.clone(), "backdrop"))
+                .capture_any_mouse_down(|_, _, cx| cx.stop_propagation())
+                .on_scroll_wheel(|_, _, cx| cx.stop_propagation());
+            if dismiss_on_backdrop && dismiss_token != 0 {
+                backdrop =
+                    backdrop.on_click(cx.listener(move |this, event: &ClickEvent, window, cx| {
+                        restore_overlay_focus(&backdrop_state, window, cx);
+                        let status = invoke_click(
+                            callbacks,
+                            session_id,
+                            dismiss_token,
+                            dismiss_payload,
+                            event,
+                        );
+                        this.after_click(status, cx);
+                    }));
+            }
+            host = host.child(backdrop);
+        }
+
+        if dismiss_on_escape && dismiss_token != 0 {
+            let callbacks = self.callbacks;
+            let session_id = self.view_id;
+            let escape_state = focus_state;
+            host = host.on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
+                if event.keystroke.key != "escape" {
+                    return;
+                }
+                cx.stop_propagation();
+                restore_overlay_focus(&escape_state, window, cx);
+                let position = window.mouse_position();
+                let status = invoke_native_click(
+                    callbacks,
+                    session_id,
+                    dismiss_token,
+                    dismiss_payload,
+                    NativeClickEvent {
+                        x: position.x.into(),
+                        y: position.y.into(),
+                        buttons: 0,
+                        modifiers: 0,
+                    },
+                );
+                this.after_click(status, cx);
+            }));
+        }
+
+        host = host.child(content);
+        let anchored = anchored().position(point(px(0.), px(0.))).child(host);
+        deferred(anchored)
+            .with_priority(priority as usize)
+            .into_any_element()
+    }
+}
+
+struct OverlayFocusState {
+    focus: FocusHandle,
+    previous_focus: Option<WeakFocusHandle>,
+    focus_pending: bool,
+}
+
+fn place_overlay(element: gpui::Div, placement: u32) -> gpui::Div {
+    match placement {
+        1 => element.items_start().justify_center(),
+        2 => element.items_start().justify_end(),
+        3 => element.items_center().justify_end(),
+        4 => element.items_end().justify_end(),
+        5 => element.items_end().justify_center(),
+        6 => element.items_end().justify_start(),
+        7 => element.items_center().justify_start(),
+        8 => element.items_start().justify_start(),
+        _ => element.items_center().justify_center(),
+    }
+}
+
+fn restore_overlay_focus(
+    state: &Entity<OverlayFocusState>,
+    window: &mut Window,
+    cx: &mut gpui::App,
+) {
+    if let Some(previous) = state
+        .read(cx)
+        .previous_focus
+        .as_ref()
+        .and_then(WeakFocusHandle::upgrade)
+    {
+        previous.focus(window);
+    } else {
+        window.blur();
+    }
 }
 
 /// Materialization used by native list batch caches. It deliberately has no ManagedView Context,
@@ -251,11 +410,11 @@ pub(crate) fn materialize_snapshot_node_detached(
     let metadata = component_metadata(node.component).unwrap();
     if matches!(
         metadata.adapter,
-        NativeAdapter::Scroll | NativeAdapter::List | NativeAdapter::Input
+        NativeAdapter::Scroll | NativeAdapter::List | NativeAdapter::Input | NativeAdapter::Overlay
     ) {
         return div()
             .child(
-                "Retained Scroll/List/Input resources inside a virtualized list row are not supported.",
+                "Retained Scroll/List/Input resources and overlays inside a virtualized list row are not supported.",
             )
             .into_any_element();
     }
@@ -320,6 +479,22 @@ fn invoke_click(
             | (u32::from(modifiers.platform) << 3)
             | (u32::from(modifiers.function) << 4),
     };
+    invoke_native_click(
+        callbacks,
+        session_id,
+        event_token,
+        event_payload,
+        native_event,
+    )
+}
+
+fn invoke_native_click(
+    callbacks: ManagedCallbacks,
+    session_id: u64,
+    event_token: u64,
+    event_payload: u64,
+    native_event: NativeClickEvent,
+) -> i32 {
     unsafe {
         callbacks
             .click
@@ -367,7 +542,15 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
             | OP_LIST_ALIGNMENT
             | OP_LIST_ESTIMATED_ITEM_HEIGHT_PX
             | OP_IMAGE_OBJECT_FIT
-            | OP_IMAGE_GRAYSCALE => element,
+            | OP_IMAGE_GRAYSCALE
+            | OP_OVERLAY_PLACEMENT
+            | OP_OVERLAY_PRIORITY
+            | OP_OVERLAY_MARGIN_PX
+            | OP_OVERLAY_MODAL
+            | OP_OVERLAY_BACKDROP_RGBA
+            | OP_OVERLAY_DISMISS_ON_BACKDROP
+            | OP_OVERLAY_DISMISS_ON_ESCAPE
+            | OP_OVERLAY_ON_DISMISS => element,
             _ => element,
         };
     }
