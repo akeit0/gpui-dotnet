@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Gpui</RootNamespace>
+        <AssemblyName>Gpui.Runtime</AssemblyName>
+        <Version>0.4.0</Version>
+        <IsPackable>false</IsPackable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="../Gpui/GpuiApplication.cs" />
+        <Compile Include="../Gpui/Interop/NativeRuntime.cs" />
+        <Compile Include="../Gpui/Interop/Internal/**/*.cs" />
+        <ProjectReference Include="../Gpui.Core/Gpui.Core.csproj" />
+        <InternalsVisibleTo Include="Gpui.Tests" />
+    </ItemGroup>
+</Project>

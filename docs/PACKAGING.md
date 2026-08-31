@@ -8,12 +8,19 @@ The intended NuGet contains:
 
 ```text
 lib/net10.0/Gpui.dll
+lib/net10.0/Gpui.Core.dll
+lib/net10.0/Gpui.Runtime.dll
 analyzers/dotnet/cs/Gpui.Generators.dll
 runtimes/win-x64/native/gpui_dotnet.dll
 runtimes/linux-x64/native/libgpui_dotnet.so
 runtimes/osx-x64/native/libgpui_dotnet.dylib
 runtimes/osx-arm64/native/libgpui_dotnet.dylib
 ```
+
+`Gpui.dll` remains the compatibility facade for the original public assembly identity. The
+platform-neutral render API and ABI live in `Gpui.Core.dll`; native loading, application/window
+hosting, callbacks, and managed sessions live in `Gpui.Runtime.dll`. They are shipped together in
+the single `Gpui` package, so consumers still need only one package reference.
 
 The source generator is shipped as an analyzer so `[GpuiView]` and `[GpuiListItem]` work in consumer compilations without a separate package reference. Event callbacks are runtime view-bound fluent APIs and require no event attribute.
 

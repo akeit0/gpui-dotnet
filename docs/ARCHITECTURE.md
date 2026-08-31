@@ -27,6 +27,21 @@ GPUI.NET deliberately does not mirror GPUI's Rust API one-to-one.
 
 The boundary rule is: **cross the ABI for state transitions or coarse data batches, never for each builder call, frame, style property or list row.**
 
+## Managed project split
+
+The managed implementation is split by responsibility rather than by operating system:
+
+- `Gpui.Core` contains the platform-neutral public render API, View lifecycle/composition,
+  controllers, semantic bindings, ABI layouts, arena writer, and managed validator;
+- `Gpui.Runtime` contains native library loading, application/window hosting, callbacks, and
+  managed render sessions;
+- `Gpui` remains a small compatibility facade with type forwarders and owns the single NuGet
+  package, which also carries the Core and Runtime assemblies plus RID-specific native assets.
+
+Rust remains one native crate with platform-specific modules selected by the target OS. This keeps
+the C# API independent of Windows/AppKit details while allowing each native RID to use its host
+platform's GPUI backend.
+
 ## Application and window ownership
 
 `GpuiApplication` is the managed owner of one native `gpui::Application`. Each `GpuiWindow` owns an independent managed render session rooted at one `View`; window IDs are globally stable for the process lifetime and are also the native callback session IDs. Opening another window never constructs a second GPUI application.

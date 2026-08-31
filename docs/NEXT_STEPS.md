@@ -68,9 +68,14 @@ Tree deliberately has no native component: a visible tree is a flat list, so man
 Add CI gates for:
 
 - all supported native RID builds;
-- Linux/macOS native RID builds in addition to the current Windows build;
+- Linux native RID builds in addition to the current Windows/macOS build;
 - NuGet consumer tests without a Rust toolchain;
 - ABI C header/layout assertions.
+
+The managed assemblies are now split by responsibility: `Gpui.Core` owns the platform-neutral
+render API/ABI, `Gpui.Runtime` owns native application hosting, and the `Gpui` assembly remains a
+type-forwarding compatibility facade. Keep these as one NuGet package while the public API is still
+evolving.
 
 ## 7. Review follow-ups (2026-08-31)
 

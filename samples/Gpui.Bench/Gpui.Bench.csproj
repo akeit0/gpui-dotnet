@@ -6,5 +6,7 @@
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../../src/Gpui/Gpui.csproj" />
+        <ProjectReference Include="../../src/Gpui.Core/Gpui.Core.csproj" />
+        <ProjectReference Include="../../src/Gpui.Runtime/Gpui.Runtime.csproj" />
     </ItemGroup>
 </Project>
