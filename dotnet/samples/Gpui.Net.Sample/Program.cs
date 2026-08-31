@@ -400,6 +400,11 @@ internal static class SampleTitleBar
 
     private static Element Render(ref RenderContext ui, Element title)
     {
+        var windowsCaptionGlyphs = OperatingSystem.IsWindows();
+        ReadOnlySpan<byte> minimizeGlyph = windowsCaptionGlyphs ? "\uE921"u8 : "−"u8;
+        ReadOnlySpan<byte> maximizeGlyph = windowsCaptionGlyphs ? "\uE922"u8 : "□"u8;
+        ReadOnlySpan<byte> closeGlyph = windowsCaptionGlyphs ? "\uE8BB"u8 : "×"u8;
+        var glyphSize = windowsCaptionGlyphs ? 10 : 15;
         var dragRegion = ui.HStack(
                 ui.Div().Width(Px(OperatingSystem.IsMacOS() ? 64 : 0)),
                 title,
@@ -418,23 +423,29 @@ internal static class SampleTitleBar
                 Button(
                     ref ui,
                     "titlebar-minimize"u8,
-                    "—"u8,
+                    minimizeGlyph,
                     WindowControlArea.Minimize,
-                    44
+                    36,
+                    glyphSize,
+                    Rgb(30, 41, 59)
                 ),
                 Button(
                     ref ui,
                     "titlebar-maximize"u8,
-                    "□"u8,
+                    maximizeGlyph,
                     WindowControlArea.Maximize,
-                    44
+                    36,
+                    glyphSize,
+                    Rgb(30, 41, 59)
                 ),
                 Button(
                     ref ui,
                     "titlebar-close"u8,
-                    "×"u8,
+                    closeGlyph,
                     WindowControlArea.Close,
-                    48
+                    36,
+                    glyphSize,
+                    Rgb(232, 17, 32)
                 )
             );
         return titleBar
@@ -448,7 +459,9 @@ internal static class SampleTitleBar
         ReadOnlySpan<byte> id,
         ReadOnlySpan<byte> label,
         WindowControlArea area,
-        float width
+        float width,
+        float fontSize,
+        Color hoverBackground
     ) =>
         ui.Button(id, label)
             .WindowControlArea(area)
@@ -456,8 +469,11 @@ internal static class SampleTitleBar
             .Height(Percent(100))
             .ItemsCenter()
             .JustifyCenter()
+            .FontSize(Px(fontSize))
             .Background(Rgb(15, 23, 42))
-            .BorderColor(Rgb(15, 23, 42))
+            .HoverBackground(hoverBackground)
+            .BorderWidth(Px(0))
+            .Radius(Px(0))
             .TextColor(Rgb(248, 250, 252));
 }
 

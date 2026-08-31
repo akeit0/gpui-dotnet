@@ -18,16 +18,16 @@ use crate::{
         CAPABILITY_INTERACTIVE, NativeAdapter, OP_BACKGROUND_RGBA, OP_BORDER_RGBA,
         OP_BORDER_WIDTH_PX, OP_CHECKED, OP_CONTEXT_MENU_MARGIN_PX, OP_CONTEXT_MENU_PRIORITY,
         OP_FLEX, OP_FLEX_GROW, OP_FONT_SIZE_PX, OP_GAP_PX, OP_HEIGHT_PERCENT, OP_HEIGHT_PX,
-        OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_ITEMS_CENTER, OP_JUSTIFY_BETWEEN,
-        OP_JUSTIFY_CENTER, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
-        OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_ON_CLICK,
-        OP_OVERLAY_BACKDROP_RGBA, OP_OVERLAY_DISMISS_ON_BACKDROP, OP_OVERLAY_DISMISS_ON_ESCAPE,
-        OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL, OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT,
-        OP_OVERLAY_PRIORITY, OP_PADDING_PX, OP_RADIUS_PX, OP_RESOURCE_OWNER, OP_SCROLL_AXIS,
-        OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX,
-        OP_TOOLTIP_HIDE_DELAY_MS, OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT,
-        OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK, OP_WIDTH_PERCENT, OP_WIDTH_PX,
-        OP_WINDOW_CONTROL_AREA, component_metadata,
+        OP_HOVER_BACKGROUND_RGBA, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_ITEMS_CENTER,
+        OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
+        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX,
+        OP_LIST_RENDERER, OP_ON_CLICK, OP_OVERLAY_BACKDROP_RGBA, OP_OVERLAY_DISMISS_ON_BACKDROP,
+        OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
+        OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY, OP_PADDING_PX,
+        OP_RADIUS_PX, OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL,
+        OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS,
+        OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK,
+        OP_WIDTH_PERCENT, OP_WIDTH_PX, OP_WINDOW_CONTROL_AREA, component_metadata,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
     tooltip::{TooltipConfiguration, tooltip},
@@ -91,10 +91,14 @@ impl ManagedView {
             } else {
                 node.data.clone()
             };
+            let element = element.id(element_id).cursor_pointer();
+            let element = if let Some(op) = last_op(snapshot, node, OP_HOVER_BACKGROUND_RGBA) {
+                let color = rgba(op.a as u32);
+                element.hover(move |style| style.bg(color))
+            } else {
+                element.hover(|style| style.opacity(0.88))
+            };
             return element
-                .id(element_id)
-                .cursor_pointer()
-                .hover(|style| style.opacity(0.88))
                 .active(|style| style.opacity(0.72))
                 .on_click(cx.listener(move |this, event: &ClickEvent, _, cx| {
                     if event_token == 0 {
@@ -572,9 +576,14 @@ pub(crate) fn materialize_snapshot_node_detached(
                 "managed-list-{}-{}-{item_index}-{local_id}",
                 list_key.owner_view, list_key.key
             );
+            let element = element.id(SharedString::from(element_id)).cursor_pointer();
+            let element = if let Some(op) = last_op(snapshot, node, OP_HOVER_BACKGROUND_RGBA) {
+                let color = rgba(op.a as u32);
+                element.hover(move |style| style.bg(color))
+            } else {
+                element.hover(|style| style.opacity(0.88))
+            };
             return element
-                .id(SharedString::from(element_id))
-                .cursor_pointer()
                 .on_click(move |event: &ClickEvent, _, _| {
                     let _ = invoke_click(callbacks, session_id, event_token, event_payload, event);
                 })
@@ -653,6 +662,7 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
             OP_RADIUS_PX => element.rounded(px(value)),
             OP_TEXT_RGBA => element.text_color(rgba(op.a as u32)),
             OP_FONT_SIZE_PX => element.text_size(px(value)),
+            OP_HOVER_BACKGROUND_RGBA => element,
             OP_CHECKED
             | OP_ON_CLICK
             | OP_RESOURCE_OWNER
@@ -696,7 +706,26 @@ fn apply_window_control_area(
         3 => WindowControlArea::Close,
         _ => unreachable!("window control areas are validated before materialization"),
     };
+    #[cfg(target_os = "windows")]
+    let element = if area == WindowControlArea::Drag {
+        element
+    } else {
+        element.font_family(windows_caption_font())
+    };
     element.window_control_area(area)
+}
+
+#[cfg(target_os = "windows")]
+fn windows_caption_font() -> &'static str {
+    use windows::Wdk::System::SystemServices::RtlGetVersion;
+
+    let mut version = unsafe { std::mem::zeroed() };
+    let status = unsafe { RtlGetVersion(&mut version) };
+    if status.is_ok() && version.dwBuildNumber >= 22000 {
+        "Segoe Fluent Icons"
+    } else {
+        "Segoe MDL2 Assets"
+    }
 }
 
 fn materialize_image(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> AnyElement {

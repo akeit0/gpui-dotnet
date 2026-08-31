@@ -19,7 +19,7 @@ const gpui_dotnet_api_v5* gpui_dotnet_get_api(uint32_t requested_version);
 - `dispatch_command`;
 - `dispatch_application_command`.
 
-The current schema hash is `0x1F765C21E53A39C1`.
+The current schema hash is `0x40CC2B99AD0A4ED2`.
 
 ## Managed callbacks
 
@@ -178,7 +178,7 @@ The call copies borrowed UTF-8 before returning and enqueues the owned command. 
 
 Semantic operation `WindowControlArea` (`201`, `U32`) marks a Div or Button as a native title-bar hit-test region. Values are `Drag = 0`, `Minimize = 1`, `Maximize = 2`, and `Close = 3`; all others are rejected by both managed and native validation. Child regions override an enclosing drag region through normal GPUI hit testing.
 
-These regions are part of the render snapshot, not managed click callbacks. GPUI and the platform process drag and caption interaction directly, so pointer motion and window-management gestures do not cross the ABI.
+These regions are part of the render snapshot, not managed click callbacks. GPUI and the platform process drag and caption interaction directly, so pointer motion and window-management gestures do not cross the ABI. Right-click on an unwrapped Drag region remains platform-owned and presents the operating system window menu where supported.
 
 `Minimize` and `ToggleMaximize` use the application command channel rather than semantic hit-test regions. The native host normalizes maximize/restore behavior across platforms; in particular, it explicitly restores a maximized Win32 window because the pinned GPUI Windows `zoom_window` implementation only maximizes.
 
@@ -189,6 +189,8 @@ Semantic component `ContextMenu` (`15`) is keyed and requires exactly two childr
 Rust owns right-button interception, pointer anchoring, viewport snapping, focus entry/restoration, a transparent full-window input backdrop, and dismissal. Right mouse-down on the trigger stops propagation and suppresses the platform default before opening. Outside left/right press and Escape close immediately. A left mouse-up inside content closes after the target's normal click sequence, so managed `OnClick` actions run before the menu disappears. Menu presentation and actions remain ordinary managed semantic elements.
 
 ContextMenu state is scoped by `(window session, managed View handle, local UTF-8 key)`. It is rejected in virtualized List row snapshots, which do not have a mounted View lifetime.
+
+`HoverBackgroundRgba` (`113`, canonical `U32`) applies only to interactive components and changes their native hover fill without callbacks. It is independent from ContextMenu and is used by custom caption controls and ordinary application buttons.
 
 ## Retained native resource commands
 

@@ -72,7 +72,7 @@ var titleBar = ui.HStack(
     .WindowControlArea(WindowControlArea.Drag);
 ```
 
-Child caption regions override the parent drag region. A `ui.ContextMenu` can wrap the drag region: its native right-button handler suppresses the platform title-bar menu and opens managed menu content at the pointer without turning title-bar pointer motion into managed events. On macOS, `Custom` retains the native traffic lights; applications should reserve their space instead of drawing duplicate caption buttons. `Hidden` removes the platform title-bar surface entirely but still allows explicit native control regions.
+Child caption regions override the parent drag region. Leave right-click on the Drag region unclaimed so platform non-client behavior remains available; GPUI.NET does not synthesize a Windows system menu. Caption buttons can use `HoverBackground(Color)` for native neutral/minimize feedback and a destructive red close hover without managed pointer callbacks. On Windows, the sample follows Zed's 36-pixel controls, 10-pixel Segoe caption glyphs, and `#E81120` close hover. On macOS, `Custom` retains the native traffic lights; applications should reserve their space instead of drawing duplicate caption buttons. `Hidden` removes the platform title-bar surface entirely but still allows explicit native control regions.
 
 ## Managed Views: framework ownership by default
 
@@ -287,20 +287,23 @@ return ui.Tooltip(
 `ui.ContextMenu(key, trigger, content, options)` is the pointer-anchored counterpart. The first child remains in normal layout; right-clicking it opens the second child at the pointer in a deferred layer:
 
 ```csharp
-var windowMenu = ui.VStack(
-        ui.Text("Window"),
-        ui.Button("minimize-menu"u8, "Minimize"u8).OnClick(Events.MinimizeWindow),
-        ui.Button("maximize-menu"u8, "Maximize / restore"u8)
-            .OnClick(Events.ToggleMaximizeWindow),
-        ui.Button("close-menu"u8, "Close"u8).OnClick(Events.CloseWindow))
+var documentMenu = ui.VStack(
+        ui.Text("Document actions"),
+        ui.Button("open-menu"u8, "Open"u8).OnClick(Events.OpenDocument),
+        ui.Button("duplicate-menu"u8, "Duplicate"u8)
+            .OnClick(Events.DuplicateDocument))
     .Width(Px(220))
     .Padding(Px(8))
     .Background(Rgb(255, 255, 255));
 
-return ui.ContextMenu("titlebar-menu"u8, titleBar, windowMenu);
+var documentCard = ui.Text("Right-click this document")
+    .Padding(Px(16))
+    .Background(Rgb(248, 250, 252));
+
+return ui.ContextMenu("document-actions"u8, documentCard, documentMenu);
 ```
 
-Rust owns right-button interception, pointer placement, viewport clamping, deferred priority, focus restoration, and dismissal on outside click, Escape, selection, or another right-click. Managed code owns menu visuals and actions through normal generated event bindings. `ContextMenuOptions` configures priority and viewport margin. Context menus are keyed to the owning View and are intentionally unavailable inside virtualized List rows.
+Rust owns right-button interception, pointer placement, viewport clamping, deferred priority, focus restoration, and dismissal on outside click, Escape, selection, or another right-click. Managed code owns menu visuals and actions through normal generated event bindings. `ContextMenuOptions` configures priority and viewport margin. Context menus are keyed to the owning View and are intentionally unavailable inside virtualized List rows. Use them for application content; a custom title-bar Drag region should preserve the platform's own window context menu.
 
 ## Generated events
 
@@ -330,7 +333,7 @@ ABI v5 makes application ownership distinct from window/render sessions. It adds
 - stable 64-bit window/session IDs and per-window resource namespaces;
 - shutdown only after the final application-owned window closes.
 
-Managed startup validates both ABI version and semantic schema hash (`0x1F765C21E53A39C1`). See [docs/ABI.md](docs/ABI.md).
+Managed startup validates both ABI version and semantic schema hash (`0x40CC2B99AD0A4ED2`). See [docs/ABI.md](docs/ABI.md).
 
 ## Build
 
@@ -345,7 +348,7 @@ dotnet build gpui-dotnet.slnx
 dotnet run --project dotnet/samples/Gpui.Net.Sample
 ```
 
-The sample contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, centered-dialog/right-sheet Overlay demos, delayed trigger-relative tooltips, and a Windows gallery. The Windows route launches distinct system-title-bar and custom-title-bar roots with isolated local state; native drag/caption regions and a pointer-anchored title-bar context menu are demonstrated by the custom window. Closing either companion leaves the main gallery running. To open the system-title-bar companion automatically at startup:
+The sample starts with custom chrome and compact platform-style caption controls. It also contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, centered-dialog/right-sheet Overlay demos, delayed trigger-relative tooltips, an application-content ContextMenu demo, and a multi-window gallery. Closing either companion leaves the main gallery running. To open the system-title-bar companion automatically at startup:
 
 ```powershell
 dotnet run --project dotnet/samples/Gpui.Net.Sample -- --multi-window

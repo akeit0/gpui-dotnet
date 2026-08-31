@@ -57,8 +57,11 @@ public sealed class SemanticRenderTests
         var root = ui.HStack(
                 ui.Text("Custom title bar"u8),
                 ui.Button("minimize"u8, "—"u8)
+                    .HoverBackground(Rgb(30, 41, 59))
                     .WindowControlArea(WindowControlArea.Minimize),
-                ui.Button("close"u8, "×"u8).WindowControlArea(WindowControlArea.Close)
+                ui.Button("close"u8, "×"u8)
+                    .HoverBackground(Rgb(232, 17, 32))
+                    .WindowControlArea(WindowControlArea.Close)
             )
             .WindowControlArea(WindowControlArea.Drag);
 

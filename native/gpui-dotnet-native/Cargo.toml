@@ -16,7 +16,11 @@ unicode-segmentation = "1.13.3"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 raw-window-handle = "0.6"
-windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+windows = { version = "0.61", features = [
+    "Wdk_System_SystemServices",
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 [build-dependencies]
 csbindgen = "1.9.8"

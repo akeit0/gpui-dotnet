@@ -18,6 +18,8 @@ Do not force all classes into one ABI shape.
 
 Managed Div and Button elements can use `WindowControlArea(Drag|Minimize|Maximize|Close)`. Rust maps the semantic operation to GPUI's native window-control hit testing, so window movement and caption actions do not become managed pointer/click traffic. A parent Drag region can contain child caption controls because the most specific child hit region wins. `GpuiWindow.Minimize()` and `ToggleMaximize()` expose the same operations to managed menu actions; the native host handles the Win32 restore path that the pinned GPUI maximize primitive omits. macOS custom windows retain native traffic lights, so managed title-bar layouts should reserve their space.
 
+Interactive elements can use `HoverBackground(Color)` for an explicit native hover fill. This is useful for platform-like caption controls: neutral minimize/maximize feedback and a destructive red close hover remain entirely in GPUI without managed pointer callbacks.
+
 ## Snapshot component adapters
 
 A normal semantic component is declared in `bindings/schema.json`, generated into C#/Rust metadata and mapped by a handwritten Rust adapter. C# depends on semantic operations, not GPUI trait names or concrete Rust types.
@@ -83,7 +85,7 @@ Tooltip keys use the same `(managed View handle, local key)` identity rule as re
 
 `ui.ContextMenu(key, trigger, content, options)` is a semantic two-child component. The trigger stays in normal layout. Rust intercepts right mouse-down, suppresses the platform default, records the pointer position, focuses a deferred layer at priority 300, and clamps content to an 8-pixel viewport margin. The defaults can be changed through `ContextMenuOptions`.
 
-A transparent native backdrop blocks input behind the open menu and dismisses on outside left/right press. Escape, a right press in the menu, or left mouse-up after a menu selection also dismisses, then focus returns to the previously focused element. Content and action bindings remain managed, so the component imposes no product styling or fixed item model. This also lets a ContextMenu wrap a custom title-bar Drag region without showing the operating-system title-bar menu.
+A transparent native backdrop blocks input behind the open menu and dismisses on outside left/right press. Escape, a right press in the menu, or left mouse-up after a menu selection also dismisses, then focus returns to the previously focused element. Content and action bindings remain managed, so the component imposes no product styling or fixed item model. ContextMenu is for application content; custom title-bar Drag regions should remain unwrapped so platform non-client behavior is not replaced by an application menu.
 
 ContextMenu keys use the owning View namespace and ContextMenu is disallowed inside cached List rows for the same lifetime reason as Tooltip and Overlay.
 

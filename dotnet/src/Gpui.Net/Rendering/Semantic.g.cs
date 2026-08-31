@@ -44,6 +44,7 @@ namespace Gpui.Interop
         RadiusPx = 110,
         TextRgba = 111,
         FontSizePx = 112,
+        HoverBackgroundRgba = 113,
         OnClick = 200,
         WindowControlArea = 201,
         ResourceOwner = 300,
@@ -94,8 +95,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 14;
-        internal const ulong SchemaHash = 0x1F765C21E53A39C1UL;
+        internal const uint SchemaVersion = 15;
+        internal const ulong SchemaHash = 0x40CC2B99AD0A4ED2UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -138,6 +139,7 @@ namespace Gpui.Interop
             OpCode.RadiusPx => ValueKind.F32,
             OpCode.TextRgba => ValueKind.U32,
             OpCode.FontSizePx => ValueKind.F32,
+            OpCode.HoverBackgroundRgba => ValueKind.U32,
             OpCode.OnClick => ValueKind.Callback,
             OpCode.WindowControlArea => ValueKind.U32,
             OpCode.ResourceOwner => ValueKind.U32,
@@ -219,6 +221,7 @@ namespace Gpui.Interop
             OpCode.RadiusPx => 0x0000000000000001UL,
             OpCode.TextRgba => 0x0000000000000001UL,
             OpCode.FontSizePx => 0x0000000000000001UL,
+            OpCode.HoverBackgroundRgba => 0x0000000000000008UL,
             OpCode.OnClick => 0x0000000000000008UL,
             OpCode.WindowControlArea => 0x0000000000001000UL,
             OpCode.ResourceOwner => 0x0000000000000020UL,
@@ -580,6 +583,14 @@ namespace Gpui
             where TTag : unmanaged, IStyledElementTag
         {
             ArenaWriter.AddF32(element.Inner, OpCode.FontSizePx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HoverBackground<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInteractiveElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.HoverBackgroundRgba, color.Rgba);
             return element;
         }
 

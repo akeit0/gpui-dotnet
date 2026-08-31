@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 14,
+  "schemaVersion": 15,
   "capabilities": [
     "styled",
     "parent",
@@ -388,6 +388,14 @@
       "value": "f32",
       "requires": "styled",
       "managedApi": "pixels"
+    },
+    {
+      "id": 113,
+      "name": "hover_background_rgba",
+      "csharp": "HoverBackground",
+      "value": "u32",
+      "requires": "interactive",
+      "managedApi": "color"
     },
     {
       "id": 200,
