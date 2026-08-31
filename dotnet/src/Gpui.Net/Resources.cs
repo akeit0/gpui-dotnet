@@ -17,6 +17,24 @@ public enum ListAlignment : uint
     Bottom = 1,
 }
 
+/// <summary>
+/// Declares the current shape and content identity of a virtualized datasource. Keep
+/// <see cref="ContentRevision"/> stable across unrelated View renders and change it whenever
+/// cached row output may have changed.
+/// </summary>
+public readonly struct ListDataSource
+{
+    public ListDataSource(int count, ulong contentRevision)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(count);
+        Count = count;
+        ContentRevision = contentRevision;
+    }
+
+    public int Count { get; }
+    public ulong ContentRevision { get; }
+}
+
 /// <summary>Native scrolling behavior and presentation.</summary>
 public readonly struct ScrollOptions
 {

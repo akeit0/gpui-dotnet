@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 11,
+  "schemaVersion": 12,
   "capabilities": [
     "styled",
     "parent",
@@ -454,6 +454,14 @@
       "name": "list_estimated_item_height_px",
       "csharp": "ListEstimatedItemHeightPx",
       "value": "f32",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
+      "id": 316,
+      "name": "list_content_revision",
+      "csharp": "ListContentRevision",
+      "value": "u64",
       "requires": "virtualized",
       "managedApi": null
     },

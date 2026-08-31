@@ -100,10 +100,12 @@ This avoids coupling item cache eviction to managed View mount/unmount rules. In
 
 ## Snapshot revisions and list cache correctness
 
-Any successful managed root snapshot can reflect arbitrary C# state changes that affect row rendering even when item count and renderer ID did not change. Rust therefore:
+`ListDataSource(count, contentRevision)` lets managed code declare row-content identity independently of the root snapshot. Rust therefore:
 
 - preserves `ListState` and its viewport/measurement state where structurally valid;
-- drops cached managed row snapshots on managed snapshot revision change;
+- preserves cached row snapshots across managed renders while an explicit content revision is stable;
+- drops cached row snapshots when that revision changes;
+- conservatively drops batches on every managed snapshot when the legacy item-count overload omits a content revision;
 - preserves row batches during clean native scroll/repaint.
 
 `ListController.Splice/Refresh/Reset` queues measurement-preservation hints and invalidates the owning View. Rust applies the queued sequence only when the next managed snapshot revision is committed. If the hinted item-count transition does not match the declarative snapshot, managed state wins and the native list falls back to a full measurement reset.

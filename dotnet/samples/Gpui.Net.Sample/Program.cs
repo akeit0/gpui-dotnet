@@ -254,6 +254,7 @@ internal sealed partial class ActivityView : View
     private const int ItemCount = 20_000;
     private ListController _list;
     private int _selected = -1;
+    private ulong _contentRevision;
 
     protected override void OnMounted(ref ViewContext context)
     {
@@ -269,6 +270,7 @@ internal sealed partial class ActivityView : View
         var next = checked((int)e.Payload);
         var previous = _selected;
         _selected = next;
+        _contentRevision++;
 
         // The item count and ordering did not change. Refresh only the affected measurements;
         // the controller also invalidates this View so the row content is regenerated.
@@ -308,7 +310,7 @@ internal sealed partial class ActivityView : View
 
         var list = ui.List(
                 "activity-list",
-                ItemCount,
+                new ListDataSource(ItemCount, _contentRevision),
                 Rows.ActivityRow,
                 new ListOptions(
                     batchSize: 48,

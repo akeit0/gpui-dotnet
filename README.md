@@ -96,6 +96,7 @@ internal sealed partial class ActivityView : View
 {
     private const int Count = 20_000;
     private ListController _list;
+    private ulong _rowsRevision;
 
     protected override void OnMounted(ref ViewContext context) =>
         _list = context.CreateListController("activity");
@@ -110,13 +111,14 @@ internal sealed partial class ActivityView : View
     {
         var index = checked((int)e.Payload);
         // update model/state...
+        _rowsRevision++;
         Invalidate();
     }
 
     protected override Element Render(ref RenderContext ui) =>
         ui.List(
                 "activity",
-                Count,
+                new ListDataSource(Count, _rowsRevision),
                 Rows.ActivityRow,
                 new ListOptions(
                     batchSize: 48,
@@ -137,6 +139,8 @@ Element Method(int index, ref RenderContext ui)
 
 The source generator emits `Rows.Method`, which contains a 64-bit renderer token (`ViewHandle | RendererId`). GPUI may ask its Rust item-render closure for individual indices, but Rust aligns those requests into coarse batches before crossing the ABI. The default batch size is 48 and at most four native row batches are retained per List resource.
 
+`ListDataSource(count, contentRevision)` is the optimized contract: keep the revision stable when a managed render cannot affect row output and increment it whenever cached row content may change. This lets native batches survive unrelated parent renders. The older `itemCount` overload remains conservative and drops batches after each managed snapshot, so adopting explicit revisions is optional and cannot silently make existing code stale.
+
 Lists also use smooth native wheel scrolling and a draggable scrollbar by default. `estimatedItemHeight` keeps the thumb stable and lets dragging jump through an unmeasured virtual list without eagerly rendering every row.
 
 List row renderers are intentionally **Element-only**. They cannot create managed child Views, nested retained `Scroll`, or nested `List` resources. This keeps virtualization lifetime independent from the normal managed View tree. Row events remain supported; `OnClick(callback, payload)` stores an unmanaged `ulong` payload directly in the render IR.
@@ -150,7 +154,7 @@ Optional `ListController` operations:
 
 Structural commands are queued as measurement hints and committed together with the next managed snapshot revision. The managed snapshot remains authoritative; a hint/count mismatch falls back to a safe full native reset.
 
-After a managed snapshot changes, native `ListState` is retained but managed row snapshot batches are conservatively dropped because arbitrary C# View state may affect row output. Clean scrolling between managed renders keeps those batches and crosses into C# only for missing ranges.
+Native `ListState` remains retained across managed renders. Explicit datasource revisions invalidate row batches only when the revision changes; the legacy overload conservatively invalidates after every managed snapshot. Clean scrolling keeps cached batches and crosses into C# only for missing ranges.
 
 ## Images
 
@@ -262,7 +266,7 @@ ABI v4 is intentionally incompatible with previous revisions. In addition to the
 - semantic Input configuration and event operations.
 - deferred semantic Overlay and Tooltip nodes without changing the native function-table layout.
 
-Managed startup validates both ABI version and semantic schema hash (`0x06295A16AD0C9679`). See [docs/ABI.md](docs/ABI.md).
+Managed startup validates both ABI version and semantic schema hash (`0x920C821394FBE3D4`). See [docs/ABI.md](docs/ABI.md).
 
 ## Build
 

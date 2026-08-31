@@ -54,6 +54,7 @@ namespace Gpui.Interop
         ListOverdrawPx = 313,
         ListAlignment = 314,
         ListEstimatedItemHeightPx = 315,
+        ListContentRevision = 316,
         ImageObjectFit = 400,
         ImageGrayscale = 401,
         InputDisabled = 500,
@@ -84,12 +85,13 @@ namespace Gpui.Interop
         F32 = 1,
         U32 = 2,
         Callback = 3,
+        U64 = 4,
     }
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 11;
-        internal const ulong SchemaHash = 0x06295A16AD0C9679UL;
+        internal const uint SchemaVersion = 12;
+        internal const ulong SchemaHash = 0x920C821394FBE3D4UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -142,6 +144,7 @@ namespace Gpui.Interop
             OpCode.ListOverdrawPx => ValueKind.F32,
             OpCode.ListAlignment => ValueKind.U32,
             OpCode.ListEstimatedItemHeightPx => ValueKind.F32,
+            OpCode.ListContentRevision => ValueKind.U64,
             OpCode.ImageObjectFit => ValueKind.U32,
             OpCode.ImageGrayscale => ValueKind.U32,
             OpCode.InputDisabled => ValueKind.U32,
@@ -218,6 +221,7 @@ namespace Gpui.Interop
             OpCode.ListOverdrawPx => 0x0000000000000080UL,
             OpCode.ListAlignment => 0x0000000000000080UL,
             OpCode.ListEstimatedItemHeightPx => 0x0000000000000080UL,
+            OpCode.ListContentRevision => 0x0000000000000080UL,
             OpCode.ImageObjectFit => 0x0000000000000100UL,
             OpCode.ImageGrayscale => 0x0000000000000100UL,
             OpCode.InputDisabled => 0x0000000000000200UL,

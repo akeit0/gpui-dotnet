@@ -49,7 +49,7 @@ Managed crossings:  1
 
 At most four batches are retained per List resource. Clean scrolling within cached batches requires no managed callback. Scrolling into a missing batch requires one `list_render_range` call regardless of how many rows in that batch are subsequently materialized.
 
-A successful managed root snapshot conservatively invalidates managed row snapshot batches because arbitrary View state can affect row output. `ListState` remains retained so scroll/viewport state is not lost.
+With `ListDataSource(count, contentRevision)`, a successful managed root snapshot preserves row batches when the explicit revision is unchanged. Changing the revision invalidates row snapshots while retaining `ListState`, so scroll/viewport state is not lost. The legacy item-count overload remains conservative and invalidates batches after every managed snapshot.
 
 ## Row rendering
 
@@ -69,6 +69,7 @@ Track at least:
 - clean repaint managed callback count (must be zero);
 - Scroll wheel managed callback count (must be zero);
 - List crossings while scrolling a fixed viewport;
+- List cache retention across unrelated managed renders with a stable datasource revision;
 - Input UTF-8 controller allocation count and event decode-on-demand behavior;
 - range batch size/cache hit rate;
 - row arena high-water capacities;

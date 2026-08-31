@@ -251,6 +251,12 @@ internal static unsafe class ArenaWriter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void AddU64(Element element, OpCode code, ulong value)
+    {
+        AddOp(element, code, ValueKind.U64, value);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void AddCallback(Element element, OpCode code, ulong eventToken)
     {
         AddCallback(element, code, eventToken, 0);

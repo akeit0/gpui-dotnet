@@ -226,7 +226,7 @@ internal static class BindingGenerator
             ValidateId(operation.Id, $"operation {operation.Name}");
             ValidateName(operation.Name, "operation");
             ValidateCSharpIdentifier(operation.CSharp, "operation");
-            if (operation.Value is not ("none" or "f32" or "u32" or "callback"))
+            if (operation.Value is not ("none" or "f32" or "u32" or "callback" or "u64"))
             {
                 throw new InvalidOperationException(
                     $"Operation {operation.Name} has unknown value kind '{operation.Value}'."
@@ -300,6 +300,7 @@ internal static class BindingGenerator
         builder.AppendLine("        F32 = 1,");
         builder.AppendLine("        U32 = 2,");
         builder.AppendLine("        Callback = 3,");
+        builder.AppendLine("        U64 = 4,");
         builder.AppendLine("    }");
         builder.AppendLine();
         builder.AppendLine("    internal static class SemanticRegistry");
@@ -563,6 +564,7 @@ internal static class BindingGenerator
         builder.AppendLine("    F32 = 1,");
         builder.AppendLine("    U32 = 2,");
         builder.AppendLine("    Callback = 3,");
+        builder.AppendLine("    U64 = 4,");
         builder.AppendLine("}");
         builder.AppendLine();
         builder.AppendLine("#[derive(Clone, Copy, Debug, Eq, PartialEq)]");
@@ -665,6 +667,7 @@ internal static class BindingGenerator
         builder.AppendLine("        assert_eq!(ValueKind::F32 as u16, 1);");
         builder.AppendLine("        assert_eq!(ValueKind::U32 as u16, 2);");
         builder.AppendLine("        assert_eq!(ValueKind::Callback as u16, 3);");
+        builder.AppendLine("        assert_eq!(ValueKind::U64 as u16, 4);");
         builder.AppendLine("    }");
         builder.AppendLine("}");
         return builder.ToString();

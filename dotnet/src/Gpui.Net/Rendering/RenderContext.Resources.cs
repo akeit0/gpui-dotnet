@@ -67,11 +67,35 @@ public readonly unsafe ref partial struct RenderContext
         ListOptions options = default
     )
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(itemCount);
+        return ListCore(key, itemCount, null, renderer, options);
+    }
+
+    /// <summary>
+    /// Declares a variable-height virtualized list with explicit datasource content identity.
+    /// Native row batches survive unrelated managed renders while the revision is unchanged.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Element<ListTag> List(
+        ReadOnlySpan<char> key,
+        ListDataSource dataSource,
+        ListItemRenderer renderer,
+        ListOptions options = default
+    ) => ListCore(key, dataSource.Count, dataSource.ContentRevision, renderer, options);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private Element<ListTag> ListCore(
+        ReadOnlySpan<char> key,
+        int itemCount,
+        ulong? contentRevision,
+        ListItemRenderer renderer,
+        ListOptions options
+    )
+    {
         if (key.IsEmpty)
         {
             throw new ArgumentException("A list resource key cannot be empty.", nameof(key));
         }
-        ArgumentOutOfRangeException.ThrowIfNegative(itemCount);
         if (renderer.IsDefault)
         {
             throw new ArgumentException("A generated list renderer is required.", nameof(renderer));
@@ -89,6 +113,10 @@ public readonly unsafe ref partial struct RenderContext
         ArenaWriter.AddF32(element.Inner, OpCode.ListOverdrawPx, options.EffectiveOverdraw);
         ArenaWriter.AddU32(element.Inner, OpCode.ListAlignment, (uint)options.EffectiveAlignment);
         ArenaWriter.AddF32(element.Inner, OpCode.ListEstimatedItemHeightPx, options.EffectiveEstimatedItemHeight);
+        if (contentRevision is { } revision)
+        {
+            ArenaWriter.AddU64(element.Inner, OpCode.ListContentRevision, revision);
+        }
         ArenaWriter.AddU32(element.Inner, OpCode.SmoothScroll, options.EffectiveSmoothScrolling ? 1u : 0u);
         ArenaWriter.AddU32(element.Inner, OpCode.ShowScrollbar, options.EffectiveShowScrollbar ? 1u : 0u);
         return element;

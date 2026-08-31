@@ -78,7 +78,7 @@ Tooltip keys use the same `(managed View handle, local key)` identity rule as re
 `ui.List` is intentionally **not** a parent receiving all item elements:
 
 ```csharp
-ui.List("files", files.Count, Rows.File, options)
+ui.List("files", new ListDataSource(files.Count, filesRevision), Rows.File, options)
 ```
 
 The render IR carries:
@@ -91,9 +91,12 @@ The render IR carries:
 - overdraw pixels;
 - top/bottom alignment;
 - estimated item height for stable virtual scrollbar geometry;
+- optional explicit datasource content revision;
 - smooth-scrolling and scrollbar visibility flags.
 
 Rust owns `ListState` and calls managed `list_render_range` only for missing aligned batches.
+
+An explicit `ListDataSource` revision keeps cached row snapshots across unrelated managed renders. Change the revision whenever renderer-visible state may have changed. The `itemCount` overload omits this operation and deliberately retains the previous conservative invalidation behavior.
 
 ### Row renderer restrictions
 

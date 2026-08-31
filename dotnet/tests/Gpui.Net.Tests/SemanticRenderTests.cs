@@ -217,6 +217,35 @@ public sealed class SemanticRenderTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new TooltipOptions(margin: float.NaN));
     }
 
+    [Fact]
+    public void ExplicitListDatasourcePassesManagedValidation()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var list = ui.List("rows", new ListDataSource(100, (1UL << 40) | 42), view.Row);
+
+            arena.Validate(list);
+
+            var stats = arena.GetStats();
+            Assert.Equal(1, stats.Nodes);
+            Assert.Equal(10, stats.Ops);
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void ListDatasourceRejectsNegativeCount()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ListDataSource(-1, 0));
+    }
+
     private static void Attach(ProbeView view) =>
         view.AttachRuntime(
             1,
@@ -229,6 +258,7 @@ public sealed class SemanticRenderTests
     private sealed class ProbeView : View
     {
         internal Callback<ClickEvent> Click => BindClick(1);
+        internal ListItemRenderer Row => BindListRenderer(1);
 
         protected override Element Render(ref RenderContext ui) => ui.Div();
     }

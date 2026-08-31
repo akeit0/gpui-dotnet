@@ -18,8 +18,9 @@ use crate::{
     semantic::{
         NativeAdapter, OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED,
         OP_INPUT_ON_SUBMITTED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT,
-        OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT,
-        OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_RESOURCE_OWNER, component_metadata,
+        OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
+        OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_RESOURCE_OWNER,
+        component_metadata,
     },
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
 };
@@ -295,6 +296,7 @@ pub(crate) struct ListConfiguration {
     pub(crate) overdraw: Pixels,
     pub(crate) alignment: ListAlignment,
     pub(crate) estimated_item_height: Pixels,
+    pub(crate) content_revision: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -335,6 +337,7 @@ pub(crate) struct ManagedListResource {
     overdraw: Pixels,
     alignment: ListAlignment,
     snapshot_revision: u64,
+    content_revision: Option<u64>,
     batches: HashMap<u32, CachedBatch>,
     pending_commands: Vec<ResourceCommand>,
     use_clock: u64,
@@ -362,6 +365,7 @@ impl ManagedListResource {
             overdraw: configuration.overdraw,
             alignment: configuration.alignment,
             snapshot_revision,
+            content_revision: configuration.content_revision,
             batches: HashMap::new(),
             pending_commands: Vec::new(),
             use_clock: 0,
@@ -370,6 +374,11 @@ impl ManagedListResource {
 
     fn configure(&mut self, configuration: &ListConfiguration, snapshot_revision: u64) {
         let revision_changed = self.snapshot_revision != snapshot_revision;
+        let content_changed = match (self.content_revision, configuration.content_revision) {
+            (Some(previous), Some(current)) => previous != current,
+            (None, None) => revision_changed,
+            _ => true,
+        };
         let layout_changed =
             self.alignment != configuration.alignment || self.overdraw != configuration.overdraw;
 
@@ -405,11 +414,11 @@ impl ManagedListResource {
         }
         if revision_changed {
             self.snapshot_revision = snapshot_revision;
-            // Any successful managed snapshot may reflect changed row data even when the
-            // renderer token and item count stay the same. Preserve GPUI's retained list state
-            // but invalidate managed row snapshots so visible batches are refreshed lazily.
+        }
+        if content_changed {
             self.batches.clear();
         }
+        self.content_revision = configuration.content_revision;
     }
 
     fn apply_command(&mut self, command: &ResourceCommand) {
@@ -711,6 +720,12 @@ pub(crate) fn list_configuration(
         .rev()
         .find(|op| op.code == OP_LIST_ESTIMATED_ITEM_HEIGHT_PX)
         .map_or(px(40.), |op| px(f32::from_bits(op.a as u32)));
+    let content_revision = snapshot
+        .ops(node)
+        .iter()
+        .rev()
+        .find(|op| op.code == OP_LIST_CONTENT_REVISION)
+        .map(|op| op.a);
     Some(ListConfiguration {
         item_count,
         renderer_token: renderer,
@@ -718,6 +733,7 @@ pub(crate) fn list_configuration(
         overdraw,
         alignment,
         estimated_item_height,
+        content_revision,
     })
 }
 
@@ -749,4 +765,55 @@ fn last_callback(
 
 fn shared(value: &str) -> SharedString {
     SharedString::new(Arc::<str>::from(value))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn callbacks() -> ManagedCallbacks {
+        ManagedCallbacks {
+            struct_size: 0,
+            render: None,
+            click: None,
+            list_render_range: None,
+            control_event: None,
+            shutdown: None,
+        }
+    }
+
+    fn configuration(content_revision: Option<u64>) -> ListConfiguration {
+        ListConfiguration {
+            item_count: 100,
+            renderer_token: 1,
+            batch_size: 48,
+            overdraw: px(240.),
+            alignment: ListAlignment::Top,
+            estimated_item_height: px(40.),
+            content_revision,
+        }
+    }
+
+    #[test]
+    fn explicit_content_revision_preserves_batches_across_unrelated_snapshots() {
+        let revision = (1_u64 << 40) | 7;
+        let mut resource =
+            ManagedListResource::new(1, callbacks(), &configuration(Some(revision)), 1);
+        resource.batches.insert(0, CachedBatch::new());
+
+        resource.configure(&configuration(Some(revision)), 2);
+        assert_eq!(resource.batches.len(), 1);
+
+        resource.configure(&configuration(Some(revision + 1)), 3);
+        assert!(resource.batches.is_empty());
+    }
+
+    #[test]
+    fn implicit_content_revision_remains_conservative() {
+        let mut resource = ManagedListResource::new(1, callbacks(), &configuration(None), 1);
+        resource.batches.insert(0, CachedBatch::new());
+
+        resource.configure(&configuration(None), 2);
+        assert!(resource.batches.is_empty());
+    }
 }

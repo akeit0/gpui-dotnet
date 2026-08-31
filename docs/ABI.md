@@ -18,7 +18,7 @@ const gpui_dotnet_api_v4* gpui_dotnet_get_api(uint32_t requested_version);
 - `notify_view`;
 - `dispatch_command`.
 
-The current schema hash is `0x06295A16AD0C9679`.
+The current schema hash is `0x920C821394FBE3D4`.
 
 ## Managed callbacks
 
@@ -118,7 +118,7 @@ Canonical rules:
 
 - `node.flags == 0`;
 - `None` operations require `a == 0 && b == 0`;
-- `F32`/`U32` use only the low 32 bits of `a` and require `b == 0`;
+- `F32`/`U32` use only the low 32 bits of `a`, `U64` uses all 64 bits, and each requires `b == 0`;
 - `Callback` requires nonzero `a`; `b` must be zero except for `OnClick` and `OverlayOnDismiss`, where it is the unmanaged event payload;
 - UTF-8 ranges must be valid and in-bounds;
 - component/operation capability constraints are validated on both managed and native sides.
