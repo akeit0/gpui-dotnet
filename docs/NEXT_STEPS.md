@@ -72,3 +72,17 @@ Add CI gates for:
 - Linux/macOS native RID builds in addition to the current Windows build;
 - NuGet consumer tests without a Rust toolchain;
 - ABI C header/layout assertions.
+
+## 7. Review follow-ups (2026-08-31)
+
+Addressed already: List/Table resource-key collisions are rejected at snapshot validation; empty required IDs are guarded by generated factories and managed validation; managed validator drift (scrollbar gutter/width) closed; table column key uniqueness and enum validation; controller pending-command contract documented to match actual lifecycle; `struct_size` prefix read and panic barriers on every exported FFI entrypoint; controller UTF-8 keys pre-encoded; CI/README solution-name typo fixed.
+
+Deferred, in priority order:
+
+- generate validation constraint tables from `bindings/schema.json` for both validators (the remaining drift risk; Rust stays authoritative);
+- binary table column records instead of the UTF-8 text blob;
+- generated `include/gpui_dotnet.h` plus `sizeof`/`offsetof` assertions on every shipped RID in CI;
+- symbolic native status diagnostics instead of raw integers;
+- explicit coalescing policy for unbounded native command channels (title/resize last-wins);
+- decide whether the full managed validator belongs in Release renders or Debug/tests only;
+- per-row GPUI element-id string allocations in interactive virtualized rows (profile first).

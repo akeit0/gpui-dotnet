@@ -44,7 +44,7 @@ Run:
 ```powershell
 dotnet run --project tools/Gpui.Bindings.Generator -- generate
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
-dotnet build gpui-dotnet.slnx
+dotnet build Gpui.slnx
 ```
 
 Native changes that touch `abi.rs` must regenerate `NativeMethods.g.cs` through the normal native build and keep `include/gpui_dotnet.h` synchronized.

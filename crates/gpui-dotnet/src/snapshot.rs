@@ -3,19 +3,19 @@ use std::{collections::HashSet, slice, sync::Arc};
 use gpui::SharedString;
 
 use crate::{
-    abi::{OpRecord, RenderArena},
+    abi::{NodeRecord, OpRecord, RenderArena},
     semantic::{
-        COMPONENT_CONTEXT_MENU, COMPONENT_INPUT, COMPONENT_OVERLAY, COMPONENT_POPOVER_MENU,
-        COMPONENT_TOOLTIP, DataKind, OP_CHECKED, OP_CONTEXT_MENU_MARGIN_PX, OP_IMAGE_GRAYSCALE,
-        OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY,
-        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
-        OP_LIST_OVERDRAW_PX, OP_ON_CLICK, OP_OVERLAY_DISMISS_ON_BACKDROP,
-        OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
-        OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_POPOVER_MENU_MARGIN_PX, OP_RESOURCE_OWNER,
-        OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SHOW_SCROLLBAR,
-        OP_SMOOTH_SCROLL, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_MARGIN_PX,
-        OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA, ValueKind, component_metadata,
-        operation_metadata,
+        COMPONENT_CONTEXT_MENU, COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_OVERLAY,
+        COMPONENT_POPOVER_MENU, COMPONENT_TABLE, COMPONENT_TOOLTIP, DataKind, OP_CHECKED,
+        OP_CONTEXT_MENU_MARGIN_PX, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED,
+        OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
+        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_OVERDRAW_PX, OP_ON_CLICK,
+        OP_OVERLAY_DISMISS_ON_BACKDROP, OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX,
+        OP_OVERLAY_MODAL, OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_POPOVER_MENU_MARGIN_PX,
+        OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH,
+        OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX,
+        OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA, ValueKind,
+        component_metadata, operation_metadata,
     },
 };
 
@@ -154,6 +154,7 @@ pub struct SnapshotScratch {
     op_counts: Vec<usize>,
     op_offsets: Vec<usize>,
     op_cursor: Vec<usize>,
+    resource_keys: Vec<(u32, u32, u32)>,
 }
 
 impl SnapshotScratch {
@@ -176,6 +177,62 @@ impl SnapshotScratch {
 
 pub fn validate(arena: &RenderArena, root: u32) -> Result<(), i32> {
     validate_with_scratch(arena, root, &mut SnapshotScratch::default())
+}
+
+/// Virtualized lists and tables share one row-engine namespace per owner view, so a List and a
+/// Table (or two of either) must not declare the same `(owner, key)`. Keyed lookups are by
+/// `(owner, key)` alone; a collision would silently share ListState, the row cache, and the
+/// scrollbar between two elements. The count of list/table nodes per snapshot is tiny, so the
+/// O(K²) pairwise comparison over reusable scratch memory is cheaper than hashing strings.
+fn validate_resource_key_uniqueness(
+    nodes: &[NodeRecord],
+    ops: &[OpRecord],
+    utf8: &[u8],
+    scratch: &mut SnapshotScratch,
+) -> Result<(), i32> {
+    // Last OP_RESOURCE_OWNER per node wins, matching the materializer's lookup.
+    let owners = &mut scratch.resource_keys;
+    owners.clear();
+    owners.resize(nodes.len(), (0, 0, 0));
+    for op in ops {
+        if op.code == OP_RESOURCE_OWNER {
+            let node = op.node as usize;
+            owners[node].0 = op.a as u32;
+        }
+    }
+
+    let mut count = 0usize;
+    for index in 0..nodes.len() {
+        let node = &nodes[index];
+        // A table's row-engine key is the first NUL-separated field of its data blob; a
+        // list's key is the whole payload.
+        let key_length = match node.component {
+            COMPONENT_LIST => node.data_length,
+            COMPONENT_TABLE => utf8
+                [node.data_offset as usize..node.data_offset as usize + node.data_length as usize]
+                .iter()
+                .position(|byte| *byte == 0)
+                .map_or(node.data_length, |position| position as u32),
+            _ => continue,
+        };
+        let owner = owners[index].0;
+        if owner == 0 || key_length == 0 {
+            continue;
+        }
+        for previous in &owners[..count] {
+            if previous.0 == owner
+                && previous.2 == key_length
+                && utf8[previous.1 as usize..previous.1 as usize + key_length as usize]
+                    == utf8
+                        [node.data_offset as usize..node.data_offset as usize + key_length as usize]
+            {
+                return Err(-56);
+            }
+        }
+        owners[count] = (owner, node.data_offset, key_length);
+        count += 1;
+    }
+    Ok(())
 }
 
 fn validate_with_scratch(
@@ -420,6 +477,8 @@ fn validate_with_scratch(
     if scratch.visited.contains(&0) {
         return Err(-13);
     }
+
+    validate_resource_key_uniqueness(nodes, ops, utf8, scratch)?;
 
     Ok(())
 }
@@ -921,6 +980,97 @@ mod tests {
         arena.utf8_capacity = 1;
 
         assert_eq!(validate(&arena, 0), Err(-35));
+    }
+
+    /// Builds a DIV root owning the given virtualized-resource nodes; each resource node gets
+    /// one OP_RESOURCE_OWNER op addressed to `owner`. `data_length` on each node selects its
+    /// key slice from the shared utf8 buffer (a table's key ends at its embedded NUL).
+    fn resource_collision_arena(
+        nodes: &mut [NodeRecord],
+        utf8: &mut [u8],
+        owners: &mut [OpRecord],
+    ) -> RenderArena {
+        for (slot, op) in owners.iter_mut().enumerate() {
+            op.node = slot as u32 + 1;
+            op.code = OP_RESOURCE_OWNER;
+            op.value_kind = ValueKind::U32 as u16;
+            op.a = 4;
+        }
+        let mut children = Vec::new();
+        for index in 1..nodes.len() {
+            children.push(ChildRecord {
+                parent: 0,
+                child: index as u32,
+            });
+        }
+        RenderArena {
+            nodes: nodes.as_mut_ptr(),
+            node_length: nodes.len() as i32,
+            node_capacity: nodes.len() as i32,
+            ops: owners.as_mut_ptr(),
+            op_length: owners.len() as i32,
+            op_capacity: owners.len() as i32,
+            children: children.as_mut_ptr(),
+            child_length: children.len() as i32,
+            child_capacity: children.len() as i32,
+            utf8: utf8.as_mut_ptr(),
+            utf8_length: utf8.len() as i32,
+            utf8_capacity: utf8.len() as i32,
+            generation: 1,
+            flags: 0,
+            required_node_capacity: 0,
+            required_op_capacity: 0,
+            required_child_capacity: 0,
+            required_utf8_capacity: 0,
+        }
+    }
+
+    #[test]
+    fn rejects_list_and_table_sharing_a_resource_key() {
+        let mut utf8 = b"grid\0name\x1FName\x1F120\x1F0\x1F0".to_vec();
+        let mut nodes = [
+            NodeRecord {
+                component: COMPONENT_DIV,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_LIST,
+                data_length: 4,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_TABLE,
+                data_length: utf8.len() as u32,
+                ..Default::default()
+            },
+        ];
+        let mut owners = [OpRecord::default(), OpRecord::default()];
+        let arena = resource_collision_arena(&mut nodes, &mut utf8, &mut owners);
+        assert_eq!(validate(&arena, 0), Err(-56));
+    }
+
+    #[test]
+    fn rejects_two_lists_sharing_a_resource_key() {
+        let mut utf8 = b"grid".to_vec();
+        let mut nodes = [
+            NodeRecord {
+                component: COMPONENT_DIV,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_LIST,
+                data_length: 4,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_LIST,
+                data_length: 4,
+                ..Default::default()
+            },
+        ];
+        let mut owners = [OpRecord::default(), OpRecord::default()];
+        let arena = resource_collision_arena(&mut nodes, &mut utf8, &mut owners);
+        assert_eq!(validate(&arena, 0), Err(-56));
     }
 
     #[test]

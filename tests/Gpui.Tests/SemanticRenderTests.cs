@@ -449,6 +449,116 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void TableRejectsDuplicateColumnKeysAndUndefinedEnums()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            Assert.Throws<ArgumentException>(() =>
+            {
+                using var arena = new RenderArenaOwner();
+                var ui = arena.BeginRender(new NoopRenderer(), view);
+                ui.Table(
+                    "grid",
+                    new ListDataSource(10, 0),
+                    view.Row,
+                    new TableColumn("n", "Name", 120),
+                    new TableColumn("n", "Name2", 120)
+                );
+            });
+            Assert.Throws<ArgumentException>(() =>
+            {
+                using var arena = new RenderArenaOwner();
+                var ui = arena.BeginRender(new NoopRenderer(), view);
+                ui.Table(
+                    "grid",
+                    new ListDataSource(10, 0),
+                    view.Row,
+                    new TableColumn("n", "Name", 120, TableColumnWidth.Pixels, (TableColumnAlignment)99)
+                );
+            });
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void GeneratedFactoriesRejectEmptyRequiredIds()
+    {
+        Assert.Throws<ArgumentException>(ui_ButtonEmpty);
+        Assert.Throws<ArgumentException>(ui_CheckboxEmpty);
+        Assert.Throws<ArgumentException>(ui_RadioEmpty);
+        Assert.Throws<ArgumentException>(ui_ButtonEmptyUtf8);
+    }
+
+    private static object ui_ButtonEmpty()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            return ui.Button("", "x");
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    private static object ui_ButtonEmptyUtf8()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            return ui.Button(Array.Empty<byte>(), "x");
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    private static object ui_CheckboxEmpty()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            return ui.Checkbox("", "x");
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    private static object ui_RadioEmpty()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            return ui.Radio("", "x");
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
     public void TableCellPassesManagedValidation()
     {
         var view = new ProbeView();

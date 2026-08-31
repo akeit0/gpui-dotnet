@@ -32,7 +32,7 @@ jobs:
         run: cargo test --manifest-path crates/gpui-dotnet/Cargo.toml
 
       - name: Build solution
-        run: dotnet build gpui-dotnet.slnx --no-incremental
+        run: dotnet build Gpui.slnx --no-incremental
 
       - name: Test managed contract and generator
         run: dotnet test tests/Gpui.Tests/Gpui.Tests.csproj --no-build

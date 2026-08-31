@@ -338,6 +338,17 @@ internal static class BindingGenerator
         builder.AppendLine("        };");
         builder.AppendLine();
         builder.AppendLine(
+            "        internal static bool IsDataRequired(ComponentId component) => component switch"
+        );
+        builder.AppendLine("        {");
+        foreach (var component in schema.Components.Where(c => c.DataRequired))
+        {
+            builder.AppendLine($"            ComponentId.{component.CSharp} => true,");
+        }
+        builder.AppendLine("            _ => false,");
+        builder.AppendLine("        };");
+        builder.AppendLine();
+        builder.AppendLine(
             "        internal static ValueKind? ExpectedValueKind(OpCode operation) => operation switch"
         );
         builder.AppendLine("        {");
@@ -449,10 +460,23 @@ internal static class BindingGenerator
                 builder.AppendLine("        }");
                 break;
             case "idContainer":
+            {
+                // dataRequired components reject empty ids before the FFI boundary; the
+                // native validator would otherwise fail the whole snapshot at decode time.
+                var guard = component.DataRequired;
                 builder.AppendLine(
                     $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, params ReadOnlySpan<Element> children)"
                 );
                 builder.AppendLine("        {");
+                if (guard)
+                {
+                    builder.AppendLine("            if (id.IsEmpty)");
+                    builder.AppendLine("            {");
+                    builder.AppendLine(
+                        "                throw new ArgumentException(\"A non-empty element id is required.\", nameof(id));"
+                    );
+                    builder.AppendLine("            }");
+                }
                 builder.AppendLine(
                     $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, id);"
                 );
@@ -465,6 +489,15 @@ internal static class BindingGenerator
                     $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, params ReadOnlySpan<Element> children)"
                 );
                 builder.AppendLine("        {");
+                if (guard)
+                {
+                    builder.AppendLine("            if (utf8Id.IsEmpty)");
+                    builder.AppendLine("            {");
+                    builder.AppendLine(
+                        "                throw new ArgumentException(\"A non-empty element id is required.\", nameof(utf8Id));"
+                    );
+                    builder.AppendLine("            }");
+                }
                 builder.AppendLine(
                     $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, utf8Id);"
                 );
@@ -508,6 +541,7 @@ internal static class BindingGenerator
                 builder.AppendLine($"            return {component.CSharp}(utf8Id, child);");
                 builder.AppendLine("        }");
                 break;
+            }
             case "leaf":
                 builder.AppendLine($"        public {elementType} {component.CSharp}() =>");
                 builder.AppendLine(

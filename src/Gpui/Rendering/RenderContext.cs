@@ -140,7 +140,11 @@ public readonly unsafe ref partial struct RenderContext
     public Element<TextTag> Text(ReadOnlySpan<char> text) =>
         ArenaWriter.AddNode<TextTag>(_arena, ComponentId.Text, text);
 
-    /// <summary>Writes already encoded UTF-8 directly into the render arena.</summary>
+    /// <summary>
+    /// Writes already encoded UTF-8 directly into the render arena. The bytes are trusted:
+    /// they must contain valid UTF-8 with no interior NUL, and must remain unmodified for the
+    /// duration of the call. Invalid bytes are rejected by native validation, failing the frame.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Element<TextTag> Text(ReadOnlySpan<byte> utf8) =>
         ArenaWriter.AddNode<TextTag>(_arena, ComponentId.Text, utf8);

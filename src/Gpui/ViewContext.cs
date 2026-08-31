@@ -16,7 +16,10 @@ public readonly ref struct ViewContext
 
     /// <summary>
     /// Creates an optional imperative controller for a ui.Scroll() resource owned by this View.
-    /// The matching Scroll element may appear later; commands are queued natively until it exists.
+    /// Commands issued before the resource exists are queued, but only while the owning View's
+    /// committed snapshots keep declaring the resource: once a snapshot omits it, natively
+    /// queued commands for that key are discarded (there is nothing to preserve). Declare the
+    /// resource in the same render that first issues commands.
     /// </summary>
     public ScrollController CreateScrollController(string key)
     {
@@ -25,8 +28,10 @@ public readonly ref struct ViewContext
     }
 
     /// <summary>
-    /// Creates an optional imperative controller for a ui.List() resource owned by this View.
-    /// Use it for scroll-to-item and structural splice/reset notifications.
+    /// Creates an optional imperative controller for a ui.List() or ui.Table() resource owned by
+    /// this View. Use it for scroll-to-item and structural splice/refresh notifications, which
+    /// are queued until the next managed snapshot commits. The same queued-command lifecycle as
+    /// <see cref="CreateScrollController"/> applies.
     /// </summary>
     public ListController CreateListController(string key)
     {

@@ -294,12 +294,38 @@ public readonly unsafe ref partial struct RenderContext
                     nameof(columns)
                 );
             }
-            if (column.IsFraction && column.Width > 1.0)
+            if (column.IsFraction && column.Width is <= 0f or > 1.0f)
             {
                 throw new ArgumentException(
                     $"Column {i} is a fraction and must be in (0, 1].",
                     nameof(columns)
                 );
+            }
+            if ((uint)column.Unit > (uint)TableColumnWidth.Fraction)
+            {
+                throw new ArgumentException(
+                    $"Column {i} has an undefined {nameof(TableColumnWidth)}.",
+                    nameof(columns)
+                );
+            }
+            if ((uint)column.Alignment > (uint)TableColumnAlignment.Right)
+            {
+                throw new ArgumentException(
+                    $"Column {i} has an undefined {nameof(TableColumnAlignment)}.",
+                    nameof(columns)
+                );
+            }
+
+            // Tables have few columns, so an allocation-free quadratic scan beats a HashSet.
+            for (var j = 0; j < i; j++)
+            {
+                if (column.Key == columns[j].Key)
+                {
+                    throw new ArgumentException(
+                        $"Column {i} repeats key '{column.Key}'; column keys must be unique.",
+                        nameof(columns)
+                    );
+                }
             }
         }
     }

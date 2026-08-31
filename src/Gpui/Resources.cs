@@ -150,12 +150,12 @@ public readonly struct ListOptions
 public readonly struct ScrollController
 {
     private readonly View? _owner;
-    private readonly string? _key;
+    private readonly byte[]? _utf8Key;
 
     internal ScrollController(View owner, string key)
     {
         _owner = owner;
-        _key = key;
+        _utf8Key = Encoding.UTF8.GetBytes(key);
     }
 
     public bool IsDefault => _owner is null;
@@ -181,27 +181,42 @@ public readonly struct ScrollController
             new ResourceCommand(
                 ResourceKind.Scroll,
                 ResourceCommandKind.ScrollToOffset,
-                Key,
+                null,
                 BitConverter.SingleToUInt32Bits(x),
-                BitConverter.SingleToUInt32Bits(y)
+                BitConverter.SingleToUInt32Bits(y),
+                Utf8Key: Utf8KeyArray
             )
         );
     }
 
     public void ScrollToTop() =>
         Owner.DispatchResourceCommand(
-            new ResourceCommand(ResourceKind.Scroll, ResourceCommandKind.ScrollToTop, Key, 0, 0)
+            new ResourceCommand(
+                ResourceKind.Scroll,
+                ResourceCommandKind.ScrollToTop,
+                null,
+                0,
+                0,
+                Utf8Key: Utf8KeyArray
+            )
         );
 
     public void ScrollToBottom() =>
         Owner.DispatchResourceCommand(
-            new ResourceCommand(ResourceKind.Scroll, ResourceCommandKind.ScrollToBottom, Key, 0, 0)
+            new ResourceCommand(
+                ResourceKind.Scroll,
+                ResourceCommandKind.ScrollToBottom,
+                null,
+                0,
+                0,
+                Utf8Key: Utf8KeyArray
+            )
         );
 
     private View Owner =>
         _owner ?? throw new InvalidOperationException("Default ScrollController cannot be used.");
-    private string Key =>
-        _key ?? throw new InvalidOperationException("Default ScrollController cannot be used.");
+    private byte[] Utf8KeyArray =>
+        _utf8Key ?? throw new InvalidOperationException("Default ScrollController cannot be used.");
 }
 
 /// <summary>
@@ -211,12 +226,12 @@ public readonly struct ScrollController
 public readonly struct ListController
 {
     private readonly View? _owner;
-    private readonly string? _key;
+    private readonly byte[]? _utf8Key;
 
     internal ListController(View owner, string key)
     {
         _owner = owner;
-        _key = key;
+        _utf8Key = Encoding.UTF8.GetBytes(key);
     }
 
     public bool IsDefault => _owner is null;
@@ -228,9 +243,10 @@ public readonly struct ListController
             new ResourceCommand(
                 ResourceKind.List,
                 ResourceCommandKind.ListScrollToItem,
-                Key,
+                null,
                 checked((uint)index),
-                0
+                0,
+                Utf8Key: Utf8KeyArray
             )
         );
     }
@@ -245,9 +261,10 @@ public readonly struct ListController
             new ResourceCommand(
                 ResourceKind.List,
                 ResourceCommandKind.ListSplice,
-                Key,
+                null,
                 checked((uint)start),
-                packed
+                packed,
+                Utf8Key: Utf8KeyArray
             )
         );
         Owner.InvalidateFromController();
@@ -294,9 +311,10 @@ public readonly struct ListController
             new ResourceCommand(
                 ResourceKind.List,
                 ResourceCommandKind.ListRefresh,
-                Key,
+                null,
                 checked((uint)start),
-                checked((uint)count)
+                checked((uint)count),
+                Utf8Key: Utf8KeyArray
             )
         );
 
@@ -307,9 +325,10 @@ public readonly struct ListController
             new ResourceCommand(
                 ResourceKind.List,
                 ResourceCommandKind.ListReset,
-                Key,
+                null,
                 checked((uint)itemCount),
-                0
+                0,
+                Utf8Key: Utf8KeyArray
             )
         );
         Owner.InvalidateFromController();
@@ -317,8 +336,8 @@ public readonly struct ListController
 
     private View Owner =>
         _owner ?? throw new InvalidOperationException("Default ListController cannot be used.");
-    private string Key =>
-        _key ?? throw new InvalidOperationException("Default ListController cannot be used.");
+    private byte[] Utf8KeyArray =>
+        _utf8Key ?? throw new InvalidOperationException("Default ListController cannot be used.");
 }
 
 /// <summary>
@@ -368,8 +387,9 @@ public readonly struct InputController
     }
 
     /// <summary>
-    /// Replaces the native value from UTF-8 and moves the caret to its end. The bytes are copied
-    /// so the command remains safe after this call returns.
+    /// Replaces the native value from UTF-8 and moves the caret to its end. The bytes are
+    /// trusted: they must contain valid UTF-8 with no interior NUL, and are copied so the
+    /// command remains safe after this call returns.
     /// </summary>
     public void SetValue(ReadOnlySpan<byte> utf8Value)
     {

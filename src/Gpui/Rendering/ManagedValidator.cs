@@ -40,6 +40,17 @@ internal static unsafe class ManagedValidator
                 throw new InvalidOperationException($"Node {i} has invalid UTF-8 range.");
             }
 
+            var componentId = (ComponentId)node.Component;
+            if (
+                SemanticRegistry.IsDataRequired(componentId)
+                && node.DataLength == 0
+            )
+            {
+                throw new InvalidOperationException(
+                    $"{componentId} node {i} requires non-empty data."
+                );
+            }
+
             if ((ComponentId)node.Component == ComponentId.Input)
             {
                 var payload = new ReadOnlySpan<byte>(
@@ -158,6 +169,7 @@ internal static unsafe class ManagedValidator
                 code
                     is OpCode.SmoothScroll
                         or OpCode.ShowScrollbar
+                        or OpCode.ScrollbarGutter
                         or OpCode.InputDisabled
                         or OpCode.InputReadOnly
                         or OpCode.InputPassword
@@ -210,6 +222,17 @@ internal static unsafe class ManagedValidator
                 throw new InvalidOperationException(
                     $"Operation {i} has a non-positive estimated list item height."
                 );
+            }
+
+            if (code == OpCode.ScrollbarWidth)
+            {
+                var width = BitConverter.UInt32BitsToSingle((uint)operation.A);
+                if (!float.IsFinite(width) || width is < 3f or > 32f)
+                {
+                    throw new InvalidOperationException(
+                        $"Operation {i} has a scrollbar width outside 3..32 px."
+                    );
+                }
             }
 
             if (code == OpCode.OverlayPlacement && operation.A > (uint)OverlayPlacement.TopLeft)

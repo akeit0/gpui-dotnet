@@ -41,6 +41,12 @@ pub extern "C" fn gpui_dotnet_get_api(requested_version: u32) -> *const GpuiDotn
 }
 
 unsafe extern "C" fn validate_render(arena: *const RenderArena, root: u32) -> i32 {
+    // FFI entrypoints must never unwind across the C boundary; an unexpected panic in any
+    // validation path degrades to a status code the caller already knows how to handle.
+    std::panic::catch_unwind(AssertUnwindSafe(|| validate_render_inner(arena, root))).unwrap_or(-99)
+}
+
+fn validate_render_inner(arena: *const RenderArena, root: u32) -> i32 {
     let Some(arena) = (unsafe { arena.as_ref() }) else {
         return -1;
     };
@@ -48,10 +54,17 @@ unsafe extern "C" fn validate_render(arena: *const RenderArena, root: u32) -> i3
 }
 
 unsafe extern "C" fn notify_view(view_id: u64) -> i32 {
-    app_host::notify(view_id)
+    std::panic::catch_unwind(AssertUnwindSafe(|| app_host::notify(view_id))).unwrap_or(-99)
 }
 
 unsafe extern "C" fn dispatch_command(view_id: u64, command: *const NativeResourceCommand) -> i32 {
+    std::panic::catch_unwind(AssertUnwindSafe(|| unsafe {
+        dispatch_command_inner(view_id, command)
+    }))
+    .unwrap_or(-99)
+}
+
+unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCommand) -> i32 {
     let Some(command) = (unsafe { command.as_ref() }) else {
         return -50;
     };
@@ -116,6 +129,16 @@ unsafe extern "C" fn dispatch_command(view_id: u64, command: *const NativeResour
 }
 
 unsafe extern "C" fn dispatch_application_command(
+    application_id: u64,
+    command: *const NativeApplicationCommand,
+) -> i32 {
+    std::panic::catch_unwind(AssertUnwindSafe(|| unsafe {
+        dispatch_application_command_inner(application_id, command)
+    }))
+    .unwrap_or(-99)
+}
+
+unsafe fn dispatch_application_command_inner(
     application_id: u64,
     command: *const NativeApplicationCommand,
 ) -> i32 {
@@ -214,9 +237,15 @@ unsafe extern "C" fn run_application(
         return -20;
     }
 
+    // Read the declared size before trusting the full structure: a caller that only supplies a
+    // prefix must not make us read past its allocation.
+    let declared_size = unsafe { callbacks.cast::<u32>().read() };
+    if declared_size < size_of::<ManagedCallbacks>() as u32 {
+        return -21;
+    }
+
     let callbacks = unsafe { *callbacks };
-    if callbacks.struct_size < size_of::<ManagedCallbacks>() as u32
-        || callbacks.render.is_none()
+    if callbacks.render.is_none()
         || callbacks.click.is_none()
         || callbacks.list_render_range.is_none()
         || callbacks.control_event.is_none()

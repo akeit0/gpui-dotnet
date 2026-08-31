@@ -129,6 +129,23 @@ namespace Gpui.Interop
             _ => false,
         };
 
+        internal static bool IsDataRequired(ComponentId component) => component switch
+        {
+            ComponentId.Button => true,
+            ComponentId.Checkbox => true,
+            ComponentId.Radio => true,
+            ComponentId.Scroll => true,
+            ComponentId.List => true,
+            ComponentId.Image => true,
+            ComponentId.Input => true,
+            ComponentId.Overlay => true,
+            ComponentId.Tooltip => true,
+            ComponentId.ContextMenu => true,
+            ComponentId.PopoverMenu => true,
+            ComponentId.Table => true,
+            _ => false,
+        };
+
         internal static ValueKind? ExpectedValueKind(OpCode operation) => operation switch
         {
             OpCode.Flex => ValueKind.None,
@@ -347,6 +364,10 @@ namespace Gpui
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Element<ButtonTag> Button(ReadOnlySpan<char> id, params ReadOnlySpan<Element> children)
         {
+            if (id.IsEmpty)
+            {
+                throw new ArgumentException("A non-empty element id is required.", nameof(id));
+            }
             var element = ArenaWriter.AddNode<ButtonTag>(_arena, ComponentId.Button, id);
             ArenaWriter.AddChildren(element.Inner, children);
             return element;
@@ -355,6 +376,10 @@ namespace Gpui
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Element<ButtonTag> Button(ReadOnlySpan<byte> utf8Id, params ReadOnlySpan<Element> children)
         {
+            if (utf8Id.IsEmpty)
+            {
+                throw new ArgumentException("A non-empty element id is required.", nameof(utf8Id));
+            }
             var element = ArenaWriter.AddNode<ButtonTag>(_arena, ComponentId.Button, utf8Id);
             ArenaWriter.AddChildren(element.Inner, children);
             return element;
@@ -391,6 +416,10 @@ namespace Gpui
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Element<CheckboxTag> Checkbox(ReadOnlySpan<char> id, params ReadOnlySpan<Element> children)
         {
+            if (id.IsEmpty)
+            {
+                throw new ArgumentException("A non-empty element id is required.", nameof(id));
+            }
             var element = ArenaWriter.AddNode<CheckboxTag>(_arena, ComponentId.Checkbox, id);
             ArenaWriter.AddChildren(element.Inner, children);
             return element;
@@ -399,6 +428,10 @@ namespace Gpui
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Element<CheckboxTag> Checkbox(ReadOnlySpan<byte> utf8Id, params ReadOnlySpan<Element> children)
         {
+            if (utf8Id.IsEmpty)
+            {
+                throw new ArgumentException("A non-empty element id is required.", nameof(utf8Id));
+            }
             var element = ArenaWriter.AddNode<CheckboxTag>(_arena, ComponentId.Checkbox, utf8Id);
             ArenaWriter.AddChildren(element.Inner, children);
             return element;
@@ -435,6 +468,10 @@ namespace Gpui
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Element<RadioTag> Radio(ReadOnlySpan<char> id, params ReadOnlySpan<Element> children)
         {
+            if (id.IsEmpty)
+            {
+                throw new ArgumentException("A non-empty element id is required.", nameof(id));
+            }
             var element = ArenaWriter.AddNode<RadioTag>(_arena, ComponentId.Radio, id);
             ArenaWriter.AddChildren(element.Inner, children);
             return element;
@@ -443,6 +480,10 @@ namespace Gpui
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Element<RadioTag> Radio(ReadOnlySpan<byte> utf8Id, params ReadOnlySpan<Element> children)
         {
+            if (utf8Id.IsEmpty)
+            {
+                throw new ArgumentException("A non-empty element id is required.", nameof(utf8Id));
+            }
             var element = ArenaWriter.AddNode<RadioTag>(_arena, ComponentId.Radio, utf8Id);
             ArenaWriter.AddChildren(element.Inner, children);
             return element;

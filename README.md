@@ -355,7 +355,7 @@ Prerequisites:
 - GPUI platform prerequisites
 
 ```powershell
-dotnet build gpui-dotnet.slnx
+dotnet build Gpui.slnx
 dotnet run --project samples/Gpui.Sample
 ```
 

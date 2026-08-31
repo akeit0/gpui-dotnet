@@ -65,6 +65,14 @@ public sealed unsafe class NativeRuntime
     public void Validate(RenderArenaOwner owner, Element root)
     {
         ArgumentNullException.ThrowIfNull(owner);
+        // Without this check, a root element from another arena could validate an unrelated
+        // node index in the owner's arena.
+        if (root.Arena != owner.NativeArena || root.Generation != owner.NativeArena->Generation)
+        {
+            throw new InvalidOperationException(
+                "Root does not belong to the owner's active render generation."
+            );
+        }
         var status = _api->validate_render(owner.NativeArena, root.Node);
         if (status != 0)
         {
