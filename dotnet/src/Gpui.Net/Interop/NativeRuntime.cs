@@ -450,6 +450,10 @@ public sealed unsafe class NativeRuntime
 
         public void ActivateWindow(ulong windowId) => Dispatch(3, windowId);
 
+        public void MinimizeWindow(ulong windowId) => Dispatch(6, windowId);
+
+        public void ToggleMaximizeWindow(ulong windowId) => Dispatch(7, windowId);
+
         public void SetWindowTitle(ulong windowId, string title) =>
             Dispatch(4, windowId, title);
 

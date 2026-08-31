@@ -237,6 +237,50 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public unsafe void Utf8ContextMenuConfigurationPassesManagedValidation()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var menu = ui.ContextMenu(
+                "titlebar-menu"u8,
+                ui.HStack(ui.Text("Title"u8)).Grow(),
+                ui.VStack(
+                    ui.Button("minimize"u8, "Minimize"u8),
+                    ui.Button("close"u8, "Close"u8)
+                ),
+                new ContextMenuOptions(priority: 320, margin: 12)
+            );
+
+            arena.Validate(menu);
+
+            var stats = arena.GetStats();
+            Assert.Equal(8, stats.Nodes);
+            Assert.Equal(7, stats.Children);
+            Assert.Equal(6, stats.Ops);
+
+            arena.NativeArena->ChildLength--;
+            Assert.Throws<InvalidOperationException>(() => arena.Validate(menu));
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void ContextMenuOptionsRejectInvalidMargin()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ContextMenuOptions(margin: -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new ContextMenuOptions(margin: float.NaN)
+        );
+    }
+
+    [Fact]
     public void ExplicitListDatasourcePassesManagedValidation()
     {
         var view = new ProbeView();

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 13,
+  "schemaVersion": 14,
   "capabilities": [
     "styled",
     "parent",
@@ -13,7 +13,8 @@
     "input",
     "overlay",
     "tooltip",
-    "window_control"
+    "window_control",
+    "context_menu"
   ],
   "components": [
     {
@@ -223,6 +224,22 @@
         "tooltip"
       ],
       "nativeAdapter": "tooltip"
+    },
+    {
+      "id": 15,
+      "name": "context_menu",
+      "csharp": "ContextMenu",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "parent",
+        "native_state",
+        "context_menu"
+      ],
+      "nativeAdapter": "context_menu"
     }
   ],
   "operations": [
@@ -650,6 +667,22 @@
       "csharp": "TooltipMarginPx",
       "value": "f32",
       "requires": "tooltip",
+      "managedApi": null
+    },
+    {
+      "id": 620,
+      "name": "context_menu_priority",
+      "csharp": "ContextMenuPriority",
+      "value": "u32",
+      "requires": "context_menu",
+      "managedApi": null
+    },
+    {
+      "id": 621,
+      "name": "context_menu_margin_px",
+      "csharp": "ContextMenuMarginPx",
+      "value": "f32",
+      "requires": "context_menu",
       "managedApi": null
     }
   ]

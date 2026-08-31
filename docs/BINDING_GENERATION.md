@@ -19,7 +19,7 @@ dotnet run --project tools/Gpui.Bindings.Generator -- generate
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
 ```
 
-`Scroll`, `List`, `Input`, `Overlay`, and `Tooltip` are manual factories because they encode retained resource metadata or component-specific invariants in addition to normal semantic component identity. Styling operations are still capability-generated.
+`Scroll`, `List`, `Input`, `Overlay`, `Tooltip`, and `ContextMenu` are manual factories because they encode retained resource metadata or component-specific invariants in addition to normal semantic component identity. Styling operations are still capability-generated.
 
 For callback operations the generated managed fluent API has two forms:
 

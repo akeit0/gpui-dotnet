@@ -11,21 +11,23 @@ use crate::{
     abi::{ManagedCallbacks, NativeClickEvent},
     app_host::ManagedView,
     components,
+    context_menu::{ContextMenuConfiguration, context_menu},
     resources::{ResourceStore, input_configuration, list_configuration, resource_key},
     scrolling::{list_overlay, scroll_overlay},
     semantic::{
         CAPABILITY_INTERACTIVE, NativeAdapter, OP_BACKGROUND_RGBA, OP_BORDER_RGBA,
-        OP_BORDER_WIDTH_PX, OP_CHECKED, OP_FLEX, OP_FLEX_GROW, OP_FONT_SIZE_PX, OP_GAP_PX,
-        OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_ITEMS_CENTER,
-        OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
-        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX,
-        OP_LIST_RENDERER, OP_ON_CLICK, OP_OVERLAY_BACKDROP_RGBA, OP_OVERLAY_DISMISS_ON_BACKDROP,
-        OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
-        OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY, OP_PADDING_PX,
-        OP_RADIUS_PX, OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL,
-        OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS,
-        OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK,
-        OP_WIDTH_PERCENT, OP_WIDTH_PX, OP_WINDOW_CONTROL_AREA, component_metadata,
+        OP_BORDER_WIDTH_PX, OP_CHECKED, OP_CONTEXT_MENU_MARGIN_PX, OP_CONTEXT_MENU_PRIORITY,
+        OP_FLEX, OP_FLEX_GROW, OP_FONT_SIZE_PX, OP_GAP_PX, OP_HEIGHT_PERCENT, OP_HEIGHT_PX,
+        OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_ITEMS_CENTER, OP_JUSTIFY_BETWEEN,
+        OP_JUSTIFY_CENTER, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
+        OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_ON_CLICK,
+        OP_OVERLAY_BACKDROP_RGBA, OP_OVERLAY_DISMISS_ON_BACKDROP, OP_OVERLAY_DISMISS_ON_ESCAPE,
+        OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL, OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT,
+        OP_OVERLAY_PRIORITY, OP_PADDING_PX, OP_RADIUS_PX, OP_RESOURCE_OWNER, OP_SCROLL_AXIS,
+        OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX,
+        OP_TOOLTIP_HIDE_DELAY_MS, OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT,
+        OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK, OP_WIDTH_PERCENT, OP_WIDTH_PX,
+        OP_WINDOW_CONTROL_AREA, component_metadata,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
     tooltip::{TooltipConfiguration, tooltip},
@@ -50,6 +52,7 @@ impl ManagedView {
             NativeAdapter::Input => self.materialize_input(node, snapshot, window, cx),
             NativeAdapter::Overlay => self.materialize_overlay(node, snapshot, window, cx),
             NativeAdapter::Tooltip => self.materialize_tooltip(node, snapshot, window, cx),
+            NativeAdapter::ContextMenu => self.materialize_context_menu(node, snapshot, window, cx),
             _ => self.materialize_regular(node_id, node, snapshot, window, cx),
         }
     }
@@ -411,6 +414,31 @@ impl ManagedView {
         };
         tooltip(key, trigger, content, configuration, window, cx)
     }
+
+    fn materialize_context_menu(
+        &self,
+        node: &SnapshotNode,
+        snapshot: &ValidatedSnapshot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let Some(key) = resource_key(snapshot, node) else {
+            return div()
+                .child("ContextMenu is missing its owner/key.")
+                .into_any_element();
+        };
+        let children = snapshot.children(node);
+        let trigger = self.materialize_node(children[0], snapshot, window, cx);
+        let content = self.materialize_node(children[1], snapshot, window, cx);
+        let configuration = ContextMenuConfiguration {
+            priority: last_op(snapshot, node, OP_CONTEXT_MENU_PRIORITY)
+                .map_or(300, |op| op.a as u32),
+            margin: last_op(snapshot, node, OP_CONTEXT_MENU_MARGIN_PX)
+                .map_or(8.0, |op| f32::from_bits(op.a as u32)),
+        };
+        let host = apply_styles(div(), node, snapshot);
+        context_menu(key, host, trigger, content, configuration, window, cx)
+    }
 }
 
 struct OverlayFocusState {
@@ -505,10 +533,11 @@ pub(crate) fn materialize_snapshot_node_detached(
             | NativeAdapter::Input
             | NativeAdapter::Overlay
             | NativeAdapter::Tooltip
+            | NativeAdapter::ContextMenu
     ) {
         return div()
             .child(
-                "Retained Scroll/List/Input resources, overlays, and tooltips inside a virtualized list row are not supported.",
+                "Retained Scroll/List/Input resources and deferred layers inside a virtualized list row are not supported.",
             )
             .into_any_element();
     }

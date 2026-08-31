@@ -15,6 +15,9 @@ var mainWindow = application.OpenWindow(
         Title = stressGrowth ? "GPUI.NET Arena Growth" : "GPUI.NET Components",
         Width = 1040,
         Height = 700,
+        TitleBarStyle = stressGrowth
+            ? WindowTitleBarStyle.System
+            : WindowTitleBarStyle.Custom,
     }
 );
 if (rootView is SampleShellView mainShell)
@@ -182,10 +185,13 @@ internal sealed partial class SampleShellView : View
             .Grow()
             .Height(Percent(100));
 
-        return ui.HStack(sidebar, content)
+        var gallery = ui.HStack(sidebar, content)
             .Width(Percent(100))
-            .Height(Percent(100))
+            .Grow()
             .Background(Rgb(241, 245, 249));
+        return ui.VStack(SampleTitleBar.Render(ref ui, "GPUI.NET  /  Components"u8), gallery)
+            .Width(Percent(100))
+            .Height(Percent(100));
     }
 
     private Element RenderSidebar(ref RenderContext ui)
@@ -339,56 +345,17 @@ internal sealed partial class CustomTitleBarWindowView : View
 
     protected override Element Render(ref RenderContext ui)
     {
-        var dragRegion = ui.HStack(
-                ui.Div().Width(Px(OperatingSystem.IsMacOS() ? 64 : 0)),
-                ui.Text($"GPUI.NET  /  Custom window {Window?.Id ?? 0}")
-                    .FontSize(Px(13))
-                    .TextColor(Rgb(226, 232, 240)),
-                ui.Spacer()
-            )
-            .ItemsCenter()
-            .Padding(Px(9))
-            .Grow()
-            .Height(Percent(100))
-            .WindowControlArea(WindowControlArea.Drag);
-
-        var titleBar = OperatingSystem.IsMacOS()
-            ? ui.HStack(dragRegion)
-            : ui.HStack(
-                dragRegion,
-                TitleBarButton(
-                    ref ui,
-                    "titlebar-minimize"u8,
-                    "—"u8,
-                    WindowControlArea.Minimize,
-                    44
-                ),
-                TitleBarButton(
-                    ref ui,
-                    "titlebar-maximize"u8,
-                    "□"u8,
-                    WindowControlArea.Maximize,
-                    44
-                ),
-                TitleBarButton(
-                    ref ui,
-                    "titlebar-close"u8,
-                    "×"u8,
-                    WindowControlArea.Close,
-                    48
-                )
-            );
-        titleBar = titleBar
-            .Height(Px(38))
-            .Width(Percent(100))
-            .Background(Rgb(15, 23, 42));
+        var titleBar = SampleTitleBar.Render(
+            ref ui,
+            $"GPUI.NET  /  Custom window {Window?.Id ?? 0}"
+        );
 
         var content = ui.VStack(
                 ui.Text("Managed visuals, native window behavior"u8)
                     .FontSize(Px(24))
                     .TextColor(Rgb(15, 23, 42)),
                 ui.Text(
-                        "Drag the dark header, double-click it to maximize, or use its native caption regions. No pointer motion crosses into .NET."u8
+                        "Drag or double-click the dark header; right-click it for the operating system window menu. Pointer motion stays in GPUI."u8
                     )
                     .FontSize(Px(13))
                     .TextColor(Rgb(71, 85, 105)),
@@ -418,8 +385,65 @@ internal sealed partial class CustomTitleBarWindowView : View
             .Height(Percent(100))
             .Background(Rgb(241, 245, 249));
     }
+}
 
-    private static Element TitleBarButton(
+internal static class SampleTitleBar
+{
+    internal static Element Render(ref RenderContext ui, ReadOnlySpan<byte> utf8Title) =>
+        Render(
+            ref ui,
+            ui.Text(utf8Title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240))
+        );
+
+    internal static Element Render(ref RenderContext ui, ReadOnlySpan<char> title) =>
+        Render(ref ui, ui.Text(title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)));
+
+    private static Element Render(ref RenderContext ui, Element title)
+    {
+        var dragRegion = ui.HStack(
+                ui.Div().Width(Px(OperatingSystem.IsMacOS() ? 64 : 0)),
+                title,
+                ui.Spacer()
+            )
+            .ItemsCenter()
+            .Padding(Px(9))
+            .Grow()
+            .Height(Percent(100))
+            .WindowControlArea(WindowControlArea.Drag);
+
+        var titleBar = OperatingSystem.IsMacOS()
+            ? ui.HStack(dragRegion)
+            : ui.HStack(
+                dragRegion,
+                Button(
+                    ref ui,
+                    "titlebar-minimize"u8,
+                    "—"u8,
+                    WindowControlArea.Minimize,
+                    44
+                ),
+                Button(
+                    ref ui,
+                    "titlebar-maximize"u8,
+                    "□"u8,
+                    WindowControlArea.Maximize,
+                    44
+                ),
+                Button(
+                    ref ui,
+                    "titlebar-close"u8,
+                    "×"u8,
+                    WindowControlArea.Close,
+                    48
+                )
+            );
+        return titleBar
+            .Height(Px(38))
+            .Width(Percent(100))
+            .Background(Rgb(15, 23, 42));
+    }
+
+    private static Element Button(
         ref RenderContext ui,
         ReadOnlySpan<byte> id,
         ReadOnlySpan<byte> label,
@@ -882,6 +906,7 @@ internal sealed partial class OverlayGalleryView : View
 {
     private OverlayDemo _open;
     private int _backgroundClicks;
+    private int _contextMenuActions;
 
     [GpuiEvent]
     private void OpenDialog()
@@ -908,6 +933,13 @@ internal sealed partial class OverlayGalleryView : View
     private void CountBackgroundClick()
     {
         _backgroundClicks++;
+        Invalidate();
+    }
+
+    [GpuiEvent]
+    private void RunContextMenuAction()
+    {
+        _contextMenuActions++;
         Invalidate();
     }
 
@@ -964,11 +996,54 @@ internal sealed partial class OverlayGalleryView : View
                         )
                     )
                     .Gap(Px(10)),
+                ui.ContextMenu(
+                        "content-context-menu"u8,
+                        ui.VStack(
+                                ui.Text("Application context menu"u8)
+                                    .FontSize(Px(14))
+                                    .TextColor(Rgb(30, 41, 59)),
+                                ui.Text("Right-click this card; title bars keep the OS menu."u8)
+                                    .FontSize(Px(12))
+                                    .TextColor(Rgb(100, 116, 139))
+                            )
+                            .Gap(Px(6))
+                            .Padding(Px(16))
+                            .Width(Px(360))
+                            .Background(Rgb(255, 255, 255))
+                            .BorderWidth(Px(1))
+                            .BorderColor(Rgb(203, 213, 225))
+                            .Radius(Px(10)),
+                        ui.VStack(
+                                ui.Text("Content actions"u8)
+                                    .FontSize(Px(11))
+                                    .TextColor(Rgb(100, 116, 139))
+                                    .Padding(Px(7)),
+                                ui.Button(
+                                        "run-context-action"u8,
+                                        $"Run action · {_contextMenuActions:N0}"
+                                    )
+                                    .OnClick(Events.RunContextMenuAction)
+                                    .Width(Percent(100))
+                                    .Padding(Px(9))
+                                    .Background(Rgb(255, 255, 255))
+                                    .BorderColor(Rgb(255, 255, 255))
+                            )
+                            .Width(Px(220))
+                            .Gap(Px(2))
+                            .Padding(Px(6))
+                            .Background(Rgb(255, 255, 255))
+                            .BorderWidth(Px(1))
+                            .BorderColor(Rgb(203, 213, 225))
+                            .Radius(Px(8))
+                    )
+                    .Width(Px(360)),
                 ui.VStack(
                         ui.Text("Interaction checks"u8)
                             .FontSize(Px(14))
                             .TextColor(Rgb(30, 41, 59)),
                         ui.Text("• Tooltips use deferred content and disappear on pointer press."u8),
+                        ui.Text("• Application content can provide a managed right-click menu."u8),
+                        ui.Text("• Custom title bars preserve the operating system window menu."u8),
                         ui.Text("• Click the dim backdrop or press Escape to dismiss."u8),
                         ui.Text("• The background action must not fire through the backdrop."u8),
                         ui.Text("• Tab and Shift+Tab stay inside the modal; try IME composition."u8)

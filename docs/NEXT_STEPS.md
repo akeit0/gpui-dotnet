@@ -1,6 +1,6 @@
 # Next steps
 
-The repository now has framework-owned dynamic managed Views, an ABI v5 multi-window application/session model, typed native-control events, retained native Scroll and Input state, virtualized ListState, deferred window Overlay and trigger-relative Tooltip layers, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
+The repository now has framework-owned dynamic managed Views, an ABI v5 multi-window application/session model, typed native-control events, retained native Scroll and Input state, virtualized ListState, deferred window Overlay, trigger-relative Tooltip, and pointer-anchored ContextMenu layers, batched managed datasource rendering, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots.
 
 ## 1. List datasource refinement — high priority
 
@@ -19,7 +19,7 @@ Do not expose GPUI's uniform/variable implementation split directly unless it pr
 
 ## 2. Multi-window application refinement — foundation complete
 
-`GpuiApplication` now owns one native event loop and multiple independent `GpuiWindow` sessions. Windows have stable IDs, per-window View/resource namespaces, deterministic mount/unmount, isolated failures, thread-safe open/close/activate/title/resize commands, system/custom/hidden title bars with native caption hit testing, and final-window shutdown. `GpuiApplication.Run(view, options)` remains a one-window convenience.
+`GpuiApplication` now owns one native event loop and multiple independent `GpuiWindow` sessions. Windows have stable IDs, per-window View/resource namespaces, deterministic mount/unmount, isolated failures, thread-safe open/close/activate/minimize/toggle-maximize/title/resize commands, system/custom/hidden title bars with native caption hit testing, and final-window shutdown. `GpuiApplication.Run(view, options)` remains a one-window convenience.
 
 Continue only where applications demonstrate need:
 
@@ -42,10 +42,11 @@ The single-line Input establishes the native-entity ABI for focus, IME, selectio
 
 ## 4. Overlay compositions
 
-The generic window-relative Overlay is the geometry and event foundation. Build semantic compositions on it rather than repeatedly recreating modal behavior:
+The generic window-relative Overlay is the modal geometry and event foundation. Pointer ContextMenu now supplies native right-click interception, pointer anchoring, viewport snapping, focus restoration, outside/Escape/selection dismissal, and managed content/actions. Continue with semantic compositions instead of rebuilding these behaviors:
 
 - Dialog and Sheet semantics on the generic modal focus trap, including initial-focus selection and deterministic stacked-overlay dismissal policy;
-- Popover/Menu with trigger measurement, anchor flipping/snapping, keyboard navigation, and outside-click dismissal;
+- keyboard navigation, roving selection, disabled/check/radio item semantics, and accessibility for ContextMenu;
+- Popover with trigger measurement, anchor flipping/snapping, focus policy, and outside-click dismissal;
 - Tooltip accessibility descriptions and keyboard/focus-triggered visibility in addition to pointer hover;
 - Toast/notification host with retained ordering, timeouts, pause-on-hover, and reduced-motion policy;
 - accessibility roles, labels, focus announcements, and platform verification.

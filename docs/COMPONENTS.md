@@ -4,7 +4,7 @@
 
 | Class | Examples | Transport/state |
 |---|---|---|
-| Snapshot component | div, badge, button, image, overlay, tooltip | render IR |
+| Snapshot component | div, badge, button, image, overlay, tooltip, context menu | render IR |
 | Retained container | Scroll | render IR reference + native state keyed by View/key |
 | Virtualized datasource | List | retained native state + batched managed row renderer |
 | Native entity component | Input; future editor/select | opaque native handle + commands/events |
@@ -16,7 +16,7 @@ Do not force all classes into one ABI shape.
 
 `GpuiWindowOptions.TitleBarStyle` selects `System`, `Custom`, or `Hidden` when a window opens. System chrome requires no managed elements. Custom chrome extends managed content into a transparent native title-bar surface; Hidden removes that surface entirely.
 
-Managed Div and Button elements can use `WindowControlArea(Drag|Minimize|Maximize|Close)`. Rust maps the semantic operation to GPUI's native window-control hit testing, so window movement and caption actions do not become managed pointer/click traffic. A parent Drag region can contain child caption controls because the most specific child hit region wins. macOS custom windows retain native traffic lights, so managed title-bar layouts should reserve their space.
+Managed Div and Button elements can use `WindowControlArea(Drag|Minimize|Maximize|Close)`. Rust maps the semantic operation to GPUI's native window-control hit testing, so window movement and caption actions do not become managed pointer/click traffic. A parent Drag region can contain child caption controls because the most specific child hit region wins. `GpuiWindow.Minimize()` and `ToggleMaximize()` expose the same operations to managed menu actions; the native host handles the Win32 restore path that the pinned GPUI maximize primitive omits. macOS custom windows retain native traffic lights, so managed title-bar layouts should reserve their space.
 
 ## Snapshot component adapters
 
@@ -67,7 +67,7 @@ ui.Input("name"u8, new Utf8InputOptions(placeholder: "Name"u8));
 
 `ui.Overlay(key, child, options)` gives one ordinary semantic child a deferred window-relative layer. Rust owns viewport placement, deferred paint priority, modal backdrop input interception, initial focus, Tab/Shift+Tab containment, previous-focus restoration, and native backdrop/Escape detection. Dismissal crosses into managed code only through an explicit `OnDismiss` callback.
 
-The default options are a centered modal, 16-pixel viewport margin, priority 10, a translucent black backdrop, and backdrop/Escape dismissal. `OverlayPlacement` also covers every window edge and corner, providing the low-level geometry for dialogs and sheets without exposing GPUI element types through the ABI. A modal uses native non-tab-stop boundary handles to wrap GPUI focus traversal without enumerating managed children. Popover/menu interaction, toast lifecycle, and higher-level Dialog/Sheet/Popover components remain separate composition work.
+The default options are a centered modal, 16-pixel viewport margin, priority 10, a translucent black backdrop, and backdrop/Escape dismissal. `OverlayPlacement` also covers every window edge and corner, providing the low-level geometry for dialogs and sheets without exposing GPUI element types through the ABI. A modal uses native non-tab-stop boundary handles to wrap GPUI focus traversal without enumerating managed children. Popover interaction, toast lifecycle, and higher-level Dialog/Sheet/Popover components remain separate composition work.
 
 Overlay keys are scoped by the owning managed View. This prevents two reusable child Views with the same local overlay key from sharing GPUI focus state.
 
@@ -78,6 +78,14 @@ Overlay keys are scoped by the owning managed View. This prevents two reusable c
 Placement is relative to trigger bounds rather than the cursor. Auto prefers Bottom, then Top, Right, and Left. Explicit side preferences flip when the primary axis does not fit, while cross-axis alignment and final viewport margins are clamped. Managed code owns all tooltip presentation.
 
 Tooltip keys use the same `(managed View handle, local key)` identity rule as retained resources. Tooltip is disallowed inside cached List rows because those rows do not have a mounted managed View lifetime.
+
+## Context menu
+
+`ui.ContextMenu(key, trigger, content, options)` is a semantic two-child component. The trigger stays in normal layout. Rust intercepts right mouse-down, suppresses the platform default, records the pointer position, focuses a deferred layer at priority 300, and clamps content to an 8-pixel viewport margin. The defaults can be changed through `ContextMenuOptions`.
+
+A transparent native backdrop blocks input behind the open menu and dismisses on outside left/right press. Escape, a right press in the menu, or left mouse-up after a menu selection also dismisses, then focus returns to the previously focused element. Content and action bindings remain managed, so the component imposes no product styling or fixed item model. This also lets a ContextMenu wrap a custom title-bar Drag region without showing the operating-system title-bar menu.
+
+ContextMenu keys use the owning View namespace and ContextMenu is disallowed inside cached List rows for the same lifetime reason as Tooltip and Overlay.
 
 ## List
 
@@ -106,7 +114,7 @@ An explicit `ListDataSource` revision keeps cached row snapshots across unrelate
 
 ### Row renderer restrictions
 
-Rows are pure Element renderers, not retained managed View roots. `RenderContext` for a list range intentionally has no managed child resolver and no native resource owner. `ui.Child`, retained `ui.Scroll`, nested retained `ui.List`, retained `ui.Input`, window-level `ui.Overlay`, and `ui.Tooltip` therefore fail rather than creating ambiguous lifetimes.
+Rows are pure Element renderers, not retained managed View roots. `RenderContext` for a list range intentionally has no managed child resolver and no native resource owner. `ui.Child`, retained `ui.Scroll`, nested retained `ui.List`, retained `ui.Input`, window-level `ui.Overlay`, `ui.Tooltip`, and `ui.ContextMenu` therefore fail rather than creating ambiguous lifetimes.
 
 If item-scoped managed state is needed in the future, implement a dedicated virtualized-item state mechanism instead of silently reusing normal View slots.
 

@@ -19,7 +19,7 @@ const gpui_dotnet_api_v5* gpui_dotnet_get_api(uint32_t requested_version);
 - `dispatch_command`;
 - `dispatch_application_command`.
 
-The current schema hash is `0x696851575D1BF2C5`.
+The current schema hash is `0x1F765C21E53A39C1`.
 
 ## Managed callbacks
 
@@ -165,6 +165,8 @@ typedef struct gpui_native_application_command {
 | `Open` | UTF-8 title, positive size, optional positioned flag + finite `left`/`top`, optional activate flag, title-bar style |
 | `Close` | none |
 | `Activate` | none |
+| `Minimize` | none |
+| `ToggleMaximize` | none |
 | `SetTitle` | non-empty UTF-8 title |
 | `Resize` | positive finite width/height |
 
@@ -177,6 +179,16 @@ The call copies borrowed UTF-8 before returning and enqueues the owned command. 
 Semantic operation `WindowControlArea` (`201`, `U32`) marks a Div or Button as a native title-bar hit-test region. Values are `Drag = 0`, `Minimize = 1`, `Maximize = 2`, and `Close = 3`; all others are rejected by both managed and native validation. Child regions override an enclosing drag region through normal GPUI hit testing.
 
 These regions are part of the render snapshot, not managed click callbacks. GPUI and the platform process drag and caption interaction directly, so pointer motion and window-management gestures do not cross the ABI.
+
+`Minimize` and `ToggleMaximize` use the application command channel rather than semantic hit-test regions. The native host normalizes maximize/restore behavior across platforms; in particular, it explicitly restores a maximized Win32 window because the pinned GPUI Windows `zoom_window` implementation only maximizes.
+
+## Context menu component
+
+Semantic component `ContextMenu` (`15`) is keyed and requires exactly two children: a normal-layout trigger followed by deferred menu content. `ContextMenuPriority` (`620`, `U32`) and `ContextMenuMarginPx` (`621`, finite non-negative `F32`) configure its native layer; defaults are priority 300 and an 8-pixel viewport margin.
+
+Rust owns right-button interception, pointer anchoring, viewport snapping, focus entry/restoration, a transparent full-window input backdrop, and dismissal. Right mouse-down on the trigger stops propagation and suppresses the platform default before opening. Outside left/right press and Escape close immediately. A left mouse-up inside content closes after the target's normal click sequence, so managed `OnClick` actions run before the menu disappears. Menu presentation and actions remain ordinary managed semantic elements.
+
+ContextMenu state is scoped by `(window session, managed View handle, local UTF-8 key)`. It is rejected in virtualized List row snapshots, which do not have a mounted View lifetime.
 
 ## Retained native resource commands
 

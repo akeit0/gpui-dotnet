@@ -2,6 +2,7 @@ mod abi;
 mod app_host;
 mod arena;
 mod components;
+mod context_menu;
 mod input;
 mod materializer;
 mod resources;
@@ -150,7 +151,7 @@ unsafe extern "C" fn dispatch_application_command(
                     no_position
                 }
         }
-        2 | 3 => command.flags == 0 && no_title && no_position && no_size,
+        2 | 3 | 6 | 7 => command.flags == 0 && no_title && no_position && no_size,
         4 => command.flags == 0 && !no_title && no_position && no_size,
         5 => command.flags == 0 && no_title && no_position && size_valid,
         _ => false,
@@ -188,6 +189,8 @@ unsafe extern "C" fn dispatch_application_command(
         },
         2 => app_host::ApplicationCommand::Close(command.window_id),
         3 => app_host::ApplicationCommand::Activate(command.window_id),
+        6 => app_host::ApplicationCommand::Minimize(command.window_id),
+        7 => app_host::ApplicationCommand::ToggleMaximize(command.window_id),
         4 => app_host::ApplicationCommand::SetTitle {
             window_id: command.window_id,
             title: title.expect("validated title update"),

@@ -2198,7 +2198,9 @@ dependencies = [
  "async-channel 2.5.0",
  "csbindgen",
  "gpui",
+ "raw-window-handle",
  "unicode-segmentation",
+ "windows 0.61.3",
 ]
 
 [[package]]

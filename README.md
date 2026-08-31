@@ -18,7 +18,7 @@ RenderArena (nodes / ops / children / UTF-8)
 Rust validation + flat retained snapshot
    │
    ├─ semantic NativeAdapter ─────────────► GPUI elements
-   │    └─ deferred window overlays and trigger-relative tooltips
+   │    └─ deferred overlays, tooltips, and pointer context menus
    │
    └─ retained native resources
         ├─ ScrollHandle
@@ -46,7 +46,7 @@ var inspector = application.OpenWindow(
 application.Run(); // returns after the last window closes
 ```
 
-Each `GpuiWindow` has a stable 64-bit ID and its own root View tree, retained resource store, render snapshots, failures, and mount lifetime. `OpenWindow` also works while the application is running. `Close`, `Activate`, `SetTitle`, and `Resize` enqueue thread-safe native UI commands; title/size changes made before `Run` update the initial window definition. Initial `Left`/`Top` positioning is supported, while runtime repositioning is not exposed by the pinned GPUI API.
+Each `GpuiWindow` has a stable 64-bit ID and its own root View tree, retained resource store, render snapshots, failures, and mount lifetime. `OpenWindow` also works while the application is running. `Close`, `Activate`, `Minimize`, `ToggleMaximize`, `SetTitle`, and `Resize` enqueue thread-safe native UI commands; title/size changes made before `Run` update the initial window definition. Initial `Left`/`Top` positioning is supported, while runtime repositioning is not exposed by the pinned GPUI API.
 
 For a single window, `GpuiApplication.Run(view, options)` is a convenience over the same model.
 
@@ -72,7 +72,7 @@ var titleBar = ui.HStack(
     .WindowControlArea(WindowControlArea.Drag);
 ```
 
-Child caption regions override the parent drag region. On macOS, `Custom` retains the native traffic lights; applications should reserve their space instead of drawing duplicate caption buttons. `Hidden` removes the platform title-bar surface entirely but still allows explicit native control regions.
+Child caption regions override the parent drag region. A `ui.ContextMenu` can wrap the drag region: its native right-button handler suppresses the platform title-bar menu and opens managed menu content at the pointer without turning title-bar pointer motion into managed events. On macOS, `Custom` retains the native traffic lights; applications should reserve their space instead of drawing duplicate caption buttons. `Hidden` removes the platform title-bar surface entirely but still allows explicit native control regions.
 
 ## Managed Views: framework ownership by default
 
@@ -284,6 +284,24 @@ return ui.Tooltip(
 
 `TooltipOptions` can request Top/Right/Bottom/Left placement and Start/Center/End alignment; native geometry flips to another side and clamps to the viewport when needed. Show/hide delays can be zero. Moving into the tooltip during its grace period keeps rich content available, while pointer press dismisses it. Tooltip identity is scoped by the owning managed View, so reusable child Views may use local keys safely. Tooltips are intentionally unavailable inside virtualized List rows.
 
+`ui.ContextMenu(key, trigger, content, options)` is the pointer-anchored counterpart. The first child remains in normal layout; right-clicking it opens the second child at the pointer in a deferred layer:
+
+```csharp
+var windowMenu = ui.VStack(
+        ui.Text("Window"),
+        ui.Button("minimize-menu"u8, "Minimize"u8).OnClick(Events.MinimizeWindow),
+        ui.Button("maximize-menu"u8, "Maximize / restore"u8)
+            .OnClick(Events.ToggleMaximizeWindow),
+        ui.Button("close-menu"u8, "Close"u8).OnClick(Events.CloseWindow))
+    .Width(Px(220))
+    .Padding(Px(8))
+    .Background(Rgb(255, 255, 255));
+
+return ui.ContextMenu("titlebar-menu"u8, titleBar, windowMenu);
+```
+
+Rust owns right-button interception, pointer placement, viewport clamping, deferred priority, focus restoration, and dismissal on outside click, Escape, selection, or another right-click. Managed code owns menu visuals and actions through normal generated event bindings. `ContextMenuOptions` configures priority and viewport margin. Context menus are keyed to the owning View and are intentionally unavailable inside virtualized List rows.
+
 ## Generated events
 
 Constructor-time callback registration is not used. `[GpuiEvent]` emits stable handler IDs, `Events.*` bindings and direct dispatch code. `Task`/`ValueTask` completion is observed; `async void` is rejected.
@@ -308,11 +326,11 @@ ABI v5 makes application ownership distinct from window/render sessions. It adds
 
 - one native GPUI application with multiple independently mounted managed window roots;
 - application-started and per-window-closed lifecycle callbacks;
-- thread-safe open, close, activate, title, and resize commands;
+- thread-safe open, close, activate, minimize, maximize/restore, title, and resize commands;
 - stable 64-bit window/session IDs and per-window resource namespaces;
 - shutdown only after the final application-owned window closes.
 
-Managed startup validates both ABI version and semantic schema hash (`0x696851575D1BF2C5`). See [docs/ABI.md](docs/ABI.md).
+Managed startup validates both ABI version and semantic schema hash (`0x1F765C21E53A39C1`). See [docs/ABI.md](docs/ABI.md).
 
 ## Build
 
@@ -327,7 +345,7 @@ dotnet build gpui-dotnet.slnx
 dotnet run --project dotnet/samples/Gpui.Net.Sample
 ```
 
-The sample contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, centered-dialog/right-sheet Overlay demos, delayed trigger-relative tooltips, and a Windows gallery. The Windows route launches distinct system-title-bar and custom-title-bar roots with isolated local state; native drag/minimize/maximize/close regions are demonstrated by the custom window. Closing either companion leaves the main gallery running. To open the system-title-bar companion automatically at startup:
+The sample contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, centered-dialog/right-sheet Overlay demos, delayed trigger-relative tooltips, and a Windows gallery. The Windows route launches distinct system-title-bar and custom-title-bar roots with isolated local state; native drag/caption regions and a pointer-anchored title-bar context menu are demonstrated by the custom window. Closing either companion leaves the main gallery running. To open the system-title-bar companion automatically at startup:
 
 ```powershell
 dotnet run --project dotnet/samples/Gpui.Net.Sample -- --multi-window

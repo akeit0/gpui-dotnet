@@ -20,7 +20,7 @@ GPUI.NET deliberately does not mirror GPUI's Rust API one-to-one.
 - semantic component materialization;
 - `ScrollHandle` and `ListState`;
 - retained `ManagedInput` entities and GPUI input handlers;
-- deferred overlay/tooltip stacking, viewport placement, modal input interception, timing, and dismissal;
+- deferred Overlay/Tooltip/ContextMenu stacking, viewport placement, input interception, timing, and dismissal;
 - title-bar presentation and native window drag/minimize/maximize/close hit testing;
 - virtual-list viewport/measurement state and row batch cache;
 - high-frequency wheel/trackpad/scrollbar behavior.
@@ -31,9 +31,9 @@ The boundary rule is: **cross the ABI for state transitions or coarse data batch
 
 `GpuiApplication` is the managed owner of one native `gpui::Application`. Each `GpuiWindow` owns an independent managed render session rooted at one `View`; window IDs are globally stable for the process lifetime and are also the native callback session IDs. Opening another window never constructs a second GPUI application.
 
-The native application host keeps a window registry and a UI-thread command channel. Open/close/activate/title/resize calls may originate on any managed thread, but GPUI window mutation occurs only when the native event loop consumes the command. Initial positioned bounds and system/custom/hidden title-bar styles are supported. The pinned GPUI API exposes runtime resize but no cross-platform runtime reposition operation, so that capability is deliberately absent rather than emulated.
+The native application host keeps a window registry and a UI-thread command channel. Open/close/activate/minimize/toggle-maximize/title/resize calls may originate on any managed thread, but GPUI window mutation occurs only when the native event loop consumes the command. Initial positioned bounds and system/custom/hidden title-bar styles are supported. The pinned GPUI API exposes runtime resize but no cross-platform runtime reposition operation, so that capability is deliberately absent rather than emulated.
 
-Custom title bars preserve the same boundary: C# composes the visual header, while semantic `WindowControlArea` operations become GPUI/platform hit-test regions. Dragging, double-click maximize, and caption controls therefore stay native instead of emitting high-frequency managed events. On macOS, the transparent custom title-bar mode retains platform traffic lights; managed composition owns the reserved visual space.
+Custom title bars preserve the same boundary: C# composes the visual header, while semantic `WindowControlArea` operations become GPUI/platform hit-test regions. Dragging, double-click maximize, and caption controls therefore stay native instead of emitting high-frequency managed events. `ContextMenu` can wrap that drag region: Rust consumes right mouse-down before platform title-bar handling, anchors the managed menu at the pointer, and keeps dismissal/focus state native. On macOS, the transparent custom title-bar mode retains platform traffic lights; managed composition owns the reserved visual space.
 
 Each window has a separate `ManagedSession`, View-handle allocator, render snapshots, retained resources, list caches, and lifecycle teardown. A failure is recorded against the affected window session while other windows keep running; the application reports the first failure when the final window closes. Closing one window unmounts only its View tree. Closing the final window quits the shared GPUI application.
 
@@ -47,7 +47,7 @@ Each window has a separate `ManagedSession`, View-handle allocator, render snaps
 - pointer, keyboard, focus, accessibility, overlay, virtualization, and reduced-motion behavior are part of a component contract;
 - one retained handle represents one logical viewport or control instance.
 
-These principles guide Scroll/List/Image/Input/Overlay/Tooltip today and future editor, select, menu, dialog, tree, table, and notification work. GPUI.NET does not directly depend on `gpui-component`/`gpui-base`: those crates must use the exact same GPUI revision as their consumer. This repository pins GPUI to the official Zed merge commit for [PR #41259](https://github.com/zed-industries/zed/pull/41259), allowing system IME keys and composition to follow normal Win32 translation without carrying a framework fork. Concepts are adapted behind GPUI.NET's semantic ABI instead. Attribution is recorded in the root [NOTICE](../NOTICE).
+These principles guide Scroll/List/Image/Input/Overlay/Tooltip/ContextMenu today and future editor, select, popover, dialog, tree, table, and notification work. GPUI.NET does not directly depend on `gpui-component`/`gpui-base`: those crates must use the exact same GPUI revision as their consumer. This repository pins GPUI to the official Zed merge commit for [PR #41259](https://github.com/zed-industries/zed/pull/41259), allowing system IME keys and composition to follow normal Win32 translation without carrying a framework fork. Concepts are adapted behind GPUI.NET's semantic ABI instead. Attribution is recorded in the root [NOTICE](../NOTICE).
 
 ## Three planes
 
@@ -63,7 +63,7 @@ Some UI state must survive independently of a managed render snapshot. A resourc
 (window session, managed View handle, local string key, resource kind)
 ```
 
-The render snapshot declares that a resource is active. Imperative controllers send commands through the ABI; wheel/trackpad operations remain native. Each native window owns a separate resource store, so equal View handles and keys in different windows cannot collide. Overlay and Tooltip are keyed snapshot components rather than retained resources: native keyed state holds focus entry/restoration or hover timing while each component remains in consecutive snapshots.
+The render snapshot declares that a resource is active. Imperative controllers send commands through the ABI; wheel/trackpad operations remain native. Each native window owns a separate resource store, so equal View handles and keys in different windows cannot collide. Overlay, Tooltip, and ContextMenu are keyed snapshot components rather than retained resources: native keyed state holds focus entry/restoration, hover timing, or menu visibility/position while each component remains in consecutive snapshots.
 
 Current retained resources:
 
@@ -106,7 +106,7 @@ A `[GpuiListItem]` renderer produces an Element subtree in a list-owned arena. I
 - retained `ui.Scroll()`;
 - nested retained `ui.List()`;
 - retained `ui.Input()`;
-- window-level `ui.Overlay()` and `ui.Tooltip()`.
+- window-level `ui.Overlay()`, `ui.Tooltip()`, and `ui.ContextMenu()`.
 
 This avoids coupling item cache eviction to managed View mount/unmount rules. Interactive row elements remain valid because event tokens target the owning View, and GPUI element IDs are namespaced by list identity + item index.
 

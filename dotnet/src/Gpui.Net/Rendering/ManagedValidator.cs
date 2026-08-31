@@ -256,6 +256,16 @@ internal static unsafe class ManagedValidator
                     $"Operation {i} has a negative tooltip distance."
                 );
             }
+
+            if (
+                code == OpCode.ContextMenuMarginPx
+                && BitConverter.UInt32BitsToSingle((uint)operation.A) < 0
+            )
+            {
+                throw new InvalidOperationException(
+                    $"Operation {i} has a negative context-menu margin."
+                );
+            }
         }
 
         var markedChildren = 0;
@@ -293,7 +303,10 @@ internal static unsafe class ManagedValidator
             for (var nodeIndex = 0; nodeIndex < arena->NodeLength; nodeIndex++)
             {
                 var component = (ComponentId)arena->Nodes[nodeIndex].Component;
-                if (component is not (ComponentId.Overlay or ComponentId.Tooltip))
+                if (
+                    component
+                        is not (ComponentId.Overlay or ComponentId.Tooltip or ComponentId.ContextMenu)
+                )
                 {
                     continue;
                 }

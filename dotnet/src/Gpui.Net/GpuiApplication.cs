@@ -99,6 +99,12 @@ public sealed class GpuiWindow
 
     public void Activate() => _application.ActivateWindow(this);
 
+    /// <summary>Minimizes an already-open native window.</summary>
+    public void Minimize() => _application.MinimizeWindow(this);
+
+    /// <summary>Toggles an already-open native window between maximized and restored bounds.</summary>
+    public void ToggleMaximize() => _application.ToggleMaximizeWindow(this);
+
     public void SetTitle(string title) => _application.SetWindowTitle(this, title);
 
     /// <summary>Changes native window content size. Runtime repositioning is not exposed by GPUI.</summary>
@@ -297,6 +303,30 @@ public sealed class GpuiApplication
         host.ActivateWindow(window.Id);
     }
 
+    internal void MinimizeWindow(GpuiWindow window)
+    {
+        IGpuiApplicationHost host;
+        lock (_gate)
+        {
+            ValidateOpenWindow(window);
+            host = _host
+                ?? throw new InvalidOperationException("The native window has not opened yet.");
+        }
+        host.MinimizeWindow(window.Id);
+    }
+
+    internal void ToggleMaximizeWindow(GpuiWindow window)
+    {
+        IGpuiApplicationHost host;
+        lock (_gate)
+        {
+            ValidateOpenWindow(window);
+            host = _host
+                ?? throw new InvalidOperationException("The native window has not opened yet.");
+        }
+        host.ToggleMaximizeWindow(window.Id);
+    }
+
     internal void SetWindowTitle(GpuiWindow window, string title)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
@@ -417,6 +447,8 @@ internal interface IGpuiApplicationHost
     void OpenWindow(GpuiWindow window, GpuiWindowSnapshot snapshot);
     void CloseWindow(ulong windowId);
     void ActivateWindow(ulong windowId);
+    void MinimizeWindow(ulong windowId);
+    void ToggleMaximizeWindow(ulong windowId);
     void SetWindowTitle(ulong windowId, string title);
     void ResizeWindow(ulong windowId, float width, float height);
 }

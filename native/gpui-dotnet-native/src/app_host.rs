@@ -90,6 +90,8 @@ pub(crate) enum ApplicationCommand {
     },
     Close(u64),
     Activate(u64),
+    Minimize(u64),
+    ToggleMaximize(u64),
     SetTitle {
         window_id: u64,
         title: String,
@@ -452,6 +454,16 @@ fn apply_application_command(
                 let _ = handle.update(cx, |_, window, _| window.activate_window());
             }
         }
+        ApplicationCommand::Minimize(window_id) => {
+            if let Some(handle) = managed_window_handle(windows, window_id) {
+                let _ = handle.update(cx, |_, window, _| window.minimize_window());
+            }
+        }
+        ApplicationCommand::ToggleMaximize(window_id) => {
+            if let Some(handle) = managed_window_handle(windows, window_id) {
+                let _ = handle.update(cx, |_, window, _| toggle_window_maximize(window));
+            }
+        }
         ApplicationCommand::SetTitle { window_id, title } => {
             if let Some(handle) = managed_window_handle(windows, window_id) {
                 let _ = handle.update(cx, |_, window, _| window.set_window_title(&title));
@@ -475,6 +487,27 @@ fn managed_window_handle(windows: &ManagedWindows, window_id: u64) -> Option<Any
     // Drop the RefCell borrow before calling into GPUI. remove_window can synchronously invoke
     // on_window_closed, which mutates this same registry.
     windows.borrow().get(&window_id).map(|entry| entry.handle)
+}
+
+fn toggle_window_maximize(window: &mut Window) {
+    #[cfg(target_os = "windows")]
+    if window.is_maximized() {
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+        use windows::Win32::{
+            Foundation::HWND,
+            UI::WindowsAndMessaging::{SW_RESTORE, ShowWindowAsync},
+        };
+
+        if let Ok(handle) = window.window_handle()
+            && let RawWindowHandle::Win32(handle) = handle.as_raw()
+        {
+            let hwnd = HWND(handle.hwnd.get() as *mut core::ffi::c_void);
+            let _ = unsafe { ShowWindowAsync(hwnd, SW_RESTORE) };
+            return;
+        }
+    }
+
+    window.zoom_window();
 }
 
 #[allow(clippy::too_many_arguments)]

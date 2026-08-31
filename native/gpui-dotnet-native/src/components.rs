@@ -37,7 +37,8 @@ pub(crate) fn apply_defaults(
         | NativeAdapter::Image
         | NativeAdapter::Input
         | NativeAdapter::Overlay
-        | NativeAdapter::Tooltip => element,
+        | NativeAdapter::Tooltip
+        | NativeAdapter::ContextMenu => element,
     }
 }
 

@@ -20,6 +20,7 @@ namespace Gpui.Interop
         Input = 12,
         Overlay = 13,
         Tooltip = 14,
+        ContextMenu = 15,
     }
 
     internal enum OpCode : ushort
@@ -78,6 +79,8 @@ namespace Gpui.Interop
         TooltipHideDelayMs = 613,
         TooltipGapPx = 614,
         TooltipMarginPx = 615,
+        ContextMenuPriority = 620,
+        ContextMenuMarginPx = 621,
     }
 
     internal enum ValueKind : ushort
@@ -91,8 +94,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 13;
-        internal const ulong SchemaHash = 0x696851575D1BF2C5UL;
+        internal const uint SchemaVersion = 14;
+        internal const ulong SchemaHash = 0x1F765C21E53A39C1UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -110,6 +113,7 @@ namespace Gpui.Interop
             ComponentId.Input => true,
             ComponentId.Overlay => true,
             ComponentId.Tooltip => true,
+            ComponentId.ContextMenu => true,
             _ => false,
         };
 
@@ -169,6 +173,8 @@ namespace Gpui.Interop
             OpCode.TooltipHideDelayMs => ValueKind.U32,
             OpCode.TooltipGapPx => ValueKind.F32,
             OpCode.TooltipMarginPx => ValueKind.F32,
+            OpCode.ContextMenuPriority => ValueKind.U32,
+            OpCode.ContextMenuMarginPx => ValueKind.F32,
             _ => null,
         };
 
@@ -188,6 +194,7 @@ namespace Gpui.Interop
             ComponentId.Input => 0x0000000000000221UL,
             ComponentId.Overlay => 0x0000000000000422UL,
             ComponentId.Tooltip => 0x0000000000000822UL,
+            ComponentId.ContextMenu => 0x0000000000002023UL,
             _ => 0,
         };
 
@@ -247,6 +254,8 @@ namespace Gpui.Interop
             OpCode.TooltipHideDelayMs => 0x0000000000000800UL,
             OpCode.TooltipGapPx => 0x0000000000000800UL,
             OpCode.TooltipMarginPx => 0x0000000000000800UL,
+            OpCode.ContextMenuPriority => 0x0000000000002000UL,
+            OpCode.ContextMenuMarginPx => 0x0000000000002000UL,
             _ => 0,
         };
 
@@ -273,6 +282,7 @@ namespace Gpui
     public interface IOverlayElementTag { }
     public interface ITooltipElementTag { }
     public interface IWindowControlElementTag { }
+    public interface IContextMenuElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
@@ -288,6 +298,7 @@ namespace Gpui
     public readonly struct InputTag : IStyledElementTag, INativeStateElementTag, IInputElementTag { }
     public readonly struct OverlayTag : IParentElementTag, INativeStateElementTag, IOverlayElementTag { }
     public readonly struct TooltipTag : IParentElementTag, INativeStateElementTag, ITooltipElementTag { }
+    public readonly struct ContextMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IContextMenuElementTag { }
 
     public readonly unsafe ref partial struct RenderContext
     {
