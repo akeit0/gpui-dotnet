@@ -238,7 +238,10 @@ internal static class BindingGenerator
             ValidateId(operation.Id, $"operation {operation.Name}");
             ValidateName(operation.Name, "operation");
             ValidateCSharpIdentifier(operation.CSharp, "operation");
-            if (operation.Value is not ("none" or "f32" or "u32" or "callback" or "u64"))
+            if (
+                operation.Value
+                is not ("none" or "f32" or "f32x2" or "u32" or "callback" or "u64")
+            )
             {
                 throw new InvalidOperationException(
                     $"Operation {operation.Name} has unknown value kind '{operation.Value}'."
@@ -454,6 +457,7 @@ internal static class BindingGenerator
         builder.AppendLine("        U32 = 2,");
         builder.AppendLine("        Callback = 3,");
         builder.AppendLine("        U64 = 4,");
+        builder.AppendLine("        F32x2 = 5,");
         builder.AppendLine("    }");
         builder.AppendLine();
         builder.AppendLine("    internal static class SemanticRegistry");
@@ -625,88 +629,88 @@ internal static class BindingGenerator
                 builder.AppendLine("        }");
                 break;
             case "idContainer":
-            {
-                // dataRequired components reject empty ids before the FFI boundary; the
-                // native validator would otherwise fail the whole snapshot at decode time.
-                var guard = component.DataRequired;
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, params ReadOnlySpan<Element> children)"
-                );
-                builder.AppendLine("        {");
-                if (guard)
                 {
-                    builder.AppendLine("            if (id.IsEmpty)");
-                    builder.AppendLine("            {");
+                    // dataRequired components reject empty ids before the FFI boundary; the
+                    // native validator would otherwise fail the whole snapshot at decode time.
+                    var guard = component.DataRequired;
                     builder.AppendLine(
-                        "                throw new ArgumentException(\"A non-empty element id is required.\", nameof(id));"
+                        $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, params ReadOnlySpan<Element> children)"
                     );
-                    builder.AppendLine("            }");
-                }
-                builder.AppendLine(
-                    $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, id);"
-                );
-                builder.AppendLine("            ArenaWriter.AddChildren(element.Inner, children);");
-                builder.AppendLine("            return element;");
-                builder.AppendLine("        }");
-                builder.AppendLine();
-                builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, params ReadOnlySpan<Element> children)"
-                );
-                builder.AppendLine("        {");
-                if (guard)
-                {
-                    builder.AppendLine("            if (utf8Id.IsEmpty)");
-                    builder.AppendLine("            {");
+                    builder.AppendLine("        {");
+                    if (guard)
+                    {
+                        builder.AppendLine("            if (id.IsEmpty)");
+                        builder.AppendLine("            {");
+                        builder.AppendLine(
+                            "                throw new ArgumentException(\"A non-empty element id is required.\", nameof(id));"
+                        );
+                        builder.AppendLine("            }");
+                    }
                     builder.AppendLine(
-                        "                throw new ArgumentException(\"A non-empty element id is required.\", nameof(utf8Id));"
+                        $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, id);"
                     );
-                    builder.AppendLine("            }");
+                    builder.AppendLine("            ArenaWriter.AddChildren(element.Inner, children);");
+                    builder.AppendLine("            return element;");
+                    builder.AppendLine("        }");
+                    builder.AppendLine();
+                    builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                    builder.AppendLine(
+                        $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, params ReadOnlySpan<Element> children)"
+                    );
+                    builder.AppendLine("        {");
+                    if (guard)
+                    {
+                        builder.AppendLine("            if (utf8Id.IsEmpty)");
+                        builder.AppendLine("            {");
+                        builder.AppendLine(
+                            "                throw new ArgumentException(\"A non-empty element id is required.\", nameof(utf8Id));"
+                        );
+                        builder.AppendLine("            }");
+                    }
+                    builder.AppendLine(
+                        $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, utf8Id);"
+                    );
+                    builder.AppendLine("            ArenaWriter.AddChildren(element.Inner, children);");
+                    builder.AppendLine("            return element;");
+                    builder.AppendLine("        }");
+                    builder.AppendLine();
+                    builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                    builder.AppendLine(
+                        $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, ReadOnlySpan<char> label)"
+                    );
+                    builder.AppendLine("        {");
+                    builder.AppendLine("            var child = Text(label);");
+                    builder.AppendLine($"            return {component.CSharp}(id, child);");
+                    builder.AppendLine("        }");
+                    builder.AppendLine();
+                    builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                    builder.AppendLine(
+                        $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, ReadOnlySpan<byte> utf8Label)"
+                    );
+                    builder.AppendLine("        {");
+                    builder.AppendLine("            var child = Text(utf8Label);");
+                    builder.AppendLine($"            return {component.CSharp}(id, child);");
+                    builder.AppendLine("        }");
+                    builder.AppendLine();
+                    builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                    builder.AppendLine(
+                        $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, ReadOnlySpan<char> label)"
+                    );
+                    builder.AppendLine("        {");
+                    builder.AppendLine("            var child = Text(label);");
+                    builder.AppendLine($"            return {component.CSharp}(utf8Id, child);");
+                    builder.AppendLine("        }");
+                    builder.AppendLine();
+                    builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                    builder.AppendLine(
+                        $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, ReadOnlySpan<byte> utf8Label)"
+                    );
+                    builder.AppendLine("        {");
+                    builder.AppendLine("            var child = Text(utf8Label);");
+                    builder.AppendLine($"            return {component.CSharp}(utf8Id, child);");
+                    builder.AppendLine("        }");
+                    break;
                 }
-                builder.AppendLine(
-                    $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, utf8Id);"
-                );
-                builder.AppendLine("            ArenaWriter.AddChildren(element.Inner, children);");
-                builder.AppendLine("            return element;");
-                builder.AppendLine("        }");
-                builder.AppendLine();
-                builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, ReadOnlySpan<char> label)"
-                );
-                builder.AppendLine("        {");
-                builder.AppendLine("            var child = Text(label);");
-                builder.AppendLine($"            return {component.CSharp}(id, child);");
-                builder.AppendLine("        }");
-                builder.AppendLine();
-                builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, ReadOnlySpan<byte> utf8Label)"
-                );
-                builder.AppendLine("        {");
-                builder.AppendLine("            var child = Text(utf8Label);");
-                builder.AppendLine($"            return {component.CSharp}(id, child);");
-                builder.AppendLine("        }");
-                builder.AppendLine();
-                builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, ReadOnlySpan<char> label)"
-                );
-                builder.AppendLine("        {");
-                builder.AppendLine("            var child = Text(label);");
-                builder.AppendLine($"            return {component.CSharp}(utf8Id, child);");
-                builder.AppendLine("        }");
-                builder.AppendLine();
-                builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, ReadOnlySpan<byte> utf8Label)"
-                );
-                builder.AppendLine("        {");
-                builder.AppendLine("            var child = Text(utf8Label);");
-                builder.AppendLine($"            return {component.CSharp}(utf8Id, child);");
-                builder.AppendLine("        }");
-                break;
-            }
             case "leaf":
                 builder.AppendLine($"        public {elementType} {component.CSharp}() =>");
                 builder.AppendLine(
@@ -852,6 +856,7 @@ internal static class BindingGenerator
         builder.AppendLine("    U32 = 2,");
         builder.AppendLine("    Callback = 3,");
         builder.AppendLine("    U64 = 4,");
+        builder.AppendLine("    F32x2 = 5,");
         builder.AppendLine("}");
         builder.AppendLine();
         builder.AppendLine("#[derive(Clone, Copy, Debug, Eq, PartialEq)]");
@@ -1021,6 +1026,7 @@ internal static class BindingGenerator
         builder.AppendLine("        assert_eq!(ValueKind::U32 as u16, 2);");
         builder.AppendLine("        assert_eq!(ValueKind::Callback as u16, 3);");
         builder.AppendLine("        assert_eq!(ValueKind::U64 as u16, 4);");
+        builder.AppendLine("        assert_eq!(ValueKind::F32x2 as u16, 5);");
         builder.AppendLine("    }");
         builder.AppendLine("}");
         return builder.ToString();

@@ -107,6 +107,8 @@ Canonical payload rules:
 - node flags and reserved fields must be zero;
 - `None` operations require `a == 0 && b == 0`;
 - `F32` and `U32` use only the low 32 bits of `a` and require `b == 0`;
+- `F32x2` packs two finite IEEE-754 values into the low and high 32-bit halves of `a` and requires
+  `b == 0`;
 - `U64` uses all of `a` and requires `b == 0`;
 - callback operations require nonzero token `a`; only schema-approved callbacks may use payload
   `b`;

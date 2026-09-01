@@ -210,10 +210,34 @@ protected override Element Render(ref RenderContext ui) =>
 Increment `contentRevision` whenever cached row output can change. Rows are element-only snapshots,
 not mounted child views, and cannot contain nested retained resources or deferred layers.
 
-## Images and overlays
+## Images, vector drawings, and overlays
 
 `ui.Image` sends a filesystem path and presentation options to GPUI's native decoder/cache.
 Supported fits are `Fill`, `Contain`, `Cover`, `ScaleDown`, and `None`.
+
+`ui.Drawing` layers native vector paths inside normal GPUI layout. A `ViewBox` maps stable drawing
+coordinates into the final element bounds, while stroke widths remain device-independent pixels:
+
+```csharp
+var area = ui.Path()
+    .MoveTo(0, 100)
+    .LineTo(50, 35)
+    .LineTo(100, 60)
+    .LineTo(100, 100)
+    .Close()
+    .Fill(ui.Theme.Colors.Accent.WithAlpha(40));
+
+var line = ui.Path()
+    .MoveTo(0, 100)
+    .LineTo(50, 35)
+    .LineTo(100, 60)
+    .Stroke(ui.Theme.Colors.Accent, Px(2));
+
+return ui.Drawing(area, line).ViewBox(0, 0, 100, 100).Height(Px(240));
+```
+
+Paths support lines, quadratic and cubic Bézier curves, elliptical arcs, fill rules, strokes, and
+dash patterns. `Rect`, `Ellipse`, `Circle`, and `Line` are convenience path factories.
 
 Window-relative composition includes:
 

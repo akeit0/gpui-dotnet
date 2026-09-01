@@ -17,7 +17,9 @@
     "context_menu",
     "popover_menu",
     "table",
-    "slider"
+    "slider",
+    "drawing",
+    "path"
   ],
   "components": [
     {
@@ -290,6 +292,34 @@
         "slider"
       ],
       "nativeAdapter": "slider"
+    },
+    {
+      "id": 19,
+      "name": "drawing",
+      "csharp": "Drawing",
+      "data": "none",
+      "dataRequired": false,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "parent",
+        "drawing"
+      ],
+      "nativeAdapter": "drawing"
+    },
+    {
+      "id": 20,
+      "name": "path",
+      "csharp": "Path",
+      "data": "none",
+      "dataRequired": false,
+      "children": false,
+      "managedFactory": "leaf",
+      "capabilities": [
+        "path"
+      ],
+      "nativeAdapter": "path"
     }
   ],
   "operations": [
@@ -968,6 +998,162 @@
       "value": "callback",
       "requires": "slider",
       "managedApi": null
+    },
+    {
+      "id": 700,
+      "name": "drawing_view_box_origin",
+      "csharp": "DrawingViewBoxOrigin",
+      "value": "f32x2",
+      "requires": "drawing",
+      "managedApi": null
+    },
+    {
+      "id": 701,
+      "name": "drawing_view_box_size",
+      "csharp": "DrawingViewBoxSize",
+      "value": "f32x2",
+      "requires": "drawing",
+      "managedApi": null
+    },
+    {
+      "id": 710,
+      "name": "path_move_to",
+      "csharp": "PathMoveTo",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 711,
+      "name": "path_line_to",
+      "csharp": "PathLineTo",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 712,
+      "name": "path_quadratic_control",
+      "csharp": "PathQuadraticControl",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 713,
+      "name": "path_quadratic_to",
+      "csharp": "PathQuadraticTo",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 714,
+      "name": "path_cubic_control_a",
+      "csharp": "PathCubicControlA",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 715,
+      "name": "path_cubic_control_b",
+      "csharp": "PathCubicControlB",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 716,
+      "name": "path_cubic_to",
+      "csharp": "PathCubicTo",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 717,
+      "name": "path_arc_radii",
+      "csharp": "PathArcRadii",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 718,
+      "name": "path_arc_rotation",
+      "csharp": "PathArcRotation",
+      "value": "f32",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 719,
+      "name": "path_arc_flags",
+      "csharp": "PathArcFlags",
+      "value": "u32",
+      "requires": "path",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 3, "status": -59 }
+    },
+    {
+      "id": 720,
+      "name": "path_arc_to",
+      "csharp": "PathArcTo",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 721,
+      "name": "path_close",
+      "csharp": "PathClose",
+      "value": "none",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 722,
+      "name": "path_fill_rgba",
+      "csharp": "PathFillRgba",
+      "value": "u32",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 723,
+      "name": "path_fill_rule",
+      "csharp": "PathFillRule",
+      "value": "u32",
+      "requires": "path",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 1, "status": -59 }
+    },
+    {
+      "id": 724,
+      "name": "path_stroke_rgba",
+      "csharp": "PathStrokeRgba",
+      "value": "u32",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 725,
+      "name": "path_stroke_width_px",
+      "csharp": "PathStrokeWidthPx",
+      "value": "f32",
+      "requires": "path",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "minExclusive": true, "status": -59 }
+    },
+    {
+      "id": 726,
+      "name": "path_dash_px",
+      "csharp": "PathDashPx",
+      "value": "f32",
+      "requires": "path",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "minExclusive": true, "status": -59 }
     }
   ]
 }

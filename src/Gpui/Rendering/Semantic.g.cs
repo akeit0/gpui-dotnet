@@ -24,6 +24,8 @@ namespace Gpui.Interop
         PopoverMenu = 16,
         Table = 17,
         Slider = 18,
+        Drawing = 19,
+        Path = 20,
     }
 
     internal enum OpCode : ushort
@@ -109,6 +111,25 @@ namespace Gpui.Interop
         SliderRangeEnd = 338,
         SliderOnChanged = 339,
         SliderOnReleased = 340,
+        DrawingViewBoxOrigin = 700,
+        DrawingViewBoxSize = 701,
+        PathMoveTo = 710,
+        PathLineTo = 711,
+        PathQuadraticControl = 712,
+        PathQuadraticTo = 713,
+        PathCubicControlA = 714,
+        PathCubicControlB = 715,
+        PathCubicTo = 716,
+        PathArcRadii = 717,
+        PathArcRotation = 718,
+        PathArcFlags = 719,
+        PathArcTo = 720,
+        PathClose = 721,
+        PathFillRgba = 722,
+        PathFillRule = 723,
+        PathStrokeRgba = 724,
+        PathStrokeWidthPx = 725,
+        PathDashPx = 726,
     }
 
     internal enum ValueKind : ushort
@@ -118,12 +139,13 @@ namespace Gpui.Interop
         U32 = 2,
         Callback = 3,
         U64 = 4,
+        F32x2 = 5,
     }
 
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x7DF615CE213DDA66UL;
+        internal const ulong SchemaHash = 0x9603EBC3D810AED7UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -145,6 +167,8 @@ namespace Gpui.Interop
             ComponentId.PopoverMenu => true,
             ComponentId.Table => true,
             ComponentId.Slider => true,
+            ComponentId.Drawing => true,
+            ComponentId.Path => true,
             _ => false,
         };
 
@@ -249,6 +273,25 @@ namespace Gpui.Interop
             OpCode.SliderRangeEnd => ValueKind.F32,
             OpCode.SliderOnChanged => ValueKind.Callback,
             OpCode.SliderOnReleased => ValueKind.Callback,
+            OpCode.DrawingViewBoxOrigin => ValueKind.F32x2,
+            OpCode.DrawingViewBoxSize => ValueKind.F32x2,
+            OpCode.PathMoveTo => ValueKind.F32x2,
+            OpCode.PathLineTo => ValueKind.F32x2,
+            OpCode.PathQuadraticControl => ValueKind.F32x2,
+            OpCode.PathQuadraticTo => ValueKind.F32x2,
+            OpCode.PathCubicControlA => ValueKind.F32x2,
+            OpCode.PathCubicControlB => ValueKind.F32x2,
+            OpCode.PathCubicTo => ValueKind.F32x2,
+            OpCode.PathArcRadii => ValueKind.F32x2,
+            OpCode.PathArcRotation => ValueKind.F32,
+            OpCode.PathArcFlags => ValueKind.U32,
+            OpCode.PathArcTo => ValueKind.F32x2,
+            OpCode.PathClose => ValueKind.None,
+            OpCode.PathFillRgba => ValueKind.U32,
+            OpCode.PathFillRule => ValueKind.U32,
+            OpCode.PathStrokeRgba => ValueKind.U32,
+            OpCode.PathStrokeWidthPx => ValueKind.F32,
+            OpCode.PathDashPx => ValueKind.F32,
             _ => null,
         };
 
@@ -272,6 +315,8 @@ namespace Gpui.Interop
             ComponentId.PopoverMenu => 0x0000000000004023UL,
             ComponentId.Table => 0x00000000000080A1UL,
             ComponentId.Slider => 0x0000000000010021UL,
+            ComponentId.Drawing => 0x0000000000020003UL,
+            ComponentId.Path => 0x0000000000040000UL,
             _ => 0,
         };
 
@@ -358,6 +403,25 @@ namespace Gpui.Interop
             OpCode.SliderRangeEnd => 0x0000000000010000UL,
             OpCode.SliderOnChanged => 0x0000000000010000UL,
             OpCode.SliderOnReleased => 0x0000000000010000UL,
+            OpCode.DrawingViewBoxOrigin => 0x0000000000020000UL,
+            OpCode.DrawingViewBoxSize => 0x0000000000020000UL,
+            OpCode.PathMoveTo => 0x0000000000040000UL,
+            OpCode.PathLineTo => 0x0000000000040000UL,
+            OpCode.PathQuadraticControl => 0x0000000000040000UL,
+            OpCode.PathQuadraticTo => 0x0000000000040000UL,
+            OpCode.PathCubicControlA => 0x0000000000040000UL,
+            OpCode.PathCubicControlB => 0x0000000000040000UL,
+            OpCode.PathCubicTo => 0x0000000000040000UL,
+            OpCode.PathArcRadii => 0x0000000000040000UL,
+            OpCode.PathArcRotation => 0x0000000000040000UL,
+            OpCode.PathArcFlags => 0x0000000000040000UL,
+            OpCode.PathArcTo => 0x0000000000040000UL,
+            OpCode.PathClose => 0x0000000000040000UL,
+            OpCode.PathFillRgba => 0x0000000000040000UL,
+            OpCode.PathFillRule => 0x0000000000040000UL,
+            OpCode.PathStrokeRgba => 0x0000000000040000UL,
+            OpCode.PathStrokeWidthPx => 0x0000000000040000UL,
+            OpCode.PathDashPx => 0x0000000000040000UL,
             _ => 0,
         };
 
@@ -408,6 +472,10 @@ namespace Gpui.Interop
             OpCode.SliderAxis when !(a <= 1UL) => -43,
             OpCode.SliderDisabled when !(a <= 1UL) => -21,
             OpCode.SliderScale when !(a <= 1UL) => -43,
+            OpCode.PathArcFlags when !(a <= 3UL) => -59,
+            OpCode.PathFillRule when !(a <= 1UL) => -59,
+            OpCode.PathStrokeWidthPx when !(BitConverter.UInt32BitsToSingle((uint)a) > 0f) => -59,
+            OpCode.PathDashPx when !(BitConverter.UInt32BitsToSingle((uint)a) > 0f) => -59,
             _ => 0,
         };
     }
@@ -432,6 +500,8 @@ namespace Gpui
     public interface IPopoverMenuElementTag { }
     public interface ITableElementTag { }
     public interface ISliderElementTag { }
+    public interface IDrawingElementTag { }
+    public interface IPathElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
@@ -451,6 +521,8 @@ namespace Gpui
     public readonly struct PopoverMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IPopoverMenuElementTag { }
     public readonly struct TableTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag, ITableElementTag { }
     public readonly struct SliderTag : IStyledElementTag, INativeStateElementTag, ISliderElementTag { }
+    public readonly struct DrawingTag : IStyledElementTag, IParentElementTag, IDrawingElementTag { }
+    public readonly struct PathTag : IPathElementTag { }
 
     public readonly unsafe ref partial struct RenderContext
     {
@@ -633,6 +705,10 @@ namespace Gpui
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Element<SpacerTag> Spacer() =>
             ArenaWriter.AddNode<SpacerTag>(_arena, ComponentId.Spacer);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Element<PathTag> Path() =>
+            ArenaWriter.AddNode<PathTag>(_arena, ComponentId.Path);
 
     }
 

@@ -1039,6 +1039,57 @@ public sealed class SemanticRenderTests
         Assert.Throws<InvalidOperationException>(() => controller.RefreshRanges((0, 1)));
     }
 
+    [Fact]
+    public unsafe void DrawingPathsUseCompactValidatedGeometryOperations()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var area = ui.Path()
+            .MoveTo(0, 100)
+            .LineTo(25, 55)
+            .QuadraticTo(40, 35, 50, 70)
+            .CubicTo(65, 85, 72, 15, 100, 40)
+            .LineTo(100, 100)
+            .Close()
+            .Fill(Rgba(37, 99, 235, 48), PathFillRule.EvenOdd);
+        var line = ui.Path()
+            .MoveTo(0, 100)
+            .LineTo(25, 55)
+            .ArcTo(10, 8, 0, false, true, 50, 70)
+            .LineTo(100, 40)
+            .Stroke(Rgb(37, 99, 235), Px(2))
+            .Dash(Px(6), Px(3));
+        var drawing = ui.Drawing(area, line).ViewBox(0, 0, 100, 100).Height(Px(240));
+
+        arena.Validate(drawing);
+
+        Assert.Equal(3, arena.GetStats().Nodes);
+        Assert.Equal(2, arena.GetStats().Children);
+        var move = FindOp(arena, OpCode.PathMoveTo);
+        Assert.Equal(ValueKind.F32x2, (ValueKind)move.ValueKind);
+        Assert.Equal(0, BitConverter.UInt32BitsToSingle((uint)move.A));
+        Assert.Equal(100, BitConverter.UInt32BitsToSingle((uint)(move.A >> 32)));
+    }
+
+    [Fact]
+    public void DrawingApiRejectsInvalidGeometryAtTheManagedBoundary()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(RenderInvalidMove);
+        Assert.Throws<ArgumentOutOfRangeException>(RenderInvalidCircle);
+        Assert.Throws<ArgumentOutOfRangeException>(RenderInvalidStroke);
+        Assert.Throws<ArgumentOutOfRangeException>(RenderInvalidViewBox);
+    }
+
+    [Fact]
+    public void PathMustBelongToADrawing()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var path = ui.Path().MoveTo(0, 0).LineTo(1, 1).Stroke(Rgb(0, 0, 0), Px(1));
+
+        Assert.Throws<InvalidOperationException>(() => arena.Validate(path));
+    }
+
     private static void Attach(View view, uint handle = 1) =>
         view.AttachRuntime(
             handle,
@@ -1047,6 +1098,34 @@ public sealed class SemanticRenderTests
             static (_, _) => { },
             static (_, _, _) => { }
         );
+
+    private static void RenderInvalidMove()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        ui.Path().MoveTo(float.NaN, 0);
+    }
+
+    private static void RenderInvalidCircle()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        ui.Circle(0, 0, 0);
+    }
+
+    private static void RenderInvalidStroke()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        ui.Path().MoveTo(0, 0).Stroke(Rgb(0, 0, 0), Px(0));
+    }
+
+    private static void RenderInvalidViewBox()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        ui.Drawing(ui.Path()).ViewBox(0, 0, -1, 1);
+    }
 
     private static unsafe uint ReadCallbackEventId(RenderArenaOwner arena) =>
         ReadCallbackEventId(arena, OpCode.OnClick);
@@ -1084,6 +1163,19 @@ public sealed class SemanticRenderTests
             if (arena.NativeArena->Ops[index].Code == (ushort)code)
             {
                 return checked((uint)arena.NativeArena->Ops[index].A);
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException($"The render did not contain {code}.");
+    }
+
+    private static unsafe OpRecord FindOp(RenderArenaOwner arena, OpCode code)
+    {
+        for (var index = 0; index < arena.NativeArena->OpLength; index++)
+        {
+            if (arena.NativeArena->Ops[index].Code == (ushort)code)
+            {
+                return arena.NativeArena->Ops[index];
             }
         }
 

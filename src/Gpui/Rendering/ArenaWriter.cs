@@ -339,6 +339,14 @@ internal static unsafe class ArenaWriter
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal static void AddF32x2(Element element, OpCode code, float x, float y)
+    {
+        var packed = BitConverter.SingleToUInt32Bits(x)
+            | ((ulong)BitConverter.SingleToUInt32Bits(y) << 32);
+        AddOp(element, code, ValueKind.F32x2, packed);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void AddU32(Element element, OpCode code, uint value)
     {
         AddOp(element, code, ValueKind.U32, value);

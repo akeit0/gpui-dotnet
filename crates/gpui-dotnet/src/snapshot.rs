@@ -5,8 +5,9 @@ use gpui::SharedString;
 use crate::{
     abi::{NodeRecord, OpRecord, RenderArena},
     semantic::{
-        COMPONENT_CONTEXT_MENU, COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_OVERLAY,
-        COMPONENT_POPOVER_MENU, COMPONENT_SLIDER, COMPONENT_TABLE, COMPONENT_TOOLTIP, DataKind,
+        COMPONENT_CONTEXT_MENU, COMPONENT_DRAWING, COMPONENT_INPUT, COMPONENT_LIST,
+        COMPONENT_OVERLAY, COMPONENT_PATH, COMPONENT_POPOVER_MENU, COMPONENT_SLIDER,
+        COMPONENT_TABLE, COMPONENT_TOOLTIP, DataKind, OP_DRAWING_VIEW_BOX_SIZE, OP_PATH_ARC_RADII,
         OP_RESOURCE_OWNER, ValueKind, allows_payload, component_metadata, operation_metadata,
         payload_error,
     },
@@ -325,6 +326,17 @@ fn validate_with_scratch(
         if metadata.value_kind == ValueKind::F32 && !f32::from_bits(op.a as u32).is_finite() {
             return Err(-18);
         }
+        if metadata.value_kind == ValueKind::F32x2
+            && (!f32::from_bits(op.a as u32).is_finite()
+                || !f32::from_bits((op.a >> 32) as u32).is_finite())
+        {
+            return Err(-18);
+        }
+        if matches!(op.code, OP_DRAWING_VIEW_BOX_SIZE | OP_PATH_ARC_RADII)
+            && (f32::from_bits(op.a as u32) <= 0.0 || f32::from_bits((op.a >> 32) as u32) <= 0.0)
+        {
+            return Err(-59);
+        }
         if metadata.value_kind == ValueKind::Callback && op.a == 0 {
             return Err(-19);
         }
@@ -345,6 +357,10 @@ fn validate_with_scratch(
         scratch.parents[edge.child as usize] = edge.parent;
 
         let parent_component = nodes[edge.parent as usize].component;
+        let child_component = nodes[edge.child as usize].component;
+        if (parent_component == COMPONENT_DRAWING) != (child_component == COMPONENT_PATH) {
+            return Err(-58);
+        }
         if !component_metadata(parent_component)
             .expect("node components were validated above")
             .allows_children
@@ -373,6 +389,13 @@ fn validate_with_scratch(
         node.component == COMPONENT_POPOVER_MENU && scratch.child_counts[index] != 2
     }) {
         return Err(-42);
+    }
+    if nodes
+        .iter()
+        .enumerate()
+        .any(|(index, node)| node.component == COMPONENT_PATH && scratch.parents[index] == u32::MAX)
+    {
+        return Err(-58);
     }
 
     if scratch.parents[root as usize] != u32::MAX {
@@ -444,11 +467,12 @@ mod tests {
     use crate::{
         abi::{ChildRecord, NodeRecord, OpRecord},
         semantic::{
-            COMPONENT_CHECKBOX, COMPONENT_CONTEXT_MENU, COMPONENT_DIV, COMPONENT_IMAGE,
-            COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_OVERLAY, COMPONENT_POPOVER_MENU,
-            COMPONENT_TEXT, COMPONENT_TOOLTIP, OP_CHECKED, OP_GAP_PX, OP_IMAGE_OBJECT_FIT,
-            OP_INPUT_DISABLED, OP_LIST_ITEM_ID, OP_ON_CLICK, OP_OVERLAY_PLACEMENT, OP_PADDING_PX,
-            OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA,
+            COMPONENT_CHECKBOX, COMPONENT_CONTEXT_MENU, COMPONENT_DIV, COMPONENT_DRAWING,
+            COMPONENT_IMAGE, COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_OVERLAY, COMPONENT_PATH,
+            COMPONENT_POPOVER_MENU, COMPONENT_TEXT, COMPONENT_TOOLTIP, OP_CHECKED,
+            OP_DRAWING_VIEW_BOX_SIZE, OP_GAP_PX, OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED,
+            OP_LIST_ITEM_ID, OP_ON_CLICK, OP_OVERLAY_PLACEMENT, OP_PADDING_PX, OP_SCROLLBAR_GUTTER,
+            OP_SCROLLBAR_WIDTH, OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA,
         },
     };
 
@@ -534,6 +558,68 @@ mod tests {
         };
         let arena = arena_with(&mut node, Some(&mut operation));
         assert_eq!(validate(&arena, 0), Err(-16));
+    }
+
+    #[test]
+    fn rejects_non_finite_coordinate_pairs() {
+        let mut node = NodeRecord {
+            component: COMPONENT_DRAWING,
+            ..Default::default()
+        };
+        let mut operation = OpRecord {
+            code: OP_DRAWING_VIEW_BOX_SIZE,
+            value_kind: ValueKind::F32x2 as u16,
+            a: f32::NAN.to_bits() as u64 | ((1.0f32.to_bits() as u64) << 32),
+            ..Default::default()
+        };
+        let arena = arena_with(&mut node, Some(&mut operation));
+        assert_eq!(validate(&arena, 0), Err(-18));
+    }
+
+    #[test]
+    fn path_nodes_require_a_drawing_parent() {
+        let mut node = NodeRecord {
+            component: COMPONENT_PATH,
+            ..Default::default()
+        };
+        let arena = arena_with(&mut node, None);
+        assert_eq!(validate(&arena, 0), Err(-58));
+
+        let mut nodes = [
+            NodeRecord {
+                component: COMPONENT_DRAWING,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DIV,
+                ..Default::default()
+            },
+        ];
+        let mut child = ChildRecord {
+            parent: 0,
+            child: 1,
+        };
+        let arena = RenderArena {
+            nodes: nodes.as_mut_ptr(),
+            node_length: 2,
+            node_capacity: 2,
+            ops: std::ptr::null_mut(),
+            op_length: 0,
+            op_capacity: 0,
+            children: &mut child,
+            child_length: 1,
+            child_capacity: 1,
+            utf8: std::ptr::null_mut(),
+            utf8_length: 0,
+            utf8_capacity: 0,
+            generation: 1,
+            flags: 0,
+            required_node_capacity: 0,
+            required_op_capacity: 0,
+            required_child_capacity: 0,
+            required_utf8_capacity: 0,
+        };
+        assert_eq!(validate(&arena, 0), Err(-58));
     }
 
     #[test]

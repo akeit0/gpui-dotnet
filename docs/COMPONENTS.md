@@ -69,6 +69,10 @@ can override a value. Do not add application variant enums or style objects to t
 - `Badge` provides minimal native defaults that managed styling can override.
 - `Image` uses GPUI's decoder and cache. Its data is a filesystem path; presentation supports
   object fit and grayscale.
+- `Drawing` owns ordered `Path` children and paints them through GPUI's native path tessellator.
+  `ViewBox` independently maps each coordinate axis into the final layout bounds, making plot
+  geometry responsive without a managed paint callback. Stroke widths stay in
+  device-independent pixels. A `Path` must be attached directly to exactly one `Drawing`.
 
 Image failures materialize a themed fallback. URI loading is not part of the current component
 contract.

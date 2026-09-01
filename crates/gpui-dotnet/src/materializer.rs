@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 
 use gpui::{
-    AnyElement, App, ClickEvent, Context, ElementId, Entity, FocusHandle, InteractiveElement,
-    IntoElement, KeyDownEvent, ListState, ObjectFit, ParentElement, SharedString,
-    StatefulInteractiveElement, Styled, StyledImage, WeakFocusHandle, Window, WindowControlArea,
-    anchored, deferred, div, img, list, point, px, relative, rgba,
+    AnyElement, App, ClickEvent, Context, ElementId, Entity, FillOptions, FillRule, FocusHandle,
+    InteractiveElement, IntoElement, KeyDownEvent, ListState, ObjectFit, ParentElement,
+    PathBuilder, PathStyle, Pixels, SharedString, StatefulInteractiveElement, Styled, StyledImage,
+    WeakFocusHandle, Window, WindowControlArea, anchored, canvas, deferred, div, img, list, point,
+    px, relative, rgba,
 };
 
 use crate::{
@@ -22,15 +23,20 @@ use crate::{
     semantic::{
         CAPABILITY_INTERACTIVE, NativeAdapter, OP_ACTIVE_BACKGROUND_RGBA, OP_ACTIVE_BORDER_RGBA,
         OP_ACTIVE_TEXT_RGBA, OP_BACKGROUND_RGBA, OP_BORDER_RGBA, OP_BORDER_WIDTH_PX, OP_CHECKED,
-        OP_CONTEXT_MENU_MARGIN_PX, OP_CONTEXT_MENU_PRIORITY, OP_FLEX, OP_FLEX_GROW,
-        OP_FONT_SIZE_PX, OP_GAP_PX, OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_HOVER_BACKGROUND_RGBA,
-        OP_HOVER_BORDER_RGBA, OP_HOVER_TEXT_RGBA, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT,
-        OP_ITEMS_CENTER, OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER, OP_LIST_ALIGNMENT,
-        OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT,
-        OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_ON_CLICK, OP_OVERLAY_BACKDROP_RGBA,
-        OP_OVERLAY_DISMISS_ON_BACKDROP, OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX,
-        OP_OVERLAY_MODAL, OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY,
-        OP_PADDING_PX, OP_POPOVER_MENU_MARGIN_PX, OP_POPOVER_MENU_PRIORITY, OP_RADIUS_PX,
+        OP_CONTEXT_MENU_MARGIN_PX, OP_CONTEXT_MENU_PRIORITY, OP_DRAWING_VIEW_BOX_ORIGIN,
+        OP_DRAWING_VIEW_BOX_SIZE, OP_FLEX, OP_FLEX_GROW, OP_FONT_SIZE_PX, OP_GAP_PX,
+        OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_HOVER_BACKGROUND_RGBA, OP_HOVER_BORDER_RGBA,
+        OP_HOVER_TEXT_RGBA, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_ITEMS_CENTER,
+        OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
+        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX,
+        OP_LIST_RENDERER, OP_ON_CLICK, OP_OVERLAY_BACKDROP_RGBA, OP_OVERLAY_DISMISS_ON_BACKDROP,
+        OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
+        OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY, OP_PADDING_PX,
+        OP_PATH_ARC_FLAGS, OP_PATH_ARC_RADII, OP_PATH_ARC_ROTATION, OP_PATH_ARC_TO, OP_PATH_CLOSE,
+        OP_PATH_CUBIC_CONTROL_A, OP_PATH_CUBIC_CONTROL_B, OP_PATH_CUBIC_TO, OP_PATH_DASH_PX,
+        OP_PATH_FILL_RGBA, OP_PATH_FILL_RULE, OP_PATH_LINE_TO, OP_PATH_MOVE_TO,
+        OP_PATH_QUADRATIC_CONTROL, OP_PATH_QUADRATIC_TO, OP_PATH_STROKE_RGBA,
+        OP_PATH_STROKE_WIDTH_PX, OP_POPOVER_MENU_MARGIN_PX, OP_POPOVER_MENU_PRIORITY, OP_RADIUS_PX,
         OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH,
         OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER,
         OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS,
@@ -59,6 +65,8 @@ impl ManagedView {
             NativeAdapter::List => self.materialize_list(node, snapshot, window, cx),
             NativeAdapter::Table => self.materialize_table(node, snapshot, window, cx),
             NativeAdapter::Image => materialize_image(node, snapshot, *self.theme.borrow()),
+            NativeAdapter::Drawing => materialize_drawing(node, snapshot),
+            NativeAdapter::Path => div().into_any_element(),
             NativeAdapter::Input => self.materialize_input(node, snapshot, window, cx),
             NativeAdapter::Slider => self.materialize_slider(node, snapshot, cx),
             NativeAdapter::Overlay => self.materialize_overlay(node, snapshot, window, cx),
@@ -853,6 +861,9 @@ pub(crate) fn materialize_snapshot_node_detached(
     if metadata.adapter == NativeAdapter::Image {
         return materialize_image(node, snapshot, resources.theme());
     }
+    if metadata.adapter == NativeAdapter::Drawing {
+        return materialize_drawing(node, snapshot);
+    }
 
     let theme = resources.theme();
     let mut element = components::apply_defaults(metadata.adapter, div(), node, snapshot, theme);
@@ -1255,6 +1266,216 @@ fn windows_caption_font() -> &'static str {
     }
 }
 
+#[derive(Clone, Copy)]
+struct DrawingViewBox {
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+}
+
+#[derive(Clone, Copy)]
+enum DrawingPaint {
+    Fill { rule: FillRule },
+    Stroke { width: f32 },
+}
+
+fn materialize_drawing(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> AnyElement {
+    let origin = last_op(snapshot, node, OP_DRAWING_VIEW_BOX_ORIGIN).map(op_f32x2);
+    let size = last_op(snapshot, node, OP_DRAWING_VIEW_BOX_SIZE).map(op_f32x2);
+    let view_box = origin
+        .zip(size)
+        .map(|((x, y), (width, height))| DrawingViewBox {
+            x,
+            y,
+            width,
+            height,
+        });
+    let paths = snapshot
+        .children(node)
+        .iter()
+        .map(|child| snapshot.ops(&snapshot.nodes[*child as usize]).to_vec())
+        .collect::<Vec<_>>();
+    let padding = last_op(snapshot, node, OP_PADDING_PX)
+        .map_or(0.0, |op| f32::from_bits(op.a as u32))
+        .max(0.0);
+
+    let element = canvas(
+        move |bounds, _, _| {
+            let max_padding =
+                (f32::from(bounds.size.width).min(f32::from(bounds.size.height)) / 2.0).max(0.0);
+            let drawing_bounds = bounds.inset(px(padding.min(max_padding)));
+            let mut painted = Vec::with_capacity(paths.len() * 2);
+            for operations in &paths {
+                if let Some(fill) = last_op_in(operations, OP_PATH_FILL_RGBA) {
+                    let rule = match last_op_in(operations, OP_PATH_FILL_RULE).map(|op| op.a) {
+                        Some(1) => FillRule::EvenOdd,
+                        _ => FillRule::NonZero,
+                    };
+                    let paint = DrawingPaint::Fill { rule };
+                    if let Some(path) =
+                        build_drawing_path(operations, drawing_bounds, view_box, paint)
+                    {
+                        painted.push((path, fill.a as u32));
+                    }
+                }
+                if let Some(stroke) = last_op_in(operations, OP_PATH_STROKE_RGBA) {
+                    let width = last_op_in(operations, OP_PATH_STROKE_WIDTH_PX)
+                        .map_or(1.0, |op| f32::from_bits(op.a as u32));
+                    let paint = DrawingPaint::Stroke { width };
+                    if let Some(path) =
+                        build_drawing_path(operations, drawing_bounds, view_box, paint)
+                    {
+                        painted.push((path, stroke.a as u32));
+                    }
+                }
+            }
+            painted
+        },
+        |_, painted, window, _| {
+            for (path, color) in painted {
+                window.paint_path(path, rgba(color));
+            }
+        },
+    )
+    .overflow_hidden();
+    apply_styles(element, node, snapshot).into_any_element()
+}
+
+fn build_drawing_path(
+    operations: &[crate::abi::OpRecord],
+    bounds: gpui::Bounds<Pixels>,
+    view_box: Option<DrawingViewBox>,
+    paint: DrawingPaint,
+) -> Option<gpui::Path<Pixels>> {
+    let mut builder = match paint {
+        DrawingPaint::Fill { rule, .. } => PathBuilder::fill()
+            .with_style(PathStyle::Fill(FillOptions::default().with_fill_rule(rule))),
+        DrawingPaint::Stroke { width, .. } => PathBuilder::stroke(px(width)),
+    };
+    if matches!(paint, DrawingPaint::Stroke { .. }) {
+        let dash = operations
+            .iter()
+            .filter(|op| op.code == OP_PATH_DASH_PX)
+            .map(|op| px(f32::from_bits(op.a as u32)))
+            .collect::<Vec<_>>();
+        if !dash.is_empty() {
+            builder = builder.dash_array(&dash);
+        }
+    }
+
+    let mut started = false;
+    let mut has_segment = false;
+    let mut quadratic_control = None;
+    let mut cubic_control_a = None;
+    let mut cubic_control_b = None;
+    let mut arc_radii = None;
+    let mut arc_rotation = None;
+    let mut arc_flags = None;
+
+    for op in operations {
+        match op.code {
+            OP_PATH_MOVE_TO => {
+                builder.move_to(drawing_point(op_f32x2(op), bounds, view_box));
+                started = true;
+            }
+            OP_PATH_LINE_TO if started => {
+                builder.line_to(drawing_point(op_f32x2(op), bounds, view_box));
+                has_segment = true;
+            }
+            OP_PATH_QUADRATIC_CONTROL => quadratic_control = Some(op_f32x2(op)),
+            OP_PATH_QUADRATIC_TO if started => {
+                if let Some(control) = quadratic_control.take() {
+                    builder.curve_to(
+                        drawing_point(op_f32x2(op), bounds, view_box),
+                        drawing_point(control, bounds, view_box),
+                    );
+                    has_segment = true;
+                }
+            }
+            OP_PATH_CUBIC_CONTROL_A => cubic_control_a = Some(op_f32x2(op)),
+            OP_PATH_CUBIC_CONTROL_B => cubic_control_b = Some(op_f32x2(op)),
+            OP_PATH_CUBIC_TO if started => {
+                if let (Some(control_a), Some(control_b)) =
+                    (cubic_control_a.take(), cubic_control_b.take())
+                {
+                    builder.cubic_bezier_to(
+                        drawing_point(op_f32x2(op), bounds, view_box),
+                        drawing_point(control_a, bounds, view_box),
+                        drawing_point(control_b, bounds, view_box),
+                    );
+                    has_segment = true;
+                }
+            }
+            OP_PATH_ARC_RADII => arc_radii = Some(op_f32x2(op)),
+            OP_PATH_ARC_ROTATION => arc_rotation = Some(f32::from_bits(op.a as u32)),
+            OP_PATH_ARC_FLAGS => arc_flags = Some(op.a as u32),
+            OP_PATH_ARC_TO if started => {
+                if let (Some(radii), Some(rotation), Some(flags)) =
+                    (arc_radii.take(), arc_rotation.take(), arc_flags.take())
+                {
+                    builder.arc_to(
+                        drawing_radii(radii, bounds, view_box),
+                        px(rotation),
+                        flags & 1 != 0,
+                        flags & 2 != 0,
+                        drawing_point(op_f32x2(op), bounds, view_box),
+                    );
+                    has_segment = true;
+                }
+            }
+            OP_PATH_CLOSE if started => {
+                builder.close();
+                has_segment = true;
+            }
+            _ => {}
+        }
+    }
+
+    has_segment.then(|| builder.build().ok()).flatten()
+}
+
+fn drawing_point(
+    (x, y): (f32, f32),
+    bounds: gpui::Bounds<Pixels>,
+    view_box: Option<DrawingViewBox>,
+) -> gpui::Point<Pixels> {
+    if let Some(view_box) = view_box {
+        point(
+            bounds.origin.x + bounds.size.width * ((x - view_box.x) / view_box.width),
+            bounds.origin.y + bounds.size.height * ((y - view_box.y) / view_box.height),
+        )
+    } else {
+        point(bounds.origin.x + px(x), bounds.origin.y + px(y))
+    }
+}
+
+fn drawing_radii(
+    (x, y): (f32, f32),
+    bounds: gpui::Bounds<Pixels>,
+    view_box: Option<DrawingViewBox>,
+) -> gpui::Point<Pixels> {
+    if let Some(view_box) = view_box {
+        point(
+            bounds.size.width * (x / view_box.width),
+            bounds.size.height * (y / view_box.height),
+        )
+    } else {
+        point(px(x), px(y))
+    }
+}
+
+fn op_f32x2(op: &crate::abi::OpRecord) -> (f32, f32) {
+    (
+        f32::from_bits(op.a as u32),
+        f32::from_bits((op.a >> 32) as u32),
+    )
+}
+
+fn last_op_in(operations: &[crate::abi::OpRecord], code: u16) -> Option<&crate::abi::OpRecord> {
+    operations.iter().rev().find(|op| op.code == code)
+}
+
 fn materialize_image(
     node: &SnapshotNode,
     snapshot: &ValidatedSnapshot,
@@ -1351,7 +1572,7 @@ fn last_op<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::resources::ResourceKey;
+    use crate::{abi::OpRecord, resources::ResourceKey, semantic::ValueKind};
 
     fn key() -> ResourceKey {
         ResourceKey::new(4, "service-grid".into())
@@ -1406,5 +1627,43 @@ mod tests {
         assert_eq!(collection_key_target("end", 0, 3), Some(2));
         assert_eq!(collection_key_target("left", 1, 3), None);
         assert_eq!(collection_key_target("down", 0, 0), None);
+    }
+
+    #[test]
+    fn drawing_path_builds_in_view_box_coordinates() {
+        fn point_op(code: u16, x: f32, y: f32) -> OpRecord {
+            OpRecord {
+                code,
+                value_kind: ValueKind::F32x2 as u16,
+                a: x.to_bits() as u64 | ((y.to_bits() as u64) << 32),
+                ..Default::default()
+            }
+        }
+
+        let operations = [
+            point_op(OP_PATH_MOVE_TO, 0.0, 100.0),
+            point_op(OP_PATH_LINE_TO, 50.0, 20.0),
+            point_op(OP_PATH_LINE_TO, 100.0, 60.0),
+        ];
+        let bounds = gpui::Bounds::new(point(px(10.0), px(20.0)), gpui::size(px(200.0), px(80.0)));
+        let view_box = DrawingViewBox {
+            x: 0.0,
+            y: 0.0,
+            width: 100.0,
+            height: 100.0,
+        };
+
+        assert!(
+            build_drawing_path(
+                &operations,
+                bounds,
+                Some(view_box),
+                DrawingPaint::Stroke { width: 2.0 }
+            )
+            .is_some()
+        );
+        let mapped = drawing_point((50.0, 25.0), bounds, Some(view_box));
+        assert_eq!(f32::from(mapped.x), 110.0);
+        assert_eq!(f32::from(mapped.y), 40.0);
     }
 }

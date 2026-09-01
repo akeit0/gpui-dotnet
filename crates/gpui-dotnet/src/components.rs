@@ -47,7 +47,9 @@ pub(crate) fn apply_defaults(
         | NativeAdapter::Overlay
         | NativeAdapter::Tooltip
         | NativeAdapter::ContextMenu
-        | NativeAdapter::PopoverMenu => element,
+        | NativeAdapter::PopoverMenu
+        | NativeAdapter::Drawing
+        | NativeAdapter::Path => element,
     }
 }
 

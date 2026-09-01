@@ -146,6 +146,19 @@ internal static unsafe class ManagedValidator
                 );
             }
 
+            if (
+                expectedKind == ValueKind.F32x2
+                && (
+                    !float.IsFinite(BitConverter.UInt32BitsToSingle((uint)operation.A))
+                    || !float.IsFinite(BitConverter.UInt32BitsToSingle((uint)(operation.A >> 32)))
+                )
+            )
+            {
+                throw new InvalidOperationException(
+                    $"Operation {i} has a non-finite coordinate value."
+                );
+            }
+
             if (expectedKind == ValueKind.Callback && operation.A == 0)
             {
                 throw new InvalidOperationException($"Operation {i} uses reserved event token 0.");
@@ -185,6 +198,17 @@ internal static unsafe class ManagedValidator
                 childNode.Flags |= 1;
                 markedChildren++;
 
+                var parentComponent = (ComponentId)arena->Nodes[edge.Parent].Component;
+                var childComponent = (ComponentId)childNode.Component;
+                if (
+                    (parentComponent == ComponentId.Drawing) != (childComponent == ComponentId.Path)
+                )
+                {
+                    throw new InvalidOperationException(
+                        "Drawing elements may contain only Path elements, and Path elements must belong to a Drawing."
+                    );
+                }
+
                 if (edge.Child == root.Node)
                 {
                     throw new InvalidOperationException("The root node cannot have a parent.");
@@ -194,6 +218,15 @@ internal static unsafe class ManagedValidator
             for (var nodeIndex = 0; nodeIndex < arena->NodeLength; nodeIndex++)
             {
                 var component = (ComponentId)arena->Nodes[nodeIndex].Component;
+                if (
+                    component == ComponentId.Path
+                    && (arena->Nodes[nodeIndex].Flags & 1) == 0
+                )
+                {
+                    throw new InvalidOperationException(
+                        $"Path node {nodeIndex} must belong to a Drawing."
+                    );
+                }
                 if (
                     component
                     is not (
