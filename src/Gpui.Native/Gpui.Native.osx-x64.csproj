@@ -6,7 +6,7 @@
         <PackageId>GPUI.NET.Native.osx-x64</PackageId>
         <Description>Native GPUI bindings for osx-x64.</Description>
         <IsPackable>true</IsPackable>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
         <IncludeBuildOutput>false</IncludeBuildOutput>
         <IncludeContentInPack>true</IncludeContentInPack>
@@ -18,7 +18,7 @@
         <None Remove="**" />
         <Compile Remove="**" />
         <EmbeddedResource Remove="**" />
-        <None Include="$(RepositoryRoot)/README.md" Pack="true" PackagePath="\" />
+        <None Include="$(RepositoryRoot)/NUGET_README.md" Pack="true" PackagePath="\" />
         <None
             Include="$(RepositoryRoot)/artifacts/native/osx-x64/libgpui_dotnet.dylib"
             Condition="Exists('$(RepositoryRoot)/artifacts/native/osx-x64/libgpui_dotnet.dylib')"

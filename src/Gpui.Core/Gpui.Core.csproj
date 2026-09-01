@@ -6,7 +6,7 @@
         <PackageId>GPUI.NET.Core</PackageId>
         <Description>Managed GPUI bindings for .NET.</Description>
         <IsPackable>true</IsPackable>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
         <RepositoryRoot>$(MSBuildThisFileDirectory)../..</RepositoryRoot>
@@ -33,7 +33,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="$(RepositoryRoot)/README.md" Pack="true" PackagePath="\" />
+        <None Include="$(RepositoryRoot)/NUGET_README.md" Pack="true" PackagePath="\" />
         <Compile Include="../Gpui/**/*.cs" Exclude="../Gpui/bin/**/*.cs;../Gpui/obj/**/*.cs" />
         <PackageReference Include="Utf8StringInterpolation" Version="1.3.2" />
         <InternalsVisibleTo Include="Gpui.Tests" />

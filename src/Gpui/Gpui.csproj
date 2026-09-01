@@ -7,7 +7,7 @@
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
         <Description>GPUI bindings for .NET.</Description>
         <PackageTags>gpui;gui;dotnet;csharp;rust</PackageTags>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
         <RepositoryRoot>$(MSBuildThisFileDirectory)../..</RepositoryRoot>
         <IncludeBuildOutput>false</IncludeBuildOutput>
         <IncludeContentInPack>true</IncludeContentInPack>
@@ -25,7 +25,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="$(RepositoryRoot)/README.md" Pack="true" PackagePath="\" />
+        <None Include="$(RepositoryRoot)/NUGET_README.md" Pack="true" PackagePath="\" />
         <None Include="$(RepositoryRoot)/NOTICE" Pack="true" PackagePath="\" />
         <None Include="$(RepositoryRoot)/docs/EXTENSIONS.md" Pack="true" PackagePath="docs" />
         <None
