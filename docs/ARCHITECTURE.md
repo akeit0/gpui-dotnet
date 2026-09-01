@@ -9,6 +9,7 @@ GPUI.NET deliberately does not mirror GPUI's Rust API one-to-one.
 - domain/application state;
 - application/window definitions and stable managed window handles;
 - managed `View` state and retained child-slot composition;
+- application-scoped `GpuiTheme` values and theme-aware render contexts;
 - view-bound event callback registry and generated list-renderer logic;
 - dirty render IR construction.
 
@@ -63,9 +64,16 @@ app-side title-bar menu because this pinned GPUI Windows backend retains menus b
 a native Win32 menu bar; Linux and other platforms can likewise provide an app-side presenter.
 `GpuiTitleBar.RenderWindow` is the default managed presenter for that split, using the same
 `GpuiMenu` definitions and leaving the lower-level `PopoverMenu`/`WindowControlArea` primitives
-available for manual presenters. Its macOS system-title-bar path returns the content unchanged;
+available for manual presenters. Its macOS system-title-bar path keeps native AppKit chrome and
+places the content in a full-height layout parent;
 `GpuiTitleBarOptions.ForceManagedMenuOnMac` explicitly selects the managed title/menu path on macOS
 when AppKit's global menu is not desired.
+
+Themes follow the same semantic boundary. `GpuiApplication.SetTheme` stores one immutable managed
+theme for all window sessions; `RenderContext.Theme` exposes its colors to Views and framework
+components. JSON loading accepts the flat semantic color keys used by GPUI Component/Zed and fills
+omitted values from light/dark defaults. Changing the theme only invalidates managed roots; no
+platform-specific native theme ABI is needed.
 
 Each window has a separate `ManagedSession`, View-handle allocator, render snapshots, retained resources, list caches, and lifecycle teardown. A failure is recorded against the affected window session while other windows keep running; the application reports the first failure when the final window closes. Closing one window unmounts only its View tree. Closing the final window quits the shared GPUI application.
 

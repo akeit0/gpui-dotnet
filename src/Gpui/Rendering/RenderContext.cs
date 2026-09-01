@@ -11,15 +11,27 @@ public readonly unsafe ref partial struct RenderContext
     private readonly RenderArena* _arena;
     private readonly IViewRenderer? _views;
     private readonly View? _owner;
+    private readonly GpuiTheme _theme;
 
-    internal RenderContext(RenderArena* arena, IViewRenderer? views = null, View? owner = null)
+    internal RenderContext(
+        RenderArena* arena,
+        IViewRenderer? views = null,
+        View? owner = null,
+        GpuiTheme? theme = null
+    )
     {
         _arena = arena;
         _views = views;
         _owner = owner;
+        _theme = theme ?? GpuiTheme.Default;
     }
 
     internal RenderArena* NativeArena => _arena;
+
+    /// <summary>
+    /// The active application theme. Element-only contexts use <see cref="GpuiTheme.Default"/>.
+    /// </summary>
+    public GpuiTheme Theme => _theme;
 
     internal View EventBindingOwner =>
         View.CurrentEventBindingOwner

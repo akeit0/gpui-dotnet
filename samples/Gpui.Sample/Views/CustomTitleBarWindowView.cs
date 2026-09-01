@@ -1,5 +1,4 @@
 using Gpui;
-using static Gpui.Colors;
 using static Gpui.Units;
 
 [GpuiView]
@@ -11,6 +10,7 @@ internal sealed partial class CustomTitleBarWindowView : View
 
     protected override Element Render(ref RenderContext ui)
     {
+        var theme = ui.Theme;
         var titleBar = SampleTitleBar.Render(
             ref ui,
             $"GPUI.NET  /  Custom window {Window?.Id ?? 0}"
@@ -18,15 +18,15 @@ internal sealed partial class CustomTitleBarWindowView : View
 
         var content = ui.VStack(
                 ui.Text("Managed visuals, native window behavior"u8)
-                    .FontSize(Px(24))
-                    .TextColor(Rgb(15, 23, 42)),
+                    .FontSize(Px(theme.Typography.Large))
+                    .TextColor(theme.Colors.Text),
                 ui.Text("Drag or double-click the dark header. Pointer motion stays in GPUI."u8)
-                    .FontSize(Px(13))
-                    .TextColor(Rgb(71, 85, 105)),
+                    .FontSize(Px(theme.Typography.BodySmall))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.VStack(
                         ui.Text($"Local content state: {_localCount:N0}")
-                            .FontSize(Px(20))
-                            .TextColor(Rgb(79, 70, 229)),
+                            .FontSize(Px(theme.Typography.Title))
+                            .TextColor(theme.Colors.TextAccent),
                         ui.Button("custom-titlebar-increment", "Increment content")
                             .OnClick(
                                 this,
@@ -37,14 +37,14 @@ internal sealed partial class CustomTitleBarWindowView : View
                                 }
                             )
                             .Padding(Px(10))
-                            .Background(Rgb(238, 242, 255))
-                            .BorderColor(Rgb(165, 180, 252))
+                            .Background(theme.Colors.ElementSelected)
+                            .BorderColor(theme.Colors.BorderFocused)
                     )
                     .Gap(Px(12))
                     .Padding(Px(20))
-                    .Background(Rgb(255, 255, 255))
+                    .Background(theme.Colors.SurfaceBackground)
                     .BorderWidth(Px(1))
-                    .BorderColor(Rgb(226, 232, 240))
+                    .BorderColor(theme.Colors.BorderVariant)
                     .Radius(Px(12))
             )
             .Gap(Px(18))
@@ -54,6 +54,6 @@ internal sealed partial class CustomTitleBarWindowView : View
         return ui.VStack(titleBar, content)
             .Width(Percent(100))
             .Height(Percent(100))
-            .Background(Rgb(241, 245, 249));
+            .Background(theme.Colors.Background);
     }
 }

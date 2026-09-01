@@ -92,6 +92,15 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
         }
     }
 
+    public void SetTheme(GpuiTheme theme)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+        foreach (var session in _sessions.Values)
+        {
+            session.Invalidate(session.RootView);
+        }
+    }
+
     internal int MenuAction(ulong actionId)
     {
         if (!_menuActions.TryGetValue(actionId, out var callback))
@@ -182,7 +191,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
             throw new InvalidOperationException("The GPUI application is stopping.");
         }
 
-        var session = new ManagedSession(_runtime, window.Id, window.RootView);
+        var session = new ManagedSession(_runtime, _application, window.Id, window.RootView);
         if (!_sessions.TryAdd(window.Id, session))
         {
             throw new InvalidOperationException("Failed to register the managed window session.");

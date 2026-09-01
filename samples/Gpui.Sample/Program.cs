@@ -3,6 +3,7 @@ using Gpui;
 var stressGrowth = args.Contains("--stress-growth", StringComparer.Ordinal);
 var multiWindow = args.Contains("--multi-window", StringComparer.Ordinal);
 var application = new GpuiApplication();
+application.SetTheme(SampleThemes.Light);
 var shell = new SampleShellView { Application = application };
 var menuBar = stressGrowth ? Array.Empty<GpuiMenu>() : shell.CreateMenuBar();
 shell.MenuBar = menuBar;

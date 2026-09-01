@@ -135,6 +135,7 @@ public sealed class GpuiApplication
     private readonly HashSet<View> _roots = new(ReferenceEqualityComparer.Instance);
     private readonly NativeRuntimeOptions? _runtimeOptions;
     private GpuiMenu[]? _menuBar;
+    private GpuiTheme _theme = GpuiTheme.Default;
     private IGpuiApplicationHost? _host;
     private ApplicationState _state;
 
@@ -149,6 +150,40 @@ public sealed class GpuiApplication
     public GpuiApplication(NativeRuntimeOptions? runtimeOptions)
     {
         _runtimeOptions = runtimeOptions;
+    }
+
+    /// <summary>The theme used by every managed View rendered by this application.</summary>
+    public GpuiTheme Theme
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _theme;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Installs the application's semantic theme. Existing windows are invalidated so they pick
+    /// up the new colors on their next render.
+    /// </summary>
+    public void SetTheme(GpuiTheme theme)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+        IGpuiApplicationHost? host;
+        lock (_gate)
+        {
+            if (_state == ApplicationState.Stopped)
+            {
+                throw new InvalidOperationException("The GPUI application has already stopped.");
+            }
+
+            _theme = theme;
+            host = _host;
+        }
+
+        host?.SetTheme(theme);
     }
 
     /// <summary>
@@ -528,6 +563,7 @@ internal readonly record struct GpuiWindowOpenRequest(
 internal interface IGpuiApplicationHost
 {
     void SetMenuBar(IReadOnlyList<GpuiMenu> menus);
+    void SetTheme(GpuiTheme theme);
     void OpenWindow(GpuiWindow window, GpuiWindowSnapshot snapshot);
     void CloseWindow(ulong windowId);
     void ActivateWindow(ulong windowId);

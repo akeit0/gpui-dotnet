@@ -1,5 +1,4 @@
 using Gpui;
-using static Gpui.Colors;
 using static Gpui.Units;
 
 internal sealed class ArenaGrowthView : View
@@ -15,7 +14,7 @@ internal sealed class ArenaGrowthView : View
             rows[index] = ui.Text($"Growth row {index:D4}")
                 .Padding(Px(1))
                 .Width(Px(120))
-                .Background(Rgb(246, 248, 251))
+                .Background(ui.Theme.Colors.Background)
                 .ItemsCenter();
         }
 

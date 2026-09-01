@@ -1,5 +1,4 @@
 using Gpui;
-using static Gpui.Colors;
 using static Gpui.Units;
 
 [GpuiView]
@@ -14,6 +13,7 @@ internal sealed partial class InputGalleryView : View
 
     protected override Element Render(ref RenderContext ui)
     {
+        var theme = ui.Theme;
         var search = Field(
             ref ui,
             "Interactive + UTF-8 events",
@@ -117,33 +117,45 @@ internal sealed partial class InputGalleryView : View
                 ui.Text(
                         "Editing and pointer/keyboard state stay in Rust. Managed callbacks are opt-in."u8
                     )
-                    .FontSize(Px(13))
-                    .TextColor(Rgb(71, 85, 105)),
+                    .FontSize(Px(theme.Typography.BodySmall))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.HStack(search, password).Gap(Px(14)),
                 ui.HStack(readOnly, disabled).Gap(Px(14)),
                 ui.HStack(volume).Gap(Px(14)),
                 controls,
                 ui.VStack(
-                        ui.Text($"Value: {_value}").TextColor(Rgb(30, 41, 59)),
-                        ui.Text(_lastEvent).FontSize(Px(12)).TextColor(Rgb(79, 70, 229)),
-                        ui.Text(_lastSliderEvent).FontSize(Px(12)).TextColor(Rgb(5, 150, 105))
+                        ui.Text($"Value: {_value}").TextColor(theme.Colors.Text),
+                        ui.Text(_lastEvent)
+                            .FontSize(Px(theme.Typography.Detail))
+                            .TextColor(theme.Colors.TextAccent),
+                        ui.Text(_lastSliderEvent)
+                            .FontSize(Px(theme.Typography.Detail))
+                            .TextColor(theme.Colors.Success)
                     )
                     .Gap(Px(5))
                     .Padding(Px(12))
-                    .Background(Rgb(238, 242, 255))
+                    .Background(theme.Colors.InfoBackground)
                     .Radius(Px(8))
             )
             .Gap(Px(14))
             .Grow();
     }
 
-    private static Element Field(ref RenderContext ui, ReadOnlySpan<char> label, Element input) =>
-        ui.VStack(ui.Text(label).FontSize(Px(12)).TextColor(Rgb(71, 85, 105)), input)
+    private static Element Field(ref RenderContext ui, ReadOnlySpan<char> label, Element input)
+    {
+        var theme = ui.Theme;
+        return ui.VStack(
+                ui.Text(label)
+                    .FontSize(Px(theme.Typography.Detail))
+                    .TextColor(theme.Colors.TextMuted),
+                input
+            )
             .Gap(Px(6))
             .Padding(Px(12))
             .Width(Percent(50))
-            .Background(Rgb(255, 255, 255))
+            .Background(theme.Colors.SurfaceBackground)
             .BorderWidth(Px(1))
-            .BorderColor(Rgb(226, 232, 240))
+            .BorderColor(theme.Colors.BorderVariant)
             .Radius(Px(10));
+    }
 }

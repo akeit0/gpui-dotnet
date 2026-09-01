@@ -1,4 +1,3 @@
-using static Gpui.Colors;
 using static Gpui.Units;
 
 namespace Gpui;
@@ -49,7 +48,7 @@ public static class GpuiTitleBar
         Element titleElement = default;
         if (!OperatingSystem.IsMacOS() || options.ForceManagedMenuOnMac)
         {
-            titleElement = ui.Text(title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240));
+            titleElement = ui.Text(title).FontSize(Px(13)).TextColor(ui.Theme.Colors.TitleBarText);
         }
 
         return RenderCore(ref ui, titleElement, menus, options);
@@ -67,7 +66,8 @@ public static class GpuiTitleBar
         Element titleElement = default;
         if (!OperatingSystem.IsMacOS() || options.ForceManagedMenuOnMac)
         {
-            titleElement = ui.Text(utf8Title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240));
+            titleElement =
+                ui.Text(utf8Title).FontSize(Px(13)).TextColor(ui.Theme.Colors.TitleBarText);
         }
 
         return RenderCore(ref ui, titleElement, menus, options);
@@ -75,7 +75,7 @@ public static class GpuiTitleBar
 
     /// <summary>
     /// Wraps window content with the library title bar. On macOS, the default system title-bar
-    /// path returns <paramref name="content"/> unchanged; other platforms receive managed chrome.
+    /// path keeps the native chrome but still gives the content a full-height flex parent.
     /// </summary>
     public static Element RenderWindow(
         ref RenderContext ui,
@@ -88,7 +88,7 @@ public static class GpuiTitleBar
         ValidateMenus(menus);
         if (OperatingSystem.IsMacOS() && !options.ForceManagedMenuOnMac)
         {
-            return content;
+            return ui.VStack(content).Width(Percent(100)).Height(Percent(100));
         }
 
         return ui
@@ -109,7 +109,7 @@ public static class GpuiTitleBar
         ValidateMenus(menus);
         if (OperatingSystem.IsMacOS() && !options.ForceManagedMenuOnMac)
         {
-            return content;
+            return ui.VStack(content).Width(Percent(100)).Height(Percent(100));
         }
 
         return ui
@@ -125,6 +125,7 @@ public static class GpuiTitleBar
         GpuiTitleBarOptions options
     )
     {
+        var colors = ui.Theme.Colors;
         var managedMenu = !OperatingSystem.IsMacOS() || options.ForceManagedMenuOnMac;
         Element<DivTag> titleRegion;
         if (OperatingSystem.IsMacOS())
@@ -191,7 +192,9 @@ public static class GpuiTitleBar
                     minimizeGlyph,
                     WindowControlArea.Minimize,
                     glyphSize,
-                    Rgb(30, 41, 59)
+                    colors.TitleBarHover,
+                    colors.TitleBarBackground,
+                    colors.TitleBarText
                 ),
                 CaptionButton(
                     ref ui,
@@ -199,7 +202,9 @@ public static class GpuiTitleBar
                     maximizeGlyph,
                     WindowControlArea.Maximize,
                     glyphSize,
-                    Rgb(30, 41, 59)
+                    colors.TitleBarHover,
+                    colors.TitleBarBackground,
+                    colors.TitleBarText
                 ),
                 CaptionButton(
                     ref ui,
@@ -207,7 +212,9 @@ public static class GpuiTitleBar
                     closeGlyph,
                     WindowControlArea.Close,
                     glyphSize,
-                    Rgb(232, 17, 32)
+                    colors.TitleBarCloseHover,
+                    colors.TitleBarBackground,
+                    colors.TitleBarText
                 )
             );
         }
@@ -215,7 +222,7 @@ public static class GpuiTitleBar
         return titleBar
             .Height(Px(HeightPx))
             .Width(Percent(100))
-            .Background(Rgb(15, 23, 42));
+            .Background(colors.TitleBarBackground);
     }
 
     private static Element<DivTag> RenderMenuBar(
@@ -223,6 +230,7 @@ public static class GpuiTitleBar
         IReadOnlyList<GpuiMenu> menus
     )
     {
+        var colors = ui.Theme.Colors;
         var owner = ui.EventBindingOwner;
         var menuElements = new List<Element>(menus.Count);
         for (var index = 0; index < menus.Count; index++)
@@ -234,12 +242,12 @@ public static class GpuiTitleBar
                 .Height(Percent(100))
                 .Padding(Px(9))
                 .FontSize(Px(12))
-                .Background(Rgba(15, 23, 42, 0))
-                .HoverBackground(Rgb(30, 41, 59))
+                .Background(Colors.Rgba(0, 0, 0, 0))
+                .HoverBackground(colors.TitleBarHover)
                 .BorderWidth(Px(0))
                 .Radius(Px(0))
-                .TextColor(Rgb(226, 232, 240));
-            var content = RenderMenuSurface(ref ui, menu, owner, key);
+                .TextColor(colors.TitleBarText);
+            var content = RenderMenuSurface(ref ui, menu, owner, key, colors);
             menuElements.Add(ui.PopoverMenu($"{key}-popover", trigger, content));
         }
 
@@ -250,7 +258,8 @@ public static class GpuiTitleBar
         ref RenderContext ui,
         GpuiMenu menu,
         View owner,
-        string key
+        string key,
+        GpuiThemeColors colors
     )
     {
         var items = new List<Element>(menu.Items.Count);
@@ -264,7 +273,7 @@ public static class GpuiTitleBar
                         .Divider()
                         .Width(Percent(100))
                         .Height(Px(1))
-                        .Background(Rgb(226, 232, 240))
+                        .Background(colors.BorderVariant)
                 );
             }
             else if (item.NestedMenu is not null)
@@ -278,14 +287,10 @@ public static class GpuiTitleBar
                             ui.Spacer().Grow(),
                             ui.Text("›"u8)
                         )
-                        .ItemsCenter()
+                        .ItemsCenter(),
+                    colors
                 );
-                var submenuContent = RenderMenuSurface(
-                    ref ui,
-                    item.NestedMenu,
-                    owner,
-                    submenuKey
-                );
+                var submenuContent = RenderMenuSurface(ref ui, item.NestedMenu, owner, submenuKey, colors);
                 items.Add(
                     ui.PopoverMenu(
                         $"{submenuKey}-popover",
@@ -297,7 +302,7 @@ public static class GpuiTitleBar
             else
             {
                 items.Add(
-                    MenuItemButton(ref ui, $"{key}-item-{index}", item.Title).OnClick(
+                    MenuItemButton(ref ui, $"{key}-item-{index}", item.Title, colors).OnClick(
                         owner,
                         item.EventCallback
                     )
@@ -310,43 +315,45 @@ public static class GpuiTitleBar
             .Gap(Px(2))
             .Padding(Px(6))
             .Width(Px(MenuWidthPx))
-            .Background(Rgb(255, 255, 255))
+            .Background(colors.ElevatedSurfaceBackground)
             .BorderWidth(Px(1))
-            .BorderColor(Rgb(203, 213, 225))
+            .BorderColor(colors.Border)
             .Radius(Px(7));
     }
 
     private static Element<ButtonTag> MenuItemButton(
         ref RenderContext ui,
         string id,
-        ReadOnlySpan<char> title
+        ReadOnlySpan<char> title,
+        GpuiThemeColors colors
     ) =>
         ui
             .Button(id, title)
             .Width(Percent(100))
             .Padding(Px(8))
             .FontSize(Px(12))
-            .Background(Rgb(255, 255, 255))
-            .HoverBackground(Rgb(241, 245, 249))
+            .Background(colors.ElevatedSurfaceBackground)
+            .HoverBackground(colors.ElementHover)
             .BorderWidth(Px(0))
             .Radius(Px(4))
-            .TextColor(Rgb(15, 23, 42));
+            .TextColor(colors.Text);
 
     private static Element<ButtonTag> MenuItemButton(
         ref RenderContext ui,
         string id,
-        Element label
+        Element label,
+        GpuiThemeColors colors
     ) =>
         ui
             .Button(id, label)
             .Width(Percent(100))
             .Padding(Px(8))
             .FontSize(Px(12))
-            .Background(Rgb(255, 255, 255))
-            .HoverBackground(Rgb(241, 245, 249))
+            .Background(colors.ElevatedSurfaceBackground)
+            .HoverBackground(colors.ElementHover)
             .BorderWidth(Px(0))
             .Radius(Px(4))
-            .TextColor(Rgb(15, 23, 42));
+            .TextColor(colors.Text);
 
     private static Element<ButtonTag> CaptionButton(
         ref RenderContext ui,
@@ -354,7 +361,9 @@ public static class GpuiTitleBar
         ReadOnlySpan<byte> label,
         WindowControlArea area,
         float glyphSize,
-        Color hoverBackground
+        Color hoverBackground,
+        Color background,
+        Color textColor
     ) =>
         ui
             .Button(id, label)
@@ -364,11 +373,11 @@ public static class GpuiTitleBar
             .ItemsCenter()
             .JustifyCenter()
             .FontSize(Px(glyphSize))
-            .Background(Rgb(15, 23, 42))
+            .Background(background)
             .HoverBackground(hoverBackground)
             .BorderWidth(Px(0))
             .Radius(Px(0))
-            .TextColor(Rgb(248, 250, 252));
+            .TextColor(textColor);
 
     private static void ValidateMenus(IReadOnlyList<GpuiMenu> menus)
     {

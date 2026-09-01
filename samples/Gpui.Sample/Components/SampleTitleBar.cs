@@ -1,20 +1,37 @@
 using Gpui;
-using static Gpui.Colors;
 using static Gpui.Units;
 
 internal static class SampleTitleBar
 {
     internal static Element Render(ref RenderContext ui, ReadOnlySpan<byte> utf8Title) =>
-        Render(ref ui, ui.Text(utf8Title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)), null);
+        Render(
+            ref ui,
+            ui.Text(utf8Title)
+                .FontSize(Px(ui.Theme.Typography.TitleBar))
+                .TextColor(ui.Theme.Colors.TitleBarText),
+            null
+        );
 
     internal static Element Render(
         ref RenderContext ui,
         ReadOnlySpan<byte> utf8Title,
         Element? menuBar
-    ) => Render(ref ui, ui.Text(utf8Title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)), menuBar);
+    ) => Render(
+        ref ui,
+        ui.Text(utf8Title)
+            .FontSize(Px(ui.Theme.Typography.TitleBar))
+            .TextColor(ui.Theme.Colors.TitleBarText),
+        menuBar
+    );
 
     internal static Element Render(ref RenderContext ui, ReadOnlySpan<char> title) =>
-        Render(ref ui, ui.Text(title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)), null);
+        Render(
+            ref ui,
+            ui.Text(title)
+                .FontSize(Px(ui.Theme.Typography.TitleBar))
+                .TextColor(ui.Theme.Colors.TitleBarText),
+            null
+        );
 
     private static Element Render(ref RenderContext ui, Element title, Element? menuBar)
     {
@@ -52,7 +69,7 @@ internal static class SampleTitleBar
                     WindowControlArea.Minimize,
                     36,
                     glyphSize,
-                    Rgb(30, 41, 59)
+                    ui.Theme.Colors.TitleBarHover
                 ),
                 Button(
                     ref ui,
@@ -61,7 +78,7 @@ internal static class SampleTitleBar
                     WindowControlArea.Maximize,
                     36,
                     glyphSize,
-                    Rgb(30, 41, 59)
+                    ui.Theme.Colors.TitleBarHover
                 ),
                 Button(
                     ref ui,
@@ -70,10 +87,13 @@ internal static class SampleTitleBar
                     WindowControlArea.Close,
                     36,
                     glyphSize,
-                    Rgb(232, 17, 32)
+                    ui.Theme.Colors.TitleBarCloseHover
                 )
             );
-        return titleBar.Height(Px(38)).Width(Percent(100)).Background(Rgb(15, 23, 42));
+        return titleBar
+            .Height(Px(38))
+            .Width(Percent(100))
+            .Background(ui.Theme.Colors.TitleBarBackground);
     }
 
     private static Element Button(
@@ -92,9 +112,9 @@ internal static class SampleTitleBar
             .ItemsCenter()
             .JustifyCenter()
             .FontSize(Px(fontSize))
-            .Background(Rgb(15, 23, 42))
+            .Background(ui.Theme.Colors.TitleBarBackground)
             .HoverBackground(hoverBackground)
             .BorderWidth(Px(0))
             .Radius(Px(0))
-            .TextColor(Rgb(248, 250, 252));
+            .TextColor(ui.Theme.Colors.TitleBarText);
 }

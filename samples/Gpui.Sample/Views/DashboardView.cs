@@ -1,5 +1,4 @@
 using Gpui;
-using static Gpui.Colors;
 using static Gpui.Units;
 
 [GpuiView]
@@ -21,8 +20,8 @@ internal sealed partial class DashboardView : View
                     .OnClick(this, (view, _) => view._scroll.ScrollToBottom()),
                 ui.Spacer(),
                 ui.Badge(ui.Text("native ScrollHandle"u8))
-                    .Background(Rgb(219, 234, 254))
-                    .TextColor(Rgb(30, 64, 175))
+                    .Background(ui.Theme.Colors.InfoBackground)
+                    .TextColor(ui.Theme.Colors.Info)
             )
             .Gap(Px(8))
             .ItemsCenter();
@@ -32,19 +31,19 @@ internal sealed partial class DashboardView : View
         {
             cards[index] = ui.VStack(
                     ui.Text($"Scrollable card {index + 1:D2}")
-                        .FontSize(Px(16))
-                        .TextColor(Rgb(15, 23, 42)),
+                        .FontSize(Px(ui.Theme.Typography.Title))
+                        .TextColor(ui.Theme.Colors.Text),
                     ui.Text(
                             "Wheel/trackpad updates the Rust-owned offset without a managed callback."u8
                         )
-                        .FontSize(Px(12))
-                        .TextColor(Rgb(100, 116, 139))
+                        .FontSize(Px(ui.Theme.Typography.Detail))
+                        .TextColor(ui.Theme.Colors.TextMuted)
                 )
                 .Gap(Px(6))
                 .Padding(Px(16))
-                .Background(Rgb(255, 255, 255))
+                .Background(ui.Theme.Colors.SurfaceBackground)
                 .BorderWidth(Px(1))
-                .BorderColor(Rgb(226, 232, 240))
+                .BorderColor(ui.Theme.Colors.BorderVariant)
                 .Radius(Px(10));
         }
 

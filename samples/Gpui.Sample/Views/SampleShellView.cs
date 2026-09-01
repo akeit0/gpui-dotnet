@@ -1,5 +1,4 @@
 using Gpui;
-using static Gpui.Colors;
 using static Gpui.Units;
 
 [GpuiView]
@@ -64,8 +63,23 @@ internal sealed partial class SampleShellView : View
         ).Close();
     }
 
+    private void ToggleTheme()
+    {
+        var application =
+            Application
+            ?? throw new InvalidOperationException(
+                "The sample root is not associated with its application."
+            );
+        application.SetTheme(
+            application.Theme.Appearance == GpuiThemeAppearance.Dark
+                ? SampleThemes.Light
+                : SampleThemes.Dark
+        );
+    }
+
     protected override Element Render(ref RenderContext ui)
     {
+        var theme = ui.Theme;
         var sidebar = RenderSidebar(ref ui);
         var page = _page switch
         {
@@ -120,11 +134,28 @@ internal sealed partial class SampleShellView : View
                 ui.Button("close-window", "Close")
                     .OnClick(this, (view, _) => view.CloseWindow())
                     .Padding(Px(7))
-                    .Background(Rgb(255, 255, 255))
-                    .BorderColor(Rgb(203, 213, 225)),
+                    .FontSize(Px(theme.Typography.Button))
+                    .Background(theme.Colors.ElementBackground)
+                    .HoverBackground(theme.Colors.ElementHover)
+                    .BorderWidth(Px(1))
+                    .BorderColor(theme.Colors.Border)
+                    .TextColor(theme.Colors.Text),
+                ui.Button(
+                        "toggle-theme",
+                        theme.Appearance == GpuiThemeAppearance.Dark ? "Light theme" : "Dark theme"
+                    )
+                    .OnClick(this, (view, _) => view.ToggleTheme())
+                    .Padding(Px(7))
+                    .FontSize(Px(theme.Typography.Button))
+                    .Background(theme.Colors.ElementBackground)
+                    .HoverBackground(theme.Colors.ElementHover)
+                    .BorderWidth(Px(1))
+                    .BorderColor(theme.Colors.Border)
+                    .TextColor(theme.Colors.Text),
                 ui.Badge(ui.Text("ABI V5"u8))
-                    .Background(Rgb(224, 231, 255))
-                    .TextColor(Rgb(67, 56, 202))
+                    .FontSize(Px(theme.Typography.Caption))
+                    .Background(theme.Colors.InfoBackground)
+                    .TextColor(theme.Colors.Info)
                     .Padding(Px(7))
             )
             .ItemsCenter();
@@ -138,7 +169,7 @@ internal sealed partial class SampleShellView : View
         var gallery = ui.HStack(sidebar, content)
             .Width(Percent(100))
             .Grow()
-            .Background(Rgb(241, 245, 249));
+            .Background(theme.Colors.Background);
         return GpuiTitleBar.RenderWindow(
             ref ui,
             "GPUI.NET  /  Components"u8,
@@ -152,6 +183,7 @@ internal sealed partial class SampleShellView : View
         new GpuiMenu(
             "GPUI.NET",
             GpuiMenuItem.Command("About GPUI.NET", () => ShowPage(SamplePage.Overview)),
+            GpuiMenuItem.Command("Toggle light/dark theme", ToggleTheme),
             GpuiMenuItem.Separator(),
             GpuiMenuItem.Command("Close window", CloseWindow)
         ),
@@ -187,118 +219,55 @@ internal sealed partial class SampleShellView : View
 
     private Element RenderSidebar(ref RenderContext ui)
     {
-        var overviewSelected = _page == SamplePage.Overview;
-        var activitySelected = _page == SamplePage.Activity;
-        var tablesSelected = _page == SamplePage.Tables;
-        var imagesSelected = _page == SamplePage.Images;
-        var inputsSelected = _page == SamplePage.Inputs;
-        var overlaysSelected = _page == SamplePage.Overlays;
-        var windowsSelected = _page == SamplePage.Windows;
+        var theme = ui.Theme;
         return ui.VStack(
-                ui.Text("SIDEBAR"u8).FontSize(Px(11)).TextColor(Rgb(148, 163, 184)),
-                ui.Divider().Background(Rgb(51, 65, 85)),
-                ui.Button("show-overview", "Scroll view")
-                    .OnClick(
-                        this,
-                        (view, _) =>
-                        {
-                            view._page = SamplePage.Overview;
-                            view.Invalidate();
-                        }
-                    )
-                    .Padding(Px(10))
-                    .Background(overviewSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
-                    .BorderColor(overviewSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
-                    .TextColor(Rgb(255, 255, 255)),
-                ui.Button("show-activity", "Virtual list")
-                    .OnClick(
-                        this,
-                        (view, _) =>
-                        {
-                            view._page = SamplePage.Activity;
-                            view.Invalidate();
-                        }
-                    )
-                    .Padding(Px(10))
-                    .Background(activitySelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
-                    .BorderColor(activitySelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
-                    .TextColor(Rgb(255, 255, 255)),
-                ui.Button("show-tables", "Virtual table")
-                    .OnClick(
-                        this,
-                        (view, _) =>
-                        {
-                            view._page = SamplePage.Tables;
-                            view.Invalidate();
-                        }
-                    )
-                    .Padding(Px(10))
-                    .Background(tablesSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
-                    .BorderColor(tablesSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
-                    .TextColor(Rgb(255, 255, 255)),
-                ui.Button("show-images", "Images")
-                    .OnClick(
-                        this,
-                        (view, _) =>
-                        {
-                            view._page = SamplePage.Images;
-                            view.Invalidate();
-                        }
-                    )
-                    .Padding(Px(10))
-                    .Background(imagesSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
-                    .BorderColor(imagesSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
-                    .TextColor(Rgb(255, 255, 255)),
-                ui.Button("show-inputs", "Inputs")
-                    .OnClick(
-                        this,
-                        (view, _) =>
-                        {
-                            view._page = SamplePage.Inputs;
-                            view.Invalidate();
-                        }
-                    )
-                    .Padding(Px(10))
-                    .Background(inputsSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
-                    .BorderColor(inputsSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
-                    .TextColor(Rgb(255, 255, 255)),
-                ui.Button("show-overlays", "Overlays + tooltips")
-                    .OnClick(
-                        this,
-                        (view, _) =>
-                        {
-                            view._page = SamplePage.Overlays;
-                            view.Invalidate();
-                        }
-                    )
-                    .Padding(Px(10))
-                    .Background(overlaysSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
-                    .BorderColor(overlaysSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
-                    .TextColor(Rgb(255, 255, 255)),
-                ui.Button("show-windows", "Windows")
-                    .OnClick(
-                        this,
-                        (view, _) =>
-                        {
-                            view._page = SamplePage.Windows;
-                            view.Invalidate();
-                        }
-                    )
-                    .Padding(Px(10))
-                    .Background(windowsSelected ? Rgb(79, 70, 229) : Rgb(15, 23, 42))
-                    .BorderColor(windowsSelected ? Rgb(129, 140, 248) : Rgb(51, 65, 85))
-                    .TextColor(Rgb(255, 255, 255)),
+                ui.Text("SIDEBAR"u8)
+                    .FontSize(Px(theme.Typography.Caption))
+                    .TextColor(theme.Colors.TextPlaceholder),
+                ui.Divider().Background(theme.Colors.TitleBarHover),
+                NavigationButton(ref ui, "show-overview", "Scroll view", SamplePage.Overview),
+                NavigationButton(ref ui, "show-activity", "Virtual list", SamplePage.Activity),
+                NavigationButton(ref ui, "show-tables", "Virtual table", SamplePage.Tables),
+                NavigationButton(ref ui, "show-images", "Images", SamplePage.Images),
+                NavigationButton(ref ui, "show-inputs", "Inputs", SamplePage.Inputs),
+                NavigationButton(
+                    ref ui,
+                    "show-overlays",
+                    "Overlays + tooltips",
+                    SamplePage.Overlays
+                ),
+                NavigationButton(ref ui, "show-windows", "Windows", SamplePage.Windows),
                 ui.Spacer(),
                 ui.Text("The keyed content slot replaces its View type when the route changes."u8)
-                    .FontSize(Px(11))
-                    .TextColor(Rgb(100, 116, 139))
+                    .FontSize(Px(theme.Typography.Caption))
+                    .TextColor(theme.Colors.TextPlaceholder)
             )
             .Gap(Px(10))
             .Padding(Px(18))
             .Width(Px(220))
             .Height(Percent(100))
-            .Background(Rgb(15, 23, 42));
+            .Background(theme.Colors.PanelBackground);
     }
+
+    private Element NavigationButton(
+        ref RenderContext ui,
+        string id,
+        string title,
+        SamplePage page
+    ) => ui
+        .Button(id, title)
+        .OnClick(this, (view, _) => view.ShowPage(page))
+        .Padding(Px(10))
+        .FontSize(Px(ui.Theme.Typography.Button))
+        .Background(
+            _page == page ? ui.Theme.Colors.Accent : ui.Theme.Colors.TitleBarBackground
+        )
+        .HoverBackground(ui.Theme.Colors.TitleBarHover)
+        .BorderWidth(Px(1))
+        .BorderColor(
+            _page == page ? ui.Theme.Colors.BorderFocused : ui.Theme.Colors.TitleBarHover
+        )
+        .TextColor(ui.Theme.Colors.TitleBarText);
 
     private Element RenderWindowGallery(ref RenderContext ui) =>
         ui.VStack(
@@ -306,29 +275,36 @@ internal sealed partial class SampleShellView : View
                         ui.Text(
                                 "Open a genuinely different root view in the same GPUI application."u8
                             )
-                            .FontSize(Px(18))
-                            .TextColor(Rgb(15, 23, 42)),
+                            .FontSize(Px(ui.Theme.Typography.Heading))
+                            .TextColor(ui.Theme.Colors.Text),
                         ui.Text(
                                 "Each window owns its render tree, resources, controls, and failure boundary. Closing the companion leaves this gallery running."u8
                             )
-                            .FontSize(Px(13))
-                            .TextColor(Rgb(71, 85, 105)),
+                            .FontSize(Px(ui.Theme.Typography.BodySmall))
+                            .TextColor(ui.Theme.Colors.TextMuted),
                         ui.HStack(
                                 ui.Button("open-companion-window", "System title bar")
                                     .OnClick(this, (view, _) => view.OpenNewWindow())
                                     .Padding(Px(11))
-                                    .Background(Rgb(79, 70, 229))
-                                    .BorderColor(Rgb(67, 56, 202))
-                                    .TextColor(Rgb(255, 255, 255)),
+                                    .FontSize(Px(ui.Theme.Typography.Button))
+                                    .Background(ui.Theme.Colors.Accent)
+                                    .HoverBackground(ui.Theme.Colors.BorderSelected)
+                                    .BorderWidth(Px(1))
+                                    .BorderColor(ui.Theme.Colors.BorderSelected)
+                                    .TextColor(ui.Theme.Colors.TitleBarText),
                                 ui.Button("open-custom-titlebar", "Custom title bar")
                                     .OnClick(this, (view, _) => view.OpenCustomTitleBarWindow())
                                     .Padding(Px(11))
-                                    .Background(Rgb(15, 23, 42))
-                                    .BorderColor(Rgb(51, 65, 85))
-                                    .TextColor(Rgb(255, 255, 255)),
+                                    .FontSize(Px(ui.Theme.Typography.Button))
+                                    .Background(ui.Theme.Colors.TitleBarBackground)
+                                    .HoverBackground(ui.Theme.Colors.TitleBarHover)
+                                    .BorderWidth(Px(1))
+                                    .BorderColor(ui.Theme.Colors.TitleBarHover)
+                                    .TextColor(ui.Theme.Colors.TitleBarText),
                                 ui.Badge(ui.Text($"Gallery window ID: {Window?.Id ?? 0}"))
-                                    .Background(Rgb(224, 231, 255))
-                                    .TextColor(Rgb(67, 56, 202))
+                                    .FontSize(Px(ui.Theme.Typography.Caption))
+                                    .Background(ui.Theme.Colors.InfoBackground)
+                                    .TextColor(ui.Theme.Colors.Info)
                                     .Padding(Px(8))
                             )
                             .Gap(Px(10))
@@ -336,15 +312,15 @@ internal sealed partial class SampleShellView : View
                     )
                     .Gap(Px(14))
                     .Padding(Px(22))
-                    .Background(Rgb(255, 255, 255))
+                    .Background(ui.Theme.Colors.SurfaceBackground)
                     .BorderWidth(Px(1))
-                    .BorderColor(Rgb(226, 232, 240))
+                    .BorderColor(ui.Theme.Colors.BorderVariant)
                     .Radius(Px(12)),
                 ui.Text(
                         "The custom variant uses native drag/minimize/maximize/close hit-test regions while its visuals remain managed."u8
                     )
-                    .FontSize(Px(12))
-                    .TextColor(Rgb(100, 116, 139))
+                    .FontSize(Px(ui.Theme.Typography.Detail))
+                    .TextColor(ui.Theme.Colors.TextMuted)
             )
             .Gap(Px(14))
             .Grow();

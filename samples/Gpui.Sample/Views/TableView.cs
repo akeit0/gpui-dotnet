@@ -1,5 +1,4 @@
 using Gpui;
-using static Gpui.Colors;
 using static Gpui.Units;
 
 [GpuiView]
@@ -38,15 +37,17 @@ internal sealed partial class TableView : View
     [GpuiListItem]
     private Element ServiceRow(int index, ref RenderContext ui)
     {
+        var theme = ui.Theme;
+        var colors = theme.Colors;
         var selected = index == _selected;
         var status =
             index % 11 == 0 ? "degraded"
             : index % 3 == 0 ? "draining"
             : "healthy";
         var statusColor =
-            status == "healthy" ? Rgb(21, 128, 61)
-            : status == "draining" ? Rgb(180, 83, 9)
-            : Rgb(185, 28, 28);
+            status == "healthy" ? colors.Success
+            : status == "draining" ? colors.Warning
+            : colors.Error;
 
         // Cells compose inside an explicit horizontal container: divs are block by default,
         // so the row must declare its own row layout. The cell widths reconcile against this
@@ -54,10 +55,25 @@ internal sealed partial class TableView : View
         return ui.Button(
                 "service-row",
                 ui.HStack(
-                        ui.TableCell(0, ui.Text($"svc-{index:D4}").TextColor(Rgb(15, 23, 42))),
-                        ui.TableCell(1, ui.Text(Region(index)).TextColor(Rgb(71, 85, 105))),
+                        ui.TableCell(
+                            0,
+                            ui.Text($"svc-{index:D4}")
+                                .FontSize(Px(theme.Typography.BodySmall))
+                                .TextColor(colors.Text)
+                        ),
+                        ui.TableCell(
+                            1,
+                            ui.Text(Region(index))
+                                .FontSize(Px(theme.Typography.Detail))
+                                .TextColor(colors.TextMuted)
+                        ),
                         ui.TableCell(2, ui.Text(status).TextColor(statusColor)),
-                        ui.TableCell(3, ui.Text(Throughput(index)).TextColor(Rgb(51, 65, 85)))
+                        ui.TableCell(
+                            3,
+                            ui.Text(Throughput(index))
+                                .FontSize(Px(theme.Typography.Detail))
+                                .TextColor(colors.TextMuted)
+                        )
                     )
                     .Width(Percent(100))
             )
@@ -65,19 +81,23 @@ internal sealed partial class TableView : View
             .OnClick(this, (view, e) => view.SelectRow(e))
             .Width(Percent(100))
             .Padding(Px(selected ? 12 : 9))
-            .Background(selected ? Rgb(224, 231, 255) : Rgb(255, 255, 255))
-            .BorderColor(selected ? Rgb(99, 102, 241) : Rgb(226, 232, 240))
+            .Background(selected ? colors.ElementSelected : colors.SurfaceBackground)
+            .BorderColor(selected ? colors.BorderSelected : colors.BorderVariant)
+            .TextColor(selected ? colors.TextAccent : colors.Text)
             .BorderWidth(Px(1));
     }
 
     protected override Element Render(ref RenderContext ui)
     {
+        var theme = ui.Theme;
         var header = ui.HStack(
-                ui.Text($"{ItemCount:N0} services").FontSize(Px(14)).TextColor(Rgb(30, 41, 59)),
+                ui.Text($"{ItemCount:N0} services")
+                    .FontSize(Px(theme.Typography.Body))
+                    .TextColor(theme.Colors.Text),
                 ui.Spacer(),
                 ui.Badge(ui.Text(_selected < 0 ? "select a row" : $"selected: svc-{_selected:D4}"))
-                    .Background(Rgb(224, 231, 255))
-                    .TextColor(Rgb(67, 56, 202))
+                    .Background(theme.Colors.InfoBackground)
+                    .TextColor(theme.Colors.Info)
                     .Padding(Px(7))
             )
             .ItemsCenter();
@@ -96,8 +116,8 @@ internal sealed partial class TableView : View
             )
             .Grow()
             .Width(Percent(100))
-            .Background(Rgb(255, 255, 255))
-            .BorderColor(Rgb(226, 232, 240))
+            .Background(theme.Colors.SurfaceBackground)
+            .BorderColor(theme.Colors.BorderVariant)
             .BorderWidth(Px(1))
             .Radius(Px(8));
 

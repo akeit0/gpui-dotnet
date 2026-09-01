@@ -1,5 +1,4 @@
 using Gpui;
-using static Gpui.Colors;
 using static Gpui.Units;
 
 [GpuiView]
@@ -7,8 +6,12 @@ internal sealed partial class RouteHeaderView : View<RouteHeaderProps>
 {
     protected override Element Render(ref RenderContext ui) =>
         ui.VStack(
-                ui.Text(Props.Title).FontSize(Px(18)).TextColor(Rgb(15, 23, 42)),
-                ui.Text(Props.Detail).FontSize(Px(12)).TextColor(Rgb(100, 116, 139))
+                ui.Text(Props.Title)
+                    .FontSize(Px(ui.Theme.Typography.Heading))
+                    .TextColor(ui.Theme.Colors.Text),
+                ui.Text(Props.Detail)
+                    .FontSize(Px(ui.Theme.Typography.Detail))
+                    .TextColor(ui.Theme.Colors.TextMuted)
             )
             .Gap(Px(3));
 }

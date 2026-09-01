@@ -25,8 +25,8 @@ Interactive elements can use `HoverBackground(Color)` for an explicit native hov
 `GpuiTitleBar.RenderWindow(ref ui, title, menus, content)` is the library convenience for a
 custom window that uses the same `GpuiMenu` definitions as `GpuiApplication.SetMenuBar`. Windows
 and Linux render a minimal app-side menu bar with trigger-attached `PopoverMenu` layers and native
-caption hit-test regions. On macOS, the default system-title-bar path returns `content` unchanged
-and leaves the menu in AppKit's global menu bar. The helper does not change a window's
+caption hit-test regions. On macOS, the default system-title-bar path keeps the menu in AppKit's
+global menu bar and places the content in a full-height layout parent. The helper does not change a window's
 `TitleBarStyle`, so the caller still chooses `Custom` explicitly on platforms where it renders
 managed chrome. Pass `new GpuiTitleBarOptions(forceManagedMenuOnMac: true)` to force the managed
 title/menu path on macOS; in that mode, do not also install the same menus with `SetMenuBar`.
@@ -34,6 +34,32 @@ title/menu path on macOS; in that mode, do not also install the same menus with 
 The helper is intentionally replaceable. Applications that need different menu placement,
 styling, keyboard behavior, or item roles can compose `PopoverMenu`, `Button`, and
 `WindowControlArea` directly.
+
+## Themes
+
+`GpuiTheme` is the managed semantic color layer used by framework components and application
+views. It follows GPUI Component/Zed's core vocabulary: borders, grounded/elevated surfaces,
+element states, text and icon emphasis, status colors, title-bar colors, and shared typography
+sizes. A theme can be built
+with `new GpuiTheme(...)` and `GpuiThemeColors` object initialization, or loaded with
+`GpuiTheme.LoadJson(path)`.
+
+```csharp
+application.SetTheme(GpuiTheme.LoadJson("themes/solarized.json"));
+
+protected override Element Render(ref RenderContext ui) =>
+    ui.VStack(
+        ui.Text("Themed content").TextColor(ui.Theme.Colors.Text),
+        ui.Button("action", "Action")
+            .Background(ui.Theme.Colors.ElementBackground)
+            .HoverBackground(ui.Theme.Colors.ElementHover)
+            .BorderColor(ui.Theme.Colors.Border));
+```
+
+JSON accepts flat `colors`, nested `colors`, or Zed-style `style` objects. Canonical Zed color
+keys such as `surface.background`, `element.hover`, and `text.muted` are accepted alongside C#
+property-style aliases. Unspecified values inherit appearance-specific defaults. The active theme
+is available in all managed render contexts, including virtualized list row rendering.
 
 ## Snapshot component adapters
 

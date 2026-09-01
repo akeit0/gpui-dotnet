@@ -10,6 +10,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         ReferenceEqualityComparer.Instance;
 
     private readonly NativeRuntime _runtime;
+    private readonly GpuiApplication _application;
     private readonly ulong _sessionId;
     private readonly ConcurrentQueue<Action> _posted = new();
     private readonly HashSet<View> _attachedViews = new(ViewIdentity);
@@ -30,9 +31,15 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     private int _notifyAfterRender;
     private int _stopped;
 
-    internal ManagedSession(NativeRuntime runtime, ulong sessionId, View view)
+    internal ManagedSession(
+        NativeRuntime runtime,
+        GpuiApplication application,
+        ulong sessionId,
+        View view
+    )
     {
         _runtime = runtime;
+        _application = application;
         _sessionId = sessionId;
         RootView = view;
         SynchronizationContext = new GpuiSynchronizationContext(this);

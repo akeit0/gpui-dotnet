@@ -1,5 +1,4 @@
 using Gpui;
-using static Gpui.Colors;
 using static Gpui.Units;
 
 [GpuiView]
@@ -33,6 +32,7 @@ internal sealed partial class ActivityView : View
     [GpuiListItem]
     private Element ActivityRow(int index, ref RenderContext ui)
     {
+        var colors = ui.Theme.Colors;
         var selected = index == _selected;
         var heightHint = index % 7 == 0 ? "variable height" : "normal row";
 
@@ -45,15 +45,18 @@ internal sealed partial class ActivityView : View
                     : 9
                 )
             )
-            .Background(selected ? Rgb(224, 231, 255) : Rgb(255, 255, 255))
-            .BorderColor(selected ? Rgb(99, 102, 241) : Rgb(226, 232, 240))
-            .TextColor(selected ? Rgb(55, 48, 163) : Rgb(30, 41, 59));
+            .Background(selected ? colors.ElementSelected : colors.SurfaceBackground)
+            .BorderColor(selected ? colors.BorderSelected : colors.BorderVariant)
+            .TextColor(selected ? colors.TextAccent : colors.Text);
     }
 
     protected override Element Render(ref RenderContext ui)
     {
+        var theme = ui.Theme;
         var header = ui.HStack(
-                ui.Text($"{ItemCount:N0} virtual rows").FontSize(Px(14)).TextColor(Rgb(30, 41, 59)),
+                ui.Text($"{ItemCount:N0} virtual rows")
+                    .FontSize(Px(theme.Typography.Body))
+                    .TextColor(theme.Colors.Text),
                 ui.Spacer(),
                 ui.Button("jump-middle", "Jump to 10,000")
                     .OnClick(this, (view, _) => view._list.ScrollToItem(ItemCount / 2))

@@ -14,7 +14,7 @@ internal sealed unsafe partial class ManagedSession
             var completed = false;
             try
             {
-                var ui = new RenderContext(arena, this, RootView);
+                var ui = new RenderContext(arena, this, RootView, _application.Theme);
                 var element = RootView.RenderCore(ref ui);
                 ManagedValidator.Validate(arena, element);
                 CompleteComposition(RootView);
@@ -73,7 +73,7 @@ internal sealed unsafe partial class ManagedSession
         var completed = false;
         try
         {
-            var ui = new RenderContext(arena);
+            var ui = new RenderContext(arena, theme: _application.Theme);
             var batchRoot = ui.Div();
             for (uint offset = 0; offset < count; offset++)
             {

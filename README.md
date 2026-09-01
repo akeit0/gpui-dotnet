@@ -92,8 +92,8 @@ application.SetMenuBar(
 On macOS, GPUI installs these definitions in AppKit's global application menu and routes each
 selection back to the managed callback. Use the same definitions in a custom title bar with
 `GpuiTitleBar.RenderWindow`; Windows and Linux get minimally styled app-side popovers, while
-macOS's default system-title-bar path leaves the content unchanged and keeps the menu in AppKit's
-global menu bar. The helper is only a convenience: `PopoverMenu`, `Button`, and
+macOS's default system-title-bar path keeps the menu in AppKit's global menu bar and still gives
+the managed content a full-height layout parent. The helper is only a convenience: `PopoverMenu`, `Button`, and
 `WindowControlArea` remain available for fully manual title-bar layouts. To force the managed
 menu/title path on macOS, pass `new GpuiTitleBarOptions(forceManagedMenuOnMac: true)` and do not
 also install the same menu in AppKit. Nested submenus are supported with
@@ -106,6 +106,59 @@ application.SetMenuBar(menus);
 protected override Element Render(ref RenderContext ui) =>
     GpuiTitleBar.RenderWindow(ref ui, "My application"u8, menus, content);
 ```
+
+### Themes
+
+Themes are application-scoped semantic color tokens. Configure one in code and install it before
+or during `Run`; every managed render context then exposes the current theme as `ui.Theme`. The
+theme also carries typography tokens such as `Heading`, `Body`, `Detail`, and `Caption`:
+
+```csharp
+application.SetTheme(
+    new GpuiTheme(
+        "Ocean",
+        new GpuiThemeColors
+        {
+            Background = Colors.Hex("#07111F"),
+            SurfaceBackground = Colors.Hex("#0F2035"),
+            Text = Colors.Hex("#E0F2FE"),
+            TextMuted = Colors.Hex("#7DD3FC"),
+            Accent = Colors.Hex("#22D3EE"),
+            ElementHover = Colors.Hex("#12304A"),
+        },
+        GpuiThemeAppearance.Dark));
+
+protected override Element Render(ref RenderContext ui) =>
+    ui.Div()
+        .Background(ui.Theme.Colors.Background)
+        .TextColor(ui.Theme.Colors.Text);
+```
+
+`Colors.Hex` accepts `#RGB`, `#RGBA`, `#RRGGBB`, and `#RRGGBBAA`. JSON settings use the same
+semantic names:
+
+```json
+{
+  "name": "Ocean",
+  "appearance": "dark",
+  "colors": {
+    "background": "#07111F",
+    "surface.background": "#0F2035",
+    "text": "#E0F2FE",
+    "text.muted": "#7DD3FC",
+    "accent": "#22D3EE",
+    "element.hover": "#12304A"
+  }
+}
+```
+
+```csharp
+application.SetTheme(GpuiTheme.LoadJson("theme.json"));
+```
+
+`GpuiTheme.FromJson` and `LoadJson` also accept a Zed-style theme family (`themes` plus each
+theme's `style` object); pass the optional theme name to select one. Missing colors inherit the
+light or dark defaults, and changing the active theme invalidates existing windows.
 
 ## Managed Views: framework ownership by default
 

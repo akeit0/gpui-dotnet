@@ -1,5 +1,4 @@
 using Gpui;
-using static Gpui.Colors;
 using static Gpui.Units;
 
 [GpuiView]
@@ -11,10 +10,11 @@ internal sealed partial class OverlayGalleryView : View
 
     protected override Element Render(ref RenderContext ui)
     {
+        var theme = ui.Theme;
         var page = ui.VStack(
                 ui.Text("Overlays are window-relative and paint after normal content."u8)
-                    .FontSize(Px(13))
-                    .TextColor(Rgb(71, 85, 105)),
+                    .FontSize(Px(theme.Typography.BodySmall))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.HStack(
                         ui.Button("open-dialog", "Open centered dialog")
                             .OnClick(
@@ -26,9 +26,9 @@ internal sealed partial class OverlayGalleryView : View
                                 }
                             )
                             .Padding(Px(10))
-                            .Background(Rgb(79, 70, 229))
-                            .BorderColor(Rgb(99, 102, 241))
-                            .TextColor(Rgb(255, 255, 255)),
+                            .Background(theme.Colors.Accent)
+                            .BorderColor(theme.Colors.BorderSelected)
+                            .TextColor(theme.Colors.TitleBarText),
                         ui.Button("open-sheet", "Open right sheet")
                             .OnClick(
                                 this,
@@ -57,29 +57,29 @@ internal sealed partial class OverlayGalleryView : View
                             ui.Button("hover-default", "Hover for details").Padding(Px(10)),
                             ui.VStack(
                                     ui.Text("Native tooltip"u8)
-                                        .FontSize(Px(13))
-                                        .TextColor(Rgb(255, 255, 255)),
+                                        .FontSize(Px(theme.Typography.BodySmall))
+                                        .TextColor(theme.Colors.TitleBarText),
                                     ui.Text(
                                             "Shows after 500 ms and stays open while you cross the gap."u8
                                         )
-                                        .FontSize(Px(11))
-                                        .TextColor(Rgb(203, 213, 225))
+                                        .FontSize(Px(theme.Typography.Caption))
+                                        .TextColor(theme.Colors.TextMuted)
                                 )
                                 .Gap(Px(5))
                                 .Padding(Px(10))
                                 .Width(Px(260))
-                                .Background(Rgb(15, 23, 42))
+                                .Background(theme.Colors.TitleBarBackground)
                                 .Radius(Px(8))
                         ),
                         ui.Tooltip(
                             "right-tooltip"u8,
                             ui.Button("hover-right", "Prefer right side").Padding(Px(10)),
-                            ui.Text("Flips and clamps when the preferred side does not fit."u8)
-                                .FontSize(Px(11))
-                                .TextColor(Rgb(255, 255, 255))
+                                ui.Text("Flips and clamps when the preferred side does not fit."u8)
+                                .FontSize(Px(theme.Typography.Caption))
+                                .TextColor(theme.Colors.TitleBarText)
                                 .Padding(Px(9))
                                 .Width(Px(220))
-                                .Background(Rgb(79, 70, 229))
+                                .Background(theme.Colors.Accent)
                                 .Radius(Px(8)),
                             new TooltipOptions(placement: TooltipPlacement.Right)
                         )
@@ -89,23 +89,23 @@ internal sealed partial class OverlayGalleryView : View
                         "content-context-menu"u8,
                         ui.VStack(
                                 ui.Text("Application context menu"u8)
-                                    .FontSize(Px(14))
-                                    .TextColor(Rgb(30, 41, 59)),
+                                    .FontSize(Px(theme.Typography.Body))
+                                    .TextColor(theme.Colors.Text),
                                 ui.Text("Right-click this card; title bars keep the OS menu."u8)
-                                    .FontSize(Px(12))
-                                    .TextColor(Rgb(100, 116, 139))
+                                    .FontSize(Px(theme.Typography.Detail))
+                                    .TextColor(theme.Colors.TextMuted)
                             )
                             .Gap(Px(6))
                             .Padding(Px(16))
                             .Width(Px(360))
-                            .Background(Rgb(255, 255, 255))
+                            .Background(theme.Colors.SurfaceBackground)
                             .BorderWidth(Px(1))
-                            .BorderColor(Rgb(203, 213, 225))
+                            .BorderColor(theme.Colors.Border)
                             .Radius(Px(10)),
                         ui.VStack(
                                 ui.Text("Content actions"u8)
-                                    .FontSize(Px(11))
-                                    .TextColor(Rgb(100, 116, 139))
+                                    .FontSize(Px(theme.Typography.Caption))
+                                    .TextColor(theme.Colors.TextMuted)
                                     .Padding(Px(7)),
                                 ui.Button(
                                         "run-context-action"u8,
@@ -121,20 +121,22 @@ internal sealed partial class OverlayGalleryView : View
                                     )
                                     .Width(Percent(100))
                                     .Padding(Px(9))
-                                    .Background(Rgb(255, 255, 255))
-                                    .BorderColor(Rgb(255, 255, 255))
+                                    .Background(theme.Colors.SurfaceBackground)
+                                    .BorderColor(theme.Colors.SurfaceBackground)
                             )
                             .Width(Px(220))
                             .Gap(Px(2))
                             .Padding(Px(6))
-                            .Background(Rgb(255, 255, 255))
+                            .Background(theme.Colors.ElevatedSurfaceBackground)
                             .BorderWidth(Px(1))
-                            .BorderColor(Rgb(203, 213, 225))
+                            .BorderColor(theme.Colors.Border)
                             .Radius(Px(8))
                     )
                     .Width(Px(360)),
                 ui.VStack(
-                        ui.Text("Interaction checks"u8).FontSize(Px(14)).TextColor(Rgb(30, 41, 59)),
+                        ui.Text("Interaction checks"u8)
+                            .FontSize(Px(theme.Typography.Body))
+                            .TextColor(theme.Colors.Text),
                         ui.Text(
                             "• Tooltips use deferred content and disappear on pointer press."u8
                         ),
@@ -146,9 +148,9 @@ internal sealed partial class OverlayGalleryView : View
                     )
                     .Gap(Px(8))
                     .Padding(Px(18))
-                    .Background(Rgb(255, 255, 255))
+                    .Background(theme.Colors.SurfaceBackground)
                     .BorderWidth(Px(1))
-                    .BorderColor(Rgb(226, 232, 240))
+                    .BorderColor(theme.Colors.BorderVariant)
                     .Radius(Px(12))
             )
             .Gap(Px(18))
@@ -163,7 +165,9 @@ internal sealed partial class OverlayGalleryView : View
         var title = isSheet ? "Window-edge sheet" : "Centered dialog";
         var panel = ui.VStack(
                 ui.HStack(
-                        ui.Text(title).FontSize(Px(18)).TextColor(Rgb(15, 23, 42)),
+                        ui.Text(title)
+                            .FontSize(Px(theme.Typography.Heading))
+                            .TextColor(theme.Colors.Text),
                         ui.Spacer(),
                         ui.Button("close-overlay", "Close")
                             .OnClick(
@@ -178,8 +182,8 @@ internal sealed partial class OverlayGalleryView : View
                     )
                     .ItemsCenter(),
                 ui.Text("This subtree is still ordinary semantic GPUI.NET content."u8)
-                    .FontSize(Px(12))
-                    .TextColor(Rgb(100, 116, 139)),
+                    .FontSize(Px(theme.Typography.Detail))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.Input(
                         "overlay-first-input"u8,
                         new Utf8InputOptions(placeholder: "First modal tab stop…"u8)
@@ -193,21 +197,21 @@ internal sealed partial class OverlayGalleryView : View
                     )
                     .Width(Percent(100)),
                 ui.Text("Escape is handled after focused child controls get the key first."u8)
-                    .FontSize(Px(12))
-                    .TextColor(Rgb(79, 70, 229))
+                    .FontSize(Px(theme.Typography.Detail))
+                    .TextColor(theme.Colors.TextAccent)
             )
             .Gap(Px(14))
             .Padding(Px(20))
             .Width(Px(isSheet ? 380 : 440))
             .Height(isSheet ? Percent(100) : Px(290))
-            .Background(Rgb(255, 255, 255))
+            .Background(theme.Colors.SurfaceBackground)
             .BorderWidth(Px(1))
-            .BorderColor(Rgb(203, 213, 225))
+            .BorderColor(theme.Colors.Border)
             .Radius(Px(14));
 
         var options = new OverlayOptions(
             margin: isSheet ? 12 : 24,
-            backdrop: Rgba(15, 23, 42, 150)
+            backdrop: theme.Colors.Background.WithAlpha(150)
         );
         var overlay = isSheet
             ? ui.Sheet("sample-overlay"u8, panel, SheetSide.Right, options)
