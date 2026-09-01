@@ -179,7 +179,8 @@ jobs:
               --version $version `
               --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet restore $smokeProject --source artifacts/packages --source $nugetSource
+          # Windows SDK/NuGet versions mis-parse an HTTPS source when a local source comes first.
+          dotnet restore $smokeProject --source $nugetSource --source artifacts/packages
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet build $smokeProject --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -254,7 +255,8 @@ jobs:
               --version $version `
               --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet restore $smokeProject --source artifacts/packages --source $nugetSource
+          # Windows SDK/NuGet versions mis-parse an HTTPS source when a local source comes first.
+          dotnet restore $smokeProject --source $nugetSource --source artifacts/packages
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet build $smokeProject --no-restore -p:ApplicationManifest=app.manifest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
