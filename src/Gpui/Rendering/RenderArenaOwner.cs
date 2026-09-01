@@ -65,7 +65,7 @@ public sealed unsafe class RenderArenaOwner : IDisposable
 
     internal RenderContext BeginRender(
         IViewRenderer views,
-        View owner,
+        ViewBase owner,
         GpuiTheme? theme = null
     )
     {

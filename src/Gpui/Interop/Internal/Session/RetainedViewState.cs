@@ -7,7 +7,7 @@ namespace Gpui.Interop.Internal.Session;
 /// </summary>
 internal sealed class RetainedViewState
 {
-    internal View? Parent;
+    internal ViewBase? Parent;
     internal RenderArenaOwner? Fragment;
     internal uint Root;
     internal long RequiredVersion = 1;
@@ -18,5 +18,5 @@ internal sealed class RetainedViewState
     internal Dictionary<ChildSlot, ChildEntry>? WorkingChildren;
     internal Dictionary<ChildSlot, ChildEntry>? StagedChildren;
     internal Dictionary<ChildSlot, ChildEntry>? Candidates;
-    internal HashSet<View>? WorkingViews;
+    internal HashSet<ViewBase>? WorkingViews;
 }

@@ -60,7 +60,7 @@ internal sealed unsafe partial class ManagedSession
         Attach(RootView);
     }
 
-    private void Attach(View view)
+    private void Attach(ViewBase view)
     {
         if (!_attachedViews.Add(view))
         {
@@ -101,7 +101,7 @@ internal sealed unsafe partial class ManagedSession
         }
     }
 
-    private void Detach(View view)
+    private void Detach(ViewBase view)
     {
         var handle = view.RuntimeViewHandle;
         Exception? lifecycleFailure = null;
@@ -137,7 +137,7 @@ internal sealed unsafe partial class ManagedSession
         }
     }
 
-    private RetainedViewState GetRenderState(View view)
+    private RetainedViewState GetRenderState(ViewBase view)
     {
         lock (_renderStateGate)
         {
@@ -150,7 +150,7 @@ internal sealed unsafe partial class ManagedSession
         }
     }
 
-    private void MarkDirty(View view)
+    private void MarkDirty(ViewBase view)
     {
         lock (_renderStateGate)
         {
@@ -159,7 +159,7 @@ internal sealed unsafe partial class ManagedSession
                 return;
             }
 
-            View? current = view;
+            ViewBase? current = view;
             while (current is not null)
             {
                 if (!_renderStates.TryGetValue(current, out var state))
@@ -244,6 +244,6 @@ internal sealed unsafe partial class ManagedSession
     private static Dictionary<ChildSlot, ChildEntry> GetCandidates(RetainedViewState state) =>
         state.Candidates ??= [];
 
-    private static HashSet<View> GetWorkingViews(RetainedViewState state) =>
-        state.WorkingViews ??= new HashSet<View>(ViewIdentity);
+    private static HashSet<ViewBase> GetWorkingViews(RetainedViewState state) =>
+        state.WorkingViews ??= new HashSet<ViewBase>(ViewIdentity);
 }

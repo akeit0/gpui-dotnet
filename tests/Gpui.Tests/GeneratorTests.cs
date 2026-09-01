@@ -34,6 +34,11 @@ public sealed class GeneratorTests
         );
         var generated = Assert.Single(result.GeneratedTrees).ToString();
         Assert.Contains("CreateGpuiView", generated, StringComparison.Ordinal);
+        Assert.Contains(
+            "IGeneratedViewFactory<GeneratedView>",
+            generated,
+            StringComparison.Ordinal
+        );
         Assert.DoesNotContain("GeneratedGpuiEvents", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("DispatchClickAsync", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("DispatchInputAsync", generated, StringComparison.Ordinal);
@@ -64,7 +69,136 @@ public sealed class GeneratorTests
         Assert.DoesNotContain("Save", generated, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void PropsViewsRequireThePropsChildOverloadAtCompileTime()
+    {
+        const string source = """
+            using Gpui;
+
+            public readonly record struct HeaderProps(string Title);
+
+            [GpuiView]
+            public sealed partial class HeaderView : View<HeaderProps>
+            {
+                protected override Element Render(ref RenderContext ui) => ui.Text(Props.Title);
+            }
+
+            [GpuiView]
+            public sealed partial class ParentView : View
+            {
+                protected override Element Render(ref RenderContext ui) => ui.Child<HeaderView>();
+            }
+            """;
+
+        var (_, output) = RunGeneratorAndUpdateCompilation(source);
+        var errors = output
+            .GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+
+        Assert.Contains(errors, diagnostic => diagnostic.Id == "CS0311");
+    }
+
+    [Fact]
+    public void NoPropsViewsRejectThePropsChildOverloadAtCompileTime()
+    {
+        const string source = """
+            using Gpui;
+
+            public readonly record struct HeaderProps(string Title);
+
+            [GpuiView]
+            public sealed partial class PlainView : View
+            {
+                protected override Element Render(ref RenderContext ui) => ui.Div();
+            }
+
+            [GpuiView]
+            public sealed partial class ParentView : View
+            {
+                protected override Element Render(ref RenderContext ui) =>
+                    ui.Child<PlainView, HeaderProps>(new("Invalid"));
+            }
+            """;
+
+        var (_, output) = RunGeneratorAndUpdateCompilation(source);
+        var errors = output
+            .GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+
+        Assert.Contains(errors, diagnostic => diagnostic.Id == "CS0311");
+    }
+
+    [Fact]
+    public void PropsViewsCannotBeWindowRootsAtCompileTime()
+    {
+        const string source = """
+            using Gpui;
+
+            public readonly record struct HeaderProps(string Title);
+
+            [GpuiView]
+            public sealed partial class HeaderView : View<HeaderProps>
+            {
+                protected override Element Render(ref RenderContext ui) => ui.Text(Props.Title);
+            }
+
+            public static class Bootstrap
+            {
+                public static void Open() =>
+                    new GpuiApplication().OpenWindow(new HeaderView());
+            }
+            """;
+
+        var (_, output) = RunGeneratorAndUpdateCompilation(source);
+        var errors = output
+            .GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+
+        Assert.Contains(errors, diagnostic => diagnostic.Id == "CS1503");
+    }
+
+    [Fact]
+    public void PropsViewsUseTheSharedFactoryAndCompileWithRequiredProps()
+    {
+        const string source = """
+            using Gpui;
+
+            public readonly record struct HeaderProps(string Title);
+
+            [GpuiView]
+            public sealed partial class HeaderView : View<HeaderProps>
+            {
+                protected override Element Render(ref RenderContext ui) => ui.Text(Props.Title);
+            }
+
+            [GpuiView]
+            public sealed partial class ParentView : View
+            {
+                protected override Element Render(ref RenderContext ui) =>
+                    ui.Child<HeaderView, HeaderProps>("header", new("Overview"));
+            }
+            """;
+
+        var (result, output) = RunGeneratorAndUpdateCompilation(source);
+        var generated = string.Join("\n", result.GeneratedTrees.Select(tree => tree.ToString()));
+
+        Assert.DoesNotContain(
+            output.GetDiagnostics(TestContext.Current.CancellationToken),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        Assert.Contains("IGeneratedViewFactory<HeaderView>", generated, StringComparison.Ordinal);
+    }
+
     private static GeneratorDriverRunResult RunGenerator(string source)
+    {
+        var (result, _) = RunGeneratorAndUpdateCompilation(source);
+        return result;
+    }
+
+    private static (
+        GeneratorDriverRunResult Result,
+        Compilation Output
+    ) RunGeneratorAndUpdateCompilation(string source)
     {
         var references = ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES"))!
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
@@ -85,7 +219,7 @@ public sealed class GeneratorTests
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
         );
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new GpuiViewGenerator());
-        driver = driver.RunGenerators(compilation);
-        return driver.GetRunResult();
+        driver = driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+        return (driver.GetRunResult(), output);
     }
 }

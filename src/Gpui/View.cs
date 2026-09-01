@@ -10,36 +10,37 @@ internal enum ViewEventBindingScope
 }
 
 internal delegate void Utf8InputValueDispatcher(
-    View owner,
+    ViewBase owner,
     ReadOnlySpan<byte> utf8Key,
     ReadOnlySpan<byte> utf8Value
 );
 
 /// <summary>
-/// Implemented by the source generator for every <see cref="GpuiViewAttribute"/> view. The
-/// runtime uses the static factory to create framework-owned children without reflection or
-/// Activator.CreateInstance, preserving NativeAOT/trimming friendliness.
+/// Implemented by the source generator for every managed view. The runtime uses the static factory
+/// to create framework-owned children without reflection or Activator.CreateInstance, preserving
+/// NativeAOT/trimming friendliness.
 /// </summary>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public interface IGeneratedViewFactory<TSelf>
-    where TSelf : View
+    where TSelf : ViewBase
 {
     static abstract TSelf CreateGpuiView();
 }
 
 /// <summary>
-/// Managed application unit. C# owns durable application state and Rust owns GPUI objects,
-/// native render state, and frame-sensitive work.
+/// Common runtime base for <see cref="View"/> and <see cref="View{TProps}"/>. Applications inherit
+/// one of those two concrete API shapes rather than inheriting this class directly.
 /// </summary>
-public abstract class View
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
+public abstract class ViewBase
 {
     private const uint DynamicEventBit = 0x8000_0000u;
     private const uint DynamicEventEntryMask = 0x7FFF_FFFFu;
 
     [ThreadStatic]
-    private static View? _currentEventBindingOwner;
+    private static ViewBase? _currentEventBindingOwner;
 
-    internal static View? CurrentEventBindingOwner
+    internal static ViewBase? CurrentEventBindingOwner
     {
         get => _currentEventBindingOwner;
         set => _currentEventBindingOwner = value;
@@ -102,8 +103,8 @@ public abstract class View
     private readonly List<EventEntry> _eventEntries = [];
     private readonly Stack<int> _freeEventIds = new();
     private Action<Action>? _post;
-    private Action<View>? _invalidate;
-    private Action<View, ResourceCommand>? _resourceCommand;
+    private Action<ViewBase>? _invalidate;
+    private Action<ViewBase, ResourceCommand>? _resourceCommand;
     private Utf8InputValueDispatcher? _utf8InputValue;
     private CancellationTokenSource? _mountLifetime;
     private uint _runtimeViewHandle;
@@ -113,7 +114,7 @@ public abstract class View
     private int _mounted;
     private ulong _nextResourceKeyId;
 
-    protected View() => Dispatcher = new Dispatcher(this);
+    private protected ViewBase() => Dispatcher = new Dispatcher(this);
 
     /// <summary>Posts managed work to this view's GPUI UI thread.</summary>
     protected internal Dispatcher Dispatcher { get; }
@@ -166,34 +167,36 @@ public abstract class View
     /// recyclable per-View entry, so the native token remains compact and stable across renders.
     /// </summary>
     internal ulong BindClick<TView>(Action<TView, ClickEvent> callback)
-        where TView : View => BindDynamicEvent(this, callback, ClickEventBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(this, callback, ClickEventBinder<TView>.Index);
 
     internal ulong BindClick<TView>(Func<TView, ClickEvent, ValueTask> callback)
-        where TView : View => BindDynamicEvent(this, callback, ClickEventAsyncBinder<TView>.Index);
+        where TView : ViewBase =>
+        BindDynamicEvent(this, callback, ClickEventAsyncBinder<TView>.Index);
 
     internal ulong BindClick<TView>(Func<TView, ClickEvent, Task> callback)
-        where TView : View => BindDynamicEvent(this, callback, ClickEventTaskBinder<TView>.Index);
+        where TView : ViewBase =>
+        BindDynamicEvent(this, callback, ClickEventTaskBinder<TView>.Index);
 
     /// <summary>Registers a typed input callback on this mounted View.</summary>
     internal ulong BindInput<TView>(Action<TView, InputEvent> callback)
-        where TView : View => BindDynamicEvent(this, callback, InputBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(this, callback, InputBinder<TView>.Index);
 
     internal ulong BindInput<TView>(Func<TView, InputEvent, ValueTask> callback)
-        where TView : View => BindDynamicEvent(this, callback, InputAsyncBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(this, callback, InputAsyncBinder<TView>.Index);
 
     internal ulong BindInput<TView>(Func<TView, InputEvent, Task> callback)
-        where TView : View => BindDynamicEvent(this, callback, InputTaskBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(this, callback, InputTaskBinder<TView>.Index);
 
     internal ulong BindSlider<TView>(Action<TView, SliderEvent> callback)
-        where TView : View => BindDynamicEvent(this, callback, SliderBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(this, callback, SliderBinder<TView>.Index);
 
     internal ulong BindSlider<TView>(Func<TView, SliderEvent, ValueTask> callback)
-        where TView : View => BindDynamicEvent(this, callback, SliderAsyncBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(this, callback, SliderAsyncBinder<TView>.Index);
 
     internal ulong BindSlider<TView>(Func<TView, SliderEvent, Task> callback)
-        where TView : View => BindDynamicEvent(this, callback, SliderTaskBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(this, callback, SliderTaskBinder<TView>.Index);
 
-    private ulong BindDynamicEvent(View target, Delegate callback, int binderIndex)
+    private ulong BindDynamicEvent(ViewBase target, Delegate callback, int binderIndex)
     {
         return (_currentEventBindingOwner ?? this).BindDynamicEventCore(
             target,
@@ -202,7 +205,7 @@ public abstract class View
         );
     }
 
-    private ulong BindDynamicEventCore(View target, Delegate callback, int binderIndex)
+    private ulong BindDynamicEventCore(ViewBase target, Delegate callback, int binderIndex)
     {
         var viewHandle = Volatile.Read(ref _runtimeViewHandle);
         if (viewHandle == 0 || Volatile.Read(ref _mounted) == 0)
@@ -483,13 +486,17 @@ public abstract class View
     internal uint RuntimeViewHandle => Volatile.Read(ref _runtimeViewHandle);
     internal bool IsMountedCore => Volatile.Read(ref _mounted) != 0;
 
-    internal virtual bool RequiresProps => false;
+    internal virtual void AcceptRenderedProps() { }
+
+    internal virtual void CommitStagedProps() { }
+
+    internal virtual void RollBackStagedProps() { }
 
     internal void AttachRuntime(
         uint viewHandle,
         Action<Action> post,
-        Action<View> invalidate,
-        Action<View, ResourceCommand> resourceCommand,
+        Action<ViewBase> invalidate,
+        Action<ViewBase, ResourceCommand> resourceCommand,
         Utf8InputValueDispatcher utf8InputValue
     )
     {
@@ -712,7 +719,7 @@ public abstract class View
     }
 
     private static class ClickEventBinder<TView>
-        where TView : View
+        where TView : ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
@@ -737,7 +744,7 @@ public abstract class View
     }
 
     private static class ClickEventAsyncBinder<TView>
-        where TView : View
+        where TView : ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
@@ -761,7 +768,7 @@ public abstract class View
     }
 
     private static class ClickEventTaskBinder<TView>
-        where TView : View
+        where TView : ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
@@ -785,7 +792,7 @@ public abstract class View
     }
 
     private static class InputBinder<TView>
-        where TView : View
+        where TView : ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
@@ -810,7 +817,7 @@ public abstract class View
     }
 
     private static class InputAsyncBinder<TView>
-        where TView : View
+        where TView : ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
@@ -834,7 +841,7 @@ public abstract class View
     }
 
     private static class InputTaskBinder<TView>
-        where TView : View
+        where TView : ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
@@ -858,7 +865,7 @@ public abstract class View
     }
 
     private static class SliderBinder<TView>
-        where TView : View
+        where TView : ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
@@ -883,7 +890,7 @@ public abstract class View
     }
 
     private static class SliderAsyncBinder<TView>
-        where TView : View
+        where TView : ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
@@ -907,7 +914,7 @@ public abstract class View
     }
 
     private static class SliderTaskBinder<TView>
-        where TView : View
+        where TView : ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
@@ -936,7 +943,7 @@ public abstract class View
         );
 
     private static ValueTask WrongTarget<TView>(object target, string eventType)
-        where TView : View =>
+        where TView : ViewBase =>
         ValueTask.FromException(
             new InvalidOperationException(
                 $"The {eventType} callback requires target type {typeof(TView).FullName}, "
@@ -953,61 +960,97 @@ public abstract class View
 }
 
 /// <summary>
+/// Managed application unit without parent-supplied props. C# owns durable application state and
+/// Rust owns GPUI objects, native render state, and frame-sensitive work.
+/// </summary>
+public abstract class View : ViewBase { }
+
+/// <summary>
 /// View with parent-supplied render inputs. Props are updated before mount/render and are compared
 /// using EqualityComparer&lt;TProps&gt;.Default; changed props invalidate only this child's retained
 /// fragment, not the whole application tree.
 /// </summary>
-public abstract class View<TProps> : View
+public abstract class View<TProps> : ViewBase
 {
-    private TProps _props = default!;
-    private bool _hasProps;
+    private TProps _committedProps = default!;
+    private TProps _stagedProps = default!;
+    private TProps _renderedProps = default!;
+    private bool _hasCommittedProps;
+    private bool _hasStagedProps;
+    private bool _hasRenderedProps;
 
-    /// <summary>The most recently committed-or-staged props supplied by the parent.</summary>
+    /// <summary>
+    /// The props for the active render, or the most recently committed props outside rendering.
+    /// </summary>
     protected ref readonly TProps Props
     {
         get
         {
-            if (!_hasProps)
+            if (_hasStagedProps)
             {
-                throw new InvalidOperationException(
-                    $"{GetType().Name} requires props. Render it with ui.Child<TView, TProps>(...)."
-                );
+                return ref _stagedProps;
             }
-            return ref _props;
+            if (_hasCommittedProps)
+            {
+                return ref _committedProps;
+            }
+            throw new InvalidOperationException(
+                $"{GetType().Name} requires props. Render it with ui.Child<TView, TProps>(...)."
+            );
         }
     }
 
-    internal override bool RequiresProps => true;
-
-    internal bool ApplyProps(in TProps props)
+    internal bool StageProps(in TProps props)
     {
-        var changed = !_hasProps || !EqualityComparer<TProps>.Default.Equals(_props, props);
-        _props = props;
-        _hasProps = true;
-        return changed;
+        _stagedProps = props;
+        _hasStagedProps = true;
+        return !_hasRenderedProps
+            || !EqualityComparer<TProps>.Default.Equals(_renderedProps, props);
+    }
+
+    internal override void AcceptRenderedProps()
+    {
+        if (!_hasStagedProps)
+        {
+            throw new InvalidOperationException(
+                $"{GetType().Name} was rendered without staging its required props."
+            );
+        }
+        _renderedProps = _stagedProps;
+        _hasRenderedProps = true;
+    }
+
+    internal override void CommitStagedProps()
+    {
+        if (!_hasStagedProps)
+        {
+            return;
+        }
+        _committedProps = _stagedProps;
+        _hasCommittedProps = true;
+        _hasStagedProps = false;
+    }
+
+    internal override void RollBackStagedProps()
+    {
+        if (!_hasStagedProps)
+        {
+            return;
+        }
+        _hasStagedProps = false;
     }
 }
 
 internal unsafe interface IViewRenderer
 {
-    Element RenderChild<TView>(View parent, ChildSlot slot, Interop.RenderArena* destination)
+    Element RenderChild<TView>(ViewBase parent, ChildSlot slot, Interop.RenderArena* destination)
         where TView : View, IGeneratedViewFactory<TView>;
 
     Element RenderChild<TView, TProps>(
-        View parent,
+        ViewBase parent,
         ChildSlot slot,
         in TProps props,
         Interop.RenderArena* destination
     )
         where TView : View<TProps>, IGeneratedViewFactory<TView>;
-
-    Element RenderChild(View view, View parent, ChildSlot slot, Interop.RenderArena* destination);
-
-    Element RenderChild<TProps>(
-        View<TProps> view,
-        View parent,
-        ChildSlot slot,
-        in TProps props,
-        Interop.RenderArena* destination
-    );
 }

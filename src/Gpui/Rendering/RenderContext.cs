@@ -10,13 +10,13 @@ public readonly unsafe ref partial struct RenderContext
 {
     private readonly RenderArena* _arena;
     private readonly IViewRenderer? _views;
-    private readonly View? _owner;
+    private readonly ViewBase? _owner;
     private readonly GpuiTheme _theme;
 
     internal RenderContext(
         RenderArena* arena,
         IViewRenderer? views = null,
-        View? owner = null,
+        ViewBase? owner = null,
         GpuiTheme? theme = null
     )
     {
@@ -33,12 +33,23 @@ public readonly unsafe ref partial struct RenderContext
     /// </summary>
     public GpuiTheme Theme => _theme;
 
-    internal View EventBindingOwner =>
-        View.CurrentEventBindingOwner
+    internal ViewBase EventBindingOwner =>
+        ViewBase.CurrentEventBindingOwner
         ?? _owner
         ?? throw new InvalidOperationException(
             "Managed title-bar menu actions require an owning View during rendering."
         );
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void AddInteractiveOwner(Element element)
+    {
+        var owner = ViewBase.CurrentEventBindingOwner ?? _owner;
+        var handle = owner?.RuntimeViewHandle ?? 0;
+        if (handle != 0)
+        {
+            ArenaWriter.AddU32(element, OpCode.ElementOwner, handle);
+        }
+    }
 
     /// <summary>
     /// Renders a framework-owned child in the next positional child slot. The instance is created
@@ -67,37 +78,6 @@ public readonly unsafe ref partial struct RenderContext
         where TView : View<TProps>, IGeneratedViewFactory<TView> =>
         RenderManagedChild<TView, TProps>(ChildSlot.Keyed(key), in props);
 
-    /// <summary>
-    /// Renders an explicitly owned View instance in the next positional slot. Use this escape hatch
-    /// when the parent intentionally needs an imperative reference to the child.
-    /// </summary>
-    public Element Child(View view)
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        return RenderExplicitChild(view, ChildSlot.Auto);
-    }
-
-    /// <summary>Renders an explicitly owned View instance in a stable keyed slot.</summary>
-    public Element Child(View view, ChildKey key)
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        return RenderExplicitChild(view, ChildSlot.Keyed(key));
-    }
-
-    /// <summary>Renders an explicitly owned props View in the next positional slot.</summary>
-    public Element Child<TProps>(View<TProps> view, in TProps props)
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        return RenderExplicitChild(view, ChildSlot.Auto, in props);
-    }
-
-    /// <summary>Renders an explicitly owned props View in a stable keyed slot.</summary>
-    public Element Child<TProps>(View<TProps> view, ChildKey key, in TProps props)
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        return RenderExplicitChild(view, ChildSlot.Keyed(key), in props);
-    }
-
     private Element RenderManagedChild<TView>(ChildSlot slot)
         where TView : View, IGeneratedViewFactory<TView>
     {
@@ -112,20 +92,6 @@ public readonly unsafe ref partial struct RenderContext
         var renderer = _views ?? throw ChildRuntimeRequired();
         var owner = _owner ?? throw ChildOwnerRequired();
         return renderer.RenderChild<TView, TProps>(owner, slot, in props, _arena);
-    }
-
-    private Element RenderExplicitChild(View view, ChildSlot slot)
-    {
-        var renderer = _views ?? throw ChildRuntimeRequired();
-        var owner = _owner ?? throw ChildOwnerRequired();
-        return renderer.RenderChild(view, owner, slot, _arena);
-    }
-
-    private Element RenderExplicitChild<TProps>(View<TProps> view, ChildSlot slot, in TProps props)
-    {
-        var renderer = _views ?? throw ChildRuntimeRequired();
-        var owner = _owner ?? throw ChildOwnerRequired();
-        return renderer.RenderChild(view, owner, slot, in props, _arena);
     }
 
     private static InvalidOperationException ChildRuntimeRequired() =>

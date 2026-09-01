@@ -9,7 +9,7 @@ child slot requested
         │
         ▼
 generated CreateGpuiView()
-        │ props applied for View<TProps>
+        │ props staged for View<TProps>
         ▼
 attach runtime identity
         │
@@ -20,7 +20,7 @@ OnMounted(ref ViewContext)
 Render(ref RenderContext)  ← dirty rerenders
         │
         ▼
-commit child slots and event bindings
+commit child slots, props, and event bindings
         │
         ▼
 slot removed or replaced
@@ -33,6 +33,10 @@ cancel Lifetime, then OnUnmounted child-first
 
 `ui.Child<TView>()` uses the next positional slot. `ui.Child<TView>(key)` uses a keyed slot. A slot
 retains the same View instance while its requested concrete type remains the same.
+
+Positional slots are intended for unconditional children in a fixed declaration order. Use keys
+for conditional children, repeated instances of the same type, routes, and any declarations that
+can reorder. A key belongs to its parent; props are not part of child identity.
 
 A keyed slot can replace the child type, which is the normal route/tab pattern:
 
@@ -48,9 +52,24 @@ var page = _route switch
 The new tree renders and commits before the old subtree unmounts. The same View instance cannot be
 owned by multiple parents or rendered in multiple slots.
 
-Use `View<TProps>` when the parent supplies render inputs. Applying changed props marks the child
-fragment dirty. Passing an existing View instance to `ui.Child` is supported when the parent
-intentionally needs an imperative reference; framework ownership is the default.
+Use `View<TProps>` when the parent supplies render inputs. The props overload is mandatory at
+compile time:
+
+```csharp
+var card = ui.Child<CounterCardView, CounterCardProps>(
+    "account",
+    new("Account", revision)
+);
+```
+
+Each declaration stages a new props value, like a constructor call for the retained slot. The same
+key and concrete type retain the View instance and local state. Changed props rerender that child;
+successful whole-tree commit promotes staged props to committed props. A failed render discards
+them, so event handlers continue to observe the last committed value.
+
+`View` and `View<TProps>` are sibling API types over `ViewBase`. This makes the no-props and props
+child overloads mutually exclusive through normal generic constraints; generated factories only
+provide reflection-free activation.
 
 ## Constructor and mount
 

@@ -82,8 +82,9 @@ invalidate the View.
 Event bindings and ref-bound controller key initialization are supported render-time declarations.
 Perform state changes in event or lifecycle methods and then call `Invalidate()`.
 
-Use framework-owned `ui.Child<T>()` slots by default. Use `View<TProps>` for parent-owned render
-inputs. Explicit child instances are an escape hatch, not the default ownership model.
+Use framework-owned `ui.Child<T>()` slots. Use `View<TProps>` for parent-owned render inputs; props
+must be supplied on every declaration. Use stable keys for conditional, repeated, or reorderable
+children.
 
 Virtual rows are element-only cached snapshots. Do not add mounted child Views, nested retained
 resources, or deferred layers inside a row renderer.

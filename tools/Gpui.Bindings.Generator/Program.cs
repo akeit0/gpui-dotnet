@@ -649,6 +649,7 @@ internal static class BindingGenerator
                     builder.AppendLine(
                         $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, id);"
                     );
+                    AppendInteractiveOwner(builder, component);
                     builder.AppendLine("            ArenaWriter.AddChildren(element.Inner, children);");
                     builder.AppendLine("            return element;");
                     builder.AppendLine("        }");
@@ -670,6 +671,7 @@ internal static class BindingGenerator
                     builder.AppendLine(
                         $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, utf8Id);"
                     );
+                    AppendInteractiveOwner(builder, component);
                     builder.AppendLine("            ArenaWriter.AddChildren(element.Inner, children);");
                     builder.AppendLine("            return element;");
                     builder.AppendLine("        }");
@@ -721,6 +723,14 @@ internal static class BindingGenerator
                 throw new InvalidOperationException();
         }
         builder.AppendLine();
+    }
+
+    private static void AppendInteractiveOwner(StringBuilder builder, Component component)
+    {
+        if (component.Capabilities.Contains("interactive", StringComparer.Ordinal))
+        {
+            builder.AppendLine("            AddInteractiveOwner(element.Inner);");
+        }
     }
 
     private static void AppendParentApis(StringBuilder builder)

@@ -6,9 +6,9 @@ namespace Gpui;
 /// </summary>
 public readonly ref struct ViewContext
 {
-    private readonly View _view;
+    private readonly ViewBase _view;
 
-    internal ViewContext(View view) => _view = view;
+    internal ViewContext(ViewBase view) => _view = view;
 
     public Dispatcher Dispatcher => _view.Dispatcher;
 

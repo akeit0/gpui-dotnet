@@ -58,6 +58,7 @@ namespace Gpui.Interop
         ActiveBorderRgba = 118,
         OnClick = 200,
         WindowControlArea = 201,
+        ElementOwner = 202,
         ResourceOwner = 300,
         ScrollAxis = 301,
         SmoothScroll = 302,
@@ -149,7 +150,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x971D75D7FFC5730AUL;
+        internal const ulong SchemaHash = 0x177F52C11588A433UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -224,6 +225,7 @@ namespace Gpui.Interop
             OpCode.ActiveBorderRgba => ValueKind.U32,
             OpCode.OnClick => ValueKind.Callback,
             OpCode.WindowControlArea => ValueKind.U32,
+            OpCode.ElementOwner => ValueKind.U32,
             OpCode.ResourceOwner => ValueKind.U32,
             OpCode.ScrollAxis => ValueKind.U32,
             OpCode.SmoothScroll => ValueKind.U32,
@@ -358,6 +360,7 @@ namespace Gpui.Interop
             OpCode.ActiveBorderRgba => 0x0000000000000008UL,
             OpCode.OnClick => 0x0000000000000008UL,
             OpCode.WindowControlArea => 0x0000000000001000UL,
+            OpCode.ElementOwner => 0x0000000000000008UL,
             OpCode.ResourceOwner => 0x0000000000000020UL,
             OpCode.ScrollAxis => 0x0000000000000040UL,
             OpCode.SmoothScroll => 0x0000000000000020UL,
@@ -454,6 +457,7 @@ namespace Gpui.Interop
         {
             OpCode.Checked when !(a <= 1UL) => -21,
             OpCode.WindowControlArea when !(a <= 3UL) => -39,
+            OpCode.ElementOwner when !(a >= 1UL) => -25,
             OpCode.ResourceOwner when !(a >= 1UL) => -25,
             OpCode.ScrollAxis when !(a <= 2UL) => -26,
             OpCode.SmoothScroll when !(a <= 1UL) => -21,
@@ -558,6 +562,7 @@ namespace Gpui
                 throw new ArgumentException("A non-empty element id is required.", nameof(id));
             }
             var element = ArenaWriter.AddNode<ButtonTag>(_arena, ComponentId.Button, id);
+            AddInteractiveOwner(element.Inner);
             ArenaWriter.AddChildren(element.Inner, children);
             return element;
         }
@@ -570,6 +575,7 @@ namespace Gpui
                 throw new ArgumentException("A non-empty element id is required.", nameof(utf8Id));
             }
             var element = ArenaWriter.AddNode<ButtonTag>(_arena, ComponentId.Button, utf8Id);
+            AddInteractiveOwner(element.Inner);
             ArenaWriter.AddChildren(element.Inner, children);
             return element;
         }
@@ -610,6 +616,7 @@ namespace Gpui
                 throw new ArgumentException("A non-empty element id is required.", nameof(id));
             }
             var element = ArenaWriter.AddNode<CheckboxTag>(_arena, ComponentId.Checkbox, id);
+            AddInteractiveOwner(element.Inner);
             ArenaWriter.AddChildren(element.Inner, children);
             return element;
         }
@@ -622,6 +629,7 @@ namespace Gpui
                 throw new ArgumentException("A non-empty element id is required.", nameof(utf8Id));
             }
             var element = ArenaWriter.AddNode<CheckboxTag>(_arena, ComponentId.Checkbox, utf8Id);
+            AddInteractiveOwner(element.Inner);
             ArenaWriter.AddChildren(element.Inner, children);
             return element;
         }
@@ -662,6 +670,7 @@ namespace Gpui
                 throw new ArgumentException("A non-empty element id is required.", nameof(id));
             }
             var element = ArenaWriter.AddNode<RadioTag>(_arena, ComponentId.Radio, id);
+            AddInteractiveOwner(element.Inner);
             ArenaWriter.AddChildren(element.Inner, children);
             return element;
         }
@@ -674,6 +683,7 @@ namespace Gpui
                 throw new ArgumentException("A non-empty element id is required.", nameof(utf8Id));
             }
             var element = ArenaWriter.AddNode<RadioTag>(_arena, ComponentId.Radio, utf8Id);
+            AddInteractiveOwner(element.Inner);
             ArenaWriter.AddChildren(element.Inner, children);
             return element;
         }

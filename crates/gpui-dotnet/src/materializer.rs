@@ -24,8 +24,8 @@ use crate::{
         CAPABILITY_INTERACTIVE, NativeAdapter, OP_ACTIVE_BACKGROUND_RGBA, OP_ACTIVE_BORDER_RGBA,
         OP_ACTIVE_TEXT_RGBA, OP_BACKGROUND_RGBA, OP_BORDER_RGBA, OP_BORDER_WIDTH_PX, OP_CHECKED,
         OP_CONTEXT_MENU_MARGIN_PX, OP_CONTEXT_MENU_PRIORITY, OP_DRAWING_VIEW_BOX_ORIGIN,
-        OP_DRAWING_VIEW_BOX_SIZE, OP_FLEX, OP_FLEX_GROW, OP_FONT_SIZE_PX, OP_GAP_PX,
-        OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_HOVER_BACKGROUND_RGBA, OP_HOVER_BORDER_RGBA,
+        OP_DRAWING_VIEW_BOX_SIZE, OP_ELEMENT_OWNER, OP_FLEX, OP_FLEX_GROW, OP_FONT_SIZE_PX,
+        OP_GAP_PX, OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_HOVER_BACKGROUND_RGBA, OP_HOVER_BORDER_RGBA,
         OP_HOVER_TEXT_RGBA, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_ITEMS_CENTER,
         OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
         OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX,
@@ -120,11 +120,7 @@ impl ManagedView {
             let event_binding = last_op(snapshot, node, OP_ON_CLICK);
             let event_token = event_binding.map_or(0, |op| op.a);
             let event_payload = event_binding.map_or(0, |op| op.b);
-            let element_id = if node.data.is_empty() {
-                format!("managed-control-{node_id}").into()
-            } else {
-                node.data.clone()
-            };
+            let element_id = interactive_element_id(node_id, node, snapshot);
             let element = element.id(element_id).cursor_pointer();
             let element = apply_interaction_styles(element, node, snapshot, theme);
             return element
@@ -995,6 +991,7 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
             | OP_ACTIVE_TEXT_RGBA
             | OP_ACTIVE_BORDER_RGBA => element,
             OP_CHECKED
+            | OP_ELEMENT_OWNER
             | OP_ON_CLICK
             | OP_RESOURCE_OWNER
             | OP_SCROLL_AXIS
@@ -1158,6 +1155,33 @@ fn stable_hash(parts: &[&[u8]]) -> u64 {
     z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
     z ^ (z >> 33)
+}
+
+/// Stable GPUI state identity for a managed interactive element. Local keys are reusable in
+/// separate managed View instances, while the same owner/key pair survives tree reordering.
+fn interactive_element_id(
+    node_id: u32,
+    node: &SnapshotNode,
+    snapshot: &ValidatedSnapshot,
+) -> ElementId {
+    if let Some(owner) = last_op(snapshot, node, OP_ELEMENT_OWNER) {
+        return (
+            "managed-control",
+            managed_control_state_id(owner.a as u32, &node.data),
+        )
+            .into();
+    }
+
+    if node.data.is_empty() {
+        ("managed-control-node", node_id as u64).into()
+    } else {
+        node.data.clone().into()
+    }
+}
+
+fn managed_control_state_id(owner_view: u32, local_key: &str) -> u64 {
+    let owner = owner_view.to_le_bytes();
+    stable_hash(&[&owner, local_key.as_bytes()])
 }
 
 /// Deterministic GPUI state id for an interactive node inside a virtualized row. Combines the
@@ -1629,6 +1653,17 @@ mod tests {
 
     fn key() -> ResourceKey {
         ResourceKey::new(4, "service-grid".into())
+    }
+
+    #[test]
+    fn interactive_element_ids_are_scoped_by_managed_view_owner() {
+        let alpha = managed_control_state_id(17, "increment");
+        let beta = managed_control_state_id(18, "increment");
+        let other_key = managed_control_state_id(17, "decrement");
+
+        assert_ne!(alpha, beta);
+        assert_ne!(alpha, other_key);
+        assert_eq!(alpha, managed_control_state_id(17, "increment"));
     }
 
     #[test]

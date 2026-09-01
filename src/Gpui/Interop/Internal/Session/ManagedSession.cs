@@ -6,23 +6,23 @@ namespace Gpui.Interop.Internal.Session;
 
 internal sealed unsafe partial class ManagedSession : IViewRenderer
 {
-    private static readonly IEqualityComparer<View> ViewIdentity =
+    private static readonly IEqualityComparer<ViewBase> ViewIdentity =
         ReferenceEqualityComparer.Instance;
 
     private readonly NativeRuntime _runtime;
     private readonly GpuiApplication _application;
     private readonly ulong _sessionId;
     private readonly ConcurrentQueue<Action> _posted = new();
-    private readonly HashSet<View> _attachedViews = new(ViewIdentity);
-    private readonly Dictionary<uint, View> _viewsByHandle = [];
+    private readonly HashSet<ViewBase> _attachedViews = new(ViewIdentity);
+    private readonly Dictionary<uint, ViewBase> _viewsByHandle = [];
     private readonly object _renderStateGate = new();
-    private readonly Dictionary<View, RetainedViewState> _renderStates = new(ViewIdentity);
-    private readonly HashSet<View> _renderingViews = new(ViewIdentity);
-    private readonly Stack<View> _snapshotStack = new();
-    private readonly HashSet<View> _snapshotVisited = new(ViewIdentity);
-    private readonly List<View> _detachCandidates = [];
-    private readonly Stack<(View View, bool Expanded)> _detachStack = new();
-    private readonly HashSet<View> _detachVisited = new(ViewIdentity);
+    private readonly Dictionary<ViewBase, RetainedViewState> _renderStates = new(ViewIdentity);
+    private readonly HashSet<ViewBase> _renderingViews = new(ViewIdentity);
+    private readonly Stack<ViewBase> _snapshotStack = new();
+    private readonly HashSet<ViewBase> _snapshotVisited = new(ViewIdentity);
+    private readonly List<ViewBase> _detachCandidates = [];
+    private readonly Stack<(ViewBase View, bool Expanded)> _detachStack = new();
+    private readonly HashSet<ViewBase> _detachVisited = new(ViewIdentity);
     private ExceptionDispatchInfo? _pendingAsyncFailure;
     private Exception? _failure;
     private uint _nextViewHandle;
@@ -52,7 +52,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     internal void RecordFailure(Exception exception) =>
         Interlocked.CompareExchange(ref _failure, exception, null);
 
-    internal void Invalidate(View view)
+    internal void Invalidate(ViewBase view)
     {
         if (Volatile.Read(ref _stopped) != 0)
         {

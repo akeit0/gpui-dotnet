@@ -55,7 +55,7 @@ public sealed class GpuiMenu
 /// <summary>An action, separator, or submenu in a <see cref="GpuiMenu"/>.</summary>
 public sealed class GpuiMenuItem
 {
-    private readonly Action<View, ClickEvent>? _eventCallback;
+    private readonly Action<ViewBase, ClickEvent>? _eventCallback;
 
     private GpuiMenuItem(string title, Action? callback, GpuiMenu? submenu, bool separator)
     {
@@ -93,9 +93,9 @@ public sealed class GpuiMenuItem
     internal Action? Callback { get; }
     internal GpuiMenu? NestedMenu { get; }
 
-    internal Action<View, ClickEvent> EventCallback =>
+    internal Action<ViewBase, ClickEvent> EventCallback =>
         _eventCallback
         ?? throw new InvalidOperationException("Only command menu items have an event callback.");
 
-    private void InvokeCallback(View _view, ClickEvent _event) => Callback!.Invoke();
+    private void InvokeCallback(ViewBase _view, ClickEvent _event) => Callback!.Invoke();
 }

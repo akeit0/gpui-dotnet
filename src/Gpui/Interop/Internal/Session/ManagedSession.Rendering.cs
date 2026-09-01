@@ -28,6 +28,7 @@ internal sealed unsafe partial class ManagedSession
                 {
                     AbortComposition(RootView);
                 }
+                RollBackStagedProps();
                 throw;
             }
         }
@@ -68,8 +69,8 @@ internal sealed unsafe partial class ManagedSession
         }
         Volatile.Write(ref _notifyAfterRender, 0);
         owner.BeginEventBindingPass(ViewEventBindingScope.ListRange);
-        var previousEventBindingOwner = View.CurrentEventBindingOwner;
-        View.CurrentEventBindingOwner = owner;
+        var previousEventBindingOwner = ViewBase.CurrentEventBindingOwner;
+        ViewBase.CurrentEventBindingOwner = owner;
         var completed = false;
         try
         {
@@ -94,13 +95,13 @@ internal sealed unsafe partial class ManagedSession
             }
             finally
             {
-                View.CurrentEventBindingOwner = previousEventBindingOwner;
+                ViewBase.CurrentEventBindingOwner = previousEventBindingOwner;
                 EndRendering();
             }
         }
     }
 
-    private Element RenderResolvedChild(View view, RenderArena* destination)
+    private Element RenderResolvedChild(ViewBase view, RenderArena* destination)
     {
         var state = GetRenderState(view);
         long requiredVersion;
@@ -118,6 +119,7 @@ internal sealed unsafe partial class ManagedSession
                 var ui = state.Fragment.BeginRender(this, view, _application.Theme);
                 var element = view.RenderCore(ref ui);
                 state.Fragment.Validate(element);
+                view.AcceptRenderedProps();
                 state.Root = element.Node;
                 CompleteComposition(view);
                 lock (_renderStateGate)
@@ -135,7 +137,7 @@ internal sealed unsafe partial class ManagedSession
         return ArenaWriter.AppendFragment(destination, state.Fragment.NativeArena, state.Root);
     }
 
-    private void BeginComposition(View view)
+    private void BeginComposition(ViewBase view)
     {
         if (!_renderingViews.Add(view))
         {
@@ -150,7 +152,7 @@ internal sealed unsafe partial class ManagedSession
         state.WorkingNextPosition = 0;
     }
 
-    private void CompleteComposition(View view)
+    private void CompleteComposition(ViewBase view)
     {
         if (!_renderingViews.Remove(view))
         {
@@ -167,7 +169,7 @@ internal sealed unsafe partial class ManagedSession
         state.HasStagedComposition = true;
     }
 
-    private void AbortComposition(View view)
+    private void AbortComposition(ViewBase view)
     {
         if (!_renderingViews.Remove(view))
         {
@@ -208,6 +210,8 @@ internal sealed unsafe partial class ManagedSession
                     state.HasStagedComposition = false;
                     state.Candidates?.Clear();
                 }
+
+                current.CommitStagedProps();
 
                 if (state.Children is null)
                 {
@@ -251,7 +255,7 @@ internal sealed unsafe partial class ManagedSession
         }
     }
 
-    private void MarkViewFragmentDirty(View view)
+    private void MarkViewFragmentDirty(ViewBase view)
     {
         lock (_renderStateGate)
         {
@@ -259,6 +263,20 @@ internal sealed unsafe partial class ManagedSession
             {
                 state.RequiredVersion++;
             }
+        }
+    }
+
+    private void RollBackStagedProps()
+    {
+        ViewBase[] views;
+        lock (_renderStateGate)
+        {
+            views = _renderStates.Keys.ToArray();
+        }
+
+        foreach (var view in views)
+        {
+            view.RollBackStagedProps();
         }
     }
 }

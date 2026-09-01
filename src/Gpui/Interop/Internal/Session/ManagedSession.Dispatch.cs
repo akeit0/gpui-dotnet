@@ -5,7 +5,7 @@ namespace Gpui.Interop.Internal.Session;
 
 internal sealed unsafe partial class ManagedSession
 {
-    internal void DispatchResourceCommand(View owner, ResourceCommand command)
+    internal void DispatchResourceCommand(ViewBase owner, ResourceCommand command)
     {
         if (Volatile.Read(ref _stopped) != 0 || owner.RuntimeViewHandle == 0)
         {
@@ -51,7 +51,7 @@ internal sealed unsafe partial class ManagedSession
     }
 
     internal void DispatchUtf8InputValue(
-        View owner,
+        ViewBase owner,
         ReadOnlySpan<byte> utf8Key,
         ReadOnlySpan<byte> utf8Value
     )

@@ -257,7 +257,7 @@ public static class GpuiTitleBar
     private static Element<DivTag> RenderMenuSurface(
         ref RenderContext ui,
         GpuiMenu menu,
-        View owner,
+        ViewBase owner,
         string key,
         GpuiThemeColors colors
     )

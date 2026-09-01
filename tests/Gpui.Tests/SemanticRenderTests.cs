@@ -61,6 +61,39 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void InteractiveElementCarriesItsManagedViewOwner()
+    {
+        var view = new ProbeView();
+        Attach(view, 17);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var button = ui.Button("increment", "Increment");
+
+            arena.Validate(button);
+
+            Assert.Equal(17u, ReadLastU32Op(arena, OpCode.ElementOwner));
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void ElementOnlyInteractiveElementDoesNotRequireAMountedView()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var button = ui.Button("increment", "Increment");
+
+        arena.Validate(button);
+
+        Assert.False(ContainsOp(arena, OpCode.ElementOwner));
+    }
+
+    [Fact]
     public void ElementCannotEscapeItsRenderGeneration()
     {
         using var arena = new RenderArenaOwner();
@@ -446,7 +479,7 @@ public sealed class SemanticRenderTests
             var stats = arena.GetStats();
             Assert.Equal(4, stats.Nodes);
             Assert.Equal(3, stats.Children);
-            Assert.Equal(7, stats.Ops);
+            Assert.Equal(8, stats.Ops);
             Assert.Equal(
                 "help"u8.Length + "help-button"u8.Length + "Help"u8.Length + "詳しい説明"u8.Length,
                 stats.Utf8Bytes
@@ -498,7 +531,7 @@ public sealed class SemanticRenderTests
             var stats = arena.GetStats();
             Assert.Equal(8, stats.Nodes);
             Assert.Equal(7, stats.Children);
-            Assert.Equal(6, stats.Ops);
+            Assert.Equal(8, stats.Ops);
 
             arena.NativeArena->ChildLength--;
             Assert.Throws<InvalidOperationException>(() => arena.Validate(menu));
@@ -540,7 +573,7 @@ public sealed class SemanticRenderTests
             var stats = arena.GetStats();
             Assert.Equal(8, stats.Nodes);
             Assert.Equal(7, stats.Children);
-            Assert.Equal(4, stats.Ops);
+            Assert.Equal(7, stats.Ops);
 
             arena.NativeArena->ChildLength--;
             Assert.Throws<InvalidOperationException>(() => arena.Validate(menu));
@@ -659,7 +692,7 @@ public sealed class SemanticRenderTests
 
             var stats = arena.GetStats();
             Assert.Equal(2, stats.Nodes);
-            Assert.Equal(2, stats.Ops);
+            Assert.Equal(3, stats.Ops);
         }
         finally
         {
@@ -1244,6 +1277,19 @@ public sealed class SemanticRenderTests
         throw new Xunit.Sdk.XunitException($"The render did not contain {code}.");
     }
 
+    private static unsafe bool ContainsOp(RenderArenaOwner arena, OpCode code)
+    {
+        for (var index = 0; index < arena.NativeArena->OpLength; index++)
+        {
+            if (arena.NativeArena->Ops[index].Code == (ushort)code)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static unsafe OpRecord FindOp(RenderArenaOwner arena, OpCode code)
     {
         for (var index = 0; index < arena.NativeArena->OpLength; index++)
@@ -1317,34 +1363,19 @@ public sealed class SemanticRenderTests
     private sealed unsafe class NoopRenderer : IViewRenderer
     {
         public Element RenderChild<TView>(
-            View parent,
+            ViewBase parent,
             ChildSlot slot,
             Gpui.Interop.RenderArena* destination
         )
             where TView : View, IGeneratedViewFactory<TView> => throw new NotSupportedException();
 
         public Element RenderChild<TView, TProps>(
-            View parent,
+            ViewBase parent,
             ChildSlot slot,
             in TProps props,
             Gpui.Interop.RenderArena* destination
         )
             where TView : View<TProps>, IGeneratedViewFactory<TView> =>
             throw new NotSupportedException();
-
-        public Element RenderChild(
-            View view,
-            View parent,
-            ChildSlot slot,
-            Gpui.Interop.RenderArena* destination
-        ) => throw new NotSupportedException();
-
-        public Element RenderChild<TProps>(
-            View<TProps> view,
-            View parent,
-            ChildSlot slot,
-            in TProps props,
-            Gpui.Interop.RenderArena* destination
-        ) => throw new NotSupportedException();
     }
 }

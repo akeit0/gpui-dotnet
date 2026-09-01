@@ -553,6 +553,15 @@
       "validation": { "kind": "u32Max", "max": 3, "status": -39 }
     },
     {
+      "id": 202,
+      "name": "element_owner",
+      "csharp": "ElementOwner",
+      "value": "u32",
+      "requires": "interactive",
+      "managedApi": null,
+      "validation": { "kind": "u32Min", "min": 1, "status": -25 }
+    },
+    {
       "id": 300,
       "name": "resource_owner",
       "csharp": "ResourceOwner",

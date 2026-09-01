@@ -212,22 +212,22 @@ public readonly struct SliderEvent
 [DebuggerDisplay("{DebuggerView,nq}")]
 public readonly struct SliderController
 {
-    private readonly View? _owner;
+    private readonly ViewBase? _owner;
     private readonly byte[]? _utf8Key;
 
-    internal SliderController(View owner, string key)
+    internal SliderController(ViewBase owner, string key)
     {
         _owner = owner;
         _utf8Key = Encoding.UTF8.GetBytes(key);
     }
 
-    internal SliderController(View owner, ReadOnlySpan<byte> utf8Key)
+    internal SliderController(ViewBase owner, ReadOnlySpan<byte> utf8Key)
     {
         _owner = owner;
         _utf8Key = utf8Key.ToArray();
     }
 
-    internal SliderController(View owner, byte[] utf8Key)
+    internal SliderController(ViewBase owner, byte[] utf8Key)
     {
         _owner = owner;
         _utf8Key = utf8Key;
@@ -260,7 +260,7 @@ public readonly struct SliderController
         : ResourceKeys.TryDecodeAutoKey(_utf8Key, out var id) ? $"auto:{id}"
         : "explicit";
 
-    private View Owner =>
+    private ViewBase Owner =>
         _owner ?? throw new InvalidOperationException("Default SliderController cannot be used.");
 
     private byte[] Utf8KeyArray =>

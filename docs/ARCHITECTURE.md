@@ -65,10 +65,13 @@ Each window has one `ManagedSession` and one root `View`. Framework-owned childr
 slot through source-generated factories. A slot retains the same child while its requested type is
 unchanged; a keyed slot can replace its child type for routes and tabs.
 
+`View` and `View<TProps>` are sibling authoring shapes over the shared `ViewBase` runtime. Their
+type relationship makes required props a compile-time child declaration constraint.
+
 Child views render into retained fragment arenas. The parent snapshot copies those fragments into
-the current root arena. Props changes and child invalidation mark the necessary fragment and its
-ancestors dirty. Application-wide theme changes invalidate every retained fragment because a theme
-is ambient render input rather than child props.
+the current root arena. Staged props changes and child invalidation mark the necessary fragment and
+its ancestors dirty. Application-wide theme changes invalidate every retained fragment because a
+theme is ambient render input rather than child props.
 
 Tree replacement commits the new composition before detaching the old subtree. Unmount proceeds
 child-first. See [VIEW_LIFECYCLE.md](VIEW_LIFECYCLE.md).

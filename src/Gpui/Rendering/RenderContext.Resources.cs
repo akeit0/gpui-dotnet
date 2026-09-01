@@ -555,7 +555,7 @@ public readonly unsafe ref partial struct RenderContext
             : throw new InvalidOperationException("The owning View is not mounted.");
     }
 
-    private View OwnerView =>
+    private ViewBase OwnerView =>
         _owner
         ?? throw new InvalidOperationException(
             "Retained native resources require a mounted managed View. Element-only RenderArenaOwner tests cannot create them."

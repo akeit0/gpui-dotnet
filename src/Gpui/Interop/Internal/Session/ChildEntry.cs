@@ -2,20 +2,9 @@ using Gpui;
 
 namespace Gpui.Interop.Internal.Session;
 
-internal enum ChildOwnership : byte
-{
-    Framework,
-    Explicit,
-}
-
 internal readonly struct ChildEntry
 {
-    internal ChildEntry(View view, ChildOwnership ownership)
-    {
-        View = view;
-        Ownership = ownership;
-    }
+    internal ChildEntry(ViewBase view) => View = view;
 
-    internal View View { get; }
-    internal ChildOwnership Ownership { get; }
+    internal ViewBase View { get; }
 }

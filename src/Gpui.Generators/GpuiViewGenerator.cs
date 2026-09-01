@@ -28,12 +28,12 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor MustDeriveFromView = Error(
         "GPUI008",
         "GPUI generated views must derive from View",
-        "'{0}' is marked [GpuiView] but does not derive from Gpui.View"
+        "'{0}' is marked [GpuiView] but does not derive from Gpui.View or Gpui.View<TProps>"
     );
     private static readonly DiagnosticDescriptor ViewMustBeConstructible = Error(
         "GPUI010",
         "GPUI generated view must be constructible",
-        "'{0}' must be non-abstract and have a parameterless instance constructor so framework-owned ui.Child<T>() can create it"
+        "'{0}' must be non-abstract and have a parameterless instance constructor so a framework-owned child slot can create it"
     );
     private static readonly DiagnosticDescriptor ReservedFactoryMember = Error(
         "GPUI011",
@@ -271,7 +271,15 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
     {
         for (var current = view.BaseType; current is not null; current = current.BaseType)
         {
-            if (IsNamedType(current, "Gpui", "View"))
+            if (
+                current.Name == "View"
+                && current.Arity is 0 or 1
+                && string.Equals(
+                    current.ContainingNamespace?.ToDisplayString(),
+                    "Gpui",
+                    StringComparison.Ordinal
+                )
+            )
                 return true;
         }
         return false;

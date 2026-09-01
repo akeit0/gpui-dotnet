@@ -114,8 +114,19 @@ var content = _page switch
 };
 ```
 
-Use `View<TProps>` for parent-owned inputs. An existing child instance can be passed explicitly
-when the parent intentionally needs an imperative reference.
+Use `View<TProps>` for parent-owned inputs. Props are required on every declaration, while a stable
+key retains the same child instance and its local state:
+
+```csharp
+ui.Child<CounterCardView, CounterCardProps>(
+    "account",
+    new("Account", revision)
+);
+```
+
+`View` and `View<TProps>` are separate specializations of a shared runtime base, so calling
+`ui.Child<CounterCardView>()` for a props view is a compile-time error. The generated factory is
+used only for reflection-free, NativeAOT-safe child construction.
 
 Events are bound at the element declaration and target a mounted view:
 

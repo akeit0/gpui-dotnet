@@ -5,7 +5,7 @@ namespace Gpui.Interop.Internal.Session;
 internal sealed unsafe partial class ManagedSession : IViewRenderer
 {
     Element IViewRenderer.RenderChild<TView>(
-        View parent,
+        ViewBase parent,
         ChildSlot requestedSlot,
         RenderArena* destination
     )
@@ -15,7 +15,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     }
 
     Element IViewRenderer.RenderChild<TView, TProps>(
-        View parent,
+        ViewBase parent,
         ChildSlot requestedSlot,
         in TProps props,
         RenderArena* destination
@@ -25,30 +25,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         return RenderResolvedChild(child, destination);
     }
 
-    Element IViewRenderer.RenderChild(
-        View view,
-        View parent,
-        ChildSlot requestedSlot,
-        RenderArena* destination
-    )
-    {
-        ResolveExplicitChild(view, parent, requestedSlot);
-        return RenderResolvedChild(view, destination);
-    }
-
-    Element IViewRenderer.RenderChild<TProps>(
-        View<TProps> view,
-        View parent,
-        ChildSlot requestedSlot,
-        in TProps props,
-        RenderArena* destination
-    )
-    {
-        ResolveExplicitChild(view, parent, requestedSlot, in props);
-        return RenderResolvedChild(view, destination);
-    }
-
-    private TView ResolveFrameworkChild<TView>(View parent, ChildSlot requestedSlot)
+    private TView ResolveFrameworkChild<TView>(ViewBase parent, ChildSlot requestedSlot)
         where TView : View, IGeneratedViewFactory<TView>
     {
         EnsureParentIsRendering(parent);
@@ -58,30 +35,17 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
 
         if (TryGetFrameworkChild<TView>(parentState, slot, out var existing))
         {
-            if (existing.View.RequiresProps)
-            {
-                throw new InvalidOperationException(
-                    $"{typeof(TView).Name} derives from View<TProps>; render it with the props overload."
-                );
-            }
             RegisterWorkingChild(parentState, slot, existing);
             return (TView)existing.View;
         }
 
         var child = CreateFrameworkView<TView>();
-        if (child.RequiresProps)
-        {
-            throw new InvalidOperationException(
-                $"{typeof(TView).Name} derives from View<TProps>; render it with the props overload."
-            );
-        }
-
-        AttachResolvedCandidate(child, parent, parentState, slot, ChildOwnership.Framework);
+        AttachResolvedCandidate(child, parent, parentState, slot);
         return child;
     }
 
     private TView ResolveFrameworkChild<TView, TProps>(
-        View parent,
+        ViewBase parent,
         ChildSlot requestedSlot,
         in TProps props
     )
@@ -95,7 +59,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         if (TryGetFrameworkChild<TView>(parentState, slot, out var existing))
         {
             var child = (TView)existing.View;
-            if (child.ApplyProps(in props))
+            if (child.StageProps(in props))
             {
                 MarkViewFragmentDirty(child);
             }
@@ -103,59 +67,10 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
             return child;
         }
 
-        var created = CreateFrameworkView<TView>();
-        _ = created.ApplyProps(in props);
-        AttachResolvedCandidate(created, parent, parentState, slot, ChildOwnership.Framework);
+        var created = CreateFrameworkPropsView<TView, TProps>();
+        _ = created.StageProps(in props);
+        AttachResolvedCandidate(created, parent, parentState, slot);
         return created;
-    }
-
-    private void ResolveExplicitChild(View child, View parent, ChildSlot requestedSlot)
-    {
-        if (child.RequiresProps)
-        {
-            throw new InvalidOperationException(
-                $"{child.GetType().Name} derives from View<TProps>; render it with the props overload."
-            );
-        }
-
-        EnsureParentIsRendering(parent);
-        EnsureNotRecursive(child);
-        var parentState = GetRenderState(parent);
-        var slot = NormalizeSlot(parentState, requestedSlot);
-        EnsureSlotUnused(parentState, slot);
-        if (TryGetExplicitChild(parentState, slot, child, out var existing))
-        {
-            RegisterWorkingChild(parentState, slot, existing);
-            return;
-        }
-
-        AttachResolvedCandidate(child, parent, parentState, slot, ChildOwnership.Explicit);
-    }
-
-    private void ResolveExplicitChild<TProps>(
-        View<TProps> child,
-        View parent,
-        ChildSlot requestedSlot,
-        in TProps props
-    )
-    {
-        EnsureParentIsRendering(parent);
-        EnsureNotRecursive(child);
-        var parentState = GetRenderState(parent);
-        var slot = NormalizeSlot(parentState, requestedSlot);
-        EnsureSlotUnused(parentState, slot);
-        if (TryGetExplicitChild(parentState, slot, child, out var existing))
-        {
-            if (child.ApplyProps(in props))
-            {
-                MarkViewFragmentDirty(child);
-            }
-            RegisterWorkingChild(parentState, slot, existing);
-            return;
-        }
-
-        _ = child.ApplyProps(in props);
-        AttachResolvedCandidate(child, parent, parentState, slot, ChildOwnership.Explicit);
     }
 
     private static TView CreateFrameworkView<TView>()
@@ -168,12 +83,21 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
             );
     }
 
+    private static TView CreateFrameworkPropsView<TView, TProps>()
+        where TView : View<TProps>, IGeneratedViewFactory<TView>
+    {
+        var child = TView.CreateGpuiView();
+        return child
+            ?? throw new InvalidOperationException(
+                $"The generated factory for {typeof(TView).FullName} returned null."
+            );
+    }
+
     private void AttachResolvedCandidate(
-        View child,
-        View parent,
+        ViewBase child,
+        ViewBase parent,
         RetainedViewState parentState,
-        ChildSlot slot,
-        ChildOwnership ownership
+        ChildSlot slot
     )
     {
         EnsureNotRecursive(child);
@@ -188,12 +112,12 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
             throw;
         }
 
-        var entry = new ChildEntry(child, ownership);
+        var entry = new ChildEntry(child);
         GetCandidates(parentState)[slot] = entry;
         RegisterWorkingChild(parentState, slot, entry);
     }
 
-    private void EnsureNotRecursive(View child)
+    private void EnsureNotRecursive(ViewBase child)
     {
         if (_renderingViews.Contains(child))
         {
@@ -208,12 +132,11 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         ChildSlot slot,
         out ChildEntry entry
     )
-        where TView : View
+        where TView : ViewBase
     {
         if (
             parentState.Candidates is not null
             && parentState.Candidates.TryGetValue(slot, out entry)
-            && entry.Ownership == ChildOwnership.Framework
             && entry.View.GetType() == typeof(TView)
         )
         {
@@ -223,7 +146,6 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         if (
             parentState.Children is not null
             && parentState.Children.TryGetValue(slot, out entry)
-            && entry.Ownership == ChildOwnership.Framework
             && entry.View.GetType() == typeof(TView)
         )
         {
@@ -234,38 +156,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         return false;
     }
 
-    private static bool TryGetExplicitChild(
-        RetainedViewState parentState,
-        ChildSlot slot,
-        View requested,
-        out ChildEntry entry
-    )
-    {
-        if (
-            parentState.Candidates is not null
-            && parentState.Candidates.TryGetValue(slot, out entry)
-            && entry.Ownership == ChildOwnership.Explicit
-            && ReferenceEquals(entry.View, requested)
-        )
-        {
-            return true;
-        }
-
-        if (
-            parentState.Children is not null
-            && parentState.Children.TryGetValue(slot, out entry)
-            && entry.Ownership == ChildOwnership.Explicit
-            && ReferenceEquals(entry.View, requested)
-        )
-        {
-            return true;
-        }
-
-        entry = default;
-        return false;
-    }
-
-    private RetainedViewState PrepareOwnership(View child, View parent)
+    private RetainedViewState PrepareOwnership(ViewBase child, ViewBase parent)
     {
         lock (_renderStateGate)
         {
@@ -282,7 +173,11 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         }
     }
 
-    private void RollBackPreparedOwnership(View child, RetainedViewState childState, View parent)
+    private void RollBackPreparedOwnership(
+        ViewBase child,
+        RetainedViewState childState,
+        ViewBase parent
+    )
     {
         lock (_renderStateGate)
         {
@@ -345,7 +240,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         GetWorkingChildren(parentState).Add(slot, entry);
     }
 
-    private void EnsureParentIsRendering(View parent)
+    private void EnsureParentIsRendering(ViewBase parent)
     {
         if (!_renderingViews.Contains(parent))
         {

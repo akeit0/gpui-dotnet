@@ -102,16 +102,16 @@ public readonly struct ListOptions
 /// </summary>
 public readonly struct ListController
 {
-    private readonly View? _owner;
+    private readonly ViewBase? _owner;
     private readonly byte[]? _utf8Key;
 
-    internal ListController(View owner, string key)
+    internal ListController(ViewBase owner, string key)
     {
         _owner = owner;
         _utf8Key = Encoding.UTF8.GetBytes(key);
     }
 
-    internal ListController(View owner, ReadOnlySpan<byte> utf8Key)
+    internal ListController(ViewBase owner, ReadOnlySpan<byte> utf8Key)
     {
         _owner = owner;
         _utf8Key = utf8Key.ToArray();
@@ -222,7 +222,7 @@ public readonly struct ListController
         Owner.InvalidateFromController();
     }
 
-    private View Owner =>
+    private ViewBase Owner =>
         _owner ?? throw new InvalidOperationException("Default ListController cannot be used.");
     private byte[] Utf8KeyArray =>
         _utf8Key ?? throw new InvalidOperationException("Default ListController cannot be used.");

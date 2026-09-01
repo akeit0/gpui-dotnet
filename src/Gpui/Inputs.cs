@@ -109,23 +109,23 @@ public sealed class InputEvent
 [DebuggerDisplay("{DebuggerView,nq}")]
 public readonly struct InputController
 {
-    private readonly View? _owner;
+    private readonly ViewBase? _owner;
     private readonly byte[]? _utf8Key;
 
-    internal InputController(View owner, string key)
+    internal InputController(ViewBase owner, string key)
     {
         _owner = owner;
         _utf8Key = Encoding.UTF8.GetBytes(key);
     }
 
-    internal InputController(View owner, ReadOnlySpan<byte> utf8Key)
+    internal InputController(ViewBase owner, ReadOnlySpan<byte> utf8Key)
     {
         _owner = owner;
         _utf8Key = utf8Key.ToArray();
     }
 
     /// <summary>Internal constructor that takes ownership of an already-encoded key array.</summary>
-    internal InputController(View owner, byte[] utf8Key)
+    internal InputController(ViewBase owner, byte[] utf8Key)
     {
         _owner = owner;
         _utf8Key = utf8Key;
@@ -188,7 +188,7 @@ public readonly struct InputController
             new ResourceCommand(ResourceKind.Input, command, null, 0, 0, null, Utf8KeyArray)
         );
 
-    private View Owner =>
+    private ViewBase Owner =>
         _owner ?? throw new InvalidOperationException("Default InputController cannot be used.");
     private byte[] Utf8KeyArray =>
         _utf8Key ?? throw new InvalidOperationException("Default InputController cannot be used.");

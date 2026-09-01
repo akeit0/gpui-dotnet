@@ -17,7 +17,7 @@ public static partial class ElementExtensions
         Action<TView, ClickEvent> callback
     )
         where TTag : unmanaged, IInteractiveElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -33,7 +33,7 @@ public static partial class ElementExtensions
         ulong payload
     )
         where TTag : unmanaged, IInteractiveElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -48,7 +48,7 @@ public static partial class ElementExtensions
         Func<TView, ClickEvent, ValueTask> callback
     )
         where TTag : unmanaged, IInteractiveElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -64,7 +64,7 @@ public static partial class ElementExtensions
         ulong payload
     )
         where TTag : unmanaged, IInteractiveElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -79,7 +79,7 @@ public static partial class ElementExtensions
         Func<TView, ClickEvent, Task> callback
     )
         where TTag : unmanaged, IInteractiveElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -95,7 +95,7 @@ public static partial class ElementExtensions
         ulong payload
     )
         where TTag : unmanaged, IInteractiveElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -110,7 +110,7 @@ public static partial class ElementExtensions
         Action<TView, InputEvent> callback
     )
         where TTag : unmanaged, IInputElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -125,7 +125,7 @@ public static partial class ElementExtensions
         Action<TView, InputEvent> callback
     )
         where TTag : unmanaged, IInputElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -140,7 +140,7 @@ public static partial class ElementExtensions
         Action<TView, InputEvent> callback
     )
         where TTag : unmanaged, IInputElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -159,7 +159,7 @@ public static partial class ElementExtensions
         Action<TView, SliderEvent> callback
     )
         where TTag : unmanaged, ISliderElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -174,7 +174,7 @@ public static partial class ElementExtensions
         Func<TView, SliderEvent, ValueTask> callback
     )
         where TTag : unmanaged, ISliderElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -189,7 +189,7 @@ public static partial class ElementExtensions
         Func<TView, SliderEvent, Task> callback
     )
         where TTag : unmanaged, ISliderElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -204,7 +204,7 @@ public static partial class ElementExtensions
         Action<TView, SliderEvent> callback
     )
         where TTag : unmanaged, ISliderElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -219,7 +219,7 @@ public static partial class ElementExtensions
         Func<TView, SliderEvent, ValueTask> callback
     )
         where TTag : unmanaged, ISliderElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -234,7 +234,7 @@ public static partial class ElementExtensions
         Func<TView, SliderEvent, Task> callback
     )
         where TTag : unmanaged, ISliderElementTag
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -248,7 +248,7 @@ public static partial class ElementExtensions
         TView view,
         Action<TView, ClickEvent> callback
     )
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
@@ -263,7 +263,7 @@ public static partial class ElementExtensions
         Action<TView, ClickEvent> callback,
         ulong payload
     )
-        where TView : View
+        where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);

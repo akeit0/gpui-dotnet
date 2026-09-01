@@ -60,17 +60,17 @@ public readonly struct ScrollOptions
 [DebuggerDisplay("{DebuggerView,nq}")]
 public readonly struct ScrollController
 {
-    private readonly View? _owner;
+    private readonly ViewBase? _owner;
     private readonly byte[]? _utf8Key;
 
-    internal ScrollController(View owner, string key)
+    internal ScrollController(ViewBase owner, string key)
     {
         _owner = owner;
         _utf8Key = Encoding.UTF8.GetBytes(key);
     }
 
     /// <summary>Internal constructor that takes ownership of an already-encoded key array.</summary>
-    internal ScrollController(View owner, byte[] utf8Key)
+    internal ScrollController(ViewBase owner, byte[] utf8Key)
     {
         _owner = owner;
         _utf8Key = utf8Key;
@@ -148,7 +148,7 @@ public readonly struct ScrollController
             )
         );
 
-    private View Owner =>
+    private ViewBase Owner =>
         _owner ?? throw new InvalidOperationException("Default ScrollController cannot be used.");
     private byte[] Utf8KeyArray =>
         _utf8Key ?? throw new InvalidOperationException("Default ScrollController cannot be used.");
