@@ -324,6 +324,7 @@ Do not edit `Semantic.g.cs` or `semantic.g.rs` by hand.
 - [Components and retained resources](docs/COMPONENTS.md)
 - [View lifecycle](docs/VIEW_LIFECYCLE.md)
 - [Lifecycle and threading](docs/THREADING.md)
+- [Managed renderer Hot Reload](docs/HOT_RELOAD.md)
 - [ABI contract](docs/ABI.md)
 - [Binding generation](docs/BINDING_GENERATION.md)
 - [Performance contract](docs/PERFORMANCE.md)

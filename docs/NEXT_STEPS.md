@@ -3,6 +3,12 @@
 This file lists open work only. Completed behavior belongs in the README or the focused design
 documents.
 
+## Managed renderer Hot Reload
+
+Implement the metadata-update, managed/native invalidation, generated row-dispatch, and recoverable
+render-error design in [HOT_RELOAD.md](HOT_RELOAD.md). Keep it on the standard CLR/`dotnet watch`
+path; do not introduce assembly replacement or View remounting.
+
 ## Accessibility
 
 The pinned GPUI revision does not expose a complete cross-platform accessibility-tree API. When a
