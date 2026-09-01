@@ -10,8 +10,8 @@ use std::{
 
 use async_channel::{Receiver, Sender, TrySendError};
 use gpui::{
-    AnyWindowHandle, App, AppContext, Application, Bounds, Context, IntoElement, Render,
-    TitlebarOptions, Window, WindowBounds, WindowDecorations, WindowOptions, div, point,
+    AnyWindowHandle, App, AppContext, Application, Bounds, Context, IntoElement, Menu, MenuItem,
+    Render, TitlebarOptions, Window, WindowBounds, WindowDecorations, WindowOptions, div, point,
     prelude::*, px, rgb, size,
 };
 
@@ -83,6 +83,7 @@ impl Drop for ViewRegistration {
 
 #[derive(Debug)]
 pub(crate) enum ApplicationCommand {
+    SetMenuBar(Vec<ManagedMenu>),
     Open {
         window_id: u64,
         title: String,
@@ -106,6 +107,25 @@ pub(crate) enum ApplicationCommand {
         width: f32,
         height: f32,
     },
+}
+
+#[derive(Debug)]
+pub(crate) struct ManagedMenu {
+    pub(crate) title: String,
+    pub(crate) items: Vec<ManagedMenuItem>,
+}
+
+#[derive(Debug)]
+pub(crate) enum ManagedMenuItem {
+    Separator,
+    Action { id: u64, title: String },
+    Submenu(ManagedMenu),
+}
+
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(no_json, no_register)]
+struct ManagedMenuAction {
+    id: u64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -390,6 +410,19 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
         crate::input::init(cx);
         let windows: ManagedWindows = Rc::new(RefCell::new(HashMap::new()));
 
+        let menu_status = Arc::clone(&application_status_in_app);
+        cx.on_action(move |action: &ManagedMenuAction, _cx| {
+            let status = unsafe {
+                callbacks
+                    .menu_action
+                    .expect("callbacks were validated before application startup")(
+                    application_id,
+                    action.id,
+                )
+            };
+            record_status(&menu_status, status);
+        });
+
         let closed_windows = Rc::clone(&windows);
         let closed_status = Arc::clone(&application_status_in_app);
         cx.on_window_closed(move |cx| {
@@ -458,6 +491,9 @@ fn apply_application_command(
     application_status: &AtomicI32,
 ) {
     match command {
+        ApplicationCommand::SetMenuBar(menus) => {
+            cx.set_menus(menus.into_iter().map(|menu| convert_menu(menu)).collect());
+        }
         ApplicationCommand::Open {
             window_id,
             title,
@@ -530,6 +566,21 @@ fn apply_application_command(
                 });
             }
         }
+    }
+}
+
+fn convert_menu(menu: ManagedMenu) -> Menu {
+    Menu {
+        name: menu.title.into(),
+        items: menu.items.into_iter().map(convert_menu_item).collect(),
+    }
+}
+
+fn convert_menu_item(item: ManagedMenuItem) -> MenuItem {
+    match item {
+        ManagedMenuItem::Separator => MenuItem::separator(),
+        ManagedMenuItem::Action { id, title } => MenuItem::action(title, ManagedMenuAction { id }),
+        ManagedMenuItem::Submenu(menu) => MenuItem::submenu(convert_menu(menu)),
     }
 }
 

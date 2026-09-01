@@ -134,6 +134,7 @@ public sealed class GpuiApplication
     private readonly Dictionary<ulong, GpuiWindow> _windows = [];
     private readonly HashSet<View> _roots = new(ReferenceEqualityComparer.Instance);
     private readonly NativeRuntimeOptions? _runtimeOptions;
+    private GpuiMenu[]? _menuBar;
     private IGpuiApplicationHost? _host;
     private ApplicationState _state;
 
@@ -148,6 +149,39 @@ public sealed class GpuiApplication
     public GpuiApplication(NativeRuntimeOptions? runtimeOptions)
     {
         _runtimeOptions = runtimeOptions;
+    }
+
+    /// <summary>
+    /// Installs the application's platform menu. On macOS this is the native global menu bar;
+    /// other platforms may use the definitions for their own app-side menu presentation.
+    /// </summary>
+    public void SetMenuBar(params GpuiMenu[] menus)
+    {
+        ArgumentNullException.ThrowIfNull(menus);
+        if (menus.Any(menu => menu is null))
+        {
+            throw new ArgumentException("Menu definitions cannot contain null entries.", nameof(menus));
+        }
+
+        var copy = menus.ToArray();
+        foreach (var menu in copy)
+        {
+            GpuiMenu.Validate(menu, "menu");
+        }
+
+        IGpuiApplicationHost? host;
+        lock (_gate)
+        {
+            if (_state == ApplicationState.Stopped)
+            {
+                throw new InvalidOperationException("The GPUI application has already stopped.");
+            }
+
+            _menuBar = copy;
+            host = _host;
+        }
+
+        host?.SetMenuBar(copy);
     }
 
     /// <summary>
@@ -271,6 +305,14 @@ public sealed class GpuiApplication
                 .Values.Where(window => !window.IsClosed && !window.CloseRequested)
                 .Select(window => new GpuiWindowOpenRequest(window, window.Snapshot))
                 .ToArray();
+        }
+    }
+
+    internal GpuiMenu[]? MenuBarSnapshot()
+    {
+        lock (_gate)
+        {
+            return _menuBar?.ToArray();
         }
     }
 
@@ -485,6 +527,7 @@ internal readonly record struct GpuiWindowOpenRequest(
 
 internal interface IGpuiApplicationHost
 {
+    void SetMenuBar(IReadOnlyList<GpuiMenu> menus);
     void OpenWindow(GpuiWindow window, GpuiWindowSnapshot snapshot);
     void CloseWindow(ulong windowId);
     void ActivateWindow(ulong windowId);

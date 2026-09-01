@@ -1186,6 +1186,7 @@ mod tests {
             control_event: None,
             application_started: None,
             window_closed: None,
+            menu_action: None,
         }
     }
 

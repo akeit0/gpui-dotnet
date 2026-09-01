@@ -3,9 +3,14 @@ using Gpui;
 var stressGrowth = args.Contains("--stress-growth", StringComparer.Ordinal);
 var multiWindow = args.Contains("--multi-window", StringComparer.Ordinal);
 var application = new GpuiApplication();
-View rootView = stressGrowth
-    ? new ArenaGrowthView()
-    : new SampleShellView { Application = application };
+var shell = new SampleShellView { Application = application };
+var menuBar = stressGrowth ? Array.Empty<GpuiMenu>() : shell.CreateMenuBar();
+shell.MenuBar = menuBar;
+if (!stressGrowth && OperatingSystem.IsMacOS())
+{
+    application.SetMenuBar(menuBar);
+}
+View rootView = stressGrowth ? new ArenaGrowthView() : shell;
 var mainWindow = application.OpenWindow(
     rootView,
     new GpuiWindowOptions
@@ -13,7 +18,10 @@ var mainWindow = application.OpenWindow(
         Title = stressGrowth ? "GPUI.NET Arena Growth" : "GPUI.NET Components",
         Width = 1040,
         Height = 700,
-        TitleBarStyle = stressGrowth ? WindowTitleBarStyle.System : WindowTitleBarStyle.Custom,
+        TitleBarStyle =
+            stressGrowth || OperatingSystem.IsMacOS()
+                ? WindowTitleBarStyle.System
+                : WindowTitleBarStyle.Custom,
     }
 );
 if (rootView is SampleShellView mainShell)

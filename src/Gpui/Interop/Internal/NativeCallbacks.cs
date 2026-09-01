@@ -294,4 +294,25 @@ internal static unsafe class NativeCallbacks
             return -121;
         }
     }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    internal static int MenuAction(ulong applicationId, ulong actionId)
+    {
+        try
+        {
+            if (!NativeRegistry.Applications.TryGetValue(applicationId, out var application))
+            {
+                return -120;
+            }
+            return application.MenuAction(actionId);
+        }
+        catch (Exception exception)
+        {
+            if (NativeRegistry.Applications.TryGetValue(applicationId, out var application))
+            {
+                application.RecordFailure(exception);
+            }
+            return -123;
+        }
+    }
 }

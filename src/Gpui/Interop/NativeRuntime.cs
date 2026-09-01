@@ -12,16 +12,16 @@ public sealed unsafe class NativeRuntime
 {
     private const string ApiExportName = "gpui_dotnet_get_api";
 
-    private readonly GpuiDotnetApiV5* _api;
+    private readonly GpuiDotnetApiV6* _api;
     private readonly NativeLibraryHandle? _libraryHandle;
 
-    private NativeRuntime(GpuiDotnetApiV5* api, NativeLibraryHandle? libraryHandle)
+    private NativeRuntime(GpuiDotnetApiV6* api, NativeLibraryHandle? libraryHandle)
     {
         _api = api;
         _libraryHandle = libraryHandle;
     }
 
-    internal GpuiDotnetApiV5* Api
+    internal GpuiDotnetApiV6* Api
     {
         get
         {
@@ -48,7 +48,7 @@ public sealed unsafe class NativeRuntime
         {
             libraryHandle = NativeLibraryHandle.Load(options.LibraryPath);
             var export = NativeLibrary.GetExport(libraryHandle.DangerousGetHandle(), ApiExportName);
-            var getApi = (delegate* unmanaged[Cdecl]<uint, GpuiDotnetApiV5*>)export;
+            var getApi = (delegate* unmanaged[Cdecl]<uint, GpuiDotnetApiV6*>)export;
             return CreateValidated(getApi(NativeConstants.AbiVersion), libraryHandle);
         }
         catch
@@ -58,7 +58,7 @@ public sealed unsafe class NativeRuntime
         }
     }
 
-    private static NativeRuntime CreateValidated(GpuiDotnetApiV5* api, NativeLibraryHandle? libraryHandle = null)
+    private static NativeRuntime CreateValidated(GpuiDotnetApiV6* api, NativeLibraryHandle? libraryHandle = null)
     {
         if (api == null)
         {
@@ -67,10 +67,10 @@ public sealed unsafe class NativeRuntime
             );
         }
 
-        if (api->struct_size < (uint)sizeof(GpuiDotnetApiV5))
+        if (api->struct_size < (uint)sizeof(GpuiDotnetApiV6))
         {
             throw new InvalidOperationException(
-                $"Native API table is too small. Managed={sizeof(GpuiDotnetApiV5)}, native={api->struct_size}."
+                $"Native API table is too small. Managed={sizeof(GpuiDotnetApiV6)}, native={api->struct_size}."
             );
         }
 
@@ -94,6 +94,7 @@ public sealed unsafe class NativeRuntime
             || api->notify_view == null
             || api->dispatch_command == null
             || api->dispatch_application_command == null
+            || api->dispatch_application_menu == null
         )
         {
             throw new InvalidOperationException(
@@ -146,6 +147,7 @@ public sealed unsafe class NativeRuntime
                 control_event = &NativeCallbacks.ControlEvent,
                 application_started = &NativeCallbacks.ApplicationStarted,
                 window_closed = &NativeCallbacks.WindowClosed,
+                menu_action = &NativeCallbacks.MenuAction,
             };
             status = _api->run_application(id, &callbacks);
         }

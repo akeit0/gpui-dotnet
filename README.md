@@ -13,7 +13,7 @@ C# View state
    │ dirty render only
    ▼
 RenderArena (nodes / ops / children / UTF-8)
-   │ ABI v5
+   │ ABI v6
    ▼
 Rust validation + flat retained snapshot
    │
@@ -75,6 +75,37 @@ var titleBar = ui.HStack(
 ```
 
 Child caption regions override the parent drag region. Leave right-click on the Drag region unclaimed so platform non-client behavior remains available; GPUI.NET does not synthesize a Windows system menu. Caption buttons can use `HoverBackground(Color)` for native neutral/minimize feedback and a destructive red close hover without managed pointer callbacks. On Windows, the sample follows Zed's 36-pixel controls, 10-pixel Segoe caption glyphs, and `#E81120` close hover. On macOS, `Custom` retains the native traffic lights; applications should reserve their space instead of drawing duplicate caption buttons. `Hidden` removes the platform title-bar surface entirely but still allows explicit native control regions.
+
+### Native application menus
+
+Use `GpuiApplication.SetMenuBar` to describe application commands once:
+
+```csharp
+application.SetMenuBar(
+    new GpuiMenu(
+        "File",
+        GpuiMenuItem.Command("New window", OpenNewWindow),
+        GpuiMenuItem.Separator(),
+        GpuiMenuItem.Command("Close window", CloseWindow)));
+```
+
+On macOS, GPUI installs these definitions in AppKit's global application menu and routes each
+selection back to the managed callback. Use the same definitions in a custom title bar with
+`GpuiTitleBar.RenderWindow`; Windows and Linux get minimally styled app-side popovers, while
+macOS's default system-title-bar path leaves the content unchanged and keeps the menu in AppKit's
+global menu bar. The helper is only a convenience: `PopoverMenu`, `Button`, and
+`WindowControlArea` remain available for fully manual title-bar layouts. To force the managed
+menu/title path on macOS, pass `new GpuiTitleBarOptions(forceManagedMenuOnMac: true)` and do not
+also install the same menu in AppKit. Nested submenus are supported with
+`GpuiMenuItem.Submenu`.
+
+```csharp
+var menus = CreateMenus();
+application.SetMenuBar(menus);
+
+protected override Element Render(ref RenderContext ui) =>
+    GpuiTitleBar.RenderWindow(ref ui, "My application"u8, menus, content);
+```
 
 ## Managed Views: framework ownership by default
 
@@ -370,14 +401,16 @@ private async ValueTask Save()
 
 `Render()` remains a pure description function. Arena growth may retry it. Do not mutate View state, start tasks, perform I/O, or call `Invalidate()` from `Render()` or a `[GpuiListItem]` renderer. Binding an event at the call site is the supported render-time registration operation.
 
-## ABI v5
+## ABI v6
 
-ABI v5 makes application ownership distinct from window/render sessions. It adds:
+ABI v6 makes application ownership distinct from window/render sessions and adds native menu
+dispatch. It adds:
 
 - one native GPUI application with multiple independently mounted managed window roots;
 - application-started and per-window-closed lifecycle callbacks;
 - thread-safe open, close, activate, minimize, maximize/restore, title, and resize commands;
 - stable 64-bit window/session IDs and per-window resource namespaces;
+- a validated flat menu-tree command with managed action callbacks for native application menus;
 - shutdown only after the final application-owned window closes.
 
 Managed startup validates both ABI version and semantic schema hash (`0x66378CABCEE9092C`). See [docs/ABI.md](docs/ABI.md).
@@ -399,7 +432,14 @@ dotnet build Gpui.slnx
 dotnet run --project samples/Gpui.Sample
 ```
 
-The sample starts with custom chrome, compact platform-style caption controls, and File/View/Help popover menus in the title bar. It also contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List route, an Image gallery, centered-dialog/right-sheet Overlay demos, delayed trigger-relative tooltips, an application-content ContextMenu demo, and a multi-window gallery. Closing either companion leaves the main gallery running. To open the system-title-bar companion automatically at startup:
+The sample uses the native system title bar on macOS and starts with custom chrome and compact
+platform-style caption controls on Windows and Linux. Its File/View/Help menus are app-side
+popovers on Windows and Linux, and a native global application menu on macOS.
+It also contains retained Scroll and Input routes, a 20,000-row variable-height virtualized List
+route, an Image gallery, centered-dialog/right-sheet Overlay demos, delayed trigger-relative
+tooltips, an application-content ContextMenu demo, and a multi-window gallery. Closing either
+companion leaves the main gallery running. To open the system-title-bar companion automatically at
+startup:
 
 ```powershell
 dotnet run --project samples/Gpui.Sample -- --multi-window

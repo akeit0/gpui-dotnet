@@ -21,6 +21,13 @@ public readonly unsafe ref partial struct RenderContext
 
     internal RenderArena* NativeArena => _arena;
 
+    internal View EventBindingOwner =>
+        View.CurrentEventBindingOwner
+        ?? _owner
+        ?? throw new InvalidOperationException(
+            "Managed title-bar menu actions require an owning View during rendering."
+        );
+
     /// <summary>
     /// Renders a framework-owned child in the next positional child slot. The instance is created
     /// once per retained slot and reused while the slot continues to request the same view type.

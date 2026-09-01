@@ -56,6 +56,17 @@ The native application host keeps a window registry and a UI-thread command chan
 
 Custom title bars preserve the same boundary: C# composes the visual header and hover colors, while semantic `WindowControlArea` operations become GPUI/platform hit-test regions. Dragging, double-click maximize, and caption controls therefore stay native instead of emitting high-frequency managed events. Application-content ContextMenu triggers are separate from title-bar Drag regions. GPUI.NET leaves title-bar right-click unclaimed but does not synthesize a Windows system menu; the pinned GPUI revision only implements its explicit `show_window_menu` platform hook for Linux client-side decorations. On macOS, the transparent custom title-bar mode retains platform traffic lights; managed composition owns the reserved visual space.
 
+Application menus use the platform split from Zed: `GpuiApplication.SetMenuBar` converts the managed
+menu tree to GPUI `Menu` actions, and macOS installs it as AppKit's global menu bar. The managed
+action ID is the only value that crosses back when an item is selected. Windows keeps the sample's
+app-side title-bar menu because this pinned GPUI Windows backend retains menus but does not install
+a native Win32 menu bar; Linux and other platforms can likewise provide an app-side presenter.
+`GpuiTitleBar.RenderWindow` is the default managed presenter for that split, using the same
+`GpuiMenu` definitions and leaving the lower-level `PopoverMenu`/`WindowControlArea` primitives
+available for manual presenters. Its macOS system-title-bar path returns the content unchanged;
+`GpuiTitleBarOptions.ForceManagedMenuOnMac` explicitly selects the managed title/menu path on macOS
+when AppKit's global menu is not desired.
+
 Each window has a separate `ManagedSession`, View-handle allocator, render snapshots, retained resources, list caches, and lifecycle teardown. A failure is recorded against the affected window session while other windows keep running; the application reports the first failure when the final window closes. Closing one window unmounts only its View tree. Closing the final window quits the shared GPUI application.
 
 ## Design reference and dependency policy

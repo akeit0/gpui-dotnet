@@ -1,14 +1,14 @@
-# ABI v5
+# ABI v6
 
-ABI v5 separates one application identity from its independently mounted window/render session identities. Managed startup requests exactly version 5 and also checks the semantic schema hash.
+ABI v6 separates one application identity from its independently mounted window/render session identities and adds native application-menu dispatch. Managed startup requests exactly version 6 and also checks the semantic schema hash.
 
 ## Discovery
 
 ```c
-const gpui_dotnet_api_v5* gpui_dotnet_get_api(uint32_t requested_version);
+const gpui_dotnet_api_v6* gpui_dotnet_get_api(uint32_t requested_version);
 ```
 
-`gpui_dotnet_api_v5` contains:
+`gpui_dotnet_api_v6` contains:
 
 - `struct_size`;
 - `abi_version`;
@@ -18,6 +18,7 @@ const gpui_dotnet_api_v5* gpui_dotnet_get_api(uint32_t requested_version);
 - `notify_view`;
 - `dispatch_command`;
 - `dispatch_application_command`.
+- `dispatch_application_menu`.
 
 The current schema hash is `0x66378CABCEE9092C`.
 
@@ -172,7 +173,20 @@ typedef struct gpui_native_application_command {
 
 For `Open`, flag bit 0 means the position fields are present, bit 1 requests activation, and bits 2–3 encode `System = 0`, `Custom = 1`, or `Hidden = 2`. All higher bits and the unused value 3 are rejected. `Custom` uses a transparent platform title-bar surface with client decorations; `Hidden` removes the title-bar surface and keeps the UTF-8 title as the native window/task-switcher title.
 
-The call copies borrowed UTF-8 before returning and enqueues the owned command. All GPUI window mutation occurs on the native UI thread. Initial position is supported by `Open`; runtime resize is supported, but runtime reposition is absent because the pinned GPUI API has no durable cross-platform operation for it. The command record layout remains ABI v5; the schema hash rejects native/managed pairs that disagree about the extended flag semantics.
+The call copies borrowed UTF-8 before returning and enqueues the owned command. All GPUI window mutation occurs on the native UI thread. Initial position is supported by `Open`; runtime resize is supported, but runtime reposition is absent because the pinned GPUI API has no durable cross-platform operation for it. The command record layout remains unchanged within ABI v6; the schema hash rejects native/managed pairs that disagree about the extended flag semantics.
+
+## Native application menu
+
+`SetMenuBar` sends a flat preorder tree of menu records through `dispatch_application_menu`.
+Record kinds are `Menu = 1`, `Action = 2`, and `Separator = 3`; each child points to its
+containing menu by record index. Menu and action labels are borrowed UTF-8 for the duration of
+the call and are copied before the command is queued. Action records carry a non-zero managed
+action ID; native menu activation returns that ID through `menu_action(application_id, action_id)`.
+
+The native host converts the owned tree to GPUI's `Menu`/`MenuItem` model and calls `App::set_menus`.
+On macOS this creates the AppKit global menu bar, including nested submenus. The callback dispatches
+the selected action to managed code. The pinned GPUI Windows backend stores the same menu model but
+does not create a Win32 menu bar, so GPUI.NET keeps the existing Windows app-side title-bar menus.
 
 ## Native window-control regions
 

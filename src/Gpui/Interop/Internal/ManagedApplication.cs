@@ -15,6 +15,8 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
     private readonly ulong _applicationId;
     private readonly GpuiApplication _application;
     private readonly ConcurrentDictionary<ulong, ManagedSession> _sessions = new();
+    private readonly ConcurrentDictionary<ulong, Action> _menuActions = new();
+    private long _nextMenuActionId;
     private Exception? _failure;
     private int _stopped;
 
@@ -36,10 +38,141 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     internal void Start()
     {
+        if (_application.MenuBarSnapshot() is { } menus)
+        {
+            SetMenuBar(menus);
+        }
+
         foreach (var request in _application.AttachHost(this))
         {
             OpenWindow(request.Window, request.Snapshot);
         }
+    }
+
+    public void SetMenuBar(IReadOnlyList<GpuiMenu> menus)
+    {
+        ArgumentNullException.ThrowIfNull(menus);
+
+        var records = new List<NativeMenuRecord>();
+        var titleBytes = new List<byte>();
+        var titleOffsets = new List<int>();
+        _menuActions.Clear();
+
+        foreach (var menu in menus)
+        {
+            AddMenu(menu, uint.MaxValue, records, titleBytes, titleOffsets);
+        }
+
+        var titles = titleBytes.ToArray();
+        unsafe
+        {
+            fixed (NativeMenuRecord* nativeRecords = records.ToArray())
+            fixed (byte* nativeTitles = titles)
+            {
+                for (var index = 0; index < records.Count; index++)
+                {
+                    nativeRecords[index].title = nativeTitles + titleOffsets[index];
+                }
+
+                var native = new NativeMenuCommand
+                {
+                    items = nativeRecords,
+                    item_length = records.Count,
+                    reserved = 0,
+                    reserved2 = 0,
+                };
+                var status = _runtime.Api->dispatch_application_menu(_applicationId, &native);
+                if (status != 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Native application menu update failed with status {status}."
+                    );
+                }
+            }
+        }
+    }
+
+    internal int MenuAction(ulong actionId)
+    {
+        if (!_menuActions.TryGetValue(actionId, out var callback))
+        {
+            return -64;
+        }
+
+        try
+        {
+            callback();
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            RecordFailure(exception);
+            return -65;
+        }
+    }
+
+    private void AddMenu(
+        GpuiMenu menu,
+        uint parent,
+        List<NativeMenuRecord> records,
+        List<byte> titleBytes,
+        List<int> titleOffsets
+    )
+    {
+        var menuIndex = checked((uint)records.Count);
+        AddRecord(1, parent, 0, menu.Title, records, titleBytes, titleOffsets);
+        foreach (var item in menu.Items)
+        {
+            if (item.IsSeparator)
+            {
+                AddRecord(3, menuIndex, 0, string.Empty, records, titleBytes, titleOffsets);
+            }
+            else if (item.NestedMenu is not null)
+            {
+                AddMenu(item.NestedMenu, menuIndex, records, titleBytes, titleOffsets);
+            }
+            else
+            {
+                var actionId = checked((ulong)Interlocked.Increment(ref _nextMenuActionId));
+                _menuActions[actionId] = item.Callback!;
+                AddRecord(
+                    2,
+                    menuIndex,
+                    actionId,
+                    item.Title,
+                    records,
+                    titleBytes,
+                    titleOffsets
+                );
+            }
+        }
+    }
+
+    private static void AddRecord(
+        ushort kind,
+        uint parent,
+        ulong actionId,
+        string title,
+        List<NativeMenuRecord> records,
+        List<byte> titleBytes,
+        List<int> titleOffsets
+    )
+    {
+        var bytes = Encoding.UTF8.GetBytes(title);
+        titleOffsets.Add(titleBytes.Count);
+        titleBytes.AddRange(bytes);
+        records.Add(
+            new NativeMenuRecord
+            {
+                parent = parent,
+                kind = kind,
+                flags = 0,
+                action_id = actionId,
+                title = null,
+                title_length = bytes.Length,
+                reserved = 0,
+            }
+        );
     }
 
     public void OpenWindow(GpuiWindow window, GpuiWindowSnapshot snapshot)

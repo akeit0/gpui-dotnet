@@ -20,6 +20,21 @@ Managed Div and Button elements can use `WindowControlArea(Drag|Minimize|Maximiz
 
 Interactive elements can use `HoverBackground(Color)` for an explicit native hover fill. This is useful for platform-like caption controls: neutral minimize/maximize feedback and a destructive red close hover remain entirely in GPUI without managed pointer callbacks.
 
+### Shared menu title bar
+
+`GpuiTitleBar.RenderWindow(ref ui, title, menus, content)` is the library convenience for a
+custom window that uses the same `GpuiMenu` definitions as `GpuiApplication.SetMenuBar`. Windows
+and Linux render a minimal app-side menu bar with trigger-attached `PopoverMenu` layers and native
+caption hit-test regions. On macOS, the default system-title-bar path returns `content` unchanged
+and leaves the menu in AppKit's global menu bar. The helper does not change a window's
+`TitleBarStyle`, so the caller still chooses `Custom` explicitly on platforms where it renders
+managed chrome. Pass `new GpuiTitleBarOptions(forceManagedMenuOnMac: true)` to force the managed
+title/menu path on macOS; in that mode, do not also install the same menus with `SetMenuBar`.
+
+The helper is intentionally replaceable. Applications that need different menu placement,
+styling, keyboard behavior, or item roles can compose `PopoverMenu`, `Button`, and
+`WindowControlArea` directly.
+
 ## Snapshot component adapters
 
 A normal semantic component is declared in `bindings/schema.json`, generated into C#/Rust metadata and mapped by a handwritten Rust adapter. C# depends on semantic operations, not GPUI trait names or concrete Rust types.

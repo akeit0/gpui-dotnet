@@ -8,6 +8,7 @@ internal sealed partial class SampleShellView : View
     private SamplePage _page;
 
     internal GpuiApplication? Application { get; init; }
+    internal GpuiMenu[] MenuBar { get; set; } = [];
     internal GpuiWindow? Window { get; set; }
 
     private void OpenNewWindow()
@@ -138,205 +139,51 @@ internal sealed partial class SampleShellView : View
             .Width(Percent(100))
             .Grow()
             .Background(Rgb(241, 245, 249));
-        var menuBar = RenderMenuBar(ref ui);
-        return ui.VStack(
-                SampleTitleBar.Render(ref ui, "GPUI.NET  /  Components"u8, menuBar),
-                gallery
-            )
-            .Width(Percent(100))
-            .Height(Percent(100));
+        return GpuiTitleBar.RenderWindow(
+            ref ui,
+            "GPUI.NET  /  Components"u8,
+            MenuBar,
+            gallery
+        );
     }
 
-    private Element RenderMenuBar(ref RenderContext ui)
+    internal GpuiMenu[] CreateMenuBar() =>
+    [
+        new GpuiMenu(
+            "GPUI.NET",
+            GpuiMenuItem.Command("About GPUI.NET", () => ShowPage(SamplePage.Overview)),
+            GpuiMenuItem.Separator(),
+            GpuiMenuItem.Command("Close window", CloseWindow)
+        ),
+        new GpuiMenu(
+            "File",
+            GpuiMenuItem.Command("New window", OpenNewWindow),
+            GpuiMenuItem.Command("New custom-title-bar window", OpenCustomTitleBarWindow),
+            GpuiMenuItem.Separator(),
+            GpuiMenuItem.Command("Close window", CloseWindow)
+        ),
+        new GpuiMenu(
+            "View",
+            GpuiMenuItem.Command("Scroll view", () => ShowPage(SamplePage.Overview)),
+            GpuiMenuItem.Command("Virtual list", () => ShowPage(SamplePage.Activity)),
+            GpuiMenuItem.Command("Virtual table", () => ShowPage(SamplePage.Tables)),
+            GpuiMenuItem.Command("Images", () => ShowPage(SamplePage.Images)),
+            GpuiMenuItem.Command("Inputs", () => ShowPage(SamplePage.Inputs)),
+            GpuiMenuItem.Command("Overlays + tooltips", () => ShowPage(SamplePage.Overlays)),
+            GpuiMenuItem.Command("Windows", () => ShowPage(SamplePage.Windows))
+        ),
+        new GpuiMenu(
+            "Help",
+            GpuiMenuItem.Command("About GPUI.NET", () => ShowPage(SamplePage.Overview)),
+            GpuiMenuItem.Command("Open overlay gallery", () => ShowPage(SamplePage.Overlays))
+        )
+    ];
+
+    private void ShowPage(SamplePage page)
     {
-        var fileMenu = ui.PopoverMenu(
-            "titlebar-file-menu"u8,
-            TitleBarMenuTrigger(ref ui, "titlebar-file"u8, "File"u8),
-            MenuSurface(
-                ref ui,
-                MenuItem(
-                    ref ui,
-                    "menu-new-window"u8,
-                    "New window"u8,
-                    this,
-                    (view, _) => view.OpenNewWindow()
-                ),
-                MenuItem(
-                    ref ui,
-                    "menu-custom-window"u8,
-                    "New custom-title-bar window"u8,
-                    this,
-                    (view, _) => view.OpenCustomTitleBarWindow()
-                ),
-                ui.Divider(),
-                MenuItem(
-                    ref ui,
-                    "menu-close-window"u8,
-                    "Close window"u8,
-                    this,
-                    (view, _) => view.CloseWindow()
-                )
-            )
-        );
-        var viewMenu = ui.PopoverMenu(
-            "titlebar-view-menu"u8,
-            TitleBarMenuTrigger(ref ui, "titlebar-view"u8, "View"u8),
-            MenuSurface(
-                ref ui,
-                MenuItem(
-                    ref ui,
-                    "menu-overview"u8,
-                    "Scroll view"u8,
-                    this,
-                    (view, _) =>
-                    {
-                        view._page = SamplePage.Overview;
-                        view.Invalidate();
-                    }
-                ),
-                MenuItem(
-                    ref ui,
-                    "menu-activity"u8,
-                    "Virtual list"u8,
-                    this,
-                    (view, _) =>
-                    {
-                        view._page = SamplePage.Activity;
-                        view.Invalidate();
-                    }
-                ),
-                MenuItem(
-                    ref ui,
-                    "menu-tables"u8,
-                    "Virtual table"u8,
-                    this,
-                    (view, _) =>
-                    {
-                        view._page = SamplePage.Tables;
-                        view.Invalidate();
-                    }
-                ),
-                MenuItem(
-                    ref ui,
-                    "menu-images"u8,
-                    "Images"u8,
-                    this,
-                    (view, _) =>
-                    {
-                        view._page = SamplePage.Images;
-                        view.Invalidate();
-                    }
-                ),
-                MenuItem(
-                    ref ui,
-                    "menu-inputs"u8,
-                    "Inputs"u8,
-                    this,
-                    (view, _) =>
-                    {
-                        view._page = SamplePage.Inputs;
-                        view.Invalidate();
-                    }
-                ),
-                MenuItem(
-                    ref ui,
-                    "menu-overlays"u8,
-                    "Overlays + tooltips"u8,
-                    this,
-                    (view, _) =>
-                    {
-                        view._page = SamplePage.Overlays;
-                        view.Invalidate();
-                    }
-                ),
-                MenuItem(
-                    ref ui,
-                    "menu-windows"u8,
-                    "Windows"u8,
-                    this,
-                    (view, _) =>
-                    {
-                        view._page = SamplePage.Windows;
-                        view.Invalidate();
-                    }
-                )
-            )
-        );
-        var helpMenu = ui.PopoverMenu(
-            "titlebar-help-menu"u8,
-            TitleBarMenuTrigger(ref ui, "titlebar-help"u8, "Help"u8),
-            MenuSurface(
-                ref ui,
-                MenuItem(
-                    ref ui,
-                    "menu-about"u8,
-                    "About GPUI.NET"u8,
-                    this,
-                    (view, _) =>
-                    {
-                        view._page = SamplePage.Overview;
-                        view.Invalidate();
-                    }
-                ),
-                MenuItem(
-                    ref ui,
-                    "menu-overlay-guide"u8,
-                    "Open overlay gallery"u8,
-                    this,
-                    (view, _) =>
-                    {
-                        view._page = SamplePage.Overlays;
-                        view.Invalidate();
-                    }
-                )
-            )
-        );
-
-        return ui.HStack(fileMenu, viewMenu, helpMenu).Height(Percent(100)).ItemsCenter();
+        _page = page;
+        Invalidate();
     }
-
-    private static Element TitleBarMenuTrigger(
-        ref RenderContext ui,
-        ReadOnlySpan<byte> id,
-        ReadOnlySpan<byte> label
-    ) =>
-        ui.Button(id, label)
-            .Height(Percent(100))
-            .Padding(Px(9))
-            .FontSize(Px(12))
-            .Background(Rgb(15, 23, 42))
-            .HoverBackground(Rgb(30, 41, 59))
-            .BorderWidth(Px(0))
-            .Radius(Px(0))
-            .TextColor(Rgb(226, 232, 240));
-
-    private static Element MenuSurface(ref RenderContext ui, params ReadOnlySpan<Element> items) =>
-        ui.VStack(items)
-            .Gap(Px(2))
-            .Padding(Px(6))
-            .Width(Px(224))
-            .Background(Rgb(255, 255, 255))
-            .BorderWidth(Px(1))
-            .BorderColor(Rgb(203, 213, 225))
-            .Radius(Px(7));
-
-    private static Element MenuItem(
-        ref RenderContext ui,
-        ReadOnlySpan<byte> id,
-        ReadOnlySpan<byte> label,
-        SampleShellView view,
-        Action<SampleShellView, ClickEvent> callback
-    ) =>
-        ui.Button(id, label)
-            .OnClick(view, callback)
-            .Width(Percent(100))
-            .Padding(Px(8))
-            .FontSize(Px(12))
-            .Background(Rgb(255, 255, 255))
-            .HoverBackground(Rgb(241, 245, 249))
-            .BorderWidth(Px(0))
-            .Radius(Px(4))
-            .TextColor(Rgb(15, 23, 42));
 
     private Element RenderSidebar(ref RenderContext ui)
     {

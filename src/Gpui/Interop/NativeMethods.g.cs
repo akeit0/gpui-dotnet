@@ -21,7 +21,7 @@ namespace Gpui.Interop
 
 
         [DllImport(__DllName, EntryPoint = "gpui_dotnet_get_api", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        internal static extern GpuiDotnetApiV5* gpui_dotnet_get_api(uint requested_version);
+        internal static extern GpuiDotnetApiV6* gpui_dotnet_get_api(uint requested_version);
 
 
     }
@@ -128,6 +128,27 @@ namespace Gpui.Interop
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    internal unsafe partial struct NativeMenuCommand
+    {
+        public NativeMenuRecord* items;
+        public int item_length;
+        public uint reserved;
+        public uint reserved2;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal unsafe partial struct NativeMenuRecord
+    {
+        public uint parent;
+        public ushort kind;
+        public ushort flags;
+        public ulong action_id;
+        public byte* title;
+        public int title_length;
+        public uint reserved;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     internal unsafe partial struct ManagedCallbacks
     {
         public uint struct_size;
@@ -137,10 +158,11 @@ namespace Gpui.Interop
         public delegate* unmanaged[Cdecl]<ulong, ulong, NativeControlEvent*, int> control_event;
         public delegate* unmanaged[Cdecl]<ulong, int> application_started;
         public delegate* unmanaged[Cdecl]<ulong, ulong, int, int> window_closed;
+        public delegate* unmanaged[Cdecl]<ulong, ulong, int> menu_action;
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    internal unsafe partial struct GpuiDotnetApiV5
+    internal unsafe partial struct GpuiDotnetApiV6
     {
         public uint struct_size;
         public uint abi_version;
@@ -150,6 +172,7 @@ namespace Gpui.Interop
         public delegate* unmanaged[Cdecl]<ulong, int> notify_view;
         public delegate* unmanaged[Cdecl]<ulong, NativeResourceCommand*, int> dispatch_command;
         public delegate* unmanaged[Cdecl]<ulong, NativeApplicationCommand*, int> dispatch_application_command;
+        public delegate* unmanaged[Cdecl]<ulong, NativeMenuCommand*, int> dispatch_application_menu;
     }
 
 

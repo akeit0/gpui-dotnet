@@ -19,13 +19,13 @@ mod trace;
 use std::{mem::size_of, panic::AssertUnwindSafe, ptr};
 
 use abi::{
-    ABI_VERSION, GpuiDotnetApiV5, ManagedCallbacks, NativeApplicationCommand,
-    NativeResourceCommand, RenderArena,
+    ABI_VERSION, GpuiDotnetApiV6, ManagedCallbacks, NativeApplicationCommand, NativeMenuCommand,
+    NativeMenuRecord, NativeResourceCommand, RenderArena,
 };
 use semantic::SCHEMA_HASH;
 
-static API_V5: GpuiDotnetApiV5 = GpuiDotnetApiV5 {
-    struct_size: GpuiDotnetApiV5::struct_size(),
+static API_V6: GpuiDotnetApiV6 = GpuiDotnetApiV6 {
+    struct_size: GpuiDotnetApiV6::struct_size(),
     abi_version: ABI_VERSION,
     schema_hash: SCHEMA_HASH,
     validate_render: Some(validate_render),
@@ -33,14 +33,15 @@ static API_V5: GpuiDotnetApiV5 = GpuiDotnetApiV5 {
     notify_view: Some(notify_view),
     dispatch_command: Some(dispatch_command),
     dispatch_application_command: Some(dispatch_application_command),
+    dispatch_application_menu: Some(dispatch_application_menu),
 };
 
 #[unsafe(no_mangle)]
-pub extern "C" fn gpui_dotnet_get_api(requested_version: u32) -> *const GpuiDotnetApiV5 {
+pub extern "C" fn gpui_dotnet_get_api(requested_version: u32) -> *const GpuiDotnetApiV6 {
     if requested_version != ABI_VERSION {
         return ptr::null();
     }
-    &API_V5
+    &API_V6
 }
 
 unsafe extern "C" fn validate_render(arena: *const RenderArena, root: u32) -> i32 {
@@ -238,6 +239,124 @@ unsafe fn dispatch_application_command_inner(
     app_host::dispatch_application_command(application_id, message)
 }
 
+unsafe extern "C" fn dispatch_application_menu(
+    application_id: u64,
+    command: *const NativeMenuCommand,
+) -> i32 {
+    std::panic::catch_unwind(AssertUnwindSafe(|| unsafe {
+        dispatch_application_menu_inner(application_id, command)
+    }))
+    .unwrap_or(-99)
+}
+
+unsafe fn dispatch_application_menu_inner(
+    application_id: u64,
+    command: *const NativeMenuCommand,
+) -> i32 {
+    const MENU: u16 = 1;
+    const ACTION: u16 = 2;
+    const SEPARATOR: u16 = 3;
+    const MAX_MENU_RECORDS: usize = 4096;
+    const NO_PARENT: u32 = u32::MAX;
+
+    let Some(command) = (unsafe { command.as_ref() }) else {
+        return -64;
+    };
+    if application_id == 0
+        || command.reserved != 0
+        || command.reserved2 != 0
+        || command.item_length < 0
+        || command.item_length as usize > MAX_MENU_RECORDS
+        || (command.item_length != 0 && command.items.is_null())
+    {
+        return -65;
+    }
+
+    let records = if command.item_length == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(command.items, command.item_length as usize) }
+    };
+    let mut children = vec![Vec::new(); records.len()];
+    let mut roots = Vec::new();
+    let mut titles = Vec::with_capacity(records.len());
+    for (index, record) in records.iter().enumerate() {
+        if record.flags != 0
+            || record.reserved != 0
+            || (record.title_length <= 0 && record.kind != SEPARATOR)
+            || record.title_length < 0
+            || (record.title_length != 0 && record.title.is_null())
+            || (record.kind != MENU && record.kind != ACTION && record.kind != SEPARATOR)
+        {
+            return -66;
+        }
+
+        let title = if record.title_length == 0 {
+            String::new()
+        } else {
+            let bytes =
+                unsafe { std::slice::from_raw_parts(record.title, record.title_length as usize) };
+            let Ok(title) = std::str::from_utf8(bytes) else {
+                return -67;
+            };
+            title.to_owned()
+        };
+        match record.parent {
+            NO_PARENT if record.kind == MENU => roots.push(index),
+            NO_PARENT => return -68,
+            parent if parent as usize >= index || parent as usize >= records.len() => return -68,
+            parent => {
+                if records[parent as usize].kind != MENU {
+                    return -68;
+                }
+                children[parent as usize].push(index);
+            }
+        }
+        if record.kind == ACTION && record.action_id == 0 {
+            return -69;
+        }
+        if record.kind != ACTION && record.action_id != 0 {
+            return -69;
+        }
+        titles.push(title);
+    }
+
+    fn build_menu(
+        index: usize,
+        records: &[NativeMenuRecord],
+        children: &[Vec<usize>],
+        titles: &[String],
+    ) -> app_host::ManagedMenu {
+        let items = children[index]
+            .iter()
+            .map(|&child| match records[child].kind {
+                MENU => {
+                    app_host::ManagedMenuItem::Submenu(build_menu(child, records, children, titles))
+                }
+                ACTION => app_host::ManagedMenuItem::Action {
+                    id: records[child].action_id,
+                    title: titles[child].clone(),
+                },
+                SEPARATOR => app_host::ManagedMenuItem::Separator,
+                _ => unreachable!("menu record kind was validated"),
+            })
+            .collect();
+        app_host::ManagedMenu {
+            title: titles[index].clone(),
+            items,
+        }
+    }
+
+    let menus = roots
+        .into_iter()
+        .map(|index| build_menu(index, records, &children, &titles))
+        .collect();
+    app_host::dispatch_application_command(
+        application_id,
+        app_host::ApplicationCommand::SetMenuBar(menus),
+    )
+}
+
 unsafe extern "C" fn run_application(
     application_id: u64,
     callbacks: *const ManagedCallbacks,
@@ -260,6 +379,7 @@ unsafe extern "C" fn run_application(
         || callbacks.control_event.is_none()
         || callbacks.application_started.is_none()
         || callbacks.window_closed.is_none()
+        || callbacks.menu_action.is_none()
     {
         return -21;
     }

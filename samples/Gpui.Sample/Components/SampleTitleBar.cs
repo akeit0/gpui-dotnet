@@ -10,7 +10,7 @@ internal static class SampleTitleBar
     internal static Element Render(
         ref RenderContext ui,
         ReadOnlySpan<byte> utf8Title,
-        Element menuBar
+        Element? menuBar
     ) => Render(ref ui, ui.Text(utf8Title).FontSize(Px(13)).TextColor(Rgb(226, 232, 240)), menuBar);
 
     internal static Element Render(ref RenderContext ui, ReadOnlySpan<char> title) =>
@@ -23,11 +23,16 @@ internal static class SampleTitleBar
         ReadOnlySpan<byte> maximizeGlyph = windowsCaptionGlyphs ? "\uE922"u8 : "□"u8;
         ReadOnlySpan<byte> closeGlyph = windowsCaptionGlyphs ? "\uE8BB"u8 : "×"u8;
         var glyphSize = windowsCaptionGlyphs ? 10 : 15;
-        var titleRegion = ui.HStack(ui.Div().Width(Px(OperatingSystem.IsMacOS() ? 64 : 0)), title)
-            .ItemsCenter()
-            .Padding(Px(9))
-            .Height(Percent(100))
-            .WindowControlArea(WindowControlArea.Drag);
+        var titleRegion = OperatingSystem.IsMacOS()
+            ? ui.Div()
+                .Width(Px(64))
+                .Height(Percent(100))
+                .WindowControlArea(WindowControlArea.Drag)
+            : ui.HStack(title)
+                .ItemsCenter()
+                .Padding(Px(9))
+                .Height(Percent(100))
+                .WindowControlArea(WindowControlArea.Drag);
         var trailingDragRegion = ui.Div()
             .Grow()
             .Height(Percent(100))

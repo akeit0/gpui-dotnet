@@ -1,6 +1,6 @@
 # Next steps
 
-The repository now has framework-owned dynamic managed Views, an ABI v5 multi-window application/session model, typed native-control events, retained native Scroll and Input state, virtualized ListState, deferred window Overlay, trigger-relative Tooltip, pointer-anchored ContextMenu, and trigger-attached PopoverMenu layers, batched managed datasource rendering with surgical batch invalidation, stable row identity, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots, and a virtualized Table sharing the list row engine with declarative column IR.
+The repository now has framework-owned dynamic managed Views, an ABI v6 multi-window application/session model with native macOS application menus, typed native-control events, retained native Scroll and Input state, virtualized ListState, deferred window Overlay, trigger-relative Tooltip, pointer-anchored ContextMenu, and trigger-attached PopoverMenu layers, batched managed datasource rendering with surgical batch invalidation, stable row identity, lifecycle hooks, capability-based semantic bindings, native adapters and flat snapshots, and a virtualized Table sharing the list row engine with declarative column IR.
 
 ## 1. List datasource refinement — foundation complete
 

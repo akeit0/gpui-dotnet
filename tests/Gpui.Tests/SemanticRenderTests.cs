@@ -71,6 +71,43 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void SharedMenusRenderThroughTheLibraryTitleBar()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var menus = new[]
+            {
+                new GpuiMenu(
+                    "File",
+                    GpuiMenuItem.Command("Open", view.RecordClick),
+                    GpuiMenuItem.Submenu(
+                        new GpuiMenu("Recent", GpuiMenuItem.Command("Example", view.RecordClick))
+                    ),
+                    GpuiMenuItem.Separator()
+                )
+            };
+
+            var titleBar = GpuiTitleBar.Render(
+                ref ui,
+                "Application"u8,
+                menus,
+                new GpuiTitleBarOptions(forceManagedMenuOnMac: true)
+            );
+
+            arena.Validate(titleBar);
+            Assert.True(arena.GetStats().Nodes > 0);
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
     public void Utf8InputConfigurationPassesManagedValidation()
     {
         var view = new ProbeView();

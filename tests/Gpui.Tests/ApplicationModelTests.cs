@@ -41,6 +41,30 @@ public sealed class ApplicationModelTests
     }
 
     [Fact]
+    public void NativeMenuBarDefinitionsCanBeConfiguredBeforeRun()
+    {
+        var application = new GpuiApplication();
+        var invoked = false;
+
+        application.SetMenuBar(
+            new GpuiMenu(
+                "File",
+                GpuiMenuItem.Command("Open", () => invoked = true),
+                GpuiMenuItem.Submenu(
+                    new GpuiMenu(
+                        "Recent",
+                        GpuiMenuItem.Command("Example", () => invoked = true)
+                    )
+                ),
+                GpuiMenuItem.Separator()
+            )
+        );
+
+        Assert.NotNull(application.MenuBarSnapshot());
+        Assert.False(invoked);
+    }
+
+    [Fact]
     public void PendingWindowCanBeConfiguredAndClosed()
     {
         var application = new GpuiApplication();

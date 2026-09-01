@@ -831,6 +831,7 @@ mod tests {
             control_event: Some(capture_event),
             application_started: None,
             window_closed: None,
+            menu_action: None,
         }
     }
 }
