@@ -82,6 +82,10 @@ internal sealed partial class MainView : View
 describes UI into a native-owned arena and may be retried when that arena grows, so state changes,
 I/O, and task creation belong in events or lifecycle methods rather than in `Render()`.
 
+On Windows, the application executable must embed a Common Controls v6 manifest because the native
+host uses Windows common-control APIs. Set `ApplicationManifest` in the project file and use
+`samples/Gpui.Sample/app.manifest` as the reference manifest.
+
 ## Mental model
 
 ```text

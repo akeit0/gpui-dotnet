@@ -105,6 +105,10 @@ A release pipeline should verify:
 - NativeAOT publishing succeeds for supported RIDs;
 - no package attempts to compile Rust on the consumer machine.
 
+Windows consumers must also embed a Common Controls v6 application manifest in the executable;
+the sample's `app.manifest` is the reference. Without it, Windows may fail to load the native host
+because the common-control API set is not activated for the process.
+
 ## Extensions
 
 An extension can reference `GPUI.NET.Core` and supply a compatible host with its own file name and

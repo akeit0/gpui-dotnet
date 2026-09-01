@@ -93,6 +93,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Linux runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libasound2-dev \
+            libfontconfig-dev \
+            libssl-dev \
+            libstdc++-14-dev \
+            libvulkan1 \
+            libwayland-dev \
+            libx11-xcb-dev \
+            libxkbcommon-x11-dev \
+            libzstd-dev
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
@@ -137,15 +151,24 @@ jobs:
           $version = [string] $props.Project.PropertyGroup.Version
           dotnet new console --framework net10.0 --output artifacts/package-smoke
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet add artifacts/package-smoke/package-smoke.csproj package GPUI.NET `
+          $smokeProject = 'artifacts/package-smoke/package-smoke.csproj'
+          @'
+          using Gpui.Interop;
+
+          var runtime = NativeRuntime.Load();
+          Console.WriteLine($"Loaded {runtime.GetType().FullName} from GPUI.NET packages.");
+          '@ | Set-Content -LiteralPath artifacts/package-smoke/Program.cs -Encoding utf8
+          dotnet add $smokeProject package GPUI.NET `
               --version $version `
               --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet restore artifacts/package-smoke/package-smoke.csproj `
+          dotnet restore $smokeProject `
               --source artifacts/packages `
-              --source https://api.nuget.org/v3/index.json
+              --source 'https://api.nuget.org/v3/index.json'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet build artifacts/package-smoke/package-smoke.csproj --no-restore
+          dotnet build $smokeProject --no-restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project $smokeProject --no-build --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload packages
@@ -155,10 +178,79 @@ jobs:
           path: artifacts/packages/*.nupkg
           if-no-files-found: error
 
+  windows-consumer:
+    name: Validate Windows NuGet consumer
+    needs: package
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts/packages
+
+      - name: Restore, build, and run clean Windows consumer
+        shell: pwsh
+        run: |
+          [xml] $props = Get-Content Directory.Build.props
+          $version = [string] $props.Project.PropertyGroup.Version
+          dotnet new console --framework net10.0 --output artifacts/package-smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $smokeProject = 'artifacts/package-smoke/package-smoke.csproj'
+          @'
+          using Gpui.Interop;
+
+          var runtime = NativeRuntime.Load();
+          Console.WriteLine($"Loaded {runtime.GetType().FullName} from GPUI.NET packages.");
+          '@ | Set-Content -LiteralPath artifacts/package-smoke/Program.cs -Encoding utf8
+          @'
+          <?xml version="1.0" encoding="utf-8"?>
+          <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+            <assemblyIdentity version="1.0.0.0" name="Gpui.PackageSmoke" />
+            <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+              <security>
+                <requestedPrivileges>
+                  <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+                </requestedPrivileges>
+              </security>
+            </trustInfo>
+            <dependency>
+              <dependentAssembly>
+                <assemblyIdentity
+                  type="win32"
+                  name="Microsoft.Windows.Common-Controls"
+                  version="6.0.0.0"
+                  processorArchitecture="*"
+                  publicKeyToken="6595b64144ccf1df"
+                  language="*" />
+              </dependentAssembly>
+            </dependency>
+          </assembly>
+          '@ | Set-Content -LiteralPath artifacts/package-smoke/app.manifest -Encoding utf8
+          dotnet add $smokeProject package GPUI.NET `
+              --version $version `
+              --no-restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet restore $smokeProject `
+              --source artifacts/packages `
+              --source 'https://api.nuget.org/v3/index.json'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $smokeProject --no-restore -p:ApplicationManifest=app.manifest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project $smokeProject --no-build --no-restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   publish:
     name: Publish to NuGet.org
     if: inputs.publish
-    needs: package
+    needs: [package, windows-consumer]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: nuget
