@@ -7,7 +7,7 @@
         <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
         <Description>Native GPUI bindings for .NET.</Description>
         <IsPackable>true</IsPackable>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
         <NuspecFile>$(MSBuildThisFileDirectory)Gpui.Native.nuspec</NuspecFile>
         <NuspecProperties>version=$(PackageVersion);id=$(PackageId)</NuspecProperties>
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
@@ -21,7 +21,7 @@
         <None Remove="**" />
         <Compile Remove="**" />
         <EmbeddedResource Remove="**" />
-        <None Include="$(RepositoryRoot)/README.md" Pack="true" PackagePath="\" />
+        <None Include="$(RepositoryRoot)/NUGET_README.md" Pack="true" PackagePath="\" />
         <ProjectReference Include="Gpui.Native.win-x64.csproj" TreatAsPackageReference="true" />
         <ProjectReference Include="Gpui.Native.linux-x64.csproj" TreatAsPackageReference="true" />
         <ProjectReference Include="Gpui.Native.osx-x64.csproj" TreatAsPackageReference="true" />

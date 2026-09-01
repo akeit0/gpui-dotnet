@@ -1,5 +1,8 @@
 # GPUI.NET
 
+[![.NET 10](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/download/dotnet/10.0)
+[![NuGet](https://img.shields.io/nuget/v/GPUI.NET.svg)](https://www.nuget.org/packages/GPUI.NET/)
+
 GPUI.NET is an experimental C# frontend for Rust [GPUI](https://gpui.rs/). Applications keep
 their state and view logic in .NET; a native Rust host validates a compact render protocol and
 materializes GPUI elements, windows, controls, and retained resources.
@@ -10,9 +13,40 @@ code platform-neutral and lets the native implementation evolve behind a version
 The current package line is `0.1.0-preview.1`. It is a first preview: public APIs, the semantic
 schema, and the native ABI may change before a stable release.
 
+## Features at a glance
+
+### UI features
+
+- Semantic C# layout with stacks, spacing, padding, sizing, alignment, text, buttons, inputs,
+  badges, dividers, and application-owned typed styles.
+- Retained `Scroll`, virtual `List`, virtual `Table`, `Input`, and `Slider` controls with native
+  scrolling, selection, focus, IME, measurement, and pointer state.
+- `Overlay`, `Dialog`, `Sheet`, `Tooltip`, `ContextMenu`, and `PopoverMenu` layers with native
+  placement, viewport clamping, focus restoration, stacking, and dismissal.
+- Native image decoding/caching and vector drawing with paths, fills, strokes, curves, arcs, and
+  view boxes.
+- Multiple windows, application menus, system or custom title bars, and native window controls.
+
+### Platform support
+
+| Platform | Runtime identifier | Release validation |
+| --- | --- | --- |
+| Windows x64 | `win-x64` | Native build plus clean consumer restore/build; Common Controls v6 manifest required by the consuming executable. |
+| macOS x64 | `osx-x64` | Native build plus clean package consumer run; system title bar, traffic lights, and global menu are the default. |
+| macOS ARM64 | `osx-arm64` | Native build plus clean package consumer run; managed title/menu composition can be forced. |
+| Linux x64 | `linux-x64` | Native build plus clean package consumer run; install GPUI's desktop dependencies on the target distribution. |
+
+### Hot Reload
+
+Standard .NET Hot Reload updates compatible application-side managed code in the existing process.
+Changes to `Render()`, list/table row renderers, event handlers, and style helpers rerender the
+existing View tree while preserving View state, controllers, focus, scrolling, selection, and
+retained resources. Rust, native code, the schema, the ABI, NativeAOT, and file assets still
+require a rebuild or restart.
+
 ## Requirements
 
-- .NET SDK 10
+- .NET SDK/runtime 10
 - the stable Rust toolchain and Cargo
 - the platform prerequisites required by GPUI
 
@@ -20,6 +54,24 @@ The repository contains native package targets for `win-x64`, `osx-x64`, `osx-ar
 `linux-x64`. Windows and macOS are the actively exercised desktop environments. macOS builds use
 GPUI runtime shaders, so the Apple command-line development tools are sufficient for shader
 compilation.
+
+## Samples
+
+The interactive sample is a component gallery covering themes, native and managed title bars,
+menus, multiple windows, retained controls, virtual lists and tables, images, inputs, sliders,
+overlays, and arena-growth validation.
+
+![GPUI.NET sample showing the virtual table gallery](docs/assets/sample_screen.png)
+
+Run it from the repository root:
+
+```sh
+dotnet run --project samples/Gpui.Sample
+```
+
+Use `--multi-window` to open a companion window or `--stress-growth` to exercise render-arena
+growth. On Windows, the sample embeds
+[`samples/Gpui.Sample/app.manifest`](samples/Gpui.Sample/app.manifest).
 
 ## Build and run
 
@@ -33,8 +85,18 @@ dotnet run --project samples/Gpui.Sample
 ```
 
 The managed build compiles the native host for the current machine and copies it beside the
-managed output. The sample demonstrates themes, native and managed title bars, menus, multiple
-windows, retained controls, virtual lists and tables, images, and overlays.
+managed output.
+
+## Install from NuGet
+
+```sh
+dotnet add package GPUI.NET --version 0.1.0-preview.1
+```
+
+The `GPUI.NET` package brings the managed API and the platform-specific native package family.
+Package consumers need the .NET 10 SDK/runtime and a desktop environment supported by the selected
+runtime identifier. The standalone package page is documented in
+[`NUGET_README.md`](NUGET_README.md).
 
 ## Small application
 
@@ -284,6 +346,26 @@ Window-relative composition includes:
 
 Rust owns placement, viewport clamping, focus restoration, stacking, and dismissal. Layer content
 and actions remain normal managed elements and callbacks.
+
+## Hot Reload in development
+
+Run the standard .NET watcher for an application project:
+
+```sh
+dotnet watch --project path/to/App.csproj
+```
+
+The metadata-update handler invalidates managed View fragments and native List/Table row snapshots,
+then requests a new frame. Compatible method-body edits are applied to existing View instances:
+
+| Edit | Result |
+| --- | --- |
+| `Render()`, row renderers, event handlers, or style helpers | Existing UI rerenders without recreating the application. |
+| Text, colors, spacing, layout, or compatible event bindings | Updated output or behavior with state preserved. |
+| Rust, native bindings, schema, ABI, NativeAOT, JSON, or file assets | Rebuild or restart required. |
+
+Constructors and `OnMounted()` are not rerun for existing Views. Unsupported CLR edits are handed
+back to `dotnet watch`, which restarts the application when required.
 
 ## Repository layout
 

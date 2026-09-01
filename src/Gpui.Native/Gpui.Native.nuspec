@@ -7,7 +7,7 @@
         <license type="expression">MIT</license>
         <projectUrl>https://github.com/akeit0/gpui-dotnet</projectUrl>
         <repository type="git" url="https://github.com/akeit0/gpui-dotnet" />
-        <readme>README.md</readme>
+        <readme>NUGET_README.md</readme>
         <description>Native GPUI bindings for .NET.</description>
         <copyright>Copyright (c) 2026 Akito Inoue</copyright>
         <dependencies>
@@ -20,6 +20,6 @@
         </dependencies>
     </metadata>
     <files>
-        <file src="..\..\README.md" target="" />
+        <file src="..\..\NUGET_README.md" target="" />
     </files>
 </package>

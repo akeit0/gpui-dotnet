@@ -6,7 +6,7 @@
         <PackageId>GPUI.NET.Native.win-x64</PackageId>
         <Description>Native GPUI bindings for win-x64.</Description>
         <IsPackable>true</IsPackable>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageReadmeFile>NUGET_README.md</PackageReadmeFile>
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
         <IncludeBuildOutput>false</IncludeBuildOutput>
         <IncludeContentInPack>true</IncludeContentInPack>
@@ -18,7 +18,7 @@
         <None Remove="**" />
         <Compile Remove="**" />
         <EmbeddedResource Remove="**" />
-        <None Include="$(RepositoryRoot)/README.md" Pack="true" PackagePath="\" />
+        <None Include="$(RepositoryRoot)/NUGET_README.md" Pack="true" PackagePath="\" />
         <None
             Include="$(RepositoryRoot)/artifacts/native/win-x64/gpui_dotnet.dll"
             Condition="Exists('$(RepositoryRoot)/artifacts/native/win-x64/gpui_dotnet.dll')"

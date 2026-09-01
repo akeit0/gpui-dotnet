@@ -73,6 +73,9 @@ The pack script refuses to continue when any expected RID asset is missing. It s
 application meta package, verifies the native entries, and writes packages to
 `artifacts/packages`.
 
+Every package embeds the standalone repository-root `NUGET_README.md` as its NuGet readme. The
+repository `README.md` remains the project overview and is not copied into packages.
+
 ## NuGet release
 
 The `Release` workflow runs when a version tag is pushed. Create a tag matching the version in
