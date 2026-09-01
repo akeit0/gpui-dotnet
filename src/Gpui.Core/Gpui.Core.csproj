@@ -1,0 +1,96 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Gpui</RootNamespace>
+        <AssemblyName>Gpui.Core</AssemblyName>
+        <PackageId>GPUI.NET.Core</PackageId>
+        <Description>Managed GPUI bindings for .NET.</Description>
+        <IsPackable>true</IsPackable>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+        <RepositoryRoot>$(MSBuildThisFileDirectory)../..</RepositoryRoot>
+        <BindingsGeneratorProject>$(RepositoryRoot)/tools/Gpui.Bindings.Generator/Gpui.Bindings.Generator.csproj</BindingsGeneratorProject>
+        <NativeCargoProfile Condition="'$(Configuration)' == 'Release'">release</NativeCargoProfile>
+        <NativeCargoProfile Condition="'$(NativeCargoProfile)' == ''">debug</NativeCargoProfile>
+        <!-- Forward slashes keep the expanded paths valid on Windows, macOS, and Linux. -->
+        <NativeCrateDir>$(MSBuildThisFileDirectory)../../crates/gpui-dotnet</NativeCrateDir>
+        <NativeBuildScript>$(RepositoryRoot)/eng/build-native.ps1</NativeBuildScript>
+        <NativeBuildCommand Condition="$([MSBuild]::IsOSPlatform('Windows'))"
+            >powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(NativeBuildScript)&quot; -ManifestPath &quot;$(NativeCrateDir)/Cargo.toml&quot; -Configuration $(NativeCargoProfile)</NativeBuildCommand>
+        <NativeBuildCommand Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
+            >sh &quot;$(RepositoryRoot)/eng/build-native.sh&quot; &quot;$(NativeCrateDir)/Cargo.toml&quot; $(NativeCargoProfile)</NativeBuildCommand>
+        <NativeLibraryName Condition="$([MSBuild]::IsOSPlatform('Windows'))"
+            >gpui_dotnet.dll</NativeLibraryName>
+        <NativeLibraryName Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+            >libgpui_dotnet.so</NativeLibraryName>
+        <NativeLibraryName Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+            >libgpui_dotnet.dylib</NativeLibraryName>
+        <NativeLibraryPath>$(NativeCrateDir)/target/$(NativeCargoProfile)/$(NativeLibraryName)</NativeLibraryPath>
+        <NativeBuildStamp>$(NativeCrateDir)/target/$(NativeCargoProfile)/.gpui-msbuild.stamp</NativeBuildStamp>
+        <NativeBindingsPath>$(MSBuildThisFileDirectory)../Gpui/Interop/NativeMethods.g.cs</NativeBindingsPath>
+        <BuildGpuiNative Condition="'$(BuildGpuiNative)' == ''">true</BuildGpuiNative>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="$(RepositoryRoot)/README.md" Pack="true" PackagePath="\" />
+        <Compile Include="../Gpui/**/*.cs" Exclude="../Gpui/bin/**/*.cs;../Gpui/obj/**/*.cs" />
+        <PackageReference Include="Utf8StringInterpolation" Version="1.3.2" />
+        <InternalsVisibleTo Include="Gpui.Tests" />
+
+        <_GpuiNativeInput Include="$(NativeCrateDir)/src/**/*.rs" />
+        <_GpuiNativeInput Include="$(NativeCrateDir)/Cargo.toml" />
+        <_GpuiNativeInput Include="$(NativeCrateDir)/Cargo.lock" />
+        <_GpuiNativeInput Include="$(NativeCrateDir)/build.rs" />
+        <_GpuiNativeInput Include="$(NativeBuildScript)" />
+        <_GpuiNativeInput Include="$(RepositoryRoot)/eng/build-native.sh" />
+        <_GpuiBindingInput Include="$(NativeCrateDir)/src/abi.rs" />
+        <_GpuiBindingInput Include="$(NativeCrateDir)/src/lib.rs" />
+        <_GpuiBindingInput Include="$(NativeCrateDir)/Cargo.toml" />
+        <_GpuiBindingInput Include="$(NativeCrateDir)/Cargo.lock" />
+        <_GpuiBindingInput Include="$(NativeCrateDir)/build.rs" />
+
+        <None
+            Include="$(NativeLibraryPath)"
+            Condition="'$(BuildGpuiNative)' == 'true'"
+            Link="$(NativeLibraryName)"
+            CopyToOutputDirectory="PreserveNewest"
+            CopyToPublishDirectory="PreserveNewest"
+            Pack="false"
+        />
+    </ItemGroup>
+
+    <Target
+        Name="GenerateGpuiSemanticBindings"
+        BeforeTargets="PrepareForBuild"
+        Condition="'$(DesignTimeBuild)' != 'true'"
+    >
+        <Exec Command="dotnet run --project &quot;$(BindingsGeneratorProject)&quot; --configuration $(Configuration) --no-launch-profile -- generate --root &quot;$(RepositoryRoot)&quot;" />
+    </Target>
+
+    <Target Name="VerifyGpuiSemanticBindings" Condition="'$(DesignTimeBuild)' != 'true'">
+        <Exec Command="dotnet run --project &quot;$(BindingsGeneratorProject)&quot; --configuration $(Configuration) --no-launch-profile -- verify --root &quot;$(RepositoryRoot)&quot;" />
+    </Target>
+
+    <Target
+        Name="GenerateGpuiBindings"
+        Condition="'$(BuildGpuiNative)' == 'true'"
+        Inputs="@(_GpuiBindingInput)"
+        Outputs="$(NativeBindingsPath)"
+    >
+        <Exec Command="$(NativeBuildCommand)" />
+        <Touch Files="$(NativeBuildStamp)" AlwaysCreate="true" />
+    </Target>
+
+    <Target
+        Name="BuildGpuiNative"
+        BeforeTargets="CoreCompile"
+        DependsOnTargets="GenerateGpuiBindings"
+        Condition="'$(BuildGpuiNative)' == 'true'"
+        Inputs="@(_GpuiNativeInput)"
+        Outputs="$(NativeBuildStamp)"
+    >
+        <Exec Command="$(NativeBuildCommand)" />
+        <Touch Files="$(NativeBuildStamp)" AlwaysCreate="true" />
+    </Target>
+</Project>

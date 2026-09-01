@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Gpui</RootNamespace>
+        <AssemblyName>Gpui.Native.osx-x64</AssemblyName>
+        <PackageId>GPUI.NET.Native.osx-x64</PackageId>
+        <Description>Native GPUI bindings for osx-x64.</Description>
+        <IsPackable>true</IsPackable>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <IncludeContentInPack>true</IncludeContentInPack>
+        <NoWarn>$(NoWarn);NU5100;NU5128</NoWarn>
+        <RepositoryRoot>$(MSBuildThisFileDirectory)../..</RepositoryRoot>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Remove="**" />
+        <Compile Remove="**" />
+        <EmbeddedResource Remove="**" />
+        <None Include="$(RepositoryRoot)/README.md" Pack="true" PackagePath="\" />
+        <None
+            Include="$(RepositoryRoot)/artifacts/native/osx-x64/libgpui_dotnet.dylib"
+            Condition="Exists('$(RepositoryRoot)/artifacts/native/osx-x64/libgpui_dotnet.dylib')"
+            Pack="true"
+            PackagePath="runtimes/osx-x64/native"
+        />
+    </ItemGroup>
+</Project>

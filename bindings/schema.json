@@ -1,0 +1,1210 @@
+{
+  "schemaVersion": 1,
+  "capabilities": [
+    "styled",
+    "parent",
+    "layout",
+    "interactive",
+    "checkable",
+    "native_state",
+    "scrollable",
+    "virtualized",
+    "image",
+    "input",
+    "overlay",
+    "tooltip",
+    "window_control",
+    "context_menu",
+    "popover_menu",
+    "table",
+    "slider",
+    "drawing",
+    "path",
+    "dynamic"
+  ],
+  "components": [
+    {
+      "id": 1,
+      "name": "div",
+      "csharp": "Div",
+      "data": "none",
+      "dataRequired": false,
+      "children": true,
+      "managedFactory": "container",
+      "capabilities": [
+        "styled",
+        "parent",
+        "layout",
+        "window_control"
+      ],
+      "nativeAdapter": "div"
+    },
+    {
+      "id": 2,
+      "name": "text",
+      "csharp": "Text",
+      "data": "utf8",
+      "dataRequired": false,
+      "children": false,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled"
+      ],
+      "nativeAdapter": "text"
+    },
+    {
+      "id": 3,
+      "name": "button",
+      "csharp": "Button",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "idContainer",
+      "capabilities": [
+        "styled",
+        "parent",
+        "interactive",
+        "window_control"
+      ],
+      "nativeAdapter": "button"
+    },
+    {
+      "id": 4,
+      "name": "checkbox",
+      "csharp": "Checkbox",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "idContainer",
+      "capabilities": [
+        "styled",
+        "parent",
+        "interactive",
+        "checkable"
+      ],
+      "nativeAdapter": "checkbox"
+    },
+    {
+      "id": 5,
+      "name": "radio",
+      "csharp": "Radio",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "idContainer",
+      "capabilities": [
+        "styled",
+        "parent",
+        "interactive",
+        "checkable"
+      ],
+      "nativeAdapter": "radio"
+    },
+    {
+      "id": 6,
+      "name": "badge",
+      "csharp": "Badge",
+      "data": "none",
+      "dataRequired": false,
+      "children": true,
+      "managedFactory": "container",
+      "capabilities": [
+        "styled",
+        "parent"
+      ],
+      "nativeAdapter": "badge"
+    },
+    {
+      "id": 7,
+      "name": "divider",
+      "csharp": "Divider",
+      "data": "none",
+      "dataRequired": false,
+      "children": false,
+      "managedFactory": "leaf",
+      "capabilities": [
+        "styled"
+      ],
+      "nativeAdapter": "divider"
+    },
+    {
+      "id": 8,
+      "name": "spacer",
+      "csharp": "Spacer",
+      "data": "none",
+      "dataRequired": false,
+      "children": false,
+      "managedFactory": "leaf",
+      "capabilities": [
+        "styled"
+      ],
+      "nativeAdapter": "spacer"
+    },
+    {
+      "id": 9,
+      "name": "scroll",
+      "csharp": "Scroll",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "parent",
+        "layout",
+        "native_state",
+        "scrollable"
+      ],
+      "nativeAdapter": "scroll"
+    },
+    {
+      "id": 10,
+      "name": "list",
+      "csharp": "List",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": false,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "native_state",
+        "virtualized"
+      ],
+      "nativeAdapter": "list"
+    },
+    {
+      "id": 11,
+      "name": "image",
+      "csharp": "Image",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": false,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "image"
+      ],
+      "nativeAdapter": "image"
+    },
+    {
+      "id": 12,
+      "name": "input",
+      "csharp": "Input",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": false,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "native_state",
+        "input"
+      ],
+      "nativeAdapter": "input"
+    },
+    {
+      "id": 13,
+      "name": "overlay",
+      "csharp": "Overlay",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "parent",
+        "native_state",
+        "overlay"
+      ],
+      "nativeAdapter": "overlay"
+    },
+    {
+      "id": 14,
+      "name": "tooltip",
+      "csharp": "Tooltip",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "parent",
+        "native_state",
+        "tooltip"
+      ],
+      "nativeAdapter": "tooltip"
+    },
+    {
+      "id": 15,
+      "name": "context_menu",
+      "csharp": "ContextMenu",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "parent",
+        "native_state",
+        "context_menu"
+      ],
+      "nativeAdapter": "context_menu"
+    },
+    {
+      "id": 16,
+      "name": "popover_menu",
+      "csharp": "PopoverMenu",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "parent",
+        "native_state",
+        "popover_menu"
+      ],
+      "nativeAdapter": "popover_menu"
+    },
+    {
+      "id": 17,
+      "name": "table",
+      "csharp": "Table",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": false,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "native_state",
+        "virtualized",
+        "table"
+      ],
+      "nativeAdapter": "table"
+    },
+    {
+      "id": 18,
+      "name": "slider",
+      "csharp": "Slider",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": false,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "native_state",
+        "slider"
+      ],
+      "nativeAdapter": "slider"
+    },
+    {
+      "id": 19,
+      "name": "drawing",
+      "csharp": "Drawing",
+      "data": "none",
+      "dataRequired": false,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "parent",
+        "drawing"
+      ],
+      "nativeAdapter": "drawing"
+    },
+    {
+      "id": 20,
+      "name": "path",
+      "csharp": "Path",
+      "data": "none",
+      "dataRequired": false,
+      "children": false,
+      "managedFactory": "leaf",
+      "capabilities": [
+        "path"
+      ],
+      "nativeAdapter": "path"
+    },
+    {
+      "id": 21,
+      "name": "dynamic",
+      "csharp": "Dynamic",
+      "data": "none",
+      "dataRequired": false,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "parent",
+        "native_state",
+        "dynamic"
+      ],
+      "nativeAdapter": "dynamic"
+    }
+  ],
+  "operations": [
+    {
+      "id": 1,
+      "name": "flex",
+      "csharp": "HStack",
+      "value": "none",
+      "requires": "layout"
+    },
+    {
+      "id": 2,
+      "name": "v_stack",
+      "csharp": "VStack",
+      "value": "none",
+      "requires": "layout"
+    },
+    {
+      "id": 3,
+      "name": "items_center",
+      "csharp": "ItemsCenter",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 4,
+      "name": "justify_center",
+      "csharp": "JustifyCenter",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 5,
+      "name": "justify_between",
+      "csharp": "JustifyBetween",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 6,
+      "name": "flex_grow",
+      "csharp": "Grow",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 100,
+      "name": "gap_px",
+      "csharp": "Gap",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 101,
+      "name": "padding_px",
+      "csharp": "Padding",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 102,
+      "name": "width_px",
+      "csharp": "Width",
+      "value": "f32",
+      "requires": "styled"
+    },
+    {
+      "id": 103,
+      "name": "width_percent",
+      "csharp": "Width",
+      "value": "f32",
+      "requires": "styled"
+    },
+    {
+      "id": 104,
+      "name": "background_rgba",
+      "csharp": "Background",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": "color"
+    },
+    {
+      "id": 105,
+      "name": "checked",
+      "csharp": "Checked",
+      "value": "u32",
+      "requires": "checkable",
+      "managedApi": "bool",
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 106,
+      "name": "height_px",
+      "csharp": "Height",
+      "value": "f32",
+      "requires": "styled"
+    },
+    {
+      "id": 107,
+      "name": "height_percent",
+      "csharp": "Height",
+      "value": "f32",
+      "requires": "styled"
+    },
+    {
+      "id": 108,
+      "name": "border_rgba",
+      "csharp": "BorderColor",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": "color"
+    },
+    {
+      "id": 109,
+      "name": "border_width_px",
+      "csharp": "BorderWidth",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 110,
+      "name": "radius_px",
+      "csharp": "Radius",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 111,
+      "name": "text_rgba",
+      "csharp": "TextColor",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": "color"
+    },
+    {
+      "id": 112,
+      "name": "font_size_px",
+      "csharp": "FontSize",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 113,
+      "name": "hover_background_rgba",
+      "csharp": "HoverBackground",
+      "value": "u32",
+      "requires": "interactive",
+      "managedApi": "color"
+    },
+    {
+      "id": 114,
+      "name": "hover_text_rgba",
+      "csharp": "HoverTextColor",
+      "value": "u32",
+      "requires": "interactive",
+      "managedApi": "color"
+    },
+    {
+      "id": 115,
+      "name": "hover_border_rgba",
+      "csharp": "HoverBorderColor",
+      "value": "u32",
+      "requires": "interactive",
+      "managedApi": "color"
+    },
+    {
+      "id": 116,
+      "name": "active_background_rgba",
+      "csharp": "ActiveBackground",
+      "value": "u32",
+      "requires": "interactive",
+      "managedApi": "color"
+    },
+    {
+      "id": 117,
+      "name": "active_text_rgba",
+      "csharp": "ActiveTextColor",
+      "value": "u32",
+      "requires": "interactive",
+      "managedApi": "color"
+    },
+    {
+      "id": 118,
+      "name": "active_border_rgba",
+      "csharp": "ActiveBorderColor",
+      "value": "u32",
+      "requires": "interactive",
+      "managedApi": "color"
+    },
+    {
+      "id": 200,
+      "name": "on_click",
+      "csharp": "OnClick",
+      "value": "callback",
+      "requires": "interactive",
+      "managedApi": "click",
+      "payload": "event"
+    },
+    {
+      "id": 201,
+      "name": "window_control_area",
+      "csharp": "WindowControlArea",
+      "value": "u32",
+      "requires": "window_control",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 3, "status": -39 }
+    },
+    {
+      "id": 202,
+      "name": "element_owner",
+      "csharp": "ElementOwner",
+      "value": "u32",
+      "requires": "interactive",
+      "managedApi": null,
+      "validation": { "kind": "u32Min", "min": 1, "status": -25 }
+    },
+    {
+      "id": 300,
+      "name": "resource_owner",
+      "csharp": "ResourceOwner",
+      "value": "u32",
+      "requires": "native_state",
+      "managedApi": null,
+      "validation": { "kind": "u32Min", "min": 1, "status": -25 }
+    },
+    {
+      "id": 301,
+      "name": "scroll_axis",
+      "csharp": "ScrollAxis",
+      "value": "u32",
+      "requires": "scrollable",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 2, "status": -26 }
+    },
+    {
+      "id": 302,
+      "name": "smooth_scroll",
+      "csharp": "SmoothScroll",
+      "value": "u32",
+      "requires": "native_state",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 303,
+      "name": "show_scrollbar",
+      "csharp": "ShowScrollbar",
+      "value": "u32",
+      "requires": "native_state",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 310,
+      "name": "list_item_count",
+      "csharp": "ListItemCount",
+      "value": "u32",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
+      "id": 311,
+      "name": "list_renderer",
+      "csharp": "ListRenderer",
+      "value": "callback",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
+      "id": 312,
+      "name": "list_batch_size",
+      "csharp": "ListBatchSize",
+      "value": "u32",
+      "requires": "virtualized",
+      "managedApi": null,
+      "validation": { "kind": "u32Range", "min": 1, "max": 512, "status": -27 }
+    },
+    {
+      "id": 313,
+      "name": "list_overdraw_px",
+      "csharp": "ListOverdrawPx",
+      "value": "f32",
+      "requires": "virtualized",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "status": -29 }
+    },
+    {
+      "id": 314,
+      "name": "list_alignment",
+      "csharp": "ListAlignment",
+      "value": "u32",
+      "requires": "virtualized",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 1, "status": -28 }
+    },
+    {
+      "id": 315,
+      "name": "list_estimated_item_height_px",
+      "csharp": "ListEstimatedItemHeightPx",
+      "value": "f32",
+      "requires": "virtualized",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "minExclusive": true, "status": -29 }
+    },
+    {
+      "id": 316,
+      "name": "list_content_revision",
+      "csharp": "ListContentRevision",
+      "value": "u64",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
+      "id": 317,
+      "name": "list_item_id",
+      "csharp": "ListItemId",
+      "value": "u64",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 400,
+      "name": "image_object_fit",
+      "csharp": "Fit",
+      "value": "u32",
+      "requires": "image",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 4, "status": -30 }
+    },
+    {
+      "id": 401,
+      "name": "image_grayscale",
+      "csharp": "Grayscale",
+      "value": "u32",
+      "requires": "image",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 500,
+      "name": "input_disabled",
+      "csharp": "InputDisabled",
+      "value": "u32",
+      "requires": "input",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 501,
+      "name": "input_read_only",
+      "csharp": "InputReadOnly",
+      "value": "u32",
+      "requires": "input",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 502,
+      "name": "input_password",
+      "csharp": "InputPassword",
+      "value": "u32",
+      "requires": "input",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 503,
+      "name": "input_on_changed",
+      "csharp": "OnChanged",
+      "value": "callback",
+      "requires": "input",
+      "managedApi": null
+    },
+    {
+      "id": 504,
+      "name": "input_on_submitted",
+      "csharp": "OnSubmitted",
+      "value": "callback",
+      "requires": "input",
+      "managedApi": null
+    },
+    {
+      "id": 505,
+      "name": "input_on_focus_changed",
+      "csharp": "OnFocusChanged",
+      "value": "callback",
+      "requires": "input",
+      "managedApi": null
+    },
+    {
+      "id": 600,
+      "name": "overlay_placement",
+      "csharp": "OverlayPlacement",
+      "value": "u32",
+      "requires": "overlay",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 8, "status": -33 }
+    },
+    {
+      "id": 601,
+      "name": "overlay_priority",
+      "csharp": "OverlayPriority",
+      "value": "u32",
+      "requires": "overlay",
+      "managedApi": null
+    },
+    {
+      "id": 602,
+      "name": "overlay_margin_px",
+      "csharp": "OverlayMarginPx",
+      "value": "f32",
+      "requires": "overlay",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "status": -34 }
+    },
+    {
+      "id": 603,
+      "name": "overlay_modal",
+      "csharp": "OverlayModal",
+      "value": "u32",
+      "requires": "overlay",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 604,
+      "name": "overlay_backdrop_rgba",
+      "csharp": "OverlayBackdropRgba",
+      "value": "u32",
+      "requires": "overlay",
+      "managedApi": null
+    },
+    {
+      "id": 605,
+      "name": "overlay_dismiss_on_backdrop",
+      "csharp": "OverlayDismissOnBackdrop",
+      "value": "u32",
+      "requires": "overlay",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 606,
+      "name": "overlay_dismiss_on_escape",
+      "csharp": "OverlayDismissOnEscape",
+      "value": "u32",
+      "requires": "overlay",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 607,
+      "name": "overlay_on_dismiss",
+      "csharp": "OnDismiss",
+      "value": "callback",
+      "requires": "overlay",
+      "managedApi": null,
+      "payload": "event"
+    },
+    {
+      "id": 610,
+      "name": "tooltip_placement",
+      "csharp": "TooltipPlacement",
+      "value": "u32",
+      "requires": "tooltip",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 4, "status": -35 }
+    },
+    {
+      "id": 611,
+      "name": "tooltip_alignment",
+      "csharp": "TooltipAlignment",
+      "value": "u32",
+      "requires": "tooltip",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 2, "status": -36 }
+    },
+    {
+      "id": 612,
+      "name": "tooltip_show_delay_ms",
+      "csharp": "TooltipShowDelayMs",
+      "value": "u32",
+      "requires": "tooltip",
+      "managedApi": null
+    },
+    {
+      "id": 613,
+      "name": "tooltip_hide_delay_ms",
+      "csharp": "TooltipHideDelayMs",
+      "value": "u32",
+      "requires": "tooltip",
+      "managedApi": null
+    },
+    {
+      "id": 614,
+      "name": "tooltip_gap_px",
+      "csharp": "TooltipGapPx",
+      "value": "f32",
+      "requires": "tooltip",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "status": -37 }
+    },
+    {
+      "id": 615,
+      "name": "tooltip_margin_px",
+      "csharp": "TooltipMarginPx",
+      "value": "f32",
+      "requires": "tooltip",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "status": -37 }
+    },
+    {
+      "id": 620,
+      "name": "context_menu_priority",
+      "csharp": "ContextMenuPriority",
+      "value": "u32",
+      "requires": "context_menu",
+      "managedApi": null
+    },
+    {
+      "id": 621,
+      "name": "context_menu_margin_px",
+      "csharp": "ContextMenuMarginPx",
+      "value": "f32",
+      "requires": "context_menu",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "status": -40 }
+    },
+    {
+      "id": 630,
+      "name": "popover_menu_priority",
+      "csharp": "PopoverMenuPriority",
+      "value": "u32",
+      "requires": "popover_menu",
+      "managedApi": null
+    },
+    {
+      "id": 631,
+      "name": "popover_menu_margin_px",
+      "csharp": "PopoverMenuMarginPx",
+      "value": "f32",
+      "requires": "popover_menu",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "status": -40 }
+    },
+    {
+      "id": 318,
+      "name": "table_show_header",
+      "csharp": "TableShowHeader",
+      "value": "u32",
+      "requires": "table",
+      "managedApi": null
+    },
+    {
+      "id": 319,
+      "name": "table_cell_column",
+      "csharp": "TableCellColumn",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 320,
+      "name": "scrollbar_gutter",
+      "csharp": "ScrollbarGutter",
+      "value": "u32",
+      "requires": "native_state",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 321,
+      "name": "scrollbar_width",
+      "csharp": "ScrollbarWidth",
+      "value": "f32",
+      "requires": "native_state",
+      "managedApi": null,
+      "validation": { "kind": "f32Range", "min": 3, "max": 32, "status": -29 }
+    },
+    {
+      "id": 322,
+      "name": "table_column",
+      "csharp": "TableColumn",
+      "value": "u64",
+      "requires": "table",
+      "managedApi": null,
+      "validation": { "kind": "packedTableColumn", "status": -57 }
+    },
+    {
+      "id": 330,
+      "name": "slider_min",
+      "csharp": "SliderMin",
+      "value": "f32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 331,
+      "name": "slider_max",
+      "csharp": "SliderMax",
+      "value": "f32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 332,
+      "name": "slider_step",
+      "csharp": "SliderStep",
+      "value": "f32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 333,
+      "name": "slider_axis",
+      "csharp": "SliderAxis",
+      "value": "u32",
+      "requires": "slider",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 1, "status": -43 }
+    },
+    {
+      "id": 334,
+      "name": "slider_disabled",
+      "csharp": "SliderDisabled",
+      "value": "u32",
+      "requires": "slider",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 335,
+      "name": "slider_scale",
+      "csharp": "SliderScale",
+      "value": "u32",
+      "requires": "slider",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 1, "status": -43 }
+    },
+    {
+      "id": 336,
+      "name": "slider_value",
+      "csharp": "SliderValue",
+      "value": "f32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 337,
+      "name": "slider_range_start",
+      "csharp": "SliderRangeStart",
+      "value": "f32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 338,
+      "name": "slider_range_end",
+      "csharp": "SliderRangeEnd",
+      "value": "f32",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 339,
+      "name": "slider_on_changed",
+      "csharp": "SliderOnChanged",
+      "value": "callback",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 340,
+      "name": "slider_on_released",
+      "csharp": "SliderOnReleased",
+      "value": "callback",
+      "requires": "slider",
+      "managedApi": null
+    },
+    {
+      "id": 700,
+      "name": "drawing_view_box_origin",
+      "csharp": "DrawingViewBoxOrigin",
+      "value": "f32x2",
+      "requires": "drawing",
+      "managedApi": null
+    },
+    {
+      "id": 701,
+      "name": "drawing_view_box_size",
+      "csharp": "DrawingViewBoxSize",
+      "value": "f32x2",
+      "requires": "drawing",
+      "managedApi": null
+    },
+    {
+      "id": 702,
+      "name": "dynamic_active",
+      "csharp": "DynamicActive",
+      "value": "u32",
+      "requires": "dynamic",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 710,
+      "name": "path_move_to",
+      "csharp": "PathMoveTo",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 711,
+      "name": "path_line_to",
+      "csharp": "PathLineTo",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 712,
+      "name": "path_quadratic_control",
+      "csharp": "PathQuadraticControl",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 713,
+      "name": "path_quadratic_to",
+      "csharp": "PathQuadraticTo",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 714,
+      "name": "path_cubic_control_a",
+      "csharp": "PathCubicControlA",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 715,
+      "name": "path_cubic_control_b",
+      "csharp": "PathCubicControlB",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 716,
+      "name": "path_cubic_to",
+      "csharp": "PathCubicTo",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 717,
+      "name": "path_arc_radii",
+      "csharp": "PathArcRadii",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 718,
+      "name": "path_arc_rotation",
+      "csharp": "PathArcRotation",
+      "value": "f32",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 719,
+      "name": "path_arc_flags",
+      "csharp": "PathArcFlags",
+      "value": "u32",
+      "requires": "path",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 3, "status": -59 }
+    },
+    {
+      "id": 720,
+      "name": "path_arc_to",
+      "csharp": "PathArcTo",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 721,
+      "name": "path_close",
+      "csharp": "PathClose",
+      "value": "none",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 722,
+      "name": "path_fill_rgba",
+      "csharp": "PathFillRgba",
+      "value": "u32",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 723,
+      "name": "path_fill_rule",
+      "csharp": "PathFillRule",
+      "value": "u32",
+      "requires": "path",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 1, "status": -59 }
+    },
+    {
+      "id": 724,
+      "name": "path_stroke_rgba",
+      "csharp": "PathStrokeRgba",
+      "value": "u32",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 725,
+      "name": "path_stroke_width_px",
+      "csharp": "PathStrokeWidthPx",
+      "value": "f32",
+      "requires": "path",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "minExclusive": true, "status": -59 }
+    },
+    {
+      "id": 726,
+      "name": "path_dash_px",
+      "csharp": "PathDashPx",
+      "value": "f32",
+      "requires": "path",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "minExclusive": true, "status": -59 }
+    },
+    {
+      "id": 727,
+      "name": "path_circle_center",
+      "csharp": "PathCircleCenter",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 728,
+      "name": "path_circle_radius",
+      "csharp": "PathCircleRadius",
+      "value": "f32",
+      "requires": "path",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "minExclusive": true, "status": -59 }
+    }
+  ]
+}

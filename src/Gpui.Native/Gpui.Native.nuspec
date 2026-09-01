@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2012/06/nuspec.xsd">
+    <metadata>
+        <id>$id$</id>
+        <version>$version$</version>
+        <authors>Akito Inoue</authors>
+        <license type="expression">MIT</license>
+        <projectUrl>https://github.com/akeit0/gpui-dotnet</projectUrl>
+        <repository type="git" url="https://github.com/akeit0/gpui-dotnet" />
+        <readme>README.md</readme>
+        <description>Native GPUI bindings for .NET.</description>
+        <copyright>Copyright (c) 2026 Akito Inoue</copyright>
+        <dependencies>
+            <group targetFramework="net10.0">
+                <dependency id="GPUI.NET.Native.win-x64" version="$version$" />
+                <dependency id="GPUI.NET.Native.linux-x64" version="$version$" />
+                <dependency id="GPUI.NET.Native.osx-x64" version="$version$" />
+                <dependency id="GPUI.NET.Native.osx-arm64" version="$version$" />
+            </group>
+        </dependencies>
+    </metadata>
+    <files>
+        <file src="..\..\README.md" target="" />
+    </files>
+</package>

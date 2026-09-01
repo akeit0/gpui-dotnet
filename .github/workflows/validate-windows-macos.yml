@@ -1,0 +1,103 @@
+name: Validate Windows and macOS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/gpui-dotnet
+
+      - name: Verify semantic bindings
+        run: dotnet run --project tools/Gpui.Bindings.Generator -- verify
+
+      - name: Test native bridge
+        run: cargo test --manifest-path crates/gpui-dotnet/Cargo.toml
+
+      - name: Build solution
+        run: dotnet build Gpui.slnx --no-incremental
+
+      - name: Test managed contract and generator
+        run: dotnet test tests/Gpui.Tests/Gpui.Tests.csproj --no-build
+
+      - name: NativeAOT publish smoke test
+        run: dotnet publish samples/Gpui.Sample/Gpui.Sample.csproj -c Release -r win-x64 -p:PublishAot=true
+
+      - name: Stage release native asset
+        shell: pwsh
+        run: ./eng/stage-native.ps1 -Rid win-x64 -Library crates/gpui-dotnet/target/release/gpui_dotnet.dll
+
+      - name: Upload native asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-win-x64
+          path: artifacts/native/win-x64
+          if-no-files-found: error
+
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            rid: osx-x64
+          - runner: macos-14
+            rid: osx-arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/gpui-dotnet
+
+      - name: Verify semantic bindings
+        run: dotnet run --project tools/Gpui.Bindings.Generator -- verify
+
+      - name: Test native bridge
+        run: cargo test --manifest-path crates/gpui-dotnet/Cargo.toml
+
+      - name: Build solution
+        run: dotnet build Gpui.slnx --no-incremental
+
+      - name: Test managed contract and generator
+        run: dotnet test tests/Gpui.Tests/Gpui.Tests.csproj --no-build
+
+      - name: Build release native asset
+        shell: pwsh
+        run: ./eng/build-native.ps1 -ManifestPath crates/gpui-dotnet/Cargo.toml -Configuration release
+
+      - name: Stage release native asset
+        shell: pwsh
+        run: ./eng/stage-native.ps1 -Rid ${{ matrix.rid }} -Library crates/gpui-dotnet/target/release/libgpui_dotnet.dylib
+
+      - name: Upload native asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.rid }}
+          path: artifacts/native/${{ matrix.rid }}
+          if-no-files-found: error

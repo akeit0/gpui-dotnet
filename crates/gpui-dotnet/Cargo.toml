@@ -1,0 +1,39 @@
+[package]
+name = "gpui-dotnet"
+version = "0.1.0-preview.1"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+async-channel = "2"
+# crates.io 0.2.2 predates the Windows IME fix in Zed PR #41259.
+# Return to a crates.io version after that fix is included in a release.
+gpui = { git = "https://github.com/zed-industries/zed", rev = "2ead8c42fb6792095d7cb02f7b89e467421dc8a0" }
+unicode-segmentation = "1.13.3"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Compile Metal shaders through Apple's Metal runtime on macOS. This keeps native builds
+# working with the Command Line Tools SDK, which ships the macOS headers/frameworks but not
+# Xcode's standalone `metal` compiler executable.
+gpui = { git = "https://github.com/zed-industries/zed", rev = "2ead8c42fb6792095d7cb02f7b89e467421dc8a0", features = [
+    "runtime_shaders",
+] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+raw-window-handle = "0.6"
+windows = { version = "0.61", features = [
+    "Wdk_System_SystemServices",
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[build-dependencies]
+csbindgen = "1.9.8"
+
+[dev-dependencies]
+gpui = { git = "https://github.com/zed-industries/zed", rev = "2ead8c42fb6792095d7cb02f7b89e467421dc8a0", features = [
+    "test-support",
+] }

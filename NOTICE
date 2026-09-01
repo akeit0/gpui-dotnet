@@ -1,0 +1,18 @@
+GPUI.NET
+
+This project uses GPUI Component and its gpui-base layer as a design and
+implementation reference for native component behavior, retained interaction
+state, input editing, focus/IME behavior, overlay/tooltip geometry and timing, virtualization,
+motion, theming boundaries, accessibility, and component composition:
+
+    https://github.com/longbridge/gpui-component
+
+GPUI Component
+Copyright 2024-2026 Longbridge <https://longbridge.com>
+Licensed under the Apache License, Version 2.0:
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+GPUI.NET does not currently link to or redistribute the gpui-component or
+gpui-base crates. Its .NET semantic API and native adapters remain independent
+implementations compatible with the GPUI version pinned by this repository.

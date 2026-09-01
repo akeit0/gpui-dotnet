@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Gpui</RootNamespace>
+        <AssemblyName>Gpui.Native</AssemblyName>
+        <PackageId>GPUI.NET.Native</PackageId>
+        <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
+        <Description>Native GPUI bindings for .NET.</Description>
+        <IsPackable>true</IsPackable>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <NuspecFile>$(MSBuildThisFileDirectory)Gpui.Native.nuspec</NuspecFile>
+        <NuspecProperties>version=$(PackageVersion);id=$(PackageId)</NuspecProperties>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+        <IncludeBuildOutput>false</IncludeBuildOutput>
+        <IncludeContentInPack>true</IncludeContentInPack>
+        <NoWarn>$(NoWarn);NU5100;NU5128</NoWarn>
+        <RepositoryRoot>$(MSBuildThisFileDirectory)../..</RepositoryRoot>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Remove="**" />
+        <Compile Remove="**" />
+        <EmbeddedResource Remove="**" />
+        <None Include="$(RepositoryRoot)/README.md" Pack="true" PackagePath="\" />
+        <ProjectReference Include="Gpui.Native.win-x64.csproj" TreatAsPackageReference="true" />
+        <ProjectReference Include="Gpui.Native.linux-x64.csproj" TreatAsPackageReference="true" />
+        <ProjectReference Include="Gpui.Native.osx-x64.csproj" TreatAsPackageReference="true" />
+        <ProjectReference Include="Gpui.Native.osx-arm64.csproj" TreatAsPackageReference="true" />
+    </ItemGroup>
+</Project>

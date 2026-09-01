@@ -1,0 +1,14 @@
+<Solution>
+    <Project Path="src/Gpui/Gpui.csproj" />
+    <Project Path="src/Gpui.Core/Gpui.Core.csproj" />
+    <Project Path="src/Gpui.Native/Gpui.Native.csproj" />
+    <Project Path="src/Gpui.Native/Gpui.Native.win-x64.csproj" />
+    <Project Path="src/Gpui.Native/Gpui.Native.linux-x64.csproj" />
+    <Project Path="src/Gpui.Native/Gpui.Native.osx-x64.csproj" />
+    <Project Path="src/Gpui.Native/Gpui.Native.osx-arm64.csproj" />
+    <Project Path="src/Gpui.Generators/Gpui.Generators.csproj" />
+    <Project Path="tests/Gpui.Tests/Gpui.Tests.csproj" />
+    <Project Path="samples/Gpui.Sample/Gpui.Sample.csproj" />
+    <Project Path="samples/Gpui.Bench/Gpui.Bench.csproj" />
+    <Project Path="tools/Gpui.Bindings.Generator/Gpui.Bindings.Generator.csproj" />
+</Solution>
