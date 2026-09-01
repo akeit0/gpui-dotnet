@@ -75,23 +75,35 @@ application meta package, verifies the native entries, and writes packages to
 
 ## NuGet release
 
-Run the separate `Create GitHub Release` workflow manually from `main` with a tag matching the
-version in `Directory.Build.props` (an optional leading `v` is accepted). It creates the tag and
-GitHub Release with generated notes; package versions containing `-` are marked as prereleases.
-It then dispatches the NuGet workflow below with publishing enabled. Releases published through
-other means also start that workflow through the `release` event.
+The `Release` workflow runs when a version tag is pushed. Create a tag matching the version in
+`Directory.Build.props` and push it, for example:
 
-The `Release NuGet packages` GitHub Actions workflow runs manually and when a GitHub Release is
-published. It builds and tests all four native RIDs on their platform runners, assembles the package
-family, and verifies clean local restores and runtime loading on Linux and macOS plus a Windows
-restore/build consumer check. The package version comes from
+```sh
+git tag v0.1.0-preview.1
+git push origin v0.1.0-preview.1
+```
+
+It builds and validates the package family, publishes the validated packages to NuGet.org, and
+then creates the GitHub Release with generated notes and package assets. Package versions
+containing `-` are marked as prereleases. The workflow can also be dispatched manually from any
+ref with `validate_only` enabled for validation without publishing.
+
+For future pull requests, apply the labels configured in `.github/release.yml`: `bug` or `fix` for
+fixes, `enhancement` or `feature` for features, `documentation` or `docs` for documentation,
+`breaking-change` for breaking changes, and `dependencies`, `chore`, or `ci` for maintenance.
+Commit or pull-request prefixes such as `fix:` are not interpreted by GitHub's native generator
+unless a separate label automation is added.
+
+The `Release` GitHub Actions workflow builds and tests all four native RIDs on their platform
+runners, assembles the package family, and verifies clean local restores and runtime loading on
+Linux and macOS plus a Windows restore/build consumer check. The package version comes from
 `Directory.Build.props`; a release tag must match that version, with an optional leading `v`.
 
 Configure a NuGet.org trusted publishing policy with:
 
 - repository owner: `akeit0`
 - repository: `gpui-dotnet`
-- workflow file: `release-nuget.yml`
+- workflow file: `release.yml`
 - environment: `nuget`
 
 Create a GitHub environment named `nuget`, allow the `main` branch and the release tag pattern used
@@ -99,10 +111,9 @@ by the repository (for example, `v*`), and add the NuGet.org profile name—not 
 its `NUGET_USER` secret. No API-key secret is needed; the publish job exchanges GitHub's OIDC token
 for a short-lived key.
 
-Publishing a GitHub Release automatically pushes the validated packages to NuGet.org. Use manual
-dispatch with `publish` disabled for a dry run and downloadable package artifact, or enable it on
-`main` for a manual publish; an existing package version is skipped so a partial release can be
-retried.
+Pushing a version tag automatically publishes the validated packages to NuGet.org and attaches the
+`.nupkg` files to the GitHub Release. An existing package version is skipped so a partial release
+can be retried after the workflow is rerun.
 
 ## Consumer verification
 
