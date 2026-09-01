@@ -133,25 +133,13 @@ internal sealed partial class SampleShellView : View
                 ui.Spacer(),
                 ui.Button("close-window", "Close")
                     .OnClick(this, (view, _) => view.CloseWindow())
-                    .Padding(Px(7))
-                    .FontSize(Px(theme.Typography.Button))
-                    .Background(theme.Colors.ElementBackground)
-                    .HoverBackground(theme.Colors.ElementHover)
-                    .BorderWidth(Px(1))
-                    .BorderColor(theme.Colors.Border)
-                    .TextColor(theme.Colors.Text),
+                    .Style(SampleStyles.Button(theme)),
                 ui.Button(
                         "toggle-theme",
                         theme.Appearance == GpuiThemeAppearance.Dark ? "Light theme" : "Dark theme"
                     )
                     .OnClick(this, (view, _) => view.ToggleTheme())
-                    .Padding(Px(7))
-                    .FontSize(Px(theme.Typography.Button))
-                    .Background(theme.Colors.ElementBackground)
-                    .HoverBackground(theme.Colors.ElementHover)
-                    .BorderWidth(Px(1))
-                    .BorderColor(theme.Colors.Border)
-                    .TextColor(theme.Colors.Text),
+                    .Style(SampleStyles.Button(theme, SampleButtonVariant.Primary)),
                 ui.Badge(ui.Text("ABI V5"u8))
                     .FontSize(Px(theme.Typography.Caption))
                     .Background(theme.Colors.InfoBackground)
@@ -257,17 +245,13 @@ internal sealed partial class SampleShellView : View
     ) => ui
         .Button(id, title)
         .OnClick(this, (view, _) => view.ShowPage(page))
-        .Padding(Px(10))
-        .FontSize(Px(ui.Theme.Typography.Button))
-        .Background(
-            _page == page ? ui.Theme.Colors.Accent : ui.Theme.Colors.TitleBarBackground
-        )
-        .HoverBackground(ui.Theme.Colors.TitleBarHover)
-        .BorderWidth(Px(1))
-        .BorderColor(
-            _page == page ? ui.Theme.Colors.BorderFocused : ui.Theme.Colors.TitleBarHover
-        )
-        .TextColor(ui.Theme.Colors.TitleBarText);
+        .Style(
+            SampleStyles.Button(
+                ui.Theme,
+                SampleButtonVariant.Navigation,
+                selected: _page == page
+            )
+        );
 
     private Element RenderWindowGallery(ref RenderContext ui) =>
         ui.VStack(

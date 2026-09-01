@@ -15,9 +15,11 @@ internal sealed partial class DashboardView : View
     {
         var controls = ui.HStack(
                 ui.Button("scroll-top", "Top")
-                    .OnClick(this, (view, _) => view._scroll.ScrollToTop()),
+                    .OnClick(this, (view, _) => view._scroll.ScrollToTop())
+                    .Style(SampleStyles.Button(ui.Theme)),
                 ui.Button("scroll-bottom", "Bottom")
-                    .OnClick(this, (view, _) => view._scroll.ScrollToBottom()),
+                    .OnClick(this, (view, _) => view._scroll.ScrollToBottom())
+                    .Style(SampleStyles.Button(ui.Theme)),
                 ui.Spacer(),
                 ui.Badge(ui.Text("native ScrollHandle"u8))
                     .Background(ui.Theme.Colors.InfoBackground)

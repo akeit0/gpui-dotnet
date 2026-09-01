@@ -3,6 +3,7 @@ use gpui::{Div, ParentElement, Styled, div, px, rgba};
 use crate::{
     semantic::{NativeAdapter, OP_CHECKED},
     snapshot::{SnapshotNode, ValidatedSnapshot},
+    theme::NativeTheme,
 };
 
 /// Applies the semantic defaults for one Rust-side component adapter. Adding a component is a
@@ -12,23 +13,28 @@ pub(crate) fn apply_defaults(
     element: Div,
     node: &SnapshotNode,
     snapshot: &ValidatedSnapshot,
+    theme: NativeTheme,
 ) -> Div {
     match adapter {
         NativeAdapter::Button => element
             .rounded(px(6.))
             .border(px(1.))
-            .border_color(rgba(0xCBD5E1FF)),
-        NativeAdapter::Checkbox => checkbox(element, has_u32_flag(node, snapshot, OP_CHECKED)),
-        NativeAdapter::Radio => radio(element, has_u32_flag(node, snapshot, OP_CHECKED)),
+            .border_color(rgba(theme.border))
+            .bg(rgba(theme.element_background))
+            .text_color(rgba(theme.text)),
+        NativeAdapter::Checkbox => {
+            checkbox(element, has_u32_flag(node, snapshot, OP_CHECKED), theme)
+        }
+        NativeAdapter::Radio => radio(element, has_u32_flag(node, snapshot, OP_CHECKED), theme),
         NativeAdapter::Badge => element
             .flex()
             .items_center()
             .rounded_full()
             .p(px(5.))
-            .bg(rgba(0xDBEAFEFF))
-            .text_color(rgba(0x1D4ED8FF))
+            .bg(rgba(theme.info_background))
+            .text_color(rgba(theme.info))
             .text_xs(),
-        NativeAdapter::Divider => element.h(px(1.)).w_full().bg(rgba(0xE2E8F0FF)),
+        NativeAdapter::Divider => element.h(px(1.)).w_full().bg(rgba(theme.border_variant)),
         NativeAdapter::Spacer => element.flex_grow(),
         NativeAdapter::Div
         | NativeAdapter::Text
@@ -45,7 +51,7 @@ pub(crate) fn apply_defaults(
     }
 }
 
-fn checkbox(element: Div, checked: bool) -> Div {
+fn checkbox(element: Div, checked: bool, theme: NativeTheme) -> Div {
     let mut indicator = div()
         .flex()
         .items_center()
@@ -54,15 +60,15 @@ fn checkbox(element: Div, checked: bool) -> Div {
         .h(px(16.))
         .rounded(px(4.))
         .border(px(1.))
-        .border_color(rgba(0x94A3B8FF));
+        .border_color(rgba(theme.border));
     if checked {
         indicator = indicator
-            .bg(rgba(0x2563EBFF))
-            .text_color(rgba(0xFFFFFFFF))
+            .bg(rgba(theme.accent))
+            .text_color(rgba(theme.text_on_accent))
             .text_xs()
             .child("✓");
     } else {
-        indicator = indicator.bg(rgba(0xFFFFFFFF));
+        indicator = indicator.bg(rgba(theme.element_background));
     }
 
     element
@@ -73,7 +79,7 @@ fn checkbox(element: Div, checked: bool) -> Div {
         .child(indicator)
 }
 
-fn radio(element: Div, checked: bool) -> Div {
+fn radio(element: Div, checked: bool, theme: NativeTheme) -> Div {
     let mut indicator = div()
         .flex()
         .items_center()
@@ -82,15 +88,15 @@ fn radio(element: Div, checked: bool) -> Div {
         .h(px(16.))
         .rounded_full()
         .border(px(1.))
-        .border_color(rgba(0x94A3B8FF))
-        .bg(rgba(0xFFFFFFFF));
+        .border_color(rgba(theme.border))
+        .bg(rgba(theme.element_background));
     if checked {
         indicator = indicator.child(
             div()
                 .w(px(8.))
                 .h(px(8.))
                 .rounded_full()
-                .bg(rgba(0x2563EBFF)),
+                .bg(rgba(theme.accent)),
         );
     }
 

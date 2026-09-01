@@ -9,6 +9,7 @@ use gpui::{
 use crate::resources::{
     ManagedListResource, ManagedScrollResource, ScrollInteraction, ScrollbarDrag,
 };
+use crate::theme::NativeTheme;
 
 const SMOOTHING: f32 = 0.24;
 const FINISH_THRESHOLD: Pixels = px(0.5);
@@ -64,6 +65,7 @@ pub(crate) fn scroll_overlay(
     smooth: bool,
     show_scrollbar: bool,
     metrics: ScrollbarMetrics,
+    theme: NativeTheme,
 ) -> gpui::Div {
     let mut overlay = div().absolute().inset_0();
 
@@ -87,7 +89,7 @@ pub(crate) fn scroll_overlay(
         overlay = overlay.child(
             canvas(
                 move |_, _, _| scroll_geometry(&paint_resource, axis, metrics),
-                move |_, geometry, window, _| paint_scrollbar(geometry, metrics, window),
+                move |_, geometry, window, _| paint_scrollbar(geometry, metrics, theme, window),
             )
             .absolute()
             .inset_0(),
@@ -135,6 +137,7 @@ pub(crate) fn list_overlay(
     smooth: bool,
     show_scrollbar: bool,
     metrics: ScrollbarMetrics,
+    theme: NativeTheme,
 ) -> gpui::Div {
     let mut overlay = div().absolute().inset_0();
 
@@ -159,7 +162,7 @@ pub(crate) fn list_overlay(
                 move |_, _, _| {
                     list_geometry(&paint_resource.borrow(), estimated_item_height, metrics)
                 },
-                move |_, geometry, window, _| paint_scrollbar(geometry, metrics, window),
+                move |_, geometry, window, _| paint_scrollbar(geometry, metrics, theme, window),
             )
             .absolute()
             .inset_0(),
@@ -462,22 +465,33 @@ fn horizontal_geometry(
     Some(AxisGeometry { track, thumb })
 }
 
-fn paint_scrollbar(geometry: ScrollbarGeometry, metrics: ScrollbarMetrics, window: &mut Window) {
+fn paint_scrollbar(
+    geometry: ScrollbarGeometry,
+    metrics: ScrollbarMetrics,
+    theme: NativeTheme,
+    window: &mut Window,
+) {
     if let Some(vertical) = geometry.vertical {
-        paint_axis(vertical, true, metrics, window);
+        paint_axis(vertical, true, metrics, theme, window);
     }
     if let Some(horizontal) = geometry.horizontal {
-        paint_axis(horizontal, false, metrics, window);
+        paint_axis(horizontal, false, metrics, theme, window);
     }
 }
 
-fn paint_axis(axis: AxisGeometry, vertical: bool, metrics: ScrollbarMetrics, window: &mut Window) {
+fn paint_axis(
+    axis: AxisGeometry,
+    vertical: bool,
+    metrics: ScrollbarMetrics,
+    theme: NativeTheme,
+    window: &mut Window,
+) {
     let visual_track = visual_bounds(axis.track, vertical, metrics);
     let visual_thumb = visual_bounds(axis.thumb, vertical, metrics);
     window.paint_quad(quad(
         visual_track,
         metrics.paint / 2.0,
-        rgba(0x0f172a18),
+        rgba(theme.scrollbar_track_background),
         px(0.),
         transparent_black(),
         Default::default(),
@@ -485,7 +499,7 @@ fn paint_axis(axis: AxisGeometry, vertical: bool, metrics: ScrollbarMetrics, win
     window.paint_quad(quad(
         visual_thumb,
         metrics.paint / 2.0,
-        rgba(0x64748bb8),
+        rgba(theme.scrollbar_thumb_background),
         px(0.),
         transparent_black(),
         Default::default(),

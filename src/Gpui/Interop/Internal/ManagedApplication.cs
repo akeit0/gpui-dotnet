@@ -38,6 +38,10 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     internal void Start()
     {
+        // Theme precedes every initial Open command, so native defaults are correct on the first
+        // materialized frame instead of flashing the fallback light palette.
+        SetTheme(_application.Theme);
+
         if (_application.MenuBarSnapshot() is { } menus)
         {
             SetMenuBar(menus);
@@ -95,9 +99,36 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
     public void SetTheme(GpuiTheme theme)
     {
         ArgumentNullException.ThrowIfNull(theme);
+        var payload = NativeThemePayload.From(theme);
+        unsafe
+        {
+            var payloadPointer = &payload;
+            var native = new NativeApplicationCommand
+            {
+                window_id = 0,
+                command = 8,
+                flags = 0,
+                reserved = 0,
+                title = (byte*)payloadPointer,
+                title_length = sizeof(NativeThemePayload),
+                reserved2 = 0,
+                left = 0,
+                top = 0,
+                width = 0,
+                height = 0,
+            };
+            var status = _runtime.Api->dispatch_application_command(_applicationId, &native);
+            if (status != 0)
+            {
+                throw new InvalidOperationException(
+                    $"Native application theme update failed with status {status}."
+                );
+            }
+        }
+
         foreach (var session in _sessions.Values)
         {
-            session.Invalidate(session.RootView);
+            session.InvalidateAllViews();
         }
     }
 

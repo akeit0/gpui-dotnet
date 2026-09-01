@@ -7,6 +7,19 @@ namespace Gpui.Tests;
 public sealed class SemanticRenderTests
 {
     [Fact]
+    public void RetainedFragmentRenderContextUsesTheSuppliedApplicationTheme()
+    {
+        var theme = GpuiTheme.CreateDefault(GpuiThemeAppearance.Dark);
+        var view = new ProbeView();
+        using var arena = new RenderArenaOwner();
+
+        var ui = arena.BeginRender(new NoopRenderer(), view, theme);
+
+        Assert.Same(theme, ui.Theme);
+        Assert.Equal(Hex("#F8FAFC"), ui.Theme.Colors.Text);
+    }
+
+    [Fact]
     public void RepresentativeTreePassesManagedValidation()
     {
         using var arena = new RenderArenaOwner();
@@ -24,6 +37,27 @@ public sealed class SemanticRenderTests
         Assert.Equal(5, stats.Nodes);
         Assert.Equal(4, stats.Children);
         Assert.True(stats.Ops >= 5);
+    }
+
+    [Fact]
+    public void ApplicationOwnedStyleWritesBaseAndInteractionOperations()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var style = new ProbeButtonStyle(
+            Rgb(37, 99, 235),
+            Rgb(29, 78, 216),
+            Rgb(30, 64, 175),
+            Rgb(255, 255, 255)
+        );
+
+        var root = ui.Button("styled", "Styled").Style(style);
+
+        arena.Validate(root);
+        Assert.Equal(
+            style.ActiveBackground.Rgba,
+            ReadLastU32Op(arena, OpCode.ActiveBackgroundRgba)
+        );
     }
 
     [Fact]
@@ -1041,6 +1075,34 @@ public sealed class SemanticRenderTests
         var keyLength = separator < 0 ? payload.Length : separator;
         Assert.True(keyLength > 0);
         return payload[..keyLength].ToArray();
+    }
+
+    private static unsafe uint ReadLastU32Op(RenderArenaOwner arena, OpCode code)
+    {
+        for (var index = arena.NativeArena->OpLength - 1; index >= 0; index--)
+        {
+            if (arena.NativeArena->Ops[index].Code == (ushort)code)
+            {
+                return checked((uint)arena.NativeArena->Ops[index].A);
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException($"The render did not contain {code}.");
+    }
+
+    private readonly record struct ProbeButtonStyle(
+        Color Background,
+        Color HoverBackground,
+        Color ActiveBackground,
+        Color Text
+    ) : IGpuiElementStyle<ButtonTag>
+    {
+        public Element<ButtonTag> Apply(Element<ButtonTag> button) =>
+            button
+                .Background(Background)
+                .HoverBackground(HoverBackground)
+                .ActiveBackground(ActiveBackground)
+                .TextColor(Text);
     }
 
     private sealed class ProbeView : View

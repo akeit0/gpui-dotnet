@@ -59,7 +59,13 @@ protected override Element Render(ref RenderContext ui) =>
 JSON accepts flat `colors`, nested `colors`, or Zed-style `style` objects. Canonical Zed color
 keys such as `surface.background`, `element.hover`, and `text.muted` are accepted alongside C#
 property-style aliases. Unspecified values inherit appearance-specific defaults. The active theme
-is available in all managed render contexts, including virtualized list row rendering.
+is available in all managed render contexts, including virtualized list row rendering, and its
+resolved semantic palette is also shared by Rust-owned component defaults and retained controls.
+
+Reusable product variants are intentionally application-owned. A value type implementing
+`IGpuiElementStyle<TTag>` can resolve a variant from `ui.Theme` and apply it through `.Style(...)`.
+The core library supplies element operations and hover/active paint states; it does
+not define application vocabularies such as `PrimaryButton` or `DangerButton`.
 
 ## Snapshot component adapters
 

@@ -12,7 +12,7 @@ use async_channel::{Receiver, Sender, TrySendError};
 use gpui::{
     AnyWindowHandle, App, AppContext, Application, Bounds, Context, IntoElement, Menu, MenuItem,
     Render, TitlebarOptions, Window, WindowBounds, WindowDecorations, WindowOptions, div, point,
-    prelude::*, px, rgb, size,
+    prelude::*, px, rgba, size,
 };
 
 use crate::{
@@ -22,6 +22,7 @@ use crate::{
     popover_menu::PopoverMenuGroup,
     resources::{ResourceCommand, ResourceStore},
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
+    theme::{NativeTheme, SharedTheme},
     trace,
 };
 
@@ -39,6 +40,7 @@ pub(crate) struct ManagedView {
     pub(crate) resources: Rc<ResourceStore>,
     pub(crate) popover_menus: Rc<PopoverMenuGroup>,
     pub(crate) overlay_stack: Rc<OverlayStack>,
+    pub(crate) theme: SharedTheme,
 }
 
 enum ViewMessage {
@@ -84,6 +86,7 @@ impl Drop for ViewRegistration {
 #[derive(Debug)]
 pub(crate) enum ApplicationCommand {
     SetMenuBar(Vec<ManagedMenu>),
+    SetTheme(NativeTheme),
     Open {
         window_id: u64,
         title: String,
@@ -242,7 +245,7 @@ pub(crate) fn dispatch_application_command(
 }
 
 impl ManagedView {
-    fn new(view_id: u64, callbacks: ManagedCallbacks) -> Self {
+    fn new(view_id: u64, callbacks: ManagedCallbacks, theme: SharedTheme) -> Self {
         Self {
             view_id,
             callbacks,
@@ -254,9 +257,10 @@ impl ManagedView {
             snapshot_revision: 0,
             dirty: true,
             error: None,
-            resources: Rc::new(ResourceStore::new(view_id, callbacks)),
+            resources: Rc::new(ResourceStore::new(view_id, callbacks, theme.clone())),
             popover_menus: Rc::new(PopoverMenuGroup::default()),
             overlay_stack: OverlayStack::new(),
+            theme,
         }
     }
 
@@ -355,13 +359,14 @@ impl Render for ManagedView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.refresh_if_dirty();
         self.overlay_stack.begin_frame();
+        let theme = *self.theme.borrow();
 
         let content = {
             let _stage = trace::span(trace::Stage::Materialize);
             if let Some(error) = &self.error {
                 div()
                     .p(px(20.0))
-                    .text_color(rgb(0xb42318))
+                    .text_color(rgba(theme.error))
                     .child(error.clone())
                     .into_any_element()
             } else if self.has_snapshot {
@@ -379,8 +384,8 @@ impl Render for ManagedView {
 
         div()
             .size_full()
-            .bg(rgb(0xffffff))
-            .text_color(rgb(0x182230))
+            .bg(rgba(theme.background))
+            .text_color(rgba(theme.text))
             .child(content)
     }
 }
@@ -409,6 +414,7 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
     Application::new().run(move |cx: &mut App| {
         crate::input::init(cx);
         let windows: ManagedWindows = Rc::new(RefCell::new(HashMap::new()));
+        let theme: SharedTheme = Rc::new(RefCell::new(NativeTheme::default()));
 
         let menu_status = Arc::clone(&application_status_in_app);
         cx.on_action(move |action: &ManagedMenuAction, _cx| {
@@ -443,6 +449,7 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
                 application_id,
                 callbacks,
                 &windows,
+                &theme,
                 &application_status_in_app,
             );
         }
@@ -454,6 +461,7 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
         }
 
         let command_windows = Rc::clone(&windows);
+        let command_theme = Rc::clone(&theme);
         let command_status = Arc::clone(&application_status_in_app);
         cx.spawn(async move |cx| {
             while let Ok(command) = receiver.recv().await {
@@ -465,6 +473,7 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
                             application_id,
                             callbacks,
                             &command_windows,
+                            &command_theme,
                             &command_status,
                         );
                     })
@@ -488,11 +497,25 @@ fn apply_application_command(
     application_id: u64,
     callbacks: ManagedCallbacks,
     windows: &ManagedWindows,
+    theme: &SharedTheme,
     application_status: &AtomicI32,
 ) {
     match command {
         ApplicationCommand::SetMenuBar(menus) => {
             cx.set_menus(menus.into_iter().map(|menu| convert_menu(menu)).collect());
+        }
+        ApplicationCommand::SetTheme(next) => {
+            *theme.borrow_mut() = next;
+            for entry in windows.borrow().values() {
+                let Some(handle) = entry.handle.downcast::<ManagedView>() else {
+                    continue;
+                };
+                let _ = handle.update(cx, |view, window, cx| {
+                    view.resources.invalidate_theme_dependent_resources();
+                    view.invalidate(cx);
+                    window.refresh();
+                });
+            }
         }
         ApplicationCommand::Open {
             window_id,
@@ -515,6 +538,7 @@ fn apply_application_command(
                 height,
                 activate,
                 title_bar_style,
+                theme.clone(),
             );
             if let Err(status) = result {
                 record_status(application_status, status);
@@ -623,6 +647,7 @@ fn open_managed_window(
     height: f32,
     activate: bool,
     title_bar_style: WindowTitleBarStyle,
+    theme: SharedTheme,
 ) -> Result<(), i32> {
     if windows.borrow().contains_key(&window_id) {
         return Err(-44);
@@ -666,7 +691,14 @@ fn open_managed_window(
                 ..Default::default()
             },
             move |_, cx| {
-                create_managed_view(cx, window_id, callbacks, receiver, invalidate_pending)
+                create_managed_view(
+                    cx,
+                    window_id,
+                    callbacks,
+                    receiver,
+                    invalidate_pending,
+                    theme,
+                )
             },
         )
         .map_err(|_| -45)?;
@@ -743,8 +775,9 @@ fn create_managed_view(
     callbacks: ManagedCallbacks,
     receiver: Receiver<ViewMessage>,
     invalidate_pending: Arc<AtomicBool>,
+    theme: SharedTheme,
 ) -> gpui::Entity<ManagedView> {
-    let view = cx.new(|_| ManagedView::new(view_id, callbacks));
+    let view = cx.new(|_| ManagedView::new(view_id, callbacks, theme));
     let weak_view = view.downgrade();
 
     cx.spawn(async move |cx| {

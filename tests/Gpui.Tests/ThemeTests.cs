@@ -1,4 +1,6 @@
+using System.Runtime.InteropServices;
 using Gpui;
+using Gpui.Interop;
 
 namespace Gpui.Tests;
 
@@ -51,6 +53,9 @@ public sealed class ThemeTests
                 "surface_background": "#0F2035",
                 "text": "#E0F2FE",
                 "text_muted": "#7DD3FC",
+                "text.on_accent": "#001018",
+                "accent.hover": "#67E8F9",
+                "accent.active": "#06B6D4",
                 "element.hover": "#12304A"
               },
               "typography": {
@@ -66,6 +71,9 @@ public sealed class ThemeTests
         Assert.Equal(new Color(0x07111FFF), direct.Colors.Background);
         Assert.Equal(new Color(0x0F2035FF), direct.Colors.SurfaceBackground);
         Assert.Equal(new Color(0x7DD3FCFF), direct.Colors.TextMuted);
+        Assert.Equal(new Color(0x001018FF), direct.Colors.TextOnAccent);
+        Assert.Equal(new Color(0x67E8F9FF), direct.Colors.AccentHover);
+        Assert.Equal(new Color(0x06B6D4FF), direct.Colors.AccentActive);
         Assert.Equal(new Color(0x12304AFF), direct.Colors.ElementHover);
         Assert.Equal(26, direct.Typography.Large);
         Assert.Equal(10, direct.Typography.Detail);
@@ -105,5 +113,20 @@ public sealed class ThemeTests
 
         Assert.Same(GpuiTheme.Default, ui.Theme);
         Assert.Equal(GpuiTheme.Default.Colors.Background, ui.Theme.Colors.Background);
+    }
+
+    [Fact]
+    public void NativeThemePayloadContainsResolvedSemanticRolesOnly()
+    {
+        var theme = GpuiTheme.CreateDefault(GpuiThemeAppearance.Dark);
+
+        var payload = NativeThemePayload.From(theme);
+
+        Assert.Equal(NativeThemePayload.CurrentVersion, payload.Version);
+        Assert.Equal(19 * sizeof(uint), Marshal.SizeOf<NativeThemePayload>());
+        Assert.Equal(theme.Colors.Background.Rgba, payload.Background);
+        Assert.Equal(theme.Colors.TextOnAccent.Rgba, payload.TextOnAccent);
+        Assert.Equal(theme.Colors.Accent.Rgba, payload.Accent);
+        Assert.Equal(theme.Colors.ScrollbarThumbBackground.Rgba, payload.ScrollbarThumbBackground);
     }
 }

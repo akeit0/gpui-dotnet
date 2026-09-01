@@ -115,7 +115,7 @@ internal sealed unsafe partial class ManagedSession
             BeginComposition(view);
             try
             {
-                var ui = state.Fragment.BeginRender(this, view);
+                var ui = state.Fragment.BeginRender(this, view, _application.Theme);
                 var element = view.RenderCore(ref ui);
                 state.Fragment.Validate(element);
                 state.Root = element.Node;

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 21,
+  "schemaVersion": 22,
   "capabilities": [
     "styled",
     "parent",
@@ -444,6 +444,46 @@
       "id": 113,
       "name": "hover_background_rgba",
       "csharp": "HoverBackground",
+      "value": "u32",
+      "requires": "interactive",
+      "managedApi": "color"
+    },
+    {
+      "id": 114,
+      "name": "hover_text_rgba",
+      "csharp": "HoverTextColor",
+      "value": "u32",
+      "requires": "interactive",
+      "managedApi": "color"
+    },
+    {
+      "id": 115,
+      "name": "hover_border_rgba",
+      "csharp": "HoverBorderColor",
+      "value": "u32",
+      "requires": "interactive",
+      "managedApi": "color"
+    },
+    {
+      "id": 116,
+      "name": "active_background_rgba",
+      "csharp": "ActiveBackground",
+      "value": "u32",
+      "requires": "interactive",
+      "managedApi": "color"
+    },
+    {
+      "id": 117,
+      "name": "active_text_rgba",
+      "csharp": "ActiveTextColor",
+      "value": "u32",
+      "requires": "interactive",
+      "managedApi": "color"
+    },
+    {
+      "id": 118,
+      "name": "active_border_rgba",
+      "csharp": "ActiveBorderColor",
       "value": "u32",
       "requires": "interactive",
       "managedApi": "color"

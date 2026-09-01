@@ -8,6 +8,7 @@ use gpui::{
 use crate::{
     abi::{ManagedCallbacks, NativeControlEvent},
     resources::{ResourceCommand, SliderBindings, SliderConfiguration},
+    theme::SharedTheme,
 };
 
 pub(crate) const EVENT_CHANGED: u16 = 4;
@@ -89,6 +90,7 @@ pub(crate) struct ManagedSlider {
     bindings: SliderBindings,
     revision: u64,
     callback_error: Option<i32>,
+    theme: SharedTheme,
 }
 
 impl ManagedSlider {
@@ -96,6 +98,7 @@ impl ManagedSlider {
         session_id: u64,
         callbacks: ManagedCallbacks,
         configuration: &SliderConfiguration,
+        theme: SharedTheme,
         cx: &mut Context<Self>,
     ) -> Self {
         let value = configuration
@@ -120,6 +123,7 @@ impl ManagedSlider {
             bindings: configuration.bindings,
             revision: 0,
             callback_error: None,
+            theme,
         }
     }
 
@@ -411,12 +415,13 @@ impl Focusable for ManagedSlider {
 
 impl Render for ManagedSlider {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *self.theme.borrow();
         if let Some(status) = self.callback_error {
             return div()
                 .size_full()
                 .flex()
                 .items_center()
-                .text_color(rgba(0xB42318FF))
+                .text_color(rgba(theme.error))
                 .child(format!("Managed slider event failed with status {status}."))
                 .into_any_element();
         }
@@ -446,7 +451,7 @@ impl Render for ManagedSlider {
                         this.top(px(0.)).bottom(px(0.)).left(px(9.)).w(px(6.))
                     })
                     .rounded_full()
-                    .bg(rgba(0xCBD5E1FF)),
+                    .bg(rgba(theme.border_variant)),
             )
             .child(
                 div()
@@ -464,7 +469,7 @@ impl Render for ManagedSlider {
                             .w(px(6.))
                     })
                     .rounded_full()
-                    .bg(rgba(0x2563EBFF)),
+                    .bg(rgba(theme.accent)),
             );
 
         let bounds_owner = slider.clone();
@@ -504,9 +509,9 @@ impl Render for ManagedSlider {
                     .w(px(16.))
                     .h(px(16.))
                     .rounded_full()
-                    .bg(rgba(0xFFFFFFFF))
+                    .bg(rgba(theme.surface_background))
                     .border(px(1.))
-                    .border_color(rgba(0x2563EBFF));
+                    .border_color(rgba(theme.accent));
                 thumb = if axis == Axis::Horizontal {
                     thumb.left(relative(position)).top(px(4.)).ml(-px(8.))
                 } else {
@@ -546,7 +551,11 @@ impl Render for ManagedSlider {
                     .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             })
             .track_focus(&focus_handle)
-            .focus_visible(|style| style.border(px(2.)).border_color(rgba(0x1D4ED8FF)))
+            .focus_visible(move |style| {
+                style
+                    .border(px(2.))
+                    .border_color(rgba(theme.border_focused))
+            })
             .key_context("GpuiDotnetSlider")
             .on_key_down(cx.listener(Self::on_key_down))
             .on_key_up(cx.listener(Self::on_key_up))
@@ -557,11 +566,15 @@ impl Render for ManagedSlider {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
+    use std::{cell::RefCell, rc::Rc};
 
     use gpui::{KeyUpEvent, Keystroke, Modifiers, TestAppContext, point, px, size};
 
     use super::*;
+
+    fn theme() -> SharedTheme {
+        Rc::new(RefCell::new(crate::theme::NativeTheme::default()))
+    }
 
     thread_local! {
         static EVENTS: RefCell<Vec<(u16, u64, SliderValue)>> = const { RefCell::new(Vec::new()) };
@@ -592,8 +605,9 @@ mod tests {
             logarithmic: false,
             bindings: SliderBindings::default(),
         };
-        let (slider, _) =
-            cx.add_window_view(|_, cx| ManagedSlider::new(1, callbacks(), &configuration, cx));
+        let (slider, _) = cx.add_window_view(|_, cx| {
+            ManagedSlider::new(1, callbacks(), &configuration, theme(), cx)
+        });
         slider.update(cx, |slider, _| assert_eq!(slider.percentages(), (0., 0.5)));
     }
 
@@ -601,8 +615,9 @@ mod tests {
     fn track_click_emits_changed_and_release_events(cx: &mut TestAppContext) {
         clear_events();
         let configuration = configuration(SliderValue::Single(0.));
-        let (_, cx) =
-            cx.add_window_view(|_, cx| ManagedSlider::new(7, callbacks(), &configuration, cx));
+        let (_, cx) = cx.add_window_view(|_, cx| {
+            ManagedSlider::new(7, callbacks(), &configuration, theme(), cx)
+        });
         cx.simulate_resize(size(px(240.), px(80.)));
         cx.update(|window, _| window.refresh());
 
@@ -631,8 +646,9 @@ mod tests {
     ) {
         clear_events();
         let configuration = configuration(SliderValue::Range(25., 75.));
-        let (_, cx) =
-            cx.add_window_view(|_, cx| ManagedSlider::new(8, callbacks(), &configuration, cx));
+        let (_, cx) = cx.add_window_view(|_, cx| {
+            ManagedSlider::new(8, callbacks(), &configuration, theme(), cx)
+        });
         cx.simulate_resize(size(px(240.), px(80.)));
         cx.update(|window, _| window.refresh());
 
@@ -659,8 +675,9 @@ mod tests {
         configuration.step = 1.;
         configuration.axis = Axis::Vertical;
         configuration.logarithmic = true;
-        let (_, cx) =
-            cx.add_window_view(|_, cx| ManagedSlider::new(13, callbacks(), &configuration, cx));
+        let (_, cx) = cx.add_window_view(|_, cx| {
+            ManagedSlider::new(13, callbacks(), &configuration, theme(), cx)
+        });
         cx.simulate_resize(size(px(80.), px(240.)));
         cx.update(|window, _| window.refresh());
 
@@ -681,8 +698,9 @@ mod tests {
         clear_events();
         let mut configuration = configuration(SliderValue::Single(40.));
         configuration.disabled = true;
-        let (_, cx) =
-            cx.add_window_view(|_, cx| ManagedSlider::new(9, callbacks(), &configuration, cx));
+        let (_, cx) = cx.add_window_view(|_, cx| {
+            ManagedSlider::new(9, callbacks(), &configuration, theme(), cx)
+        });
         cx.simulate_resize(size(px(240.), px(80.)));
         cx.update(|window, _| window.refresh());
 
@@ -700,8 +718,9 @@ mod tests {
     fn programmatic_set_value_does_not_emit_interaction_events(cx: &mut TestAppContext) {
         clear_events();
         let configuration = configuration(SliderValue::Single(10.));
-        let (slider, _) =
-            cx.add_window_view(|_, cx| ManagedSlider::new(10, callbacks(), &configuration, cx));
+        let (slider, _) = cx.add_window_view(|_, cx| {
+            ManagedSlider::new(10, callbacks(), &configuration, theme(), cx)
+        });
         let command = ResourceCommand {
             key: crate::resources::ResourceKey::new(1, gpui::SharedString::new("slider")),
             resource_kind: 4,
@@ -722,8 +741,9 @@ mod tests {
     fn keyboard_step_emits_changed_then_released(cx: &mut TestAppContext) {
         clear_events();
         let configuration = configuration(SliderValue::Single(50.));
-        let (slider, cx) =
-            cx.add_window_view(|_, cx| ManagedSlider::new(11, callbacks(), &configuration, cx));
+        let (slider, cx) = cx.add_window_view(|_, cx| {
+            ManagedSlider::new(11, callbacks(), &configuration, theme(), cx)
+        });
         cx.simulate_resize(size(px(240.), px(80.)));
         cx.update(|window, _| window.refresh());
         cx.update(|window, app| {
@@ -749,8 +769,9 @@ mod tests {
     fn thumb_drag_emits_changed_and_released(cx: &mut TestAppContext) {
         clear_events();
         let configuration = configuration(SliderValue::Single(25.));
-        let (_, cx) =
-            cx.add_window_view(|_, cx| ManagedSlider::new(12, callbacks(), &configuration, cx));
+        let (_, cx) = cx.add_window_view(|_, cx| {
+            ManagedSlider::new(12, callbacks(), &configuration, theme(), cx)
+        });
         cx.simulate_resize(size(px(240.), px(80.)));
         cx.update(|window, _| window.refresh());
 

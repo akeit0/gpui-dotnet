@@ -20,23 +20,25 @@ use crate::{
     },
     scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics, list_overlay, scroll_overlay},
     semantic::{
-        CAPABILITY_INTERACTIVE, NativeAdapter, OP_BACKGROUND_RGBA, OP_BORDER_RGBA,
-        OP_BORDER_WIDTH_PX, OP_CHECKED, OP_CONTEXT_MENU_MARGIN_PX, OP_CONTEXT_MENU_PRIORITY,
-        OP_FLEX, OP_FLEX_GROW, OP_FONT_SIZE_PX, OP_GAP_PX, OP_HEIGHT_PERCENT, OP_HEIGHT_PX,
-        OP_HOVER_BACKGROUND_RGBA, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_ITEMS_CENTER,
-        OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
-        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX,
-        OP_LIST_RENDERER, OP_ON_CLICK, OP_OVERLAY_BACKDROP_RGBA, OP_OVERLAY_DISMISS_ON_BACKDROP,
-        OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
-        OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY, OP_PADDING_PX,
-        OP_POPOVER_MENU_MARGIN_PX, OP_POPOVER_MENU_PRIORITY, OP_RADIUS_PX, OP_RESOURCE_OWNER,
-        OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SHOW_SCROLLBAR,
-        OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER, OP_TEXT_RGBA,
-        OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS, OP_TOOLTIP_MARGIN_PX,
-        OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK, OP_WIDTH_PERCENT, OP_WIDTH_PX,
-        OP_WINDOW_CONTROL_AREA, component_metadata,
+        CAPABILITY_INTERACTIVE, NativeAdapter, OP_ACTIVE_BACKGROUND_RGBA, OP_ACTIVE_BORDER_RGBA,
+        OP_ACTIVE_TEXT_RGBA, OP_BACKGROUND_RGBA, OP_BORDER_RGBA, OP_BORDER_WIDTH_PX, OP_CHECKED,
+        OP_CONTEXT_MENU_MARGIN_PX, OP_CONTEXT_MENU_PRIORITY, OP_FLEX, OP_FLEX_GROW,
+        OP_FONT_SIZE_PX, OP_GAP_PX, OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_HOVER_BACKGROUND_RGBA,
+        OP_HOVER_BORDER_RGBA, OP_HOVER_TEXT_RGBA, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT,
+        OP_ITEMS_CENTER, OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER, OP_LIST_ALIGNMENT,
+        OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT,
+        OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_ON_CLICK, OP_OVERLAY_BACKDROP_RGBA,
+        OP_OVERLAY_DISMISS_ON_BACKDROP, OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX,
+        OP_OVERLAY_MODAL, OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY,
+        OP_PADDING_PX, OP_POPOVER_MENU_MARGIN_PX, OP_POPOVER_MENU_PRIORITY, OP_RADIUS_PX,
+        OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH,
+        OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER,
+        OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS,
+        OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK,
+        OP_WIDTH_PERCENT, OP_WIDTH_PX, OP_WINDOW_CONTROL_AREA, component_metadata,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
+    theme::NativeTheme,
     tooltip::{TooltipConfiguration, tooltip},
 };
 
@@ -56,7 +58,7 @@ impl ManagedView {
             NativeAdapter::Scroll => self.materialize_scroll(node_id, node, snapshot, window, cx),
             NativeAdapter::List => self.materialize_list(node, snapshot, window, cx),
             NativeAdapter::Table => self.materialize_table(node, snapshot, window, cx),
-            NativeAdapter::Image => materialize_image(node, snapshot),
+            NativeAdapter::Image => materialize_image(node, snapshot, *self.theme.borrow()),
             NativeAdapter::Input => self.materialize_input(node, snapshot, window, cx),
             NativeAdapter::Slider => self.materialize_slider(node, snapshot, cx),
             NativeAdapter::Overlay => self.materialize_overlay(node, snapshot, window, cx),
@@ -76,7 +78,9 @@ impl ManagedView {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let metadata = component_metadata(node.component).unwrap();
-        let mut element = components::apply_defaults(metadata.adapter, div(), node, snapshot);
+        let theme = *self.theme.borrow();
+        let mut element =
+            components::apply_defaults(metadata.adapter, div(), node, snapshot, theme);
 
         if metadata.adapter == NativeAdapter::Text {
             element = element.child(node.data.clone());
@@ -102,14 +106,8 @@ impl ManagedView {
                 node.data.clone()
             };
             let element = element.id(element_id).cursor_pointer();
-            let element = if let Some(op) = last_op(snapshot, node, OP_HOVER_BACKGROUND_RGBA) {
-                let color = rgba(op.a as u32);
-                element.hover(move |style| style.bg(color))
-            } else {
-                element.hover(|style| style.opacity(0.88))
-            };
+            let element = apply_interaction_styles(element, node, snapshot, theme);
             return element
-                .active(|style| style.opacity(0.72))
                 .on_click(cx.listener(move |this, event: &ClickEvent, _, cx| {
                     if event_token == 0 {
                         return;
@@ -185,7 +183,14 @@ impl ManagedView {
                 .track_scroll(&handle)
                 .into_any_element(),
         };
-        let overlay = scroll_overlay(resource, axis, smooth, show_scrollbar, metrics);
+        let overlay = scroll_overlay(
+            resource,
+            axis,
+            smooth,
+            show_scrollbar,
+            metrics,
+            *self.theme.borrow(),
+        );
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
         element = element.min_h_0().min_w_0();
         element.child(scrollable).child(overlay).into_any_element()
@@ -243,13 +248,15 @@ impl ManagedView {
             smooth,
             show_scrollbar,
             configuration.scrollbar,
+            *self.theme.borrow(),
         );
+        let focus_color = rgba(self.theme.borrow().border_focused);
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
         element = element.min_h_0().min_w_0();
         let mut host = element
             .id(&focus)
             .track_focus(&focus)
-            .focus_visible(|style| style.border(px(2.)).border_color(rgba(0x1D4ED8FF)))
+            .focus_visible(move |style| style.border(px(2.)).border_color(focus_color))
             .key_context("GpuiDotnetList")
             .on_key_down(move |event, window, cx| {
                 handle_collection_key_down(
@@ -337,13 +344,19 @@ impl ManagedView {
             smooth,
             show_scrollbar,
             configuration.scrollbar,
+            *self.theme.borrow(),
         );
+        let theme = *self.theme.borrow();
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
         element = element.min_h_0().min_w_0();
         let mut host = element
             .id(&focus)
             .track_focus(&focus)
-            .focus_visible(|style| style.border(px(2.)).border_color(rgba(0x1D4ED8FF)))
+            .focus_visible(move |style| {
+                style
+                    .border(px(2.))
+                    .border_color(rgba(theme.border_focused))
+            })
             .key_context("GpuiDotnetTable")
             .on_key_down(move |event, window, cx| {
                 handle_collection_key_down(
@@ -357,7 +370,7 @@ impl ManagedView {
             });
         let show_header = last_op(snapshot, node, OP_TABLE_SHOW_HEADER).is_none_or(|op| op.a != 0);
         if show_header {
-            let header = table_header_strip(&spec).flex_grow();
+            let header = table_header_strip(&spec, theme).flex_grow();
             if configuration.scrollbar.gutter > px(0.) {
                 // The header excludes the gutter too, so fraction columns align with row cells.
                 host = host.child(
@@ -402,6 +415,7 @@ impl ManagedView {
                 .into_any_element();
         };
         let disabled = configuration.disabled;
+        let theme = *self.theme.borrow();
         let input = self.resources.input_resource(&configuration, window, cx);
         let mut element = div()
             .w(px(280.))
@@ -413,8 +427,9 @@ impl ManagedView {
             .overflow_hidden()
             .rounded(px(6.))
             .border(px(1.))
-            .border_color(rgba(0xCBD5E1FF))
-            .bg(rgba(0xFFFFFFFF))
+            .border_color(rgba(theme.border))
+            .bg(rgba(theme.element_background))
+            .text_color(rgba(theme.text))
             .child(input);
         if disabled {
             element = element.opacity(0.55);
@@ -836,10 +851,11 @@ pub(crate) fn materialize_snapshot_node_detached(
             .into_any_element();
     }
     if metadata.adapter == NativeAdapter::Image {
-        return materialize_image(node, snapshot);
+        return materialize_image(node, snapshot, resources.theme());
     }
 
-    let mut element = components::apply_defaults(metadata.adapter, div(), node, snapshot);
+    let theme = resources.theme();
+    let mut element = components::apply_defaults(metadata.adapter, div(), node, snapshot, theme);
     if metadata.adapter == NativeAdapter::Text {
         element = element.child(node.data.clone());
     }
@@ -869,12 +885,7 @@ pub(crate) fn materialize_snapshot_node_detached(
             // state survives splices; without one, the positional index keeps prior behavior.
             let state_id = row_state_id(list_key, item_index, item_id, node_id, &node.data);
             let element = element.id(("managed-list-row", state_id)).cursor_pointer();
-            let element = if let Some(op) = last_op(snapshot, node, OP_HOVER_BACKGROUND_RGBA) {
-                let color = rgba(op.a as u32);
-                element.hover(move |style| style.bg(color))
-            } else {
-                element.hover(|style| style.opacity(0.88))
-            };
+            let element = apply_interaction_styles(element, node, snapshot, theme);
             return element
                 .on_click(move |event: &ClickEvent, _, _| {
                     let _ = invoke_click(callbacks, session_id, event_token, event_payload, event);
@@ -954,7 +965,12 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
             OP_RADIUS_PX => element.rounded(px(value)),
             OP_TEXT_RGBA => element.text_color(rgba(op.a as u32)),
             OP_FONT_SIZE_PX => element.text_size(px(value)),
-            OP_HOVER_BACKGROUND_RGBA => element,
+            OP_HOVER_BACKGROUND_RGBA
+            | OP_HOVER_TEXT_RGBA
+            | OP_HOVER_BORDER_RGBA
+            | OP_ACTIVE_BACKGROUND_RGBA
+            | OP_ACTIVE_TEXT_RGBA
+            | OP_ACTIVE_BORDER_RGBA => element,
             OP_CHECKED
             | OP_ON_CLICK
             | OP_RESOURCE_OWNER
@@ -980,6 +996,91 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
             _ => element,
         };
     }
+    element
+}
+
+#[derive(Clone, Copy, Default)]
+struct InteractionPaint {
+    background: Option<u32>,
+    text: Option<u32>,
+    border: Option<u32>,
+}
+
+impl InteractionPaint {
+    fn is_empty(self) -> bool {
+        self.background.is_none() && self.text.is_none() && self.border.is_none()
+    }
+}
+
+fn interaction_paint(
+    node: &SnapshotNode,
+    snapshot: &ValidatedSnapshot,
+    background_code: u16,
+    text_code: u16,
+    border_code: u16,
+) -> InteractionPaint {
+    InteractionPaint {
+        background: last_op(snapshot, node, background_code).map(|op| op.a as u32),
+        text: last_op(snapshot, node, text_code).map(|op| op.a as u32),
+        border: last_op(snapshot, node, border_code).map(|op| op.a as u32),
+    }
+}
+
+fn apply_paint<T: Styled>(mut style: T, paint: InteractionPaint) -> T {
+    if let Some(color) = paint.background {
+        style = style.bg(rgba(color));
+    }
+    if let Some(color) = paint.text {
+        style = style.text_color(rgba(color));
+    }
+    if let Some(color) = paint.border {
+        style = style.border_color(rgba(color));
+    }
+    style
+}
+
+/// Resolves only transient interaction states in native GPUI. Application variants and durable
+/// states such as selection remain managed concerns and are already flattened into base ops.
+fn apply_interaction_styles<T>(
+    mut element: T,
+    node: &SnapshotNode,
+    snapshot: &ValidatedSnapshot,
+    theme: NativeTheme,
+) -> T
+where
+    T: StatefulInteractiveElement,
+{
+    let hover = interaction_paint(
+        node,
+        snapshot,
+        OP_HOVER_BACKGROUND_RGBA,
+        OP_HOVER_TEXT_RGBA,
+        OP_HOVER_BORDER_RGBA,
+    );
+    let has_hover_paint = !hover.is_empty();
+    element = if !has_hover_paint {
+        element.hover(move |style| style.bg(rgba(theme.element_hover)))
+    } else {
+        element.hover(move |style| apply_paint(style, hover))
+    };
+
+    let active = interaction_paint(
+        node,
+        snapshot,
+        OP_ACTIVE_BACKGROUND_RGBA,
+        OP_ACTIVE_TEXT_RGBA,
+        OP_ACTIVE_BORDER_RGBA,
+    );
+    element = if active.is_empty() && has_hover_paint {
+        // Preserve an explicit hover palette (notably destructive caption controls) when the
+        // app has not supplied a distinct pressed palette.
+        element.active(|style| style.opacity(0.72))
+    } else if active.is_empty() {
+        element.active(move |style| style.bg(rgba(theme.element_active)))
+    } else {
+        element.active(move |style| apply_paint(style, active))
+    };
+
     element
 }
 
@@ -1075,15 +1176,15 @@ fn gutter_spacer(gutter: gpui::Pixels) -> gpui::Div {
 
 /// Native header strip for a table. Fixed chrome by design: product styling belongs to
 /// managed code, but header geometry must come from the same column resolution as rows.
-fn table_header_strip(spec: &std::rc::Rc<TableSpec>) -> gpui::Div {
+fn table_header_strip(spec: &std::rc::Rc<TableSpec>, theme: NativeTheme) -> gpui::Div {
     let mut strip = div()
         .flex()
         .flex_row()
         .h(px(32.))
         .flex_shrink_0()
-        .bg(rgba(0xF8FAFCFF))
+        .bg(rgba(theme.element_background))
         .border_b_1()
-        .border_color(rgba(0xE2E8F0FF));
+        .border_color(rgba(theme.border_variant));
     for column in &spec.columns {
         let mut cell = div()
             .flex()
@@ -1106,7 +1207,7 @@ fn table_header_strip(spec: &std::rc::Rc<TableSpec>) -> gpui::Div {
                 div()
                     .child(column.header.clone())
                     .text_size(px(12.))
-                    .text_color(rgba(0x64748BFF)),
+                    .text_color(rgba(theme.text_muted)),
             ),
         );
     }
@@ -1154,7 +1255,11 @@ fn windows_caption_font() -> &'static str {
     }
 }
 
-fn materialize_image(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> AnyElement {
+fn materialize_image(
+    node: &SnapshotNode,
+    snapshot: &ValidatedSnapshot,
+    theme: NativeTheme,
+) -> AnyElement {
     let mut element = img(PathBuf::from(node.data.as_ref()));
     let fit = match last_op(snapshot, node, OP_IMAGE_OBJECT_FIT).map(|op| op.a as u32) {
         Some(0) => ObjectFit::Fill,
@@ -1168,14 +1273,14 @@ fn materialize_image(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> AnyEl
         .object_fit(fit)
         .grayscale(grayscale)
         .overflow_hidden()
-        .with_fallback(|| {
+        .with_fallback(move || {
             div()
                 .size_full()
                 .flex()
                 .items_center()
                 .justify_center()
-                .bg(rgba(0xE2E8F0FF))
-                .text_color(rgba(0x64748BFF))
+                .bg(rgba(theme.element_active))
+                .text_color(rgba(theme.text_muted))
                 .child("Image unavailable")
                 .into_any_element()
         });

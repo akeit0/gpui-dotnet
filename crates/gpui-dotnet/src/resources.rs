@@ -28,6 +28,7 @@ use crate::{
     },
     slider::{ManagedSlider, SliderValue},
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
+    theme::{NativeTheme, SharedTheme},
 };
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -68,6 +69,7 @@ impl ResourceCommand {
 pub(crate) struct ResourceStore {
     session_id: u64,
     callbacks: ManagedCallbacks,
+    theme: SharedTheme,
     scrolls: RefCell<HashMap<ResourceKey, Rc<ManagedScrollResource>>>,
     lists: RefCell<HashMap<ResourceKey, Rc<RefCell<ManagedListResource>>>>,
     tables: RefCell<HashMap<ResourceKey, Rc<TableSpec>>>,
@@ -78,10 +80,11 @@ pub(crate) struct ResourceStore {
 }
 
 impl ResourceStore {
-    pub(crate) fn new(session_id: u64, callbacks: ManagedCallbacks) -> Self {
+    pub(crate) fn new(session_id: u64, callbacks: ManagedCallbacks, theme: SharedTheme) -> Self {
         Self {
             session_id,
             callbacks,
+            theme,
             scrolls: RefCell::new(HashMap::new()),
             lists: RefCell::new(HashMap::new()),
             tables: RefCell::new(HashMap::new()),
@@ -90,6 +93,10 @@ impl ResourceStore {
             pending: RefCell::new(HashMap::new()),
             active_scratch: RefCell::new(HashSet::new()),
         }
+    }
+
+    pub(crate) fn theme(&self) -> NativeTheme {
+        *self.theme.borrow()
     }
 
     pub(crate) fn scroll_resource(&self, key: &ResourceKey) -> Rc<ManagedScrollResource> {
@@ -158,6 +165,14 @@ impl ResourceStore {
         self.lists.borrow().values().cloned().collect()
     }
 
+    /// Discards retained managed row snapshots whose resolved colors belong to the previous
+    /// application theme. Tables use the same row engines as lists, so this covers both.
+    pub(crate) fn invalidate_theme_dependent_resources(&self) {
+        for engine in self.list_engines() {
+            engine.borrow_mut().invalidate_all_batches();
+        }
+    }
+
     pub(crate) fn list_engine_count(&self) -> usize {
         self.lists.borrow().len()
     }
@@ -184,6 +199,7 @@ impl ResourceStore {
                         password: configuration.password,
                         bindings: configuration.bindings,
                     },
+                    self.theme.clone(),
                     cx,
                 )
             });
@@ -223,8 +239,15 @@ impl ResourceStore {
         let resource = if let Some(existing) = existing {
             existing
         } else {
-            let created =
-                cx.new(|cx| ManagedSlider::new(self.session_id, self.callbacks, configuration, cx));
+            let created = cx.new(|cx| {
+                ManagedSlider::new(
+                    self.session_id,
+                    self.callbacks,
+                    configuration,
+                    self.theme.clone(),
+                    cx,
+                )
+            });
             self.sliders
                 .borrow_mut()
                 .insert(configuration.key.clone(), created.clone());
@@ -1177,6 +1200,10 @@ fn shared(value: &str) -> SharedString {
 mod tests {
     use super::*;
 
+    fn theme() -> SharedTheme {
+        Rc::new(RefCell::new(crate::theme::NativeTheme::default()))
+    }
+
     fn callbacks() -> ManagedCallbacks {
         ManagedCallbacks {
             struct_size: 0,
@@ -1445,7 +1472,7 @@ mod tests {
 
     #[test]
     fn binding_a_changed_table_spec_invalidates_row_batches() {
-        let store = ResourceStore::new(1, callbacks());
+        let store = ResourceStore::new(1, callbacks(), theme());
         let configuration = configuration(None);
         let engine = store.list_resource(&ResourceKey::new(7, shared("rows")), &configuration, 1);
 
@@ -1504,9 +1531,33 @@ mod tests {
     }
 
     #[test]
+    fn theme_change_invalidates_retained_list_and_table_rows() {
+        let store = ResourceStore::new(1, callbacks(), theme());
+        let list = store.list_resource(
+            &ResourceKey::new(7, shared("list")),
+            &configuration(Some(1)),
+            1,
+        );
+        let table = store.list_resource(
+            &ResourceKey::new(7, shared("table")),
+            &configuration(Some(1)),
+            1,
+        );
+        list.borrow_mut().batches.insert(0, CachedBatch::new());
+        table.borrow_mut().batches.insert(0, CachedBatch::new());
+
+        store.invalidate_theme_dependent_resources();
+
+        assert!(list.borrow().batches.is_empty());
+        assert!(table.borrow().batches.is_empty());
+        assert_eq!(list.borrow().telemetry().full_invalidations, 1);
+        assert_eq!(table.borrow().telemetry().full_invalidations, 1);
+    }
+
+    #[test]
     fn click_refresh_flow_preserves_scroll_across_configure_and_rebind() {
         let key = ResourceKey::new(7, shared("grid"));
-        let store = ResourceStore::new(1, callbacks());
+        let store = ResourceStore::new(1, callbacks(), theme());
         let mut config = configuration(None);
         config.item_count = 5_000;
         config.batch_size = 64;
@@ -1606,7 +1657,7 @@ mod tests {
             .expect("table snapshot decodes");
 
         let key = ResourceKey::new(4, shared("grid"));
-        let store = ResourceStore::new(1, callbacks());
+        let store = ResourceStore::new(1, callbacks(), theme());
         let engine = store.list_resource(&key, &configuration(None), 1);
         store.retain_snapshot(&snapshot);
         assert!(Rc::ptr_eq(

@@ -5,13 +5,14 @@ use gpui::{
     Entity, EntityInputHandler, FocusHandle, Focusable, GlobalElementId, IntoElement, KeyBinding,
     LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point,
     Render, ShapedLine, SharedString, Style, Subscription, TextRun, UTF16Selection, UnderlineStyle,
-    Window, actions, div, fill, hsla, point, prelude::*, px, relative, rgba, size,
+    Window, actions, div, fill, point, prelude::*, px, relative, rgba, size,
 };
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     abi::{ManagedCallbacks, NativeControlEvent},
     resources::ResourceCommand,
+    theme::SharedTheme,
 };
 
 actions!(
@@ -92,6 +93,7 @@ pub(crate) struct ManagedInput {
     revision: u64,
     callback_error: Option<i32>,
     focus_subscriptions: Vec<Subscription>,
+    theme: SharedTheme,
 }
 
 impl ManagedInput {
@@ -99,6 +101,7 @@ impl ManagedInput {
         session_id: u64,
         callbacks: ManagedCallbacks,
         initial: InputInitialState<'_>,
+        theme: SharedTheme,
         cx: &mut Context<Self>,
     ) -> Self {
         let content = single_line(initial.value);
@@ -124,6 +127,7 @@ impl ManagedInput {
             revision: 0,
             callback_error: None,
             focus_subscriptions: Vec::new(),
+            theme,
         }
     }
 
@@ -629,6 +633,7 @@ impl Focusable for ManagedInput {
 
 impl Render for ManagedInput {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = *self.theme.borrow();
         if self.focus_subscriptions.is_empty() {
             let focus = self.focus_handle.clone();
             let focused = cx.on_focus(&focus, window, |this, _, cx| {
@@ -646,7 +651,7 @@ impl Render for ManagedInput {
                 .size_full()
                 .flex()
                 .items_center()
-                .text_color(rgba(0xB42318FF))
+                .text_color(rgba(theme.error))
                 .child(format!("Managed input event failed with status {status}."))
                 .into_any_element();
         }
@@ -657,6 +662,7 @@ impl Render for ManagedInput {
             .min_w_0()
             .flex()
             .items_center()
+            .text_color(rgba(theme.text))
             .key_context("GpuiDotnetInput")
             .track_focus(&self.focus_handle)
             .cursor(if self.disabled {
@@ -747,8 +753,9 @@ impl Element for TextElement {
             input.display_text()
         };
         let style = window.text_style();
-        let color = if content_empty {
-            hsla(0.6, 0.08, 0.48, 1.)
+        let theme = *input.theme.borrow();
+        let color: gpui::Hsla = if content_empty {
+            rgba(theme.text_placeholder).into()
         } else {
             style.color
         };
@@ -832,7 +839,7 @@ impl Element for TextElement {
                         point(origin_x + cursor_x, bounds.top()),
                         size(px(1.5), bounds.size.height),
                     ),
-                    rgba(0x2563EBFF),
+                    rgba(theme.accent),
                 )),
             )
         } else {
@@ -848,7 +855,7 @@ impl Element for TextElement {
                             bounds.bottom(),
                         ),
                     ),
-                    rgba(0x2563EB40),
+                    rgba((theme.accent & 0xFFFFFF00) | 0x40),
                 )),
                 None,
             )

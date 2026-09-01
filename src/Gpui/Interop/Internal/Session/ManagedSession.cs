@@ -62,6 +62,34 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         NotifyRenderPending();
     }
 
+    /// <summary>
+    /// Invalidates every retained View fragment in this window. Application-wide inputs such as
+    /// the active theme are not props, so descendants cannot discover those changes through the
+    /// normal parent/child reconciliation path.
+    /// </summary>
+    internal void InvalidateAllViews()
+    {
+        if (Volatile.Read(ref _stopped) != 0)
+        {
+            return;
+        }
+
+        lock (_renderStateGate)
+        {
+            if (Volatile.Read(ref _stopped) != 0)
+            {
+                return;
+            }
+
+            foreach (var state in _renderStates.Values)
+            {
+                state.RequiredVersion++;
+            }
+        }
+
+        NotifyRenderPending();
+    }
+
     internal void Post(Action callback)
     {
         if (Volatile.Read(ref _stopped) != 0)

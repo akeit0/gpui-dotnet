@@ -18,7 +18,9 @@ internal sealed partial class CounterCardView : View
                 ui.Text($"Counter: {_count:N0}"),
                 ui.Button("increment", "Async increment")
                     .OnClick(this, (view, _) => view.Increment())
-                    .Padding(Px(10))
+                    .Style(
+                        SampleStyles.Button(ui.Theme, SampleButtonVariant.Primary)
+                    )
             )
             .Gap(Px(10));
 }

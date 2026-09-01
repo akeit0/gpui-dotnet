@@ -20,7 +20,7 @@ const gpui_dotnet_api_v6* gpui_dotnet_get_api(uint32_t requested_version);
 - `dispatch_application_command`.
 - `dispatch_application_menu`.
 
-The current schema hash is `0x66378CABCEE9092C`.
+The current schema hash is `0xC2AF5F84A11748A4`.
 
 ## Managed callbacks
 
@@ -170,10 +170,16 @@ typedef struct gpui_native_application_command {
 | `ToggleMaximize` | none |
 | `SetTitle` | non-empty UTF-8 title |
 | `Resize` | positive finite width/height |
+| `SetTheme` | versioned fixed-size resolved semantic palette; `window_id` is zero |
 
 For `Open`, flag bit 0 means the position fields are present, bit 1 requests activation, and bits 2–3 encode `System = 0`, `Custom = 1`, or `Hidden = 2`. All higher bits and the unused value 3 are rejected. `Custom` uses a transparent platform title-bar surface with client decorations; `Hidden` removes the title-bar surface and keeps the UTF-8 title as the native window/task-switcher title.
 
-The call copies borrowed UTF-8 before returning and enqueues the owned command. All GPUI window mutation occurs on the native UI thread. Initial position is supported by `Open`; runtime resize is supported, but runtime reposition is absent because the pinned GPUI API has no durable cross-platform operation for it. The command record layout remains unchanged within ABI v6; the schema hash rejects native/managed pairs that disagree about the extended flag semantics.
+The call copies borrowed UTF-8 or the validated theme payload before returning and enqueues the
+owned command. All GPUI window mutation occurs on the native UI thread. Initial position is
+supported by `Open`; runtime resize is supported, but runtime reposition is absent because the
+pinned GPUI API has no durable cross-platform operation for it. The command record layout remains
+unchanged within ABI v6; the schema hash rejects native/managed pairs that disagree about the
+extended semantics.
 
 ## Native application menu
 
@@ -208,7 +214,14 @@ Semantic component `PopoverMenu` (`16`) is keyed and requires exactly two childr
 
 The native adapter measures the trigger, opens on left pointer-down, attaches content below the trigger's leading edge, snaps it inside the viewport, and owns selection/outside/Escape dismissal plus focus restoration. While a PopoverMenu is open, hovering another PopoverMenu in the same View transfers the active menu and preserves the original focus-restoration target. PopoverMenu uses the owning View namespace and is rejected in virtualized List rows.
 
-`HoverBackgroundRgba` (`113`, canonical `U32`) applies only to interactive components and changes their native hover fill without callbacks. It is independent from ContextMenu and is used by custom caption controls and ordinary application buttons.
+Interactive paint operations `HoverBackgroundRgba` through
+`ActiveBorderRgba` (`113`–`118`, canonical `U32`) apply only to interactive components and resolve
+transient GPUI hover and active presentation without managed callbacks.
+They carry resolved values, not application variant identifiers.
+
+Application command `8` is an internal theme update. It uses `NativeApplicationCommand.title` as
+a versioned fixed-size semantic palette payload with `window_id == 0`; the payload is copied before
+the command is queued. It does not expose component-style definitions across the ABI.
 
 ## Retained native resource commands
 

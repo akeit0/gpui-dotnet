@@ -144,7 +144,10 @@ public sealed class GpuiThemeColors
     public Color TextPlaceholder { get; init; } = Colors.Hex("#94A3B8");
     public Color TextDisabled { get; init; } = Colors.Hex("#94A3B8");
     public Color TextAccent { get; init; } = Colors.Hex("#4338CA");
+    public Color TextOnAccent { get; init; } = Colors.Hex("#FFFFFF");
     public Color Accent { get; init; } = Colors.Hex("#4F46E5");
+    public Color AccentHover { get; init; } = Colors.Hex("#4338CA");
+    public Color AccentActive { get; init; } = Colors.Hex("#3730A3");
     public Color Icon { get; init; } = Colors.Hex("#334155");
     public Color IconMuted { get; init; } = Colors.Hex("#64748B");
     public Color IconDisabled { get; init; } = Colors.Hex("#94A3B8");
@@ -206,7 +209,10 @@ public sealed class GpuiThemeColors
                 TextPlaceholder = Colors.Hex("#64748B"),
                 TextDisabled = Colors.Hex("#64748B"),
                 TextAccent = Colors.Hex("#A5B4FC"),
+                TextOnAccent = Colors.Hex("#0F172A"),
                 Accent = Colors.Hex("#818CF8"),
+                AccentHover = Colors.Hex("#A5B4FC"),
+                AccentActive = Colors.Hex("#6366F1"),
                 Icon = Colors.Hex("#E2E8F0"),
                 IconMuted = Colors.Hex("#94A3B8"),
                 IconDisabled = Colors.Hex("#64748B"),
@@ -293,7 +299,10 @@ public sealed class GpuiThemeColors
             TextPlaceholder = ReadColor(source, defaults.TextPlaceholder, "text.placeholder"),
             TextDisabled = ReadColor(source, defaults.TextDisabled, "text.disabled"),
             TextAccent = ReadColor(source, defaults.TextAccent, "text.accent", "accent"),
+            TextOnAccent = ReadColor(source, defaults.TextOnAccent, "text.on_accent"),
             Accent = ReadColor(source, defaults.Accent, "accent"),
+            AccentHover = ReadColor(source, defaults.AccentHover, "accent.hover"),
+            AccentActive = ReadColor(source, defaults.AccentActive, "accent.active"),
             Icon = ReadColor(source, defaults.Icon, "icon"),
             IconMuted = ReadColor(source, defaults.IconMuted, "icon.muted"),
             IconDisabled = ReadColor(source, defaults.IconDisabled, "icon.disabled"),

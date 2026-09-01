@@ -13,6 +13,7 @@ mod scrolling;
 mod semantic;
 mod slider;
 mod snapshot;
+mod theme;
 mod tooltip;
 mod trace;
 
@@ -20,7 +21,7 @@ use std::{mem::size_of, panic::AssertUnwindSafe, ptr};
 
 use abi::{
     ABI_VERSION, GpuiDotnetApiV6, ManagedCallbacks, NativeApplicationCommand, NativeMenuCommand,
-    NativeMenuRecord, NativeResourceCommand, RenderArena,
+    NativeMenuRecord, NativeResourceCommand, NativeThemePayload, RenderArena,
 };
 use semantic::SCHEMA_HASH;
 
@@ -155,8 +156,9 @@ unsafe fn dispatch_application_command_inner(
     let Some(command) = (unsafe { command.as_ref() }) else {
         return -60;
     };
+    let is_theme = command.command == 8;
     if application_id == 0
-        || command.window_id == 0
+        || (!is_theme && command.window_id == 0)
         || command.reserved != 0
         || command.reserved2 != 0
         || command.title_length < 0
@@ -168,6 +170,25 @@ unsafe fn dispatch_application_command_inner(
     let no_title = command.title_length == 0;
     let no_position = command.left == 0.0 && command.top == 0.0;
     let no_size = command.width == 0.0 && command.height == 0.0;
+    if is_theme {
+        let payload_valid = command.window_id == 0
+            && command.flags == 0
+            && no_position
+            && no_size
+            && command.title_length == size_of::<NativeThemePayload>() as i32;
+        if !payload_valid {
+            return -62;
+        }
+        let payload = unsafe { command.title.cast::<NativeThemePayload>().read_unaligned() };
+        let Some(theme) = theme::NativeTheme::from_payload(payload) else {
+            return -64;
+        };
+        return app_host::dispatch_application_command(
+            application_id,
+            app_host::ApplicationCommand::SetTheme(theme),
+        );
+    }
+
     let title_bar_style = (command.flags >> 2) & 0b11;
     let size_valid = command.width.is_finite()
         && command.height.is_finite()

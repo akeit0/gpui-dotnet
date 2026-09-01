@@ -63,10 +63,14 @@ public sealed unsafe class RenderArenaOwner : IDisposable
         return new RenderContext(_arena);
     }
 
-    internal RenderContext BeginRender(IViewRenderer views, View owner)
+    internal RenderContext BeginRender(
+        IViewRenderer views,
+        View owner,
+        GpuiTheme? theme = null
+    )
     {
         BeginRenderCore();
-        return new RenderContext(_arena, views, owner);
+        return new RenderContext(_arena, views, owner, theme ?? GpuiTheme.Default);
     }
 
     private void BeginRenderCore()

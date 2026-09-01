@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace Gpui.Interop;
 
 internal static class NativeConstants
@@ -6,6 +8,64 @@ internal static class NativeConstants
     internal const ulong SchemaHash = SemanticRegistry.SchemaHash;
     internal const uint ArenaFlagNativeOwned = 1;
     internal const int RenderGrowRequired = 1;
+}
+
+/// <summary>
+/// Private application-command payload. This is deliberately a resolved semantic palette rather
+/// than a component-style ABI: native controls consume shared roles while app variants remain in
+/// managed code.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativeThemePayload
+{
+    internal const uint CurrentVersion = 1;
+
+    internal uint Version;
+    internal uint Background;
+    internal uint Text;
+    internal uint TextMuted;
+    internal uint TextPlaceholder;
+    internal uint TextOnAccent;
+    internal uint Border;
+    internal uint BorderVariant;
+    internal uint BorderFocused;
+    internal uint SurfaceBackground;
+    internal uint ElementBackground;
+    internal uint ElementHover;
+    internal uint ElementActive;
+    internal uint Accent;
+    internal uint Info;
+    internal uint InfoBackground;
+    internal uint Error;
+    internal uint ScrollbarThumbBackground;
+    internal uint ScrollbarTrackBackground;
+
+    internal static NativeThemePayload From(GpuiTheme theme)
+    {
+        var colors = theme.Colors;
+        return new NativeThemePayload
+        {
+            Version = CurrentVersion,
+            Background = colors.Background.Rgba,
+            Text = colors.Text.Rgba,
+            TextMuted = colors.TextMuted.Rgba,
+            TextPlaceholder = colors.TextPlaceholder.Rgba,
+            TextOnAccent = colors.TextOnAccent.Rgba,
+            Border = colors.Border.Rgba,
+            BorderVariant = colors.BorderVariant.Rgba,
+            BorderFocused = colors.BorderFocused.Rgba,
+            SurfaceBackground = colors.SurfaceBackground.Rgba,
+            ElementBackground = colors.ElementBackground.Rgba,
+            ElementHover = colors.ElementHover.Rgba,
+            ElementActive = colors.ElementActive.Rgba,
+            Accent = colors.Accent.Rgba,
+            Info = colors.Info.Rgba,
+            InfoBackground = colors.InfoBackground.Rgba,
+            Error = colors.Error.Rgba,
+            ScrollbarThumbBackground = colors.ScrollbarThumbBackground.Rgba,
+            ScrollbarTrackBackground = colors.ScrollbarTrackBackground.Rgba,
+        };
+    }
 }
 
 // Pascal-cased managed conveniences over the csbindgen-owned ABI fields.

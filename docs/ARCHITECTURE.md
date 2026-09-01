@@ -72,8 +72,10 @@ when AppKit's global menu is not desired.
 Themes follow the same semantic boundary. `GpuiApplication.SetTheme` stores one immutable managed
 theme for all window sessions; `RenderContext.Theme` exposes its colors to Views and framework
 components. JSON loading accepts the flat semantic color keys used by GPUI Component/Zed and fills
-omitted values from light/dark defaults. Changing the theme only invalidates managed roots; no
-platform-specific native theme ABI is needed.
+omitted values from light/dark defaults. A private versioned application command copies the
+resolved semantic roles required by Rust-owned defaults into shared native application state.
+Changing the theme invalidates managed roots and refreshes native windows; component variants and
+style names remain managed application concerns and never cross that boundary.
 
 Each window has a separate `ManagedSession`, View-handle allocator, render snapshots, retained resources, list caches, and lifecycle teardown. A failure is recorded against the affected window session while other windows keep running; the application reports the first failure when the final window closes. Closing one window unmounts only its View tree. Closing the final window quits the shared GPUI application.
 

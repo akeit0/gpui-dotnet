@@ -158,7 +158,14 @@ application.SetTheme(GpuiTheme.LoadJson("theme.json"));
 
 `GpuiTheme.FromJson` and `LoadJson` also accept a Zed-style theme family (`themes` plus each
 theme's `style` object); pass the optional theme name to select one. Missing colors inherit the
-light or dark defaults, and changing the active theme invalidates existing windows.
+light or dark defaults. The same resolved palette drives native component defaults, retained
+inputs/sliders, table and image fallback chrome, scrollbars, and managed rendering; changing the
+active theme refreshes both sides.
+
+Application variants stay application-owned. Implement `IGpuiElementStyle<TTag>` as a small
+value type and apply it with `.Style(style)`. The implementation composes normal fluent operations
+and transient `Hover*` and `Active*` paint operations, so variant names never
+enter the native ABI and later fluent calls can still override the style.
 
 ## Managed Views: framework ownership by default
 
@@ -466,7 +473,7 @@ dispatch. It adds:
 - a validated flat menu-tree command with managed action callbacks for native application menus;
 - shutdown only after the final application-owned window closes.
 
-Managed startup validates both ABI version and semantic schema hash (`0x66378CABCEE9092C`). See [docs/ABI.md](docs/ABI.md).
+Managed startup validates both ABI version and semantic schema hash (`0xC2AF5F84A11748A4`). See [docs/ABI.md](docs/ABI.md).
 
 ## Build
 

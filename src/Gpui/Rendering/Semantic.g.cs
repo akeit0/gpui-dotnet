@@ -48,6 +48,11 @@ namespace Gpui.Interop
         TextRgba = 111,
         FontSizePx = 112,
         HoverBackgroundRgba = 113,
+        HoverTextRgba = 114,
+        HoverBorderRgba = 115,
+        ActiveBackgroundRgba = 116,
+        ActiveTextRgba = 117,
+        ActiveBorderRgba = 118,
         OnClick = 200,
         WindowControlArea = 201,
         ResourceOwner = 300,
@@ -117,8 +122,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 21;
-        internal const ulong SchemaHash = 0xCC17A01D9191AEACUL;
+        internal const uint SchemaVersion = 22;
+        internal const ulong SchemaHash = 0xC2AF5F84A11748A4UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -183,6 +188,11 @@ namespace Gpui.Interop
             OpCode.TextRgba => ValueKind.U32,
             OpCode.FontSizePx => ValueKind.F32,
             OpCode.HoverBackgroundRgba => ValueKind.U32,
+            OpCode.HoverTextRgba => ValueKind.U32,
+            OpCode.HoverBorderRgba => ValueKind.U32,
+            OpCode.ActiveBackgroundRgba => ValueKind.U32,
+            OpCode.ActiveTextRgba => ValueKind.U32,
+            OpCode.ActiveBorderRgba => ValueKind.U32,
             OpCode.OnClick => ValueKind.Callback,
             OpCode.WindowControlArea => ValueKind.U32,
             OpCode.ResourceOwner => ValueKind.U32,
@@ -287,6 +297,11 @@ namespace Gpui.Interop
             OpCode.TextRgba => 0x0000000000000001UL,
             OpCode.FontSizePx => 0x0000000000000001UL,
             OpCode.HoverBackgroundRgba => 0x0000000000000008UL,
+            OpCode.HoverTextRgba => 0x0000000000000008UL,
+            OpCode.HoverBorderRgba => 0x0000000000000008UL,
+            OpCode.ActiveBackgroundRgba => 0x0000000000000008UL,
+            OpCode.ActiveTextRgba => 0x0000000000000008UL,
+            OpCode.ActiveBorderRgba => 0x0000000000000008UL,
             OpCode.OnClick => 0x0000000000000008UL,
             OpCode.WindowControlArea => 0x0000000000001000UL,
             OpCode.ResourceOwner => 0x0000000000000020UL,
@@ -749,6 +764,46 @@ namespace Gpui
             where TTag : unmanaged, IInteractiveElementTag
         {
             ArenaWriter.AddU32(element.Inner, OpCode.HoverBackgroundRgba, color.Rgba);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HoverTextColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInteractiveElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.HoverTextRgba, color.Rgba);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HoverBorderColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInteractiveElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.HoverBorderRgba, color.Rgba);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ActiveBackground<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInteractiveElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ActiveBackgroundRgba, color.Rgba);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ActiveTextColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInteractiveElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ActiveTextRgba, color.Rgba);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ActiveBorderColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInteractiveElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ActiveBorderRgba, color.Rgba);
             return element;
         }
 

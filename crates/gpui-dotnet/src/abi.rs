@@ -105,6 +105,30 @@ pub struct NativeApplicationCommand {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct NativeThemePayload {
+    pub version: u32,
+    pub background: u32,
+    pub text: u32,
+    pub text_muted: u32,
+    pub text_placeholder: u32,
+    pub text_on_accent: u32,
+    pub border: u32,
+    pub border_variant: u32,
+    pub border_focused: u32,
+    pub surface_background: u32,
+    pub element_background: u32,
+    pub element_hover: u32,
+    pub element_active: u32,
+    pub accent: u32,
+    pub info: u32,
+    pub info_background: u32,
+    pub error: u32,
+    pub scrollbar_thumb_background: u32,
+    pub scrollbar_track_background: u32,
+}
+
+#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NativeMenuCommand {
     pub items: *const NativeMenuRecord,
