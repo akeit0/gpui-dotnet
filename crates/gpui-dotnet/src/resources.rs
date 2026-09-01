@@ -1210,6 +1210,7 @@ mod tests {
             render: None,
             click: None,
             list_render_range: None,
+            dynamic_frame: None,
             control_event: None,
             application_started: None,
             window_closed: None,

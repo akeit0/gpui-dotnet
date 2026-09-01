@@ -94,6 +94,29 @@ internal static unsafe class NativeCallbacks
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    internal static int DynamicFrame(ulong sessionId, uint ownerView)
+    {
+        try
+        {
+            if (
+                ownerView == 0
+                || !NativeRegistry.Sessions.TryGetValue(sessionId, out var session)
+            )
+            {
+                return -107;
+            }
+
+            session.PrepareDynamicFrame(ownerView);
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            NativeRegistry.RecordFailure(sessionId, exception);
+            return -108;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     internal static int Click(
         ulong sessionId,
         ulong eventToken,

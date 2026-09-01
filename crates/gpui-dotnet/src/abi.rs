@@ -153,6 +153,7 @@ pub type ManagedRenderFn = unsafe extern "C" fn(u64, *mut RenderArena, *mut u32)
 pub type ManagedClickFn = unsafe extern "C" fn(u64, u64, u64, *const NativeClickEvent) -> i32;
 pub type ManagedListRenderRangeFn =
     unsafe extern "C" fn(u64, u64, u32, u32, *mut RenderArena, *mut u32) -> i32;
+pub type ManagedDynamicFrameFn = unsafe extern "C" fn(u64, u32) -> i32;
 pub type ManagedControlEventFn = unsafe extern "C" fn(u64, u64, *const NativeControlEvent) -> i32;
 pub type ManagedApplicationStartedFn = unsafe extern "C" fn(u64) -> i32;
 pub type ManagedWindowClosedFn = unsafe extern "C" fn(u64, u64, i32) -> i32;
@@ -169,6 +170,7 @@ pub struct ManagedCallbacks {
     pub application_started: Option<ManagedApplicationStartedFn>,
     pub window_closed: Option<ManagedWindowClosedFn>,
     pub menu_action: Option<ManagedMenuActionFn>,
+    pub dynamic_frame: Option<ManagedDynamicFrameFn>,
 }
 
 pub type ValidateRenderFn = unsafe extern "C" fn(*const RenderArena, u32) -> i32;

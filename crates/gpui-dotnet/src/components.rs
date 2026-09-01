@@ -49,6 +49,7 @@ pub(crate) fn apply_defaults(
         | NativeAdapter::ContextMenu
         | NativeAdapter::PopoverMenu
         | NativeAdapter::Drawing
+        | NativeAdapter::Dynamic
         | NativeAdapter::Path => element,
     }
 }

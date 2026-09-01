@@ -90,6 +90,22 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         NotifyRenderPending();
     }
 
+    /// <summary>
+    /// Marks the retained fragment owning a native Dynamic wrapper dirty. Native already owns the
+    /// frame wake-up, so this intentionally does not enqueue a second notification.
+    /// </summary>
+    internal void PrepareDynamicFrame(uint ownerView)
+    {
+        if (Volatile.Read(ref _stopped) != 0 || ownerView == 0)
+        {
+            return;
+        }
+        if (_viewsByHandle.TryGetValue(ownerView, out var view) && view.IsMountedCore)
+        {
+            MarkDirty(view);
+        }
+    }
+
     internal void Post(Action callback)
     {
         if (Volatile.Read(ref _stopped) != 0)

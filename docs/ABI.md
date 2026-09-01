@@ -35,6 +35,7 @@ callback table provides:
 - dirty root rendering;
 - click dispatch;
 - virtual list/table range rendering;
+- owner-view preparation for a requested dynamic frame;
 - retained control events;
 - application-started notification;
 - window-closed notification;
@@ -76,6 +77,11 @@ int32_t list_render_range(
 
 The returned root must contain exactly `count` direct row children. `count` is limited to 512. Range
 rendering uses the same arena-growth retry contract as root rendering.
+
+An active `Dynamic` wrapper asks native GPUI for another display frame. Before the corresponding
+root render, native invokes `dynamic_frame(session_id, owner_view)` so managed retained fragments
+for that owner and its ancestors are marked dirty. Multiple active wrappers with the same owner are
+collapsed to one callback per frame.
 
 Click and renderer tokens pack a mounted managed View handle in the high 32 bits and a generated or
 registered entry ID in the low 32 bits. Click records carry a separate unmanaged `uint64_t` payload

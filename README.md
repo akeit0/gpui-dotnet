@@ -237,7 +237,19 @@ return ui.Drawing(area, line).ViewBox(0, 0, 100, 100).Height(Px(240));
 ```
 
 Paths support lines, quadratic and cubic Bézier curves, elliptical arcs, fill rules, strokes, and
-dash patterns. `Rect`, `Ellipse`, `Circle`, and `Line` are convenience path factories.
+dash patterns. `Rect`, `Ellipse`, `Circle`, and `Line` are convenience path factories. `Circle`
+keeps a uniform rendered radius when a ViewBox scales its axes independently; `Ellipse` follows
+the independent axis scales.
+
+For app-defined animation, `ui.Dynamic(active, child)` transparently requests one managed render
+per display frame while `active` remains true. Compute progress from a monotonic clock and rebuild
+the target subtree normally; invalidations are synchronized to GPUI frames and deduplicated per
+owning View:
+
+```csharp
+var progress = Math.Clamp(Stopwatch.GetElapsedTime(_started).TotalSeconds / 0.4, 0, 1);
+return ui.Dynamic(progress < 1, RenderChart(ref ui, (float)progress));
+```
 
 Window-relative composition includes:
 

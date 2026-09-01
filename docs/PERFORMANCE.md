@@ -34,6 +34,11 @@ Keep continuous interaction in Rust:
 Managed callbacks should represent application state transitions: clicks, opted-in control events,
 menu actions, and dirty rendering.
 
+`ui.Dynamic(active, child)` is the explicit exception for app-defined visual animation. Native
+GPUI synchronizes requests to display frames and deduplicates active wrappers by owning View, but
+each frame still performs managed rendering, snapshot decode, and materialization. Keep the dynamic
+subtree compact and disable the wrapper as soon as the animation completes.
+
 ## Notifications and resource commands
 
 Managed invalidation notifications are atomically coalesced to one pending native message. Resource

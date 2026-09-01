@@ -26,6 +26,7 @@ namespace Gpui.Interop
         Slider = 18,
         Drawing = 19,
         Path = 20,
+        Dynamic = 21,
     }
 
     internal enum OpCode : ushort
@@ -113,6 +114,7 @@ namespace Gpui.Interop
         SliderOnReleased = 340,
         DrawingViewBoxOrigin = 700,
         DrawingViewBoxSize = 701,
+        DynamicActive = 702,
         PathMoveTo = 710,
         PathLineTo = 711,
         PathQuadraticControl = 712,
@@ -130,6 +132,8 @@ namespace Gpui.Interop
         PathStrokeRgba = 724,
         PathStrokeWidthPx = 725,
         PathDashPx = 726,
+        PathCircleCenter = 727,
+        PathCircleRadius = 728,
     }
 
     internal enum ValueKind : ushort
@@ -145,7 +149,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x9603EBC3D810AED7UL;
+        internal const ulong SchemaHash = 0x971D75D7FFC5730AUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -169,6 +173,7 @@ namespace Gpui.Interop
             ComponentId.Slider => true,
             ComponentId.Drawing => true,
             ComponentId.Path => true,
+            ComponentId.Dynamic => true,
             _ => false,
         };
 
@@ -275,6 +280,7 @@ namespace Gpui.Interop
             OpCode.SliderOnReleased => ValueKind.Callback,
             OpCode.DrawingViewBoxOrigin => ValueKind.F32x2,
             OpCode.DrawingViewBoxSize => ValueKind.F32x2,
+            OpCode.DynamicActive => ValueKind.U32,
             OpCode.PathMoveTo => ValueKind.F32x2,
             OpCode.PathLineTo => ValueKind.F32x2,
             OpCode.PathQuadraticControl => ValueKind.F32x2,
@@ -292,6 +298,8 @@ namespace Gpui.Interop
             OpCode.PathStrokeRgba => ValueKind.U32,
             OpCode.PathStrokeWidthPx => ValueKind.F32,
             OpCode.PathDashPx => ValueKind.F32,
+            OpCode.PathCircleCenter => ValueKind.F32x2,
+            OpCode.PathCircleRadius => ValueKind.F32,
             _ => null,
         };
 
@@ -317,6 +325,7 @@ namespace Gpui.Interop
             ComponentId.Slider => 0x0000000000010021UL,
             ComponentId.Drawing => 0x0000000000020003UL,
             ComponentId.Path => 0x0000000000040000UL,
+            ComponentId.Dynamic => 0x0000000000080022UL,
             _ => 0,
         };
 
@@ -405,6 +414,7 @@ namespace Gpui.Interop
             OpCode.SliderOnReleased => 0x0000000000010000UL,
             OpCode.DrawingViewBoxOrigin => 0x0000000000020000UL,
             OpCode.DrawingViewBoxSize => 0x0000000000020000UL,
+            OpCode.DynamicActive => 0x0000000000080000UL,
             OpCode.PathMoveTo => 0x0000000000040000UL,
             OpCode.PathLineTo => 0x0000000000040000UL,
             OpCode.PathQuadraticControl => 0x0000000000040000UL,
@@ -422,6 +432,8 @@ namespace Gpui.Interop
             OpCode.PathStrokeRgba => 0x0000000000040000UL,
             OpCode.PathStrokeWidthPx => 0x0000000000040000UL,
             OpCode.PathDashPx => 0x0000000000040000UL,
+            OpCode.PathCircleCenter => 0x0000000000040000UL,
+            OpCode.PathCircleRadius => 0x0000000000040000UL,
             _ => 0,
         };
 
@@ -472,10 +484,12 @@ namespace Gpui.Interop
             OpCode.SliderAxis when !(a <= 1UL) => -43,
             OpCode.SliderDisabled when !(a <= 1UL) => -21,
             OpCode.SliderScale when !(a <= 1UL) => -43,
+            OpCode.DynamicActive when !(a <= 1UL) => -21,
             OpCode.PathArcFlags when !(a <= 3UL) => -59,
             OpCode.PathFillRule when !(a <= 1UL) => -59,
             OpCode.PathStrokeWidthPx when !(BitConverter.UInt32BitsToSingle((uint)a) > 0f) => -59,
             OpCode.PathDashPx when !(BitConverter.UInt32BitsToSingle((uint)a) > 0f) => -59,
+            OpCode.PathCircleRadius when !(BitConverter.UInt32BitsToSingle((uint)a) > 0f) => -59,
             _ => 0,
         };
     }
@@ -502,6 +516,7 @@ namespace Gpui
     public interface ISliderElementTag { }
     public interface IDrawingElementTag { }
     public interface IPathElementTag { }
+    public interface IDynamicElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
@@ -523,6 +538,7 @@ namespace Gpui
     public readonly struct SliderTag : IStyledElementTag, INativeStateElementTag, ISliderElementTag { }
     public readonly struct DrawingTag : IStyledElementTag, IParentElementTag, IDrawingElementTag { }
     public readonly struct PathTag : IPathElementTag { }
+    public readonly struct DynamicTag : IParentElementTag, INativeStateElementTag, IDynamicElementTag { }
 
     public readonly unsafe ref partial struct RenderContext
     {

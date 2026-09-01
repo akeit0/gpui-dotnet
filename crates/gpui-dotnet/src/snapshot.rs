@@ -5,11 +5,11 @@ use gpui::SharedString;
 use crate::{
     abi::{NodeRecord, OpRecord, RenderArena},
     semantic::{
-        COMPONENT_CONTEXT_MENU, COMPONENT_DRAWING, COMPONENT_INPUT, COMPONENT_LIST,
-        COMPONENT_OVERLAY, COMPONENT_PATH, COMPONENT_POPOVER_MENU, COMPONENT_SLIDER,
-        COMPONENT_TABLE, COMPONENT_TOOLTIP, DataKind, OP_DRAWING_VIEW_BOX_SIZE, OP_PATH_ARC_RADII,
-        OP_RESOURCE_OWNER, ValueKind, allows_payload, component_metadata, operation_metadata,
-        payload_error,
+        COMPONENT_CONTEXT_MENU, COMPONENT_DRAWING, COMPONENT_DYNAMIC, COMPONENT_INPUT,
+        COMPONENT_LIST, COMPONENT_OVERLAY, COMPONENT_PATH, COMPONENT_POPOVER_MENU,
+        COMPONENT_SLIDER, COMPONENT_TABLE, COMPONENT_TOOLTIP, DataKind, OP_DRAWING_VIEW_BOX_SIZE,
+        OP_PATH_ARC_RADII, OP_RESOURCE_OWNER, ValueKind, allows_payload, component_metadata,
+        operation_metadata, payload_error,
     },
 };
 
@@ -389,6 +389,11 @@ fn validate_with_scratch(
         node.component == COMPONENT_POPOVER_MENU && scratch.child_counts[index] != 2
     }) {
         return Err(-42);
+    }
+    if nodes.iter().enumerate().any(|(index, node)| {
+        node.component == COMPONENT_DYNAMIC && scratch.child_counts[index] != 1
+    }) {
+        return Err(-60);
     }
     if nodes
         .iter()
@@ -995,6 +1000,17 @@ mod tests {
         arena.utf8_capacity = 1;
 
         assert_eq!(validate(&arena, 0), Err(-35));
+    }
+
+    #[test]
+    fn rejects_dynamic_without_exactly_one_child() {
+        let mut node = NodeRecord {
+            component: COMPONENT_DYNAMIC,
+            ..Default::default()
+        };
+        let arena = arena_with(&mut node, None);
+
+        assert_eq!(validate(&arena, 0), Err(-60));
     }
 
     /// Builds a DIV root owning the given virtualized-resource nodes; each resource node gets

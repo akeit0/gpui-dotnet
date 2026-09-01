@@ -1081,6 +1081,23 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void CircleUsesUniformViewBoxPrimitiveOperations()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var circle = ui.Circle(38, 48, 2.5f).Fill(Rgb(37, 99, 235));
+        var drawing = ui.Drawing(circle).ViewBox(0, 0, 100, 110);
+
+        arena.Validate(drawing);
+
+        var center = FindOp(arena, OpCode.PathCircleCenter);
+        Assert.Equal(38, BitConverter.UInt32BitsToSingle((uint)center.A));
+        Assert.Equal(48, BitConverter.UInt32BitsToSingle((uint)(center.A >> 32)));
+        var radius = FindOp(arena, OpCode.PathCircleRadius);
+        Assert.Equal(2.5f, BitConverter.UInt32BitsToSingle((uint)radius.A));
+    }
+
+    [Fact]
     public void PathMustBelongToADrawing()
     {
         using var arena = new RenderArenaOwner();
@@ -1088,6 +1105,57 @@ public sealed class SemanticRenderTests
         var path = ui.Path().MoveTo(0, 0).LineTo(1, 1).Stroke(Rgb(0, 0, 0), Px(1));
 
         Assert.Throws<InvalidOperationException>(() => arena.Validate(path));
+    }
+
+    [Fact]
+    public void DynamicWrapsOneElementWithItsOwnerAndActiveState()
+    {
+        var view = new ProbeView();
+        Attach(view, 17);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var dynamic = ui.Dynamic(true, ui.Text("frame"u8));
+
+            arena.Validate(dynamic);
+
+            Assert.Equal(2, arena.GetStats().Nodes);
+            Assert.Equal(1, arena.GetStats().Children);
+            Assert.Equal(17u, ReadLastU32Op(arena, OpCode.ResourceOwner));
+            Assert.Equal(1u, ReadLastU32Op(arena, OpCode.DynamicActive));
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void DisabledDynamicWrapperDoesNotRequestFrames()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var dynamic = ui.Dynamic(false, ui.Div());
+
+            arena.Validate(dynamic);
+
+            Assert.Equal(0u, ReadLastU32Op(arena, OpCode.DynamicActive));
+        }
+        finally
+        {
+            view.DetachRuntime();
+        }
+    }
+
+    [Fact]
+    public void DynamicRequiresAMountedOwningView()
+    {
+        Assert.Throws<InvalidOperationException>(RenderDynamicWithoutOwner);
     }
 
     private static void Attach(View view, uint handle = 1) =>
@@ -1104,6 +1172,13 @@ public sealed class SemanticRenderTests
         using var arena = new RenderArenaOwner();
         var ui = arena.BeginRender();
         ui.Path().MoveTo(float.NaN, 0);
+    }
+
+    private static void RenderDynamicWithoutOwner()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        ui.Dynamic(ui.Div());
     }
 
     private static void RenderInvalidCircle()

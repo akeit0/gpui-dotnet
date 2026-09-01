@@ -144,6 +144,7 @@ public sealed unsafe class NativeRuntime
                 render = &NativeCallbacks.Render,
                 click = &NativeCallbacks.Click,
                 list_render_range = &NativeCallbacks.ListRenderRange,
+                dynamic_frame = &NativeCallbacks.DynamicFrame,
                 control_event = &NativeCallbacks.ControlEvent,
                 application_started = &NativeCallbacks.ApplicationStarted,
                 window_closed = &NativeCallbacks.WindowClosed,

@@ -19,7 +19,8 @@
     "table",
     "slider",
     "drawing",
-    "path"
+    "path",
+    "dynamic"
   ],
   "components": [
     {
@@ -320,6 +321,21 @@
         "path"
       ],
       "nativeAdapter": "path"
+    },
+    {
+      "id": 21,
+      "name": "dynamic",
+      "csharp": "Dynamic",
+      "data": "none",
+      "dataRequired": false,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "parent",
+        "native_state",
+        "dynamic"
+      ],
+      "nativeAdapter": "dynamic"
     }
   ],
   "operations": [
@@ -1016,6 +1032,15 @@
       "managedApi": null
     },
     {
+      "id": 702,
+      "name": "dynamic_active",
+      "csharp": "DynamicActive",
+      "value": "u32",
+      "requires": "dynamic",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
       "id": 710,
       "name": "path_move_to",
       "csharp": "PathMoveTo",
@@ -1150,6 +1175,23 @@
       "id": 726,
       "name": "path_dash_px",
       "csharp": "PathDashPx",
+      "value": "f32",
+      "requires": "path",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "minExclusive": true, "status": -59 }
+    },
+    {
+      "id": 727,
+      "name": "path_circle_center",
+      "csharp": "PathCircleCenter",
+      "value": "f32x2",
+      "requires": "path",
+      "managedApi": null
+    },
+    {
+      "id": 728,
+      "name": "path_circle_radius",
+      "csharp": "PathCircleRadius",
       "value": "f32",
       "requires": "path",
       "managedApi": null,

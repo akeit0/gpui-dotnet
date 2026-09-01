@@ -849,6 +849,7 @@ mod tests {
             render: None,
             click: None,
             list_render_range: None,
+            dynamic_frame: None,
             control_event: Some(capture_event),
             application_started: None,
             window_closed: None,

@@ -72,10 +72,19 @@ can override a value. Do not add application variant enums or style objects to t
 - `Drawing` owns ordered `Path` children and paints them through GPUI's native path tessellator.
   `ViewBox` independently maps each coordinate axis into the final layout bounds, making plot
   geometry responsive without a managed paint callback. Stroke widths stay in
-  device-independent pixels. A `Path` must be attached directly to exactly one `Drawing`.
+  device-independent pixels. `Circle` uses the smaller ViewBox axis scale for both radii so point
+  markers remain circular; `Ellipse` scales each radius independently. A `Path` must be attached
+  directly to exactly one `Drawing`.
+- `Dynamic` is a transparent one-child wrapper. While active, native GPUI schedules one managed
+  render per display frame for the wrapper's owning View. Multiple wrappers for one View are
+  deduplicated. The application remains responsible for time, interpolation, and stopping.
 
 Image failures materialize a themed fallback. URI loading is not part of the current component
 contract.
+
+Use `Dynamic` for application-defined visual state such as chart interpolation. Continuous native
+interaction such as scrolling, text editing, and slider dragging should remain in its retained
+native resource.
 
 ## Retained Scroll
 

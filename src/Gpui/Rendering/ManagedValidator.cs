@@ -234,6 +234,7 @@ internal static unsafe class ManagedValidator
                         or ComponentId.Tooltip
                         or ComponentId.ContextMenu
                         or ComponentId.PopoverMenu
+                        or ComponentId.Dynamic
                     )
                 )
                 {
@@ -248,7 +249,9 @@ internal static unsafe class ManagedValidator
                         childCount++;
                     }
                 }
-                var expectedCount = component == ComponentId.Overlay ? 1 : 2;
+                var expectedCount = component is ComponentId.Overlay or ComponentId.Dynamic
+                    ? 1
+                    : 2;
                 if (childCount != expectedCount)
                 {
                     throw new InvalidOperationException(

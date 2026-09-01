@@ -52,10 +52,19 @@ public readonly unsafe ref partial struct RenderContext
             .Close();
     }
 
-    /// <summary>Creates a circular path in drawing coordinates.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Element<PathTag> Circle(float centerX, float centerY, float radius) =>
-        Ellipse(centerX, centerY, radius, radius);
+    /// <summary>
+    /// Creates a circular path whose center follows drawing coordinates and whose rendered radius
+    /// remains uniform when a ViewBox scales its axes independently.
+    /// </summary>
+    public Element<PathTag> Circle(float centerX, float centerY, float radius)
+    {
+        ValidatePoint(centerX, centerY);
+        ValidatePositiveSize(radius, radius);
+        var path = Path();
+        ArenaWriter.AddF32x2(path.Inner, OpCode.PathCircleCenter, centerX, centerY);
+        ArenaWriter.AddF32(path.Inner, OpCode.PathCircleRadius, radius);
+        return path;
+    }
 
     /// <summary>Creates a straight path in drawing coordinates.</summary>
     public Element<PathTag> Line(float startX, float startY, float endX, float endY)

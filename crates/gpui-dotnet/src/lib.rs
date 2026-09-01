@@ -397,6 +397,7 @@ unsafe extern "C" fn run_application(
     if callbacks.render.is_none()
         || callbacks.click.is_none()
         || callbacks.list_render_range.is_none()
+        || callbacks.dynamic_frame.is_none()
         || callbacks.control_event.is_none()
         || callbacks.application_started.is_none()
         || callbacks.window_closed.is_none()

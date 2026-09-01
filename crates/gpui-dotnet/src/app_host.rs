@@ -21,6 +21,7 @@ use crate::{
     overlay::OverlayStack,
     popover_menu::PopoverMenuGroup,
     resources::{ResourceCommand, ResourceStore},
+    semantic::{COMPONENT_DYNAMIC, OP_DYNAMIC_ACTIVE, OP_RESOURCE_OWNER},
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
     theme::{NativeTheme, SharedTheme},
     trace,
@@ -313,6 +314,42 @@ impl ManagedView {
         }
     }
 
+    fn schedule_dynamic_frame(
+        &self,
+        owners: Vec<u32>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if owners.is_empty() {
+            return;
+        }
+
+        let session_id = self.view_id;
+        let callback = self
+            .callbacks
+            .dynamic_frame
+            .expect("callbacks were validated before application startup");
+        let view = cx.entity().downgrade();
+        window.on_next_frame(move |_, cx| {
+            let status = owners
+                .iter()
+                .map(|owner| unsafe { callback(session_id, *owner) })
+                .find(|status| *status != 0)
+                .unwrap_or(0);
+            let _ = view.update(cx, |view, cx| {
+                if status == 0 {
+                    view.invalidate(cx);
+                } else {
+                    view.error = Some(format!(
+                        "Managed dynamic-frame callback failed with status {status}."
+                    ));
+                    cx.notify();
+                }
+            });
+        });
+        window.request_animation_frame();
+    }
+
     pub(crate) fn after_click(&mut self, status: i32, cx: &mut Context<Self>) {
         if status != 0 {
             self.error = Some(format!(
@@ -360,6 +397,11 @@ impl Render for ManagedView {
         self.refresh_if_dirty();
         self.overlay_stack.begin_frame();
         let theme = *self.theme.borrow();
+        let dynamic_owners = if self.error.is_none() && self.has_snapshot {
+            active_dynamic_owners(&self.snapshot)
+        } else {
+            Vec::new()
+        };
 
         let content = {
             let _stage = trace::span(trace::Stage::Materialize);
@@ -381,6 +423,7 @@ impl Render for ManagedView {
         if trace::enabled() {
             trace::end_frame(&self.list_telemetry_sums());
         }
+        self.schedule_dynamic_frame(dynamic_owners, window, cx);
 
         div()
             .size_full()
@@ -388,6 +431,33 @@ impl Render for ManagedView {
             .text_color(rgba(theme.text))
             .child(content)
     }
+}
+
+fn active_dynamic_owners(snapshot: &ValidatedSnapshot) -> Vec<u32> {
+    let mut owners = Vec::new();
+    for node in &snapshot.nodes {
+        if node.component != COMPONENT_DYNAMIC {
+            continue;
+        }
+        let operations = snapshot.ops(node);
+        let active = operations
+            .iter()
+            .rev()
+            .find(|operation| operation.code == OP_DYNAMIC_ACTIVE)
+            .is_some_and(|operation| operation.a != 0);
+        if !active {
+            continue;
+        }
+        let owner = operations
+            .iter()
+            .rev()
+            .find(|operation| operation.code == OP_RESOURCE_OWNER)
+            .map_or(0, |operation| operation.a as u32);
+        if owner != 0 && !owners.contains(&owner) {
+            owners.push(owner);
+        }
+    }
+    owners
 }
 
 pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
@@ -812,6 +882,117 @@ fn create_managed_view(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dynamic_frame_owners_are_active_and_deduplicated() {
+        use crate::{
+            abi::{ChildRecord, NodeRecord, OpRecord, RenderArena},
+            semantic::{COMPONENT_DIV, ValueKind},
+        };
+
+        let mut nodes = vec![
+            NodeRecord {
+                component: COMPONENT_DIV,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DYNAMIC,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DIV,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DYNAMIC,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DIV,
+                ..Default::default()
+            },
+        ];
+        let mut operations = vec![
+            OpRecord {
+                node: 1,
+                code: OP_RESOURCE_OWNER,
+                value_kind: ValueKind::U32 as u16,
+                a: 7,
+                ..Default::default()
+            },
+            OpRecord {
+                node: 1,
+                code: OP_DYNAMIC_ACTIVE,
+                value_kind: ValueKind::U32 as u16,
+                a: 1,
+                ..Default::default()
+            },
+            OpRecord {
+                node: 3,
+                code: OP_RESOURCE_OWNER,
+                value_kind: ValueKind::U32 as u16,
+                a: 7,
+                ..Default::default()
+            },
+            OpRecord {
+                node: 3,
+                code: OP_DYNAMIC_ACTIVE,
+                value_kind: ValueKind::U32 as u16,
+                a: 1,
+                ..Default::default()
+            },
+        ];
+        let mut children = vec![
+            ChildRecord {
+                parent: 0,
+                child: 1,
+            },
+            ChildRecord {
+                parent: 1,
+                child: 2,
+            },
+            ChildRecord {
+                parent: 0,
+                child: 3,
+            },
+            ChildRecord {
+                parent: 3,
+                child: 4,
+            },
+        ];
+        let mut utf8 = Vec::<u8>::new();
+        let arena = RenderArena {
+            nodes: nodes.as_mut_ptr(),
+            node_length: nodes.len() as i32,
+            node_capacity: nodes.len() as i32,
+            ops: operations.as_mut_ptr(),
+            op_length: operations.len() as i32,
+            op_capacity: operations.len() as i32,
+            children: children.as_mut_ptr(),
+            child_length: children.len() as i32,
+            child_capacity: children.len() as i32,
+            utf8: utf8.as_mut_ptr(),
+            utf8_length: 0,
+            utf8_capacity: 0,
+            generation: 1,
+            flags: 0,
+            required_node_capacity: 0,
+            required_op_capacity: 0,
+            required_child_capacity: 0,
+            required_utf8_capacity: 0,
+        };
+        let mut snapshot = ValidatedSnapshot::default();
+        snapshot
+            .decode_into(
+                &arena,
+                0,
+                &mut RetainedStrings::default(),
+                &mut SnapshotScratch::default(),
+            )
+            .unwrap();
+
+        assert_eq!(active_dynamic_owners(&snapshot), vec![7]);
+    }
 
     #[test]
     fn notifications_are_coalesced_and_registration_is_scoped() {

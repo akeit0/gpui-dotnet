@@ -159,6 +159,7 @@ namespace Gpui.Interop
         public delegate* unmanaged[Cdecl]<ulong, int> application_started;
         public delegate* unmanaged[Cdecl]<ulong, ulong, int, int> window_closed;
         public delegate* unmanaged[Cdecl]<ulong, ulong, int> menu_action;
+        public delegate* unmanaged[Cdecl]<ulong, uint, int> dynamic_frame;
     }
 
     [StructLayout(LayoutKind.Sequential)]

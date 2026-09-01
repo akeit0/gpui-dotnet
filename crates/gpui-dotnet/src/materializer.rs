@@ -32,16 +32,17 @@ use crate::{
         OP_LIST_RENDERER, OP_ON_CLICK, OP_OVERLAY_BACKDROP_RGBA, OP_OVERLAY_DISMISS_ON_BACKDROP,
         OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
         OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY, OP_PADDING_PX,
-        OP_PATH_ARC_FLAGS, OP_PATH_ARC_RADII, OP_PATH_ARC_ROTATION, OP_PATH_ARC_TO, OP_PATH_CLOSE,
-        OP_PATH_CUBIC_CONTROL_A, OP_PATH_CUBIC_CONTROL_B, OP_PATH_CUBIC_TO, OP_PATH_DASH_PX,
-        OP_PATH_FILL_RGBA, OP_PATH_FILL_RULE, OP_PATH_LINE_TO, OP_PATH_MOVE_TO,
-        OP_PATH_QUADRATIC_CONTROL, OP_PATH_QUADRATIC_TO, OP_PATH_STROKE_RGBA,
-        OP_PATH_STROKE_WIDTH_PX, OP_POPOVER_MENU_MARGIN_PX, OP_POPOVER_MENU_PRIORITY, OP_RADIUS_PX,
-        OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH,
-        OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER,
-        OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS,
-        OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK,
-        OP_WIDTH_PERCENT, OP_WIDTH_PX, OP_WINDOW_CONTROL_AREA, component_metadata,
+        OP_PATH_ARC_FLAGS, OP_PATH_ARC_RADII, OP_PATH_ARC_ROTATION, OP_PATH_ARC_TO,
+        OP_PATH_CIRCLE_CENTER, OP_PATH_CIRCLE_RADIUS, OP_PATH_CLOSE, OP_PATH_CUBIC_CONTROL_A,
+        OP_PATH_CUBIC_CONTROL_B, OP_PATH_CUBIC_TO, OP_PATH_DASH_PX, OP_PATH_FILL_RGBA,
+        OP_PATH_FILL_RULE, OP_PATH_LINE_TO, OP_PATH_MOVE_TO, OP_PATH_QUADRATIC_CONTROL,
+        OP_PATH_QUADRATIC_TO, OP_PATH_STROKE_RGBA, OP_PATH_STROKE_WIDTH_PX,
+        OP_POPOVER_MENU_MARGIN_PX, OP_POPOVER_MENU_PRIORITY, OP_RADIUS_PX, OP_RESOURCE_OWNER,
+        OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SHOW_SCROLLBAR,
+        OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER, OP_TEXT_RGBA,
+        OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS, OP_TOOLTIP_MARGIN_PX,
+        OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK, OP_WIDTH_PERCENT, OP_WIDTH_PX,
+        OP_WINDOW_CONTROL_AREA, component_metadata,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
     theme::NativeTheme,
@@ -66,6 +67,7 @@ impl ManagedView {
             NativeAdapter::Table => self.materialize_table(node, snapshot, window, cx),
             NativeAdapter::Image => materialize_image(node, snapshot, *self.theme.borrow()),
             NativeAdapter::Drawing => materialize_drawing(node, snapshot),
+            NativeAdapter::Dynamic => self.materialize_dynamic(node, snapshot, window, cx),
             NativeAdapter::Path => div().into_any_element(),
             NativeAdapter::Input => self.materialize_input(node, snapshot, window, cx),
             NativeAdapter::Slider => self.materialize_slider(node, snapshot, cx),
@@ -75,6 +77,16 @@ impl ManagedView {
             NativeAdapter::PopoverMenu => self.materialize_popover_menu(node, snapshot, window, cx),
             _ => self.materialize_regular(node_id, node, snapshot, window, cx),
         }
+    }
+
+    fn materialize_dynamic(
+        &self,
+        node: &SnapshotNode,
+        snapshot: &ValidatedSnapshot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        self.materialize_node(snapshot.children(node)[0], snapshot, window, cx)
     }
 
     fn materialize_regular(
@@ -1372,6 +1384,7 @@ fn build_drawing_path(
     let mut arc_radii = None;
     let mut arc_rotation = None;
     let mut arc_flags = None;
+    let mut circle_center = None;
 
     for op in operations {
         match op.code {
@@ -1424,6 +1437,32 @@ fn build_drawing_path(
                     has_segment = true;
                 }
             }
+            OP_PATH_CIRCLE_CENTER => circle_center = Some(op_f32x2(op)),
+            OP_PATH_CIRCLE_RADIUS => {
+                if let Some(center) = circle_center.take() {
+                    let center = drawing_point(center, bounds, view_box);
+                    let radius =
+                        drawing_uniform_radius(f32::from_bits(op.a as u32), bounds, view_box);
+                    builder.move_to(point(center.x + radius, center.y));
+                    builder.arc_to(
+                        point(radius, radius),
+                        px(0.0),
+                        false,
+                        true,
+                        point(center.x - radius, center.y),
+                    );
+                    builder.arc_to(
+                        point(radius, radius),
+                        px(0.0),
+                        false,
+                        true,
+                        point(center.x + radius, center.y),
+                    );
+                    builder.close();
+                    started = true;
+                    has_segment = true;
+                }
+            }
             OP_PATH_CLOSE if started => {
                 builder.close();
                 has_segment = true;
@@ -1462,6 +1501,20 @@ fn drawing_radii(
         )
     } else {
         point(px(x), px(y))
+    }
+}
+
+fn drawing_uniform_radius(
+    radius: f32,
+    bounds: gpui::Bounds<Pixels>,
+    view_box: Option<DrawingViewBox>,
+) -> Pixels {
+    if let Some(view_box) = view_box {
+        let scale_x = f32::from(bounds.size.width) / view_box.width;
+        let scale_y = f32::from(bounds.size.height) / view_box.height;
+        px(radius * scale_x.min(scale_y))
+    } else {
+        px(radius)
     }
 }
 
@@ -1665,5 +1718,21 @@ mod tests {
         let mapped = drawing_point((50.0, 25.0), bounds, Some(view_box));
         assert_eq!(f32::from(mapped.x), 110.0);
         assert_eq!(f32::from(mapped.y), 40.0);
+    }
+
+    #[test]
+    fn drawing_circle_uses_the_smaller_view_box_scale_for_both_axes() {
+        let bounds = gpui::Bounds::new(point(px(10.0), px(20.0)), gpui::size(px(200.0), px(80.0)));
+        let view_box = DrawingViewBox {
+            x: 0.0,
+            y: 0.0,
+            width: 100.0,
+            height: 100.0,
+        };
+
+        assert_eq!(
+            f32::from(drawing_uniform_radius(5.0, bounds, Some(view_box))),
+            4.0
+        );
     }
 }
