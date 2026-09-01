@@ -75,6 +75,12 @@ application meta package, verifies the native entries, and writes packages to
 
 ## NuGet release
 
+Run the separate `Create GitHub Release` workflow manually from `main` with a tag matching the
+version in `Directory.Build.props` (an optional leading `v` is accepted). It creates the tag and
+GitHub Release with generated notes; package versions containing `-` are marked as prereleases.
+It then dispatches the NuGet workflow below with publishing enabled. Releases published through
+other means also start that workflow through the `release` event.
+
 The `Release NuGet packages` GitHub Actions workflow runs manually and when a GitHub Release is
 published. It builds and tests all four native RIDs on their platform runners, assembles the package
 family, and verifies clean local restores and runtime loading on Linux and macOS plus a Windows
