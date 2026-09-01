@@ -8,6 +8,8 @@ on:
         required: true
         type: boolean
         default: false
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -92,6 +94,20 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify release package version
+        if: github.event_name == 'release'
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          [xml] $props = Get-Content Directory.Build.props
+          $version = [string] $props.Project.PropertyGroup.Version
+          $tag = $env:RELEASE_TAG
+          if ($tag -match '^[vV]') { $tag = $tag.Substring(1) }
+          if ($tag -ne $version) {
+              throw "Release tag '$($env:RELEASE_TAG)' must match package version '$version' (optional leading 'v')."
+          }
 
       - name: Install Linux runtime dependencies
         run: |
@@ -249,7 +265,7 @@ jobs:
 
   publish:
     name: Publish to NuGet.org
-    if: inputs.publish
+    if: inputs.publish || github.event_name == 'release'
     needs: [package, windows-consumer]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -260,7 +276,7 @@ jobs:
 
     steps:
       - name: Require the main branch
-        if: github.ref != 'refs/heads/main'
+        if: github.event_name != 'release' && github.ref != 'refs/heads/main'
         shell: pwsh
         run: throw 'Publishing is only allowed from the main branch.'
 
@@ -289,7 +305,7 @@ jobs:
               ForEach-Object {
                   dotnet nuget push $_.FullName `
                       --api-key $env:NUGET_API_KEY `
-                      --source https://api.nuget.org/v3/index.json `
+                      --source 'https://api.nuget.org/v3/index.json' `
                       --skip-duplicate
                   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
               }

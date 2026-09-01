@@ -75,9 +75,10 @@ application meta package, verifies the native entries, and writes packages to
 
 ## NuGet release
 
-The `Release NuGet packages` GitHub Actions workflow is manual. It builds and tests all four native
-RIDs on their platform runners, assembles the package family, and verifies a clean local restore.
-The package version comes from `Directory.Build.props`.
+The `Release NuGet packages` GitHub Actions workflow runs manually and when a GitHub Release is
+published. It builds and tests all four native RIDs on their platform runners, assembles the package
+family, and verifies clean local restores and runtime loading. The package version comes from
+`Directory.Build.props`; a release tag must match that version, with an optional leading `v`.
 
 Configure a NuGet.org trusted publishing policy with:
 
@@ -86,13 +87,15 @@ Configure a NuGet.org trusted publishing policy with:
 - workflow file: `release-nuget.yml`
 - environment: `nuget`
 
-Create a GitHub environment named `nuget`, restrict its deployment branches to `main`, and add the
-NuGet.org profile name—not an email address—as its `NUGET_USER` secret. No API-key secret is
-needed; the publish job exchanges GitHub's OIDC token for a short-lived key.
+Create a GitHub environment named `nuget`, allow the `main` branch and the release tag pattern used
+by the repository (for example, `v*`), and add the NuGet.org profile name—not an email address—as
+its `NUGET_USER` secret. No API-key secret is needed; the publish job exchanges GitHub's OIDC token
+for a short-lived key.
 
-Run the workflow with `publish` disabled for a dry run and downloadable package artifact. Enable
-`publish` on `main` to push the validated packages to NuGet.org; an existing package version is
-skipped so a partial release can be retried.
+Publishing a GitHub Release automatically pushes the validated packages to NuGet.org. Use manual
+dispatch with `publish` disabled for a dry run and downloadable package artifact, or enable it on
+`main` for a manual publish; an existing package version is skipped so a partial release can be
+retried.
 
 ## Consumer verification
 
