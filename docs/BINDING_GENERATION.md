@@ -1,74 +1,81 @@
 # Binding generation
 
-There are two generators with different responsibilities.
+The repository has two generators with separate responsibilities.
 
-## Repository semantic generator
+## Semantic protocol generator
 
-Project: `tools/Gpui.Bindings.Generator`
+`tools/Gpui.Bindings.Generator` reads `bindings/schema.json` and produces:
 
-Input: `bindings/schema.json`
+- `src/Gpui/Rendering/Semantic.g.cs`;
+- `crates/gpui-dotnet/src/semantic.g.rs`;
+- matching component IDs, operation IDs, capabilities, adapters, value constraints, and schema
+  hash on both sides.
 
-Outputs:
+Run:
 
-- managed component IDs, operation IDs, marker tags, factories and capability-constrained fluent APIs;
-- Rust IDs, component/operation metadata, capability masks and `NativeAdapter` enum;
-- a shared schema hash validated at startup.
-
-```powershell
+```sh
 dotnet run --project tools/Gpui.Bindings.Generator -- generate
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
 ```
 
-`Scroll`, `List`, `Input`, `Overlay`, `Tooltip`, `ContextMenu`, and `PopoverMenu` are manual factories because they encode retained resource metadata or component-specific invariants in addition to normal semantic component identity. Styling operations are still capability-generated.
+`verify` fails when committed outputs do not match the schema. Never edit either generated semantic
+file by hand.
 
-Callback operations use manual view-bound fluent APIs rather than generated delegate tokens:
+The schema defines:
 
-```csharp
-.OnClick(this, (view, _) => view.Save())
-.OnClick(this, (view, e) => view.SelectRow(e), payload)
-```
+- component IDs and names;
+- generated managed factory shape, when applicable;
+- native adapter selection;
+- capabilities such as styled, interactive, or checked;
+- operation IDs, value kinds, managed API types, compatibility requirements, and scalar/payload
+  constraints.
 
-`payload` is written to `OpRecord.B`; it is not a delegate or GCHandle.
+The generator emits capability-constrained fluent methods and equivalent managed/native validation
+metadata. Put a new rule in the schema when both validators need it; do not duplicate a manual
+switch unless the rule depends on component-specific structure that the schema cannot express.
 
-Operation payload legality and scalar constraints are declared beside each operation in
-`bindings/schema.json`. The generator emits the payload-kind table and constraint evaluator for
-both the managed and Rust validators, so adding operation validation does not require duplicating
-a switch in either runtime.
+Components with retained resources or special child invariants use manual `RenderContext` factories.
+Their style operations and registry metadata are still generated.
 
-## Roslyn incremental generator
+Event operations store compact runtime tokens. `OnClick` may additionally store an unmanaged
+`ulong` payload in `OpRecord.B`; it is not a delegate pointer or `GCHandle`.
 
-Project: `src/Gpui.Generators`
+## Roslyn source generator
+
+`src/Gpui.Generators` runs in application compilations and generates view factories and virtual-row
+dispatch.
 
 ### `[GpuiView]`
 
-Generates an AOT-safe static factory implementing `IGeneratedViewFactory<T>`. Framework-owned `ui.Child<T>()` therefore requires no reflection.
+Apply `[GpuiView]` to a `partial` View type. The generator implements the AOT-safe
+`IGeneratedViewFactory<T>` contract used by framework-owned `ui.Child<T>()` slots. No runtime
+reflection is required.
 
-Event callbacks are bound directly at the element call site through `OnClick`, `OnChanged`,
-`OnSubmitted`, `OnFocusChanged`, and `OnDismiss`. Click callbacks always receive `ClickEvent`; use
-`_` when the event is not needed. `ClickEvent` remains the way to receive payload and pointer context. The render
-owner stores callbacks in an internal recyclable entry list. Successful render passes sweep entries
-not used by the current pass, while failed passes preserve the previous bindings. A callback may
-target any mounted View, and invocation checks the target's concrete type.
-
-`Gpui.Generators` intentionally does not inspect ordinary event methods. It only generates view
-factories and list-item renderers, so no event attributes or generated event dispatch overrides
-are required.
+Events are runtime fluent bindings (`OnClick`, `OnChanged`, `OnSubmitted`, `OnFocusChanged`,
+`OnReleased`, and `OnDismiss`); the generator does not inspect ordinary event methods.
 
 ### `[GpuiListItem]`
 
-Accepted signature:
+Accepted methods are synchronous, non-generic instance methods with this shape:
 
 ```csharp
 Element Row(int index, ref RenderContext ui)
 ```
 
-`Element<TTag>` return types are also accepted. Methods must be synchronous, instance, ordinary and non-generic.
-
-The generator emits:
+`Element<TTag>` return types are also accepted. The generator emits:
 
 - a deterministic nonzero renderer ID;
-- `Rows.Row` as a `ListItemRenderer` token bound to the mounted View;
-- a direct switch-based `RenderListItem` override;
-- diagnostics for invalid signatures, duplicate names, reserved `Rows`, and renderer-ID collisions.
+- a `Rows.Row` `ListItemRenderer` token;
+- direct switch-based dispatch on the owning mounted View;
+- diagnostics for invalid signatures, duplicate names, reserved members, and ID collisions.
 
-A row renderer is retried if its native-owned arena grows. Treat it with the same purity requirements as `Render()`.
+A row renderer may be retried after native arena growth and follows the same purity rules as
+`View.Render()`.
+
+## Native C-layout generation
+
+The native Cargo build uses `csbindgen` to update `src/Gpui/Interop/NativeMethods.g.cs` from the Rust
+C-layout records and API table. Treat that file as generated. If `abi.rs` changes, run a native
+build and include the regenerated managed output in the same change.
+
+ABI changes also require managed/native size checks, tests, and [ABI.md](ABI.md) updates.

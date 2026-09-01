@@ -1,220 +1,190 @@
 # Components and retained resources
 
+GPUI.NET exposes semantic components. C# builders write component IDs, typed operations, child
+records, and UTF-8 data into the render arena. Rust chooses the concrete GPUI implementation through
+the component's `NativeAdapter`.
+
 ## Component classes
 
-| Class | Examples | Transport/state |
-|---|---|---|
-| Snapshot component | div, badge, button, image, overlay, tooltip, context menu | render IR |
-| Retained container | Scroll | render IR reference + native state keyed by View/key |
-| Virtualized datasource | List | retained native state + batched managed row renderer |
-| Native entity component | Input; future editor/select | opaque native handle + commands/events |
-| App/window service | title-bar presentation; future dialogs/clipboard/notifications | control commands + semantic hit-test regions |
+There are three implementation classes:
 
-Do not force all classes into one ABI shape.
+1. Snapshot components are rebuilt from the retained snapshot, such as Div, Text, Button, Badge,
+   Divider, Image, and deferred-layer declarations.
+2. Retained resources preserve mutable native state across managed renders: Scroll, List, Table,
+   Input, and Slider.
+3. Managed compositions combine existing primitives without adding an ABI component. Dialog,
+   Sheet, and the shared title-bar helper use this model.
+
+Choose the simplest class that satisfies the behavior. A component needs a retained resource only
+when interaction state must survive independently from managed renders.
+
+## Styling
+
+Styled elements support the generated fluent operations declared by `bindings/schema.json`,
+including layout, dimensions, backgrounds, borders, text color, and typography. Interactive
+elements additionally support native hover and active paint operations.
+
+The application theme supplies semantic tokens:
+
+```csharp
+var card = ui.VStack(content)
+    .Padding(Px(16))
+    .Background(ui.Theme.Colors.SurfaceBackground)
+    .BorderColor(ui.Theme.Colors.BorderVariant)
+    .TextColor(ui.Theme.Colors.Text);
+```
+
+Native controls receive a resolved subset of the same theme. Product variants remain in the
+application:
+
+```csharp
+internal readonly record struct PrimaryButtonStyle(GpuiTheme Theme)
+    : IGpuiElementStyle<ButtonTag>
+{
+    public Element<ButtonTag> Apply(Element<ButtonTag> button) =>
+        button
+            .Background(Theme.Colors.Accent)
+            .HoverBackground(Theme.Colors.AccentHover)
+            .ActiveBackground(Theme.Colors.AccentActive)
+            .TextColor(Theme.Colors.TextOnAccent);
+}
+```
+
+`.Style(value)` invokes the typed recipe and returns the normal element builder. A later fluent call
+can override a value. Do not add application variant enums or style objects to the native ABI.
+
+## Snapshot components
+
+### Layout and content
+
+- `Div`, `VStack`, and `HStack` form layout containers.
+- `Text` carries UTF-8 content and inherits text styles normally.
+- `Spacer` consumes available flex space.
+- `Divider` provides a themed one-pixel separator by default.
+
+### Interactive and display
+
+- `Button` owns native pointer states and managed click dispatch.
+- `Checkbox` and `Radio` use the `Checked` operation for semantic state.
+- `Badge` provides minimal native defaults that managed styling can override.
+- `Image` uses GPUI's decoder and cache. Its data is a filesystem path; presentation supports
+  object fit and grayscale.
+
+Image failures materialize a themed fallback. URI loading is not part of the current component
+contract.
+
+## Retained Scroll
+
+`ui.Scroll` declares content, axis, smooth-scrolling behavior, and scrollbar options. Rust retains
+the `ScrollHandle`, consumes wheel and trackpad input, and paints the overlay scrollbar. Managed
+code is not notified for scroll deltas.
+
+Use `ScrollController` only for imperative operations such as `ScrollTo`, `ScrollToTop`, and
+`ScrollToBottom`. A growing scroll viewport should be inside a parent that can shrink; the native
+materializer applies the required minimum-height behavior to growing flex items.
+
+## Retained List
+
+`ui.List` combines:
+
+- a stable resource key or ref-bound `ListController`;
+- `ListDataSource(count, contentRevision)`;
+- a source-generated `[GpuiListItem]` renderer token;
+- viewport, batching, alignment, estimated-height, and scrollbar options.
+
+Rust owns `ListState`, row measurements, active-row keyboard navigation, and up to four aligned row
+batches. The managed renderer returns one synthetic root containing exactly the requested number of
+row roots.
+
+Keep `contentRevision` stable when a managed render cannot change any row output. Increment it when
+row content, styling, or height can change. Theme changes invalidate batches automatically.
+
+Row renderer restrictions:
+
+- synchronous and side-effect-free;
+- elements only—no managed child views;
+- no nested Scroll, List, Table, Input, Slider, or deferred layer;
+- at most 512 rows in one native request;
+- event payloads should use an index or stable model ID rather than per-row closures.
+
+Declare `.ItemId(id)` on a row root when interactive state should survive structural splices. ID
+zero is reserved. An `OnClick` binding without an explicit payload receives that model ID.
+
+`ListController` supports `ScrollToItem`, `Refresh`, `RefreshRanges`, `Splice`, and `Reset`.
+Structural commands preserve unaffected measurements and row batches when their declared result
+matches the next managed snapshot.
+
+## Retained Table
+
+`ui.Table` uses the List row engine and adds declarative `TableColumn[]` metadata. Rust materializes
+the header and applies the same column widths and alignment to `ui.TableCell(column, ...)` nodes.
+
+Rows keep List semantics, including batching, model identity, keyboard navigation, refresh, and
+splice behavior. A changed column declaration invalidates row batches because cell layout changes.
+Managed row content should use a horizontal container; Table does not infer a row layout from plain
+Div children.
+
+## Retained Input
+
+`ui.Input` is a native single-line editor. GPUI owns:
+
+- current UTF-8 value and revision;
+- focus, caret, selection, and horizontal reveal;
+- clipboard commands;
+- IME composition and password masking.
+
+Bindings are opt-in: `OnChanged`, `OnSubmitted`, and `OnFocusChanged`. Without a binding, native
+editing does not cross into managed code. `Utf8InputOptions`, `InputEvent.Utf8Value`, and UTF-8
+controller overloads avoid unnecessary UTF-16 allocation. `InputEvent.Value` decodes lazily.
+
+`InputController` supports `Focus`, `Blur`, `SelectAll`, and `SetValue`. The declarative initial
+value is consumed only when the native keyed resource is created.
+
+## Retained Slider
+
+`ui.Slider` supports single values and ranges, horizontal or vertical orientation, linear or
+logarithmic mapping, bounds, and step size. GPUI owns pointer drag and keyboard interaction.
+
+`OnChanged` fires for value changes; `OnReleased` marks the end of a pointer or keyboard
+interaction. `SliderController.SetValue` updates retained native state without synthesizing an
+interaction event.
+
+## Deferred layers
+
+Deferred layers paint relative to the window rather than the local layout tree:
+
+- `Overlay`: generic modal or non-modal content with placement, priority, backdrop, and dismissal
+- `Dialog`: centered modal Overlay composition
+- `Sheet`: edge-aligned Overlay composition
+- `Tooltip`: delayed trigger-relative content with side flipping and viewport clamping
+- `ContextMenu`: pointer-anchored right-click content
+- `PopoverMenu`: trigger-attached left-click content with menu switching
+
+Rust owns geometry, input interception, deterministic stacking, focus entry/restoration, and
+dismissal. Managed code owns visuals and actions. Deferred layers can contain normal child views and
+retained controls, but cannot appear inside virtualized rows.
 
 ## Window chrome
 
-`GpuiWindowOptions.TitleBarStyle` selects `System`, `Custom`, or `Hidden` when a window opens. System chrome requires no managed elements. Custom chrome extends managed content into a transparent native title-bar surface; Hidden removes that surface entirely.
-
-Managed Div and Button elements can use `WindowControlArea(Drag|Minimize|Maximize|Close)`. Rust maps the semantic operation to GPUI's native window-control hit testing, so window movement and caption actions do not become managed pointer/click traffic. A parent Drag region can contain child caption controls because the most specific child hit region wins. `GpuiWindow.Minimize()` and `ToggleMaximize()` expose the same operations to managed menu actions; the native host handles the Win32 restore path that the pinned GPUI maximize primitive omits. macOS custom windows retain native traffic lights, so managed title-bar layouts should reserve their space.
-
-Interactive elements can use `HoverBackground(Color)` for an explicit native hover fill. This is useful for platform-like caption controls: neutral minimize/maximize feedback and a destructive red close hover remain entirely in GPUI without managed pointer callbacks.
-
-### Shared menu title bar
-
-`GpuiTitleBar.RenderWindow(ref ui, title, menus, content)` is the library convenience for a
-custom window that uses the same `GpuiMenu` definitions as `GpuiApplication.SetMenuBar`. Windows
-and Linux render a minimal app-side menu bar with trigger-attached `PopoverMenu` layers and native
-caption hit-test regions. On macOS, the default system-title-bar path keeps the menu in AppKit's
-global menu bar and places the content in a full-height layout parent. The helper does not change a window's
-`TitleBarStyle`, so the caller still chooses `Custom` explicitly on platforms where it renders
-managed chrome. Pass `new GpuiTitleBarOptions(forceManagedMenuOnMac: true)` to force the managed
-title/menu path on macOS; in that mode, do not also install the same menus with `SetMenuBar`.
-
-The helper is intentionally replaceable. Applications that need different menu placement,
-styling, keyboard behavior, or item roles can compose `PopoverMenu`, `Button`, and
-`WindowControlArea` directly.
-
-## Themes
-
-`GpuiTheme` is the managed semantic color layer used by framework components and application
-views. It follows GPUI Component/Zed's core vocabulary: borders, grounded/elevated surfaces,
-element states, text and icon emphasis, status colors, title-bar colors, and shared typography
-sizes. A theme can be built
-with `new GpuiTheme(...)` and `GpuiThemeColors` object initialization, or loaded with
-`GpuiTheme.LoadJson(path)`.
-
-```csharp
-application.SetTheme(GpuiTheme.LoadJson("themes/solarized.json"));
-
-protected override Element Render(ref RenderContext ui) =>
-    ui.VStack(
-        ui.Text("Themed content").TextColor(ui.Theme.Colors.Text),
-        ui.Button("action", "Action")
-            .Background(ui.Theme.Colors.ElementBackground)
-            .HoverBackground(ui.Theme.Colors.ElementHover)
-            .BorderColor(ui.Theme.Colors.Border));
-```
-
-JSON accepts flat `colors`, nested `colors`, or Zed-style `style` objects. Canonical Zed color
-keys such as `surface.background`, `element.hover`, and `text.muted` are accepted alongside C#
-property-style aliases. Unspecified values inherit appearance-specific defaults. The active theme
-is available in all managed render contexts, including virtualized list row rendering, and its
-resolved semantic palette is also shared by Rust-owned component defaults and retained controls.
-
-Reusable product variants are intentionally application-owned. A value type implementing
-`IGpuiElementStyle<TTag>` can resolve a variant from `ui.Theme` and apply it through `.Style(...)`.
-The core library supplies element operations and hover/active paint states; it does
-not define application vocabularies such as `PrimaryButton` or `DangerButton`.
-
-## Snapshot component adapters
-
-A normal semantic component is declared in `bindings/schema.json`, generated into C#/Rust metadata and mapped by a handwritten Rust adapter. C# depends on semantic operations, not GPUI trait names or concrete Rust types.
-
-## Scroll
-
-`ui.Scroll(key, axis, options, children)` is a normal render-tree parent plus a retained native `ScrollHandle`. Smooth wheel scrolling and the draggable overlay scrollbar default to enabled.
-
-```csharp
-ui.Scroll("main", ScrollAxis.Vertical, content)
-    .Grow()
-    .Height(Percent(100));
-```
-
-The key is local to the owning managed View. Use `ScrollController` only for imperative offset commands. Scroll input itself remains native.
-
-## Virtualized list and table
-
-Virtualized lists and tables can bind their retained row-engine key to a controller by reference:
-
-```csharp
-private ListController _list;
-
-protected override Element Render(ref RenderContext ui) =>
-    ui.List(ref _list, new ListDataSource(Count, revision), Rows.RenderRow);
-```
-
-The first render assigns a stable per-view key; later renders reuse the UTF-8 key retained by the controller.
-
-## Image
-
-`ui.Image(path)` records a UTF-8 filesystem path in the render arena. Rust materializes it with GPUI's native image element, so decoding and caching stay on the native side:
-
-```csharp
-ui.Image(Path.Combine(AppContext.BaseDirectory, "Assets", "photo.webp"))
-    .Fit(ImageFit.Cover)
-    .Grayscale()
-    .Width(Px(240))
-    .Height(Px(160));
-```
-
-Supported fits are `Fill`, `Contain` (the default), `Cover`, `ScaleDown`, and `None`. Image overflow is clipped to the styled bounds, and load/decode failures display a neutral fallback. Image is a snapshot component and is safe inside virtualized List rows; GPUI owns decoded-image caching independently of the managed row snapshot cache.
-
-Only filesystem paths are public today. Relative paths resolve from the process working directory. Remote URI loading is deferred until GPUI.NET installs a native HTTP client and defines explicit network behavior rather than exposing an API that silently cannot load.
-
-## Input
-
-`ui.Input(key, options)` materializes a keyed `Entity<ManagedInput>`. For controller-owned identity, use `ui.Input(ref controller, options)`; the first render assigns that controller a stable per-view key and later renders reuse it. The entity owns text, focus, UTF-8/UTF-16 IME range conversion, selection, caret/selection geometry, horizontal reveal, clipboard actions, and password presentation. Declarative `initialValue` is used only when the resource is created; normal managed rerenders do not overwrite user edits.
-
-String and UTF-8-first forms are both public:
-
-```csharp
-ui.Input("name", new InputOptions(placeholder: "Name"));
-ui.Input("name"u8, new Utf8InputOptions(placeholder: "Name"u8));
-```
-
-`OnChanged`, `OnSubmitted`, and `OnFocusChanged` are opt-in view-bound event bindings. `InputEvent.Utf8Value` is the owned no-transcode payload; `Value` is a lazy string convenience. `InputController` supports focus, blur, selection, and programmatic value replacement. Input is retained and therefore intentionally rejected inside a virtualized List row, whose cache lifetime is not a managed View/resource lifetime.
-
-## Slider
-
-`ui.Slider(key, options)` materializes a retained native slider. `ui.Slider(ref controller, options)` assigns a stable per-View resource key on first render, matching the ref-bound controller pattern used by Input and List. `SliderOptions` supports bounds, step, horizontal/vertical orientation, disabled state, linear/logarithmic scale, and either `SliderValue.Single(value)` or `SliderValue.Range(start, end)`.
-
-`OnChanged` emits `SliderEventKind.Changed` continuously during pointer movement. `OnReleased` emits `SliderEventKind.Released` once when the active pointer interaction ends, including release outside the slider. `SliderEvent.Value` preserves single versus range shape; `SliderController.SetValue` changes native state without synthesizing a managed interaction event. Slider is retained and is not available inside cached List rows.
-
-## Overlay
-
-`ui.Overlay(key, child, options)` gives one ordinary semantic child a deferred window-relative layer. Rust owns viewport placement, deferred paint priority, modal backdrop input interception, initial focus, Tab/Shift+Tab containment, previous-focus restoration, and native backdrop/Escape detection. Dismissal crosses into managed code only through an explicit `OnDismiss` callback.
-
-The default options are a centered modal, 16-pixel viewport margin, priority 10, a translucent black backdrop, and backdrop/Escape dismissal. `OverlayPlacement` also covers every window edge and corner, providing the low-level geometry for dialogs and sheets without exposing GPUI element types through the ABI. A modal uses native non-tab-stop boundary handles to wrap GPUI focus traversal without enumerating managed children; opening selects the first available child tab stop and falls back to the boundary when the content has none.
-
-`ui.Dialog(key, child, options)` and `ui.Sheet(key, child, side, options)` are semantic compositions over `Overlay`. Dialog forces centered modal placement. Sheet forces one of the four window-edge placements through `SheetSide`. They do not prescribe product visuals or content structure. Modal layers are registered in a window-owned stack rebuilt from each committed snapshot; priority wins, declaration order breaks ties, and only the topmost capturing layer handles dismissal. Toast lifecycle and platform accessibility remain separate work.
-
-Overlay keys are scoped by the owning managed View. This prevents two reusable child Views with the same local overlay key from sharing GPUI focus state.
-
-## Tooltip
-
-`ui.Tooltip(key, trigger, content, options)` is a semantic two-child component. Rust measures the trigger during prepaint, owns delayed hover transitions, and paints the content at deferred priority 200. The default behavior is 500 ms before showing and a 300 ms grace period before hiding, which lets the pointer cross the gap into rich tooltip content. Pointer press dismisses immediately.
-
-Placement is relative to trigger bounds rather than the cursor. Auto prefers Bottom, then Top, Right, and Left. Explicit side preferences flip when the primary axis does not fit, while cross-axis alignment and final viewport margins are clamped. Managed code owns all tooltip presentation.
-
-Tooltip keys use the same `(managed View handle, local key)` identity rule as retained resources. Tooltip is disallowed inside cached List rows because those rows do not have a mounted managed View lifetime.
-
-## Context menu
-
-`ui.ContextMenu(key, trigger, content, options)` is a semantic two-child component. The trigger stays in normal layout. Rust intercepts right mouse-down, suppresses the platform default, records the pointer position, focuses a deferred layer at priority 300, and clamps content to an 8-pixel viewport margin. The defaults can be changed through `ContextMenuOptions`.
-
-A transparent native backdrop blocks input behind the open menu and dismisses on outside left/right press. Escape, a right press in the menu, or left mouse-up after a menu selection also dismisses, then focus returns to the previously focused element. Content and action bindings remain managed, so the component imposes no product styling or fixed item model. ContextMenu is for application content; custom title-bar Drag regions should remain unwrapped so platform non-client behavior is not replaced by an application menu.
-
-ContextMenu keys use the owning View namespace and ContextMenu is disallowed inside cached List rows for the same lifetime reason as Tooltip and Overlay.
-
-## PopoverMenu
-
-`ui.PopoverMenu(key, trigger, content, options)` is the left-click, trigger-attached counterpart to ContextMenu. Rust measures the first child during prepaint and positions the second child below its leading edge in a deferred layer. GPUI's anchored element snaps the menu to the configured viewport margin.
-
-Pointer-down on the trigger opens the menu and transfers focus into it. While one menu is open, hovering another PopoverMenu in the same View transfers the active menu without another click and preserves the original focus-restoration target. Selection, Escape, or pointer-down outside the content closes it and restores prior focus. An outside pointer-down continues to its underlying target; pressing the same trigger is intercepted so it closes instead of immediately reopening. Menu visuals and item actions remain ordinary managed elements. `PopoverMenuOptions` configures priority and margin.
-
-PopoverMenu keys are scoped by the owning View and the component is disallowed inside cached List rows. Native keyboard item navigation and disabled/check/radio item roles remain higher-level menu behavior.
-
-## List
-
-`ui.List` is intentionally **not** a parent receiving all item elements:
-
-```csharp
-ui.List("files", new ListDataSource(files.Count, filesRevision), Rows.File, options)
-```
-
-The render IR carries:
-
-- resource owner View handle;
-- local resource key;
-- item count;
-- generated renderer token;
-- managed batch size;
-- overdraw pixels;
-- top/bottom alignment;
-- estimated item height for stable virtual scrollbar geometry;
-- optional explicit datasource content revision;
-- smooth-scrolling and scrollbar visibility flags.
-
-Rust owns `ListState` and calls managed `list_render_range` only for missing aligned batches.
-
-An explicit `ListDataSource` revision keeps cached row snapshots across unrelated managed renders. Change the revision whenever renderer-visible state may have changed. The `itemCount` overload omits this operation and deliberately retains the previous conservative invalidation behavior.
-
-### Row renderer restrictions
-
-Rows are pure Element renderers, not retained managed View roots. `RenderContext` for a list range intentionally has no managed child resolver and no native resource owner. `ui.Child`, retained `ui.Scroll`, nested retained `ui.List`, retained `ui.Input`, window-level `ui.Overlay`, `ui.Tooltip`, `ui.ContextMenu`, and `ui.PopoverMenu` therefore fail rather than creating ambiguous lifetimes.
-
-If item-scoped managed state is needed in the future, implement a dedicated virtualized-item state mechanism instead of silently reusing normal View slots.
-
-### Events
-
-Repeated row shapes often reuse a local element id such as `"row"`. Rust namespaces stateful GPUI IDs by:
-
-```text
-list owner View + list key + item index + local element id
-```
-
-Rows can bind payloads without per-item closures:
-
-```csharp
-ui.Button("row", label)
-    .OnClick(this, (view, e) => view.Open(e), (ulong)index);
-```
-
-The handler receives `ClickEvent.Payload`.
-
-### Structural changes
-
-When model order/count changes, provide a `ListController.Splice` hint rather than throwing away all measurement state. Use `Refresh` when content/height changes without a structural change, and `Reset` when the whole datasource is replaced.
-
-Structural hints are transactional with the next managed snapshot revision: they are queued on the Rust side, the controller invalidates the owning View, and the sequence is applied only when the new declarative `itemCount` arrives. If the sequence and snapshot disagree, the declarative snapshot is authoritative and native measurements are fully reset.
+`WindowControlArea` marks Div or Button nodes as native Drag, Minimize, Maximize, or Close regions.
+These are hit-test semantics, not managed click callbacks.
+
+`GpuiTitleBar.RenderWindow` is a managed composition that consumes `GpuiMenu[]`. It preserves the
+native macOS title/menu path by default and supplies minimal managed menus and window controls where
+app-side chrome is appropriate. Applications may force the managed macOS path or build title bars
+manually from the same primitives.
+
+## Adding a component
+
+For a snapshot component:
+
+1. Add the component and operations to `bindings/schema.json`.
+2. Run the semantic generator.
+3. Add or update the Rust adapter and materializer behavior.
+4. Add managed validation, native validation, and materialization tests.
+5. Add a small sample route only when it demonstrates behavior not covered elsewhere.
+6. Update this document and [ABI.md](ABI.md) if the wire contract changed.
+
+For a retained resource, also define stable identity, configuration reconciliation, command/event
+semantics, teardown, pending-command behavior, and the high-frequency ownership boundary before
+adding public API.

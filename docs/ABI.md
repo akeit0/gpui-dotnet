@@ -1,6 +1,11 @@
-# ABI v6
+# Native ABI
 
-ABI v6 separates one application identity from its independently mounted window/render session identities and adds native application-menu dispatch. Managed startup requests exactly version 6 and also checks the semantic schema hash.
+GPUI.NET currently uses ABI version 6. Managed startup requires an exact ABI version, a compatible
+API-table prefix, all required function entries, and the semantic schema hash generated from
+`bindings/schema.json`.
+
+The ABI is an internal C contract between `GPUI.NET.Core` and a native host. Application code does
+not manipulate pointers or wire records directly.
 
 ## Discovery
 
@@ -8,54 +13,44 @@ ABI v6 separates one application identity from its independently mounted window/
 const gpui_dotnet_api_v6* gpui_dotnet_get_api(uint32_t requested_version);
 ```
 
-`gpui_dotnet_api_v6` contains:
+The API table contains:
 
-- `struct_size`;
-- `abi_version`;
-- `schema_hash`;
+- `struct_size`, `abi_version`, and `schema_hash`;
 - `validate_render`;
 - `run_application`;
 - `notify_view`;
-- `dispatch_command`;
-- `dispatch_application_command`.
+- `dispatch_command` for retained resources;
+- `dispatch_application_command` for windows and themes;
 - `dispatch_application_menu`.
 
-The current schema hash is `0xC2AF5F84A11748A4`.
+The generated schema hash is deliberately separate from the ABI version. Component IDs,
+operation IDs, capabilities, or payload constraints can change without altering C record layouts;
+the hash rejects a managed/native pair built from different schemas.
 
-## Managed callbacks
+## Application and callbacks
 
-The native application receives one callback table:
+`run_application(application_id, callbacks)` starts one native GPUI application. The managed
+callback table provides:
 
-```c
-typedef struct gpui_managed_callbacks {
-    uint32_t struct_size;
-    gpui_managed_render_fn render;
-    gpui_managed_click_fn click;
-    gpui_managed_list_render_range_fn list_render_range;
-    gpui_managed_control_event_fn control_event;
-    gpui_managed_application_started_fn application_started;
-    gpui_managed_window_closed_fn window_closed;
-} gpui_managed_callbacks;
-```
+- dirty root rendering;
+- click dispatch;
+- virtual list/table range rendering;
+- retained control events;
+- application-started notification;
+- window-closed notification;
+- application-menu action dispatch.
 
-### Application/window lifecycle
+The callback table starts with `struct_size`, allowing native code to validate the available
+prefix. Every callback is a Cdecl unmanaged function pointer and returns an `int32_t` status.
 
-```c
-int32_t run_application(
-    uint64_t application_id,
-    const gpui_managed_callbacks* callbacks);
+The native application is registered before the application-started callback, so managed code can
+enqueue initial windows synchronously. A window ID is also its render-session ID. Closing one
+window detaches only that managed session; the application event loop ends after the last registered
+window closes.
 
-int32_t application_started(uint64_t application_id);
+## Render callbacks
 
-int32_t window_closed(
-    uint64_t application_id,
-    uint64_t window_id,
-    int32_t native_status);
-```
-
-Native registration exists before `application_started` runs, so managed code can synchronously enqueue every initial window. `window_id` is also the session ID passed to render/event callbacks and the notification/resource-command functions. `window_closed` unmounts only that session; the native application exits after the final registered window closes.
-
-### Dirty root render
+Dirty root rendering uses:
 
 ```c
 int32_t render(
@@ -64,30 +59,10 @@ int32_t render(
     uint32_t* root);
 ```
 
-`1` means the arena needs native-side growth and the managed render may be retried. Therefore managed `Render()` must be deterministic and side-effect-free.
+Status `1` means the native-owned arena needs growth. Rust grows the requested capacities and
+retries managed rendering. `Render()` must therefore be deterministic and side-effect-free.
 
-### Click
-
-```c
-int32_t click(
-    uint64_t session_id,
-    uint64_t event_token,
-    uint64_t event_payload,
-    const gpui_click_event* event);
-```
-
-`event_token` is generated identity:
-
-```text
-63                       32 31                         0
-+--------------------------+---------------------------+
-| mounted managed View ID  | generated handler ID      |
-+--------------------------+---------------------------+
-```
-
-`event_payload` is an application-defined unmanaged `ulong` captured in the render IR. It is normally zero. Virtualized rows use it for row index/model identity without a managed closure.
-
-### Virtual list range render
+Virtual rows use:
 
 ```c
 int32_t list_render_range(
@@ -99,26 +74,23 @@ int32_t list_render_range(
     uint32_t* root);
 ```
 
-`renderer_token` has the same View-ID/high-word structure as event tokens. One call returns a synthetic root whose direct children are exactly `count` row roots. `count` is currently limited to 512. Rust uses aligned batches even though GPUI's item closure asks for individual indices.
+The returned root must contain exactly `count` direct row children. `count` is limited to 512. Range
+rendering uses the same arena-growth retry contract as root rendering.
 
-List range rendering is also retryable when the native-owned arena must grow, so `[GpuiListItem]` is subject to the same pure-render rule.
-
-### Native control event
-
-```c
-int32_t control_event(
-    uint64_t session_id,
-    uint64_t event_token,
-    const gpui_native_control_event* event);
-```
-
-`gpui_native_control_event` carries a typed event kind, flags, native state revision, and a borrowed data range. Input emits Changed, Submitted, and FocusChanged with UTF-8 payloads. Slider emits Changed (`kind = 4`) during pointer or keyboard movement and Released (`kind = 5`) when the pointer is released or a keyboard interaction ends; its payload is one little-endian `f32` for a single value or two ordered `f32` values for a range, with flag bit 1 marking the range form. Managed code validates the record and copies the bytes before returning through FFI, making event payloads safe for asynchronous handlers. UTF-16 decoding is deferred until `InputEvent.Value` is accessed.
+Click and renderer tokens pack a mounted managed View handle in the high 32 bits and a generated or
+registered entry ID in the low 32 bits. Click records carry a separate unmanaged `uint64_t` payload
+for row or model identity.
 
 ## Render arena
 
-The ABI stays pointer-free from managed application code; only the runtime layer sees arena pointers. The wire structures remain C-layout fixed-width records.
+The render arena consists of four flat buffers:
 
-`OpRecord` is:
+- `NodeRecord[]` for component IDs, flags, and UTF-8 data ranges;
+- `OpRecord[]` for typed semantic operations;
+- `ChildRecord[]` for parent/child edges;
+- one UTF-8 byte buffer.
+
+`OpRecord` has fixed C layout:
 
 ```c
 typedef struct gpui_op_record {
@@ -130,141 +102,118 @@ typedef struct gpui_op_record {
 } gpui_op_record;
 ```
 
-Canonical rules:
+Canonical payload rules:
 
-- `node.flags == 0`;
+- node flags and reserved fields must be zero;
 - `None` operations require `a == 0 && b == 0`;
-- `F32`/`U32` use only the low 32 bits of `a`, `U64` uses all 64 bits, and each requires `b == 0`;
-- `Callback` requires nonzero `a`; `b` must be zero except for `OnClick` and `OverlayOnDismiss`, where it is the unmanaged event payload;
-- UTF-8 ranges must be valid and in-bounds;
-- component/operation capability constraints are validated on both managed and native sides.
+- `F32` and `U32` use only the low 32 bits of `a` and require `b == 0`;
+- `U64` uses all of `a` and requires `b == 0`;
+- callback operations require nonzero token `a`; only schema-approved callbacks may use payload
+  `b`;
+- all floats must satisfy the operation's finite/range constraints;
+- UTF-8 ranges must be valid and in bounds;
+- components, child counts, operation capabilities, uniqueness, and resource-key conflicts are
+  validated on both sides.
 
-`ListRenderer` is encoded as a callback-kind operation but currently uses `b == 0`.
+The managed validator catches builder/runtime errors before FFI. Native validation remains
+authoritative because a custom or mismatched managed host must not create invalid GPUI state.
 
-## Application/window commands
+## Retained control events
 
-Application commands use a separate application-scoped channel:
+Retained controls emit a typed `NativeControlEvent` containing event kind, flags, native revision,
+and a borrowed byte range. Managed code validates and copies the payload before returning through
+FFI, so asynchronous event handlers never retain native borrowed memory.
 
-```c
-typedef struct gpui_native_application_command {
-    uint64_t window_id;
-    uint16_t command;
-    uint16_t flags;
-    uint32_t reserved;
-    const uint8_t* title;
-    int32_t title_length;
-    uint32_t reserved2;
-    float left;
-    float top;
-    float width;
-    float height;
-} gpui_native_application_command;
-```
+Input events carry UTF-8 data for Changed, Submitted, and FocusChanged transitions. Slider Changed
+and Released events carry one little-endian `f32`, or two ordered values when the range flag is set.
 
-| Command | Payload |
+## Application commands
+
+`NativeApplicationCommand` is application-scoped and contains a window ID, command, flags, a
+borrowed byte range, and geometry fields. The native entry point validates and copies borrowed data
+before enqueueing an owned command to the GPUI thread.
+
+Current commands are:
+
+| Command | Contract |
 |---|---|
-| `Open` | UTF-8 title, positive size, optional positioned flag + finite `left`/`top`, optional activate flag, title-bar style |
-| `Close` | none |
-| `Activate` | none |
-| `Minimize` | none |
-| `ToggleMaximize` | none |
-| `SetTitle` | non-empty UTF-8 title |
-| `Resize` | positive finite width/height |
-| `SetTheme` | versioned fixed-size resolved semantic palette; `window_id` is zero |
+| Open | UTF-8 title, positive size, optional position/activation, title-bar style |
+| Close | existing window ID |
+| Activate | existing window ID |
+| Minimize | existing window ID |
+| ToggleMaximize | existing window ID |
+| SetTitle | non-empty UTF-8 title |
+| Resize | positive finite width and height |
+| SetTheme | versioned resolved semantic palette, application-scoped |
 
-For `Open`, flag bit 0 means the position fields are present, bit 1 requests activation, and bits 2–3 encode `System = 0`, `Custom = 1`, or `Hidden = 2`. All higher bits and the unused value 3 are rejected. `Custom` uses a transparent platform title-bar surface with client decorations; `Hidden` removes the title-bar surface and keeps the UTF-8 title as the native window/task-switcher title.
+Open flags encode optional position, activation, and `System`, `Custom`, or `Hidden` title-bar
+style. Runtime reposition is not exposed because the pinned GPUI revision has no durable
+cross-platform operation for it.
 
-The call copies borrowed UTF-8 or the validated theme payload before returning and enqueues the
-owned command. All GPUI window mutation occurs on the native UI thread. Initial position is
-supported by `Open`; runtime resize is supported, but runtime reposition is absent because the
-pinned GPUI API has no durable cross-platform operation for it. The command record layout remains
-unchanged within ABI v6; the schema hash rejects native/managed pairs that disagree about the
-extended semantics.
+The theme command uses the command record's byte pointer as a private fixed-size payload. It sends
+resolved semantic roles used by native components; application style variants do not cross the ABI.
 
-## Native application menu
+## Application menus
 
-`SetMenuBar` sends a flat preorder tree of menu records through `dispatch_application_menu`.
-Record kinds are `Menu = 1`, `Action = 2`, and `Separator = 3`; each child points to its
-containing menu by record index. Menu and action labels are borrowed UTF-8 for the duration of
-the call and are copied before the command is queued. Action records carry a non-zero managed
-action ID; native menu activation returns that ID through `menu_action(application_id, action_id)`.
+`dispatch_application_menu` receives a borrowed flat preorder tree. Record kinds are Menu, Action,
+and Separator. Children reference their containing menu by record index; actions carry nonzero
+managed action IDs. Rust copies the tree before returning and installs the GPUI menu model.
 
-The native host converts the owned tree to GPUI's `Menu`/`MenuItem` model and calls `App::set_menus`.
-On macOS this creates the AppKit global menu bar, including nested submenus. The callback dispatches
-the selected action to managed code. The pinned GPUI Windows backend stores the same menu model but
-does not create a Win32 menu bar, so GPUI.NET keeps the existing Windows app-side title-bar menus.
+macOS presents the model in the global AppKit menu bar. Other platforms can reuse the same managed
+definitions through app-side `PopoverMenu` composition. Native activation returns the action ID
+through the managed menu callback.
 
-## Native window-control regions
+## Retained resource commands
 
-Semantic operation `WindowControlArea` (`201`, `U32`) marks a Div or Button as a native title-bar hit-test region. Values are `Drag = 0`, `Minimize = 1`, `Maximize = 2`, and `Close = 3`; all others are rejected by both managed and native validation. Child regions override an enclosing drag region through normal GPUI hit testing.
+`NativeResourceCommand` identifies a resource by owner View handle, resource kind, and UTF-8 key.
+The call validates and copies borrowed key/data bytes before queueing work on the native UI thread.
 
-These regions are part of the render snapshot, not managed click callbacks. GPUI and the platform process drag and caption interaction directly, so pointer motion and window-management gestures do not cross the ABI. Right-click on an unwrapped Drag region remains platform-owned and presents the operating system window menu where supported.
+| Resource | Commands |
+|---|---|
+| Scroll | ScrollToOffset, ScrollToTop, ScrollToBottom |
+| List/Table row engine | ScrollToItem, Splice, Reset, Refresh |
+| Input | Focus, Blur, SetValue, SelectAll |
+| Slider | SetValue |
 
-`Minimize` and `ToggleMaximize` use the application command channel rather than semantic hit-test regions. The native host normalizes maximize/restore behavior across platforms; in particular, it explicitly restores a maximized Win32 window because the pinned GPUI Windows `zoom_window` implementation only maximizes.
+Scroll and focus/value commands apply to the retained resource directly. List structural commands
+are measurement hints and are reconciled with the next managed snapshot. A hint that disagrees with
+the declared datasource count falls back to a full reset.
 
-## Context menu component
+All payloads are canonical: no-payload commands require zero words and empty data, indices/counts
+must fit their documented words, offsets must be finite and non-negative, and Input data must be
+valid UTF-8.
 
-Semantic component `ContextMenu` (`15`) is keyed and requires exactly two children: a normal-layout trigger followed by deferred menu content. `ContextMenuPriority` (`620`, `U32`) and `ContextMenuMarginPx` (`621`, finite non-negative `F32`) configure its native layer; defaults are priority 300 and an 8-pixel viewport margin.
+## Semantic window and interaction operations
 
-Rust owns right-button interception, pointer anchoring, viewport snapping, focus entry/restoration, a transparent full-window input backdrop, and dismissal. Right mouse-down on the trigger stops propagation and suppresses the platform default before opening. Outside left/right press and Escape close immediately. A left mouse-up inside content closes after the target's normal click sequence, so managed `OnClick` actions run before the menu disappears. Menu presentation and actions remain ordinary managed semantic elements.
+`WindowControlArea` marks Div or Button nodes as native Drag, Minimize, Maximize, or Close hit-test
+regions. These operations stay in the render snapshot and do not create managed pointer callbacks.
 
-ContextMenu state is scoped by `(window session, managed View handle, local UTF-8 key)`. It is rejected in virtualized List row snapshots, which do not have a mounted View lifetime.
+Hover and active background/text/border operations carry resolved RGBA values and apply only to
+interactive components. They express transient native paint state, not durable application state.
 
-Semantic component `PopoverMenu` (`16`) is keyed and requires exactly two children: a normal-layout trigger followed by deferred menu content. `PopoverMenuPriority` (`630`, `U32`) and `PopoverMenuMarginPx` (`631`, finite non-negative `F32`) configure its native layer; defaults are priority 300 and an 8-pixel viewport margin.
+ContextMenu and PopoverMenu are keyed two-child semantic components. Their native adapters own
+trigger interception, deferred placement, viewport snapping, focus restoration, and dismissal.
+They are invalid inside virtualized row snapshots because rows have no mounted View lifetime.
 
-The native adapter measures the trigger, opens on left pointer-down, attaches content below the trigger's leading edge, snaps it inside the viewport, and owns selection/outside/Escape dismissal plus focus restoration. While a PopoverMenu is open, hovering another PopoverMenu in the same View transfers the active menu and preserves the original focus-restoration target. PopoverMenu uses the owning View namespace and is rejected in virtualized List rows.
+## Error handling and teardown
 
-Interactive paint operations `HoverBackgroundRgba` through
-`ActiveBorderRgba` (`113`–`118`, canonical `U32`) apply only to interactive components and resolve
-transient GPUI hover and active presentation without managed callbacks.
-They carry resolved values, not application variant identifiers.
+Zero is success, positive statuses are protocol-defined control flow such as arena growth, and
+negative statuses are validation/runtime failures. Managed exceptions are captured by the affected
+window session and never unwind through native code. Normal late notifications or commands racing a
+closed session are ignored only for documented closed-session statuses.
 
-Application command `8` is an internal theme update. It uses `NativeApplicationCommand.title` as
-a versioned fixed-size semantic palette payload with `window_id == 0`; the payload is copied before
-the command is queued. It does not expose component-style definitions across the ABI.
+All exported Rust FFI functions must validate pointer/length pairs before dereference and prevent
+panics from crossing the C boundary.
 
-## Retained native resource commands
+## Changing the ABI
 
-Scroll, List, Input, and Slider state are not rebuilt from managed objects. Commands use:
+When changing C layouts or entry points:
 
-```c
-typedef struct gpui_native_resource_command {
-    uint32_t owner_view;
-    uint16_t resource_kind;
-    uint16_t command;
-    const uint8_t* key;
-    int32_t key_length;
-    const uint8_t* data;
-    int32_t data_length;
-    uint32_t reserved;
-    uint64_t a;
-    uint64_t b;
-} gpui_native_resource_command;
-```
+1. update Rust records and `GpuiDotnetApiV6` (or introduce the next table version);
+2. regenerate `src/Gpui/Interop/NativeMethods.g.cs` through the native build/csbindgen path;
+3. update managed size/version checks and tests;
+4. update this document;
+5. build and test every affected RID.
 
-Resource identity is `(owner_view, UTF-8 key)` and the kind is validated independently.
-
-Current commands:
-
-| Kind | Command | Payload |
-|---|---|---|
-| Scroll | `ScrollToOffset` | `a=x f32 bits`, `b=y f32 bits` |
-| Scroll | `ScrollToTop` | none |
-| Scroll | `ScrollToBottom` | none |
-| List | `ScrollToItem` | `a=index` |
-| List | `Splice` | `a=start`, high/low halves of `b` = removed/inserted |
-| List | `Reset` | `a=itemCount` |
-| List | `Refresh` | `a=start`, `b=count` |
-| Input | `Focus` | none |
-| Input | `Blur` | none |
-| Input | `SetValue` | UTF-8 `data` |
-| Input | `SelectAll` | none |
-| Slider | `SetValue` | `a` packs start/end `f32` bits; `b = 0` single, `b = 1` range |
-
-Commands are sent through the native UI message channel and handled on the GPUI thread. Scroll commands and `List.ScrollToItem` apply immediately. `List.Splice/Reset/Refresh` are measurement-preservation hints: when a List already exists they are queued and committed only with the next managed snapshot revision, so they cannot race materialization of the previous declarative `itemCount`. A hint/snapshot mismatch falls back to a full `ListState.reset`.
-
-Command payloads are canonicalized too: scalar indices/counts use only their documented 32-bit words, no-payload commands require zero payload words and empty data, scroll offsets must be finite non-negative `f32` values, and Input value data must be valid UTF-8. The UTF-8 `SetValue` managed overload pins the caller span only for this synchronous call; Rust copies it into retained native storage before returning.
-
-## Error handling
-
-Negative statuses are implementation/runtime failures. Managed callback exceptions are recorded by the affected window session and are not allowed to unwind through native code. One failed window does not tear down the other windows, but the application returns the first recorded failure after final-window shutdown. Late notifications/resource commands racing normal teardown are ignored for known closed-session statuses.
+When only semantic components or operations change, edit `bindings/schema.json`, regenerate both
+semantic outputs, and rely on the changed schema hash rather than hand-editing ABI records.

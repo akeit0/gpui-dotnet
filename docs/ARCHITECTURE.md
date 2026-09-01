@@ -1,165 +1,165 @@
 # Architecture
 
+GPUI.NET is a semantic bridge between a managed application model and a native GPUI renderer. It
+does not expose Rust objects to C# or translate each fluent builder call through FFI. Managed code
+writes a compact render arena; Rust validates that arena, retains a decoded snapshot, and owns the
+frame-sensitive state.
+
 ## Ownership boundary
 
-GPUI.NET deliberately does not mirror GPUI's Rust API one-to-one.
+C# owns:
 
-### C# owns
+- application and domain state;
+- `GpuiApplication`, window definitions, and managed window handles;
+- managed `View` instances, props, lifecycle, and child-slot identity;
+- application themes and application-specific style variants;
+- event handlers and virtual-row renderer methods;
+- dirty render descriptions.
 
-- domain/application state;
-- application/window definitions and stable managed window handles;
-- managed `View` state and retained child-slot composition;
-- application-scoped `GpuiTheme` values and theme-aware render contexts;
-- view-bound event callback registry and generated list-renderer logic;
-- dirty render IR construction.
+Rust owns:
 
-### Rust owns
-
-- `gpui::Application`, windows and frame lifecycle;
-- render-arena backing memory;
-- validation and retained decoded snapshots;
+- `gpui::Application`, native windows, and the event loop;
+- render-arena allocation, validation, and retained snapshots;
 - semantic component materialization;
-- `ScrollHandle` and `ListState`;
-- retained `ManagedInput` entities and GPUI input handlers;
-- deferred Overlay/Tooltip/ContextMenu/PopoverMenu stacking, viewport placement, input interception, timing, and dismissal;
-- title-bar presentation and native window drag/minimize/maximize/close hit testing;
-- virtual-list viewport/measurement state and row batch cache;
-- high-frequency wheel/trackpad/scrollbar behavior.
+- scrolling, list/table viewport state, measurements, and row caches;
+- retained Input and Slider entities;
+- deferred-layer geometry, focus, stacking, and dismissal;
+- native title-bar hit testing and platform window commands;
+- painting and clean repaints.
 
-The boundary rule is: **cross the ABI for state transitions or coarse data batches, never for each builder call, frame, style property or list row.**
+The boundary rule is: cross the ABI for state transitions or coarse batches, never for every
+builder call, frame, pointer delta, or virtual row.
 
-## Managed project split
-
-The managed implementation is split by responsibility rather than by operating system:
-
-- `Gpui.Core` contains the platform-neutral public render API, View lifecycle/composition,
-  controllers, semantic bindings, arena writer, managed validator, application/window hosting,
-  callbacks, managed sessions, native loading, and the generated managed ABI contract;
-- `GPUI.NET.Native` is a pack-only aggregate package for the RID-specific native packages;
-  `GPUI.NET.Native.<rid>` contains one native asset and no managed implementation assembly;
-- `GPUI.NET` is a compile-output-free meta package that carries the source generator and depends
-  on Core and Native.
-
-The package boundary is intentionally extensible: future packages may add managed assemblies and
-their own RID-native host. `NativeRuntimeOptions.LibraryPath` lets an application opt into such a
-host while the default package-native loader remains unchanged. Every host still enters through
-the versioned semantic C ABI and schema validation.
-
-Rust remains one native crate with platform-specific modules selected by the target OS. This keeps
-the C# API independent of Windows/AppKit details while allowing each native RID to use its host
-platform's GPUI backend.
-
-## Application and window ownership
-
-`GpuiApplication` is the managed owner of one native `gpui::Application`. Each `GpuiWindow` owns an independent managed render session rooted at one `View`; window IDs are globally stable for the process lifetime and are also the native callback session IDs. Opening another window never constructs a second GPUI application.
-
-The native application host keeps a window registry and a UI-thread command channel. Open/close/activate/minimize/toggle-maximize/title/resize calls may originate on any managed thread, but GPUI window mutation occurs only when the native event loop consumes the command. Initial positioned bounds and system/custom/hidden title-bar styles are supported. The pinned GPUI API exposes runtime resize but no cross-platform runtime reposition operation, so that capability is deliberately absent rather than emulated.
-
-Custom title bars preserve the same boundary: C# composes the visual header and hover colors, while semantic `WindowControlArea` operations become GPUI/platform hit-test regions. Dragging, double-click maximize, and caption controls therefore stay native instead of emitting high-frequency managed events. Application-content ContextMenu triggers are separate from title-bar Drag regions. GPUI.NET leaves title-bar right-click unclaimed but does not synthesize a Windows system menu; the pinned GPUI revision only implements its explicit `show_window_menu` platform hook for Linux client-side decorations. On macOS, the transparent custom title-bar mode retains platform traffic lights; managed composition owns the reserved visual space.
-
-Application menus use the platform split from Zed: `GpuiApplication.SetMenuBar` converts the managed
-menu tree to GPUI `Menu` actions, and macOS installs it as AppKit's global menu bar. The managed
-action ID is the only value that crosses back when an item is selected. Windows keeps the sample's
-app-side title-bar menu because this pinned GPUI Windows backend retains menus but does not install
-a native Win32 menu bar; Linux and other platforms can likewise provide an app-side presenter.
-`GpuiTitleBar.RenderWindow` is the default managed presenter for that split, using the same
-`GpuiMenu` definitions and leaving the lower-level `PopoverMenu`/`WindowControlArea` primitives
-available for manual presenters. Its macOS system-title-bar path keeps native AppKit chrome and
-places the content in a full-height layout parent;
-`GpuiTitleBarOptions.ForceManagedMenuOnMac` explicitly selects the managed title/menu path on macOS
-when AppKit's global menu is not desired.
-
-Themes follow the same semantic boundary. `GpuiApplication.SetTheme` stores one immutable managed
-theme for all window sessions; `RenderContext.Theme` exposes its colors to Views and framework
-components. JSON loading accepts the flat semantic color keys used by GPUI Component/Zed and fills
-omitted values from light/dark defaults. A private versioned application command copies the
-resolved semantic roles required by Rust-owned defaults into shared native application state.
-Changing the theme invalidates managed roots and refreshes native windows; component variants and
-style names remain managed application concerns and never cross that boundary.
-
-Each window has a separate `ManagedSession`, View-handle allocator, render snapshots, retained resources, list caches, and lifecycle teardown. A failure is recorded against the affected window session while other windows keep running; the application reports the first failure when the final window closes. Closing one window unmounts only its View tree. Closing the final window quits the shared GPUI application.
-
-## Design reference and dependency policy
-
-[GPUI Component](https://github.com/longbridge/gpui-component), especially its lower-level `gpui-base` architecture, is a project-wide design reference—not only a scrollbar reference. The relevant principles are:
-
-- reusable behavior and the geometry required to keep it correct belong in the native foundation;
-- product presentation, tokens, and final composition remain replaceable;
-- retained controls expose narrow semantic handles rather than leaking concrete GPUI implementation types across the ABI;
-- pointer, keyboard, focus, accessibility, overlay, virtualization, and reduced-motion behavior are part of a component contract;
-- one retained handle represents one logical viewport or control instance.
-
-These principles guide Scroll/List/Image/Input/Overlay/Tooltip/ContextMenu/PopoverMenu today and future editor, select, dialog, tree, table, and notification work. GPUI.NET does not directly depend on `gpui-component`/`gpui-base`: those crates must use the exact same GPUI revision as their consumer. This repository pins GPUI to the official Zed merge commit for [PR #41259](https://github.com/zed-industries/zed/pull/41259), allowing system IME keys and composition to follow normal Win32 translation without carrying a framework fork. Concepts are adapted behind GPUI.NET's semantic ABI instead. Attribution is recorded in the root [NOTICE](../NOTICE).
-
-## Three planes
-
-### Render plane
-
-Managed `Render()` writes one arena containing nodes, operations, child edges and UTF-8. Rust validates and decodes it into flat ranges. A clean native repaint reuses that snapshot without calling .NET. Image nodes carry a filesystem path and semantic presentation options; GPUI owns decoding and its image cache.
-
-### Retained resource/control plane
-
-Some UI state must survive independently of a managed render snapshot. A resource is keyed by:
+## Render path
 
 ```text
-(window session, managed View handle, local string key, resource kind)
+View.Render(ref RenderContext)
+        │
+        ▼
+RenderArena
+  nodes       component IDs + UTF-8 data ranges
+  operations  typed semantic operations
+  children    flat parent/child records
+        │
+        ▼
+managed validation
+        │ C ABI
+        ▼
+native validation
+        │
+        ▼
+ValidatedSnapshot ──► semantic adapters ──► GPUI elements
 ```
 
-The render snapshot declares that a resource is active. Imperative controllers send commands through the ABI; wheel/trackpad operations remain native. Each native window owns a separate resource store, so equal View handles and keys in different windows cannot collide. Overlay, Tooltip, ContextMenu, and PopoverMenu are keyed snapshot components rather than retained resources: native keyed state holds focus entry/restoration, hover timing, or menu visibility/position while each component remains in consecutive snapshots.
+The native host owns the arena memory. A managed render may return `RenderGrowRequired`, after
+which Rust grows the arena and retries the render. This is why `Render()` and `[GpuiListItem]`
+methods must be deterministic and free of application-side effects.
 
-Current retained resources:
+The native `ManagedView` keeps the last valid snapshot. A clean GPUI repaint materializes or paints
+that snapshot without calling managed code. `View.Invalidate()` increments the managed retained
+version and sends a coalesced native notification.
 
-- Scroll → `gpui::ScrollHandle`;
-- List → `gpui::ListState` plus managed row-batch cache.
-- Input → `Entity<ManagedInput>` plus `EntityInputHandler`, focus subscriptions, and native text state.
+## Managed view tree
 
-This same plane is intended to host future editor/select native state rather than forcing high-frequency text/focus state through C# renders. Input events are explicit state-transition subscriptions; clean editing with no event binding has no managed callback.
+Each window has one `ManagedSession` and one root `View`. Framework-owned children are resolved by
+slot through source-generated factories. A slot retains the same child while its requested type is
+unchanged; a keyed slot can replace its child type for routes and tabs.
 
-### Batched datasource plane
+Child views render into retained fragment arenas. The parent snapshot copies those fragments into
+the current root arena. Props changes and child invalidation mark the necessary fragment and its
+ancestors dirty. Application-wide theme changes invalidate every retained fragment because a theme
+is ambient render input rather than child props.
 
-A virtualized List is not a normal parent component containing every item. GPUI owns the list state and invokes a Rust item closure for visible/overdraw indices. The Rust bridge maps a cache miss to an aligned managed range request:
+Tree replacement commits the new composition before detaching the old subtree. Unmount proceeds
+child-first. See [VIEW_LIFECYCLE.md](VIEW_LIFECYCLE.md).
+
+## Retained resource path
+
+Scroll, List, Table, Input, and Slider are declarations plus stable resource identities. Identity
+is `(window session, owner View handle, UTF-8 key)`. Rust stores the mutable resource object and
+reconfigures it from later snapshots instead of recreating it.
+
+Controllers send small commands through the application UI channel:
 
 ```text
-GPUI asks index 4200
-      │
-      ▼
-Rust batch key = floor(4200 / 48) * 48
-      │ cache miss
-      ▼
-managed list_render_range(4176, 48)  // one reverse FFI
-      │
-      ▼
-48 row snapshots cached in Rust
+managed controller ──► NativeResourceCommand ──► retained GPUI resource
 ```
 
-Subsequent indices in that batch are materialized without another managed crossing. The cache retains up to four batches per List resource.
+Resource commands execute on the GPUI thread. Declarative snapshots remain authoritative. List
+measurement hints such as `Splice` and `Refresh` are committed with the next compatible snapshot;
+a mismatch falls back to a safe reset.
 
-## Managed View tree
+## Virtual datasource path
 
-Child View identity is separate from type. The parent owns one child per retained slot. The same slot can change from `HomeView` to `SettingsView`; successful commit installs the new subtree, then unreachable old Views unmount child-first.
+List and Table rows are not managed child views. GPUI requests item indices from a Rust closure;
+Rust aligns cache misses to a configured batch and invokes managed code once for that range:
 
-Dirty propagation follows the single parent pointer upward. Framework-owned View creation uses source-generated static factories; reflection is not used.
+```text
+GPUI item request
+      │
+      ▼
+Rust row-batch cache ── hit ──► retained row snapshot
+      │ miss
+      ▼
+list_render_range(start, count)
+      │
+      ▼
+one arena containing count row roots
+```
 
-## List rows are not normal Views
+`ListDataSource.ContentRevision` controls row-snapshot validity independently from the root snapshot
+revision. Theme changes also evict row batches because rows contain resolved theme colors. List
+viewport and measurement state survive either invalidation.
 
-A `[GpuiListItem]` renderer produces an Element subtree in a list-owned arena. It deliberately has no managed child renderer or native resource owner context. Therefore it cannot create:
+## Applications, windows, and threading
 
-- `ui.Child<T>()`;
-- retained `ui.Scroll()`;
-- nested retained `ui.List()`;
-- retained `ui.Input()`;
-- window-level `ui.Overlay()`, `ui.Tooltip()`, `ui.ContextMenu()`, and `ui.PopoverMenu()`.
+One `GpuiApplication` maps to one native `gpui::Application`. Every `GpuiWindow` maps to an
+independent managed session and native root view. Window IDs are stable 64-bit values and also serve
+as render-session IDs.
 
-This avoids coupling item cache eviction to managed View mount/unmount rules. Interactive row elements remain valid because event tokens target the owning View, and GPUI element IDs are namespaced by list identity + item index.
+Window and resource commands may originate from managed threads, but all GPUI mutations occur on
+the native event-loop thread. The application exits after its final registered window closes. A
+failure is recorded against its managed session; other windows continue until normal shutdown.
 
-## Snapshot revisions and list cache correctness
+## Themes and styles
 
-`ListDataSource(count, contentRevision)` lets managed code declare row-content identity independently of the root snapshot. Rust therefore:
+`GpuiTheme` is application-scoped ambient input. Managed views resolve semantic tokens while
+rendering. A fixed native palette payload supplies equivalent roles to native controls, error
+surfaces, table chrome, and scrollbars.
 
-- preserves `ListState` and its viewport/measurement state where structurally valid;
-- preserves cached row snapshots across managed renders while an explicit content revision is stable;
-- drops cached row snapshots when that revision changes;
-- conservatively drops batches on every managed snapshot when the legacy item-count overload omits a content revision;
-- preserves row batches during clean native scroll/repaint.
+The native ABI does not carry product variant names or component style objects. Applications define
+variants with `IGpuiElementStyle<TTag>` and flatten them to ordinary semantic operations. Native
+hover and active operations are transient paint states, not application variant identifiers.
 
-`ListController.Splice/Refresh/Reset` queues measurement-preservation hints and invalidates the owning View. Rust applies the queued sequence only when the next managed snapshot revision is committed. If the hinted item-count transition does not match the declarative snapshot, managed state wins and the native list falls back to a full measurement reset.
+## Title bars and menus
+
+Title-bar visuals may be native or managed, but window behavior stays native. Semantic
+`WindowControlArea` operations become GPUI drag and caption hit-test regions; pointer motion does
+not cross into .NET.
+
+`GpuiMenu[]` is a platform-neutral command tree. The native host installs it as the macOS global
+application menu. On Windows and Linux, `GpuiTitleBar.RenderWindow` can render the same definitions
+as managed popover menus. Applications can bypass the helper and compose the primitives directly.
+
+## Managed project and package split
+
+- `src/Gpui/` contains the managed API and runtime source files.
+- `src/Gpui.Core/` builds those sources as the platform-neutral `GPUI.NET.Core` package.
+- `src/Gpui.Native/` defines the native aggregate and RID-specific packages.
+- `src/Gpui/` also defines the application-facing `GPUI.NET` meta package and analyzer payload.
+- `src/Gpui.Generators/` contains the Roslyn source generator.
+- `crates/gpui-dotnet/` builds the native host library.
+
+The package boundary permits a compatible custom native host selected through
+`NativeRuntimeOptions.LibraryPath`. Every host must satisfy the same ABI version, API-table size,
+schema hash, and required entry points.
+
+## Dependency policy
+
+The native crate pins a specific Zed/GPUI revision. Zed and GPUI Component are design and behavior
+references, not ABI dependencies. Platform-specific implementation remains in Rust; C# APIs should
+express durable application semantics rather than backend details.
+
+When GPUI lacks a cross-platform capability, keep the absence explicit instead of emulating a
+partial platform contract in managed code. Current examples include runtime window repositioning
+and a cross-platform accessibility-tree API.

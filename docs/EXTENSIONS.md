@@ -1,20 +1,39 @@
 # Extensions and custom native hosts
 
-The `GPUI.NET` package is the application-facing meta package. Future extension packages can
-reference `GPUI.NET.Core` for managed APIs and `GPUI.NET.Native.<rid>` for native assets, then add managed
-controls, generators, semantic components, or platform assets without changing the base host.
+An extension can add managed APIs, generators, semantic components, and native assets without
+exposing Rust or GPUI types directly to C#.
 
-An extension that needs Rust-side behavior may ship a separate native host with a unique file
-name. The host must export:
+## Managed-only extensions
 
-```text
-gpui_dotnet_get_api(uint requested_version)
+Reference `GPUI.NET` for the normal application surface, or `GPUI.NET.Core` when the extension owns
+its native dependency selection. Keep extension components in their own assembly and package.
+
+Managed compositions and `IGpuiElementStyle<TTag>` variants require no native host change when they
+use existing semantic components and operations.
+
+## Custom native host contract
+
+A host requiring Rust-side behavior ships a uniquely named native library for each supported RID.
+It must export:
+
+```c
+const gpui_dotnet_api_v6* gpui_dotnet_get_api(uint32_t requested_version);
 ```
 
-The managed runtime still validates the API table size, ABI version, schema hash, and required
-function entries. This keeps a custom host optional without accepting an unchecked Rust ABI.
+The managed runtime validates:
 
-Select the host explicitly at application startup:
+- the requested and reported ABI version;
+- the API-table `struct_size` prefix;
+- the semantic schema hash;
+- all required function entries.
+
+The host must preserve the record layouts, ownership rules, pointer/length validation, callback
+semantics, and panic barriers documented in [ABI.md](ABI.md). A matching Rust compiler ABI is not a
+substitute for this C contract.
+
+## Selecting a host
+
+Choose the native library before opening or running the application:
 
 ```csharp
 using Gpui;
@@ -22,21 +41,29 @@ using Gpui;
 var application = new GpuiApplication(
     new NativeRuntimeOptions
     {
-        LibraryPath = Path.Combine(AppContext.BaseDirectory, "my_gpui_extension_host.dll"),
+        LibraryPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "my_gpui_extension_host.dylib"
+        ),
     }
 );
+
 application.OpenWindow(new MainView());
 application.Run();
 ```
 
-The same option is available on `GpuiApplication.Run(view, windowOptions, runtimeOptions)`.
-When `LibraryPath` is omitted, the existing RID-native `gpui_dotnet` resolution is unchanged.
+The single-window convenience overload accepts the same runtime options. When `LibraryPath` is not
+set, GPUI.NET resolves its packaged `gpui_dotnet` host for the current RID.
 
-Extension package guidance:
+## Packaging guidance
 
-- keep managed extension APIs in their own assembly/package and reference `GPUI.NET`;
-- put a custom native host under the extension package's RID-specific native assets;
-- use a unique native file name when it must coexist with the base host;
-- preserve the versioned GPUI.NET C ABI and rebuild against the compatible GPUI revision;
-- treat the base `eng/pack.ps1` checks as base-package packaging only—an extension owns its own
-  native asset matrix and packing rules.
+- use a unique native file name so the extension and base host can coexist;
+- put each native library under the extension package's `runtimes/<rid>/native` path;
+- build each RID on its natural platform;
+- version the managed package and native assets together;
+- test discovery, ABI/schema rejection, application startup, and a clean consumer restore;
+- own extension-specific staging and packing scripts rather than modifying base-package checks to
+  accept unrelated assets.
+
+If the extension changes the semantic schema, it owns a complete compatible managed/native pair.
+An application cannot combine independently generated semantic registries in one GPUI.NET host.

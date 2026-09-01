@@ -1,56 +1,90 @@
 # Packaging
 
-## Package family
+Normal NuGet consumers should not need Cargo or a Rust toolchain. Development builds compile the
+current-platform host from source; release packaging consumes native assets built on each target
+platform.
 
-Normal C# consumers should not need Cargo or a Rust toolchain.
-
-The package family is:
+## Package graph
 
 ```text
-GPUI.NET       -> GPUI.NET.Core + GPUI.NET.Native
-GPUI.NET.Core  -> Utf8StringInterpolation + managed ABI layouts
-GPUI.NET.Native -> GPUI.NET.Native.<rid> packages
+GPUI.NET
+  ├── GPUI.NET.Core
+  ├── GPUI.NET.Native
+  └── analyzer: Gpui.Generators.dll
+
+GPUI.NET.Native
+  ├── GPUI.NET.Native.win-x64
+  ├── GPUI.NET.Native.linux-x64
+  ├── GPUI.NET.Native.osx-x64
+  └── GPUI.NET.Native.osx-arm64
 ```
 
-The platform-neutral render API, managed application runtime, and generated ABI layouts live in
-`Gpui.Core.dll`; `GPUI.NET.Native` has no managed assembly and aggregates the RID-specific native
-packages. Each `GPUI.NET.Native.<rid>` package ships one native asset. Installing
-`GPUI.NET` still gives normal consumers one package reference through NuGet dependencies, while
-extension packages can select the managed/native pieces they need.
+`GPUI.NET.Core` contains the platform-neutral managed API, application runtime, semantic builders,
+generated ABI layouts, and native loader.
 
-The source generator is shipped as an analyzer so `[GpuiView]` and `[GpuiListItem]` work in consumer compilations without a separate package reference. Event callbacks are runtime view-bound fluent APIs and require no event attribute.
+`GPUI.NET.Native` is an aggregate package with no managed implementation. Each RID package contains
+exactly one native host under its `runtimes/<rid>/native` path:
 
-## CI native matrix
+| RID | Native file |
+|---|---|
+| `win-x64` | `gpui_dotnet.dll` |
+| `linux-x64` | `libgpui_dotnet.so` |
+| `osx-x64` | `libgpui_dotnet.dylib` |
+| `osx-arm64` | `libgpui_dotnet.dylib` |
 
-Build each RID on its natural host/toolchain. After each native job, stage the produced library:
+`GPUI.NET` is the application-facing meta package. It also carries the Roslyn analyzer so
+`[GpuiView]` and `[GpuiListItem]` work without an additional package reference.
+
+## Development builds
+
+`dotnet build` uses the `BuildGpuiNative` targets in `GPUI.NET.Core` to run Cargo for the current
+machine and copy the resulting host beside managed outputs. Use the project property
+`BuildGpuiNative=false` only when a compatible native binary is already being supplied.
+
+Native-only builds are available through:
+
+```sh
+./eng/build-native.sh crates/gpui-dotnet/Cargo.toml debug
+./eng/build-native.sh crates/gpui-dotnet/Cargo.toml release
+```
+
+The PowerShell equivalent is `eng/build-native.ps1`. Windows release builds locate `fxc.exe` from
+the Windows SDK unless `GPUI_FXC_PATH` is set explicitly.
+
+## Release asset staging
+
+Build each native RID on its natural host and stage it with:
 
 ```powershell
 ./eng/stage-native.ps1 -Rid win-x64 -Library path/to/gpui_dotnet.dll
 ```
 
-Equivalent calls are used for Linux and macOS artifacts. The final packaging job downloads all staged `artifacts/native/<rid>/...` files and runs:
+Use the corresponding RID and library name for Linux and macOS. Staged files live under
+`artifacts/native/<rid>/`.
+
+After all four assets are available:
 
 ```powershell
 ./eng/pack.ps1 -Configuration Release
 ```
 
-`eng/pack.ps1` refuses to package if one of the four expected native assets is missing. It emits
-`GPUI.NET`, `GPUI.NET.Core`, `GPUI.NET.Native`, and each RID-specific native package.
+The pack script refuses to continue when any expected RID asset is missing. It sets
+`BuildGpuiNative=false`, packs the Core project, all RID projects, the native aggregate, and the
+application meta package, and writes packages to `artifacts/packages`.
 
-## Development build vs package build
+## Consumer verification
 
-Repository development builds compile the host native library automatically and copy it beside the sample executable.
+A release pipeline should verify:
 
-Package assembly sets `BuildGpuiNative=false`; it consumes the already-built RID matrix rather than trying to cross-compile every GPUI target from one machine.
+- semantic bindings are current;
+- managed and native tests pass on each build host;
+- every native library exports `gpui_dotnet_get_api` and reports the expected ABI/schema;
+- a clean consumer project restores and launches using only NuGet packages;
+- NativeAOT publishing succeeds for supported RIDs;
+- no package attempts to compile Rust on the consumer machine.
 
-## Extensions and custom Rust hosts
+## Extensions
 
-Future extension packages can reference `GPUI.NET` and ship their managed APIs, generators, semantic
-components, and RID-specific native assets independently. See
-[EXTENSIONS.md](EXTENSIONS.md) for the custom-host contract.
-
-An application may select an extension-owned native host with
-`new NativeRuntimeOptions { LibraryPath = ... }`. The host must export the versioned
-`gpui_dotnet_get_api` entry point and pass the managed ABI/schema validation. Rust/GPUI types do
-not cross the boundary directly; this leaves custom Rust implementations possible without
-committing the package model to a single native binary.
+An extension can reference `GPUI.NET.Core` and supply a compatible host with its own file name and
+RID assets. Select it through `NativeRuntimeOptions.LibraryPath`. The custom host must satisfy the
+same API table, ABI version, and schema hash. See [EXTENSIONS.md](EXTENSIONS.md).

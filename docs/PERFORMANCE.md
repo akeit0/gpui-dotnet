@@ -1,76 +1,104 @@
 # Performance contract
 
-The objective is not merely “FFI is fast”; it is to avoid crossings and allocations that do not need to exist.
+The performance goal is to avoid unnecessary crossings and allocations, not merely to make each
+FFI call fast.
 
-## Root rendering
+## Dirty and clean frames
 
-A dirty managed tree normally requires one Rust → managed render callback. Clean GPUI repaints reuse the decoded snapshot and do not call managed `Render()`.
+A dirty managed tree normally requires one native-to-managed root render callback. The callback
+writes a whole semantic tree into a flat arena. Rust validates and retains the decoded snapshot.
+
+A clean GPUI repaint must not call managed `Render()`.
 
 After arena warmup:
 
 - `RenderContext` is stack-only;
 - `Element<TTag>` is a small value;
 - child APIs accept spans;
-- view-bound event tokens are compact values into recyclable managed entries;
-- framework View activation uses generated factories;
-- native snapshot ops/children use flat ranges and reusable scratch buffers.
+- event tokens are compact recyclable registry indices;
+- framework child activation uses generated factories;
+- native snapshot buffers and decode scratch are reused.
 
-## Scroll
+Do not replace this model with per-element or per-style P/Invoke calls.
 
-Wheel/trackpad movement updates `ScrollHandle` entirely in Rust. C# is involved only when:
+## Native interaction loops
 
-- the owning managed View is dirty for another reason;
-- an explicit `ScrollController` command is issued.
+Keep continuous interaction in Rust:
 
-Do not add per-scroll-delta reverse callbacks to the default component.
+- Scroll wheel/trackpad and scrollbar drag update `ScrollHandle` natively.
+- Input editing, selection, caret movement, IME, and horizontal reveal stay native.
+- Slider pointer drag and keyboard stepping stay native.
+- title-bar drag and caption hit testing stay native.
+- overlay positioning and dismissal stay native.
 
-## Input
+Managed callbacks should represent application state transitions: clicks, opted-in control events,
+menu actions, and dirty rendering.
 
-Input editing, selection, caret movement, IME composition, and horizontal reveal remain native. Reverse callbacks exist only for explicitly bound Changed, Submitted, and FocusChanged transitions.
+## Notifications and resource commands
 
-The UTF-8-first API avoids unnecessary transcoding:
+Managed invalidation notifications are atomically coalesced to one pending native message. Resource
+commands use a lossless queue because order can be semantically important.
 
-- `Utf8InputOptions` copies caller bytes directly into the render arena;
-- `InputController.SetValue(ReadOnlySpan<byte>)` uses the caller span synchronously without a managed payload allocation;
-- `InputEvent.Utf8Value` owns copied UTF-8 bytes for async safety;
-- `InputEvent.Value` allocates/decodes only on first access.
+If a new command is high-frequency, first decide whether the state belongs natively. If it must
+cross, define an explicit coalescing or batching policy rather than relying on queue speed.
 
-Native resource commands use a lossless queue. Ordinary managed invalidation notifications are atomically coalesced to at most one pending queue entry, so repeated `Invalidate()` calls do not grow the native message queue while a frame is already pending.
+## UTF-8 path
+
+The render arena stores text and keys as UTF-8. Prefer UTF-8 APIs on hot paths:
+
+- `Utf8InputOptions` writes caller bytes directly;
+- `InputController.SetValue(ReadOnlySpan<byte>)` avoids a managed payload array;
+- `InputEvent.Utf8Value` owns copied bytes for async safety;
+- `InputEvent.Value` decodes lazily.
+
+Do not introduce unconditional UTF-16 round trips for keys, row data, or native control events.
 
 ## Virtual list crossing budget
 
-GPUI's List item closure may request individual indices, but that must not become one FFI callback per row. A cache miss is aligned to the configured managed batch size (default 48):
+GPUI may request individual indices, but Rust aligns a cache miss to the configured batch size
+(default 48):
 
 ```text
-GPUI index requests: 4200, 4201, ...
-Rust cache miss:     batch 4176..4223
-Managed crossings:  1
+GPUI requests:       4200, 4201, ...
+native cache miss:   batch 4176..4223
+managed crossings:  1
 ```
 
-At most four batches are retained per List resource. Clean scrolling within cached batches requires no managed callback. Scrolling into a missing batch requires one `list_render_range` call regardless of how many rows in that batch are subsequently materialized.
+At most four batches are retained per List/Table row engine. Scrolling inside retained batches
+requires no managed call. A missing batch requires one `list_render_range` call containing all
+rows in that batch.
 
-With `ListDataSource(count, contentRevision)`, a successful managed root snapshot preserves row batches when the explicit revision is unchanged. Changing the revision invalidates row snapshots while retaining `ListState`, so scroll/viewport state is not lost. The legacy item-count overload remains conservative and invalidates batches after every managed snapshot.
+`ListDataSource(count, contentRevision)` lets batches survive unrelated root renders. Increment the
+revision only when row output can change. Theme changes and table column changes invalidate row
+snapshots while preserving viewport and measurement state.
 
 ## Row rendering
 
-A `[GpuiListItem]` method is called once per requested managed item in the batch, but all rows are written to one arena and returned through one ABI call. It must remain synchronous and side-effect-free because arena growth can retry the entire batch.
+The generated row dispatcher invokes the `[GpuiListItem]` method once per requested row, but all
+rows are written into one arena and returned through one callback.
 
-Avoid creating managed View objects per datasource row. If a list contains 100,000 models, only visible/overdraw row snapshots should exist natively.
+Avoid:
 
-## Event payloads
+- managed View objects per datasource row;
+- one closure allocation per row;
+- string-formatted native element IDs in the row hot path;
+- nested retained resources;
+- side effects that would run twice after arena growth.
 
-Use the callback `ulong payload` for row/model identity rather than allocating a closure per item. The payload travels in `OpRecord.B` and through the native click callback unchanged.
+Use a stable `.ItemId` and the unmanaged click payload for model identity.
 
-## Measurement benchmark targets
+## Measurement targets
 
 Track at least:
 
-- dirty root render time/allocations;
+- dirty root render time and managed allocations;
 - clean repaint managed callback count (must be zero);
-- Scroll wheel managed callback count (must be zero);
-- List crossings while scrolling a fixed viewport;
-- List cache retention across unrelated managed renders with a stable datasource revision;
-- Input UTF-8 controller allocation count and event decode-on-demand behavior;
-- range batch size/cache hit rate;
-- row arena high-water capacities;
-- `ListState` reset/splice behavior after model mutation.
+- scroll-delta managed callback count (must be zero);
+- virtual row crossings, cache hits, evictions, and invalidations;
+- cache retention across unrelated renders;
+- arena high-water capacities and growth retries;
+- Input UTF-8 allocation and decode-on-demand behavior;
+- list/table reset, splice, refresh, and theme-change behavior.
+
+Set `GPUI_DOTNET_TRACE=1` to print per-stage native timings and cumulative list-cache telemetry while
+running the sample.
