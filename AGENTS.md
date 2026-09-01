@@ -19,6 +19,7 @@ Read the relevant focused document before changing a subsystem:
 - `docs/ARCHITECTURE.md`: ownership and render/resource paths
 - `docs/COMPONENTS.md`: component classes and authoring workflow
 - `docs/VIEW_LIFECYCLE.md`: child slots, render purity, and teardown
+- `docs/THREADING.md`: GPUI entities, managed lifecycle, async continuations, and thread boundaries
 - `docs/ABI.md`: C layouts, validation, commands, and callbacks
 - `docs/BINDING_GENERATION.md`: generated code ownership
 - `docs/PERFORMANCE.md`: crossing and allocation constraints
@@ -85,6 +86,18 @@ Perform state changes in event or lifecycle methods and then call `Invalidate()`
 Use framework-owned `ui.Child<T>()` slots. Use `View<TProps>` for parent-owned render inputs; props
 must be supplied on every declaration. Use stable keys for conditional, repeated, or reorderable
 children.
+
+Props must implement `IEquatable<TProps>` through the `View<TProps>` generic constraint. Prefer
+records or record structs; do not weaken the constraint and silently reintroduce boxed comparisons.
+
+View lifetime follows framework ownership: a window owns its root and a committed parent slot owns
+its child. A CLR reference does not retain UI ownership. Unmount is terminal, so do not add remount
+semantics or implicit/manual child retention. `OnUnmounted()` is cleanup-only: its `Lifetime` is
+already cancelled and runtime commands are unavailable.
+
+Keep one-shot View identity separate from mounted runtime state. Any-thread operations must use the
+stable, non-pooled command route and must not inspect the GPUI-thread-only attachment. Remove and
+fully reset that attachment before user unmount cleanup; only the attachment may be pooled.
 
 Virtual rows are element-only cached snapshots. Do not add mounted child Views, nested retained
 resources, or deferred layers inside a row renderer.

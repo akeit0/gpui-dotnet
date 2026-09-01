@@ -20,9 +20,9 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     private readonly HashSet<ViewBase> _renderingViews = new(ViewIdentity);
     private readonly Stack<ViewBase> _snapshotStack = new();
     private readonly HashSet<ViewBase> _snapshotVisited = new(ViewIdentity);
-    private readonly List<ViewBase> _detachCandidates = [];
-    private readonly Stack<(ViewBase View, bool Expanded)> _detachStack = new();
-    private readonly HashSet<ViewBase> _detachVisited = new(ViewIdentity);
+    private readonly List<ViewBase> _unmountCandidates = [];
+    private readonly Stack<(ViewBase View, bool Expanded)> _unmountStack = new();
+    private readonly HashSet<ViewBase> _unmountVisited = new(ViewIdentity);
     private ExceptionDispatchInfo? _pendingAsyncFailure;
     private Exception? _failure;
     private uint _nextViewHandle;

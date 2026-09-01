@@ -221,7 +221,8 @@ public sealed class GpuiApplication
 
     /// <summary>
     /// Adds a window. Before Run it is queued as an initial window; while Run is active it is
-    /// opened through the same application event loop and may be called from any thread.
+    /// opened through the same application event loop and may be called from any thread. The
+    /// window owns <paramref name="rootView"/> until close; closing permanently unmounts it.
     /// </summary>
     public GpuiWindow OpenWindow(View rootView, GpuiWindowOptions? options = null)
     {
@@ -236,6 +237,13 @@ public sealed class GpuiApplication
             if (_state == ApplicationState.Stopped)
             {
                 throw new InvalidOperationException("The GPUI application has already stopped.");
+            }
+            if (rootView.IsUnmountedCore)
+            {
+                throw new ObjectDisposedException(
+                    rootView.GetType().FullName,
+                    "An unmounted View instance cannot own another window."
+                );
             }
             if (rootView.IsMountedCore || !_roots.Add(rootView))
             {
@@ -286,24 +294,67 @@ public sealed class GpuiApplication
             _state = ApplicationState.Running;
         }
 
+        Exception? runFailure = null;
         try
         {
             RunOnUiThread(() => NativeRuntime.Load(_runtimeOptions).Run(this));
         }
-        finally
+        catch (Exception exception)
         {
-            lock (_gate)
+            runFailure = exception;
+        }
+
+        var cleanupFailures = FinishRun();
+        if (runFailure is not null)
+        {
+            if (cleanupFailures.Count == 0)
             {
-                _state = ApplicationState.Stopped;
-                _host = null;
-                foreach (var window in _windows.Values)
-                {
-                    window.MarkClosed();
-                }
-                _windows.Clear();
-                _roots.Clear();
+                ExceptionDispatchInfo.Capture(runFailure).Throw();
+            }
+            cleanupFailures.Insert(0, runFailure);
+            throw new AggregateException("GPUI run and View cleanup both failed.", cleanupFailures);
+        }
+        if (cleanupFailures.Count == 1)
+        {
+            ExceptionDispatchInfo.Capture(cleanupFailures[0]).Throw();
+        }
+        if (cleanupFailures.Count > 1)
+        {
+            throw new AggregateException(
+                "Multiple Views failed during application cleanup.",
+                cleanupFailures
+            );
+        }
+    }
+
+    private List<Exception> FinishRun()
+    {
+        View[] roots;
+        lock (_gate)
+        {
+            _state = ApplicationState.Stopped;
+            _host = null;
+            foreach (var window in _windows.Values)
+            {
+                window.MarkClosed();
+            }
+            _windows.Clear();
+            roots = _roots.ToArray();
+        }
+
+        List<Exception> failures = [];
+        foreach (var root in roots)
+        {
+            try
+            {
+                UnmountRoot(root);
+            }
+            catch (Exception exception)
+            {
+                failures.Add(exception);
             }
         }
+        return failures;
     }
 
     /// <summary>One-window convenience over the application/window ownership model.</summary>
@@ -353,20 +404,23 @@ public sealed class GpuiApplication
 
     internal void NativeWindowClosed(ulong id)
     {
+        View root;
         lock (_gate)
         {
             if (!_windows.Remove(id, out var window))
             {
                 return;
             }
-            _roots.Remove(window.RootView);
             window.MarkClosed();
+            root = window.RootView;
         }
+        UnmountRoot(root);
     }
 
     internal void CloseWindow(GpuiWindow window)
     {
         IGpuiApplicationHost? host;
+        View? root = null;
         lock (_gate)
         {
             ValidateOwnedWindow(window);
@@ -378,16 +432,24 @@ public sealed class GpuiApplication
             if (host is null)
             {
                 _windows.Remove(window.Id);
-                _roots.Remove(window.RootView);
                 window.MarkClosed();
-                return;
+                root = window.RootView;
             }
-            window.CloseRequested = true;
+            else
+            {
+                window.CloseRequested = true;
+            }
+        }
+
+        if (root is not null)
+        {
+            UnmountRoot(root);
+            return;
         }
 
         try
         {
-            host.CloseWindow(window.Id);
+            host!.CloseWindow(window.Id);
         }
         catch
         {
@@ -399,6 +461,21 @@ public sealed class GpuiApplication
                 }
             }
             throw;
+        }
+    }
+
+    private void UnmountRoot(View root)
+    {
+        try
+        {
+            root.UnmountRuntime();
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                _roots.Remove(root);
+            }
         }
     }
 

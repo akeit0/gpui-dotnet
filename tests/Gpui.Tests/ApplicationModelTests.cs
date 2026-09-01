@@ -29,6 +29,21 @@ public sealed class ApplicationModelTests
     }
 
     [Fact]
+    public void RunFailureStillTerminallyUnmountsPendingRoots()
+    {
+        var application = new GpuiApplication(
+            new NativeRuntimeOptions { LibraryPath = " " }
+        );
+        var root = new ProbeView();
+        var window = application.OpenWindow(root);
+
+        Assert.Throws<ArgumentException>(application.Run);
+
+        Assert.True(window.IsClosed);
+        Assert.True(root.Unmounted);
+    }
+
+    [Fact]
     public void WindowOptionsValidatePositionSizeAndTitleBar()
     {
         var application = new GpuiApplication();
@@ -75,7 +90,8 @@ public sealed class ApplicationModelTests
     public void PendingWindowCanBeConfiguredAndClosed()
     {
         var application = new GpuiApplication();
-        var window = application.OpenWindow(new ProbeView());
+        var root = new ProbeView();
+        var window = application.OpenWindow(root);
 
         window.SetTitle("Updated");
         window.Resize(900, 600);
@@ -90,6 +106,7 @@ public sealed class ApplicationModelTests
         window.Close();
 
         Assert.True(window.IsClosed);
+        Assert.True(root.Unmounted);
         window.Close();
         Assert.Throws<InvalidOperationException>(application.Run);
     }
@@ -112,8 +129,9 @@ public sealed class ApplicationModelTests
         Assert.Throws<InvalidOperationException>(() => application.OpenWindow(firstRoot));
 
         first.Close();
+        Assert.Throws<ObjectDisposedException>(() => application.OpenWindow(firstRoot));
         var reopened = application.OpenWindow(
-            firstRoot,
+            new ProbeView(),
             new GpuiWindowOptions { Activate = false }
         );
         Assert.NotEqual(first.Id, reopened.Id);
@@ -121,6 +139,8 @@ public sealed class ApplicationModelTests
 
     private sealed class ProbeView : View
     {
+        internal bool Unmounted => IsUnmounted;
+
         protected override Element Render(ref RenderContext ui) => ui.Div();
     }
 }

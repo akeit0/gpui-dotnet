@@ -115,7 +115,8 @@ var content = _page switch
 ```
 
 Use `View<TProps>` for parent-owned inputs. Props are required on every declaration, while a stable
-key retains the same child instance and its local state:
+key retains the same child instance and its local state. `TProps` must implement
+`IEquatable<TProps>`; records and record structs do so automatically:
 
 ```csharp
 ui.Child<CounterCardView, CounterCardProps>(
@@ -135,8 +136,15 @@ ui.Button("save", "Save").OnClick(this, (view, _) => view.Save());
 ui.Input("search"u8).OnChanged(this, (view, e) => view.Search(e));
 ```
 
-`Task` and `ValueTask` handlers are observed by the session. A mounted view exposes `Lifetime`, a
-cancellation token that is cancelled before `OnUnmounted`.
+`Task` and `ValueTask` handlers are observed by the session. View lifetime follows UI ownership: a
+window owns its root and a committed slot owns its child; an ordinary C# reference owns neither.
+Each View has one lazily allocated, stable `Lifetime` token, cancelled before terminal
+`OnUnmounted()` cleanup. An unmounted instance cannot be reused. See
+[View lifecycle](docs/VIEW_LIFECYCLE.md).
+
+Managed render and lifecycle work is confined to GPUI's application thread. `Invalidate()`,
+`Dispatcher.Post`, and controller commands are safe ingress points from worker threads. See
+[Lifecycle and threading](docs/THREADING.md).
 
 ## Themes and application-owned variants
 
@@ -315,6 +323,7 @@ Do not edit `Semantic.g.cs` or `semantic.g.rs` by hand.
 - [Architecture](docs/ARCHITECTURE.md)
 - [Components and retained resources](docs/COMPONENTS.md)
 - [View lifecycle](docs/VIEW_LIFECYCLE.md)
+- [Lifecycle and threading](docs/THREADING.md)
 - [ABI contract](docs/ABI.md)
 - [Binding generation](docs/BINDING_GENERATION.md)
 - [Performance contract](docs/PERFORMANCE.md)

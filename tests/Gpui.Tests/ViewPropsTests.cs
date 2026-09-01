@@ -13,13 +13,13 @@ public sealed class ViewPropsTests
 
         Assert.True(view.StageProps(1));
         Assert.Equal(1, view.ReadProps());
-        view.AcceptRenderedProps();
+        view.ValidateRenderInputs();
         view.CommitStagedProps();
         Assert.Equal(1, view.ReadProps());
 
         Assert.True(view.StageProps(2));
         Assert.Equal(2, view.ReadProps());
-        view.AcceptRenderedProps();
+        view.ValidateRenderInputs();
         view.RollBackStagedProps();
         Assert.Equal(1, view.ReadProps());
 

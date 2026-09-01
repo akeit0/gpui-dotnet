@@ -119,7 +119,7 @@ internal sealed unsafe partial class ManagedSession
                 var ui = state.Fragment.BeginRender(this, view, _application.Theme);
                 var element = view.RenderCore(ref ui);
                 state.Fragment.Validate(element);
-                view.AcceptRenderedProps();
+                view.ValidateRenderInputs();
                 state.Root = element.Node;
                 CompleteComposition(view);
                 lock (_renderStateGate)
@@ -241,12 +241,12 @@ internal sealed unsafe partial class ManagedSession
             }
         }
 
-        BuildDetachOrder(includeCommittedTree: false);
-        foreach (var view in _detachCandidates)
+        BuildUnmountOrder(includeCommittedTree: false);
+        foreach (var view in _unmountCandidates)
         {
             try
             {
-                Detach(view);
+                Unmount(view);
             }
             catch (Exception exception)
             {

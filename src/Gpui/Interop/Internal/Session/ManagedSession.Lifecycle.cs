@@ -13,12 +13,12 @@ internal sealed unsafe partial class ManagedSession
         }
 
         while (_posted.TryDequeue(out _)) { }
-        BuildDetachOrder(includeCommittedTree: true);
-        foreach (var view in _detachCandidates)
+        BuildUnmountOrder(includeCommittedTree: true);
+        foreach (var view in _unmountCandidates)
         {
             try
             {
-                Detach(view);
+                Unmount(view);
             }
             catch (Exception exception)
             {
@@ -40,9 +40,9 @@ internal sealed unsafe partial class ManagedSession
         _renderingViews.Clear();
         _snapshotStack.Clear();
         _snapshotVisited.Clear();
-        _detachCandidates.Clear();
-        _detachStack.Clear();
-        _detachVisited.Clear();
+        _unmountCandidates.Clear();
+        _unmountStack.Clear();
+        _unmountVisited.Clear();
     }
 
     private void AttachRoot()
@@ -101,13 +101,13 @@ internal sealed unsafe partial class ManagedSession
         }
     }
 
-    private void Detach(ViewBase view)
+    private void Unmount(ViewBase view)
     {
         var handle = view.RuntimeViewHandle;
         Exception? lifecycleFailure = null;
         try
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
         catch (Exception exception)
         {
@@ -154,7 +154,7 @@ internal sealed unsafe partial class ManagedSession
     {
         lock (_renderStateGate)
         {
-            if (Volatile.Read(ref _stopped) != 0 || view.RuntimeViewHandle == 0)
+            if (Volatile.Read(ref _stopped) != 0)
             {
                 return;
             }
@@ -172,11 +172,11 @@ internal sealed unsafe partial class ManagedSession
         }
     }
 
-    private void BuildDetachOrder(bool includeCommittedTree)
+    private void BuildUnmountOrder(bool includeCommittedTree)
     {
-        _detachCandidates.Clear();
-        _detachStack.Clear();
-        _detachVisited.Clear();
+        _unmountCandidates.Clear();
+        _unmountStack.Clear();
+        _unmountVisited.Clear();
 
         lock (_renderStateGate)
         {
@@ -187,21 +187,21 @@ internal sealed unsafe partial class ManagedSession
                     continue;
                 }
 
-                _detachStack.Push((view, false));
-                while (_detachStack.TryPop(out var entry))
+                _unmountStack.Push((view, false));
+                while (_unmountStack.TryPop(out var entry))
                 {
                     if (entry.Expanded)
                     {
-                        _detachCandidates.Add(entry.View);
+                        _unmountCandidates.Add(entry.View);
                         continue;
                     }
 
-                    if (!_detachVisited.Add(entry.View))
+                    if (!_unmountVisited.Add(entry.View))
                     {
                         continue;
                     }
 
-                    _detachStack.Push((entry.View, true));
+                    _unmountStack.Push((entry.View, true));
                     if (!_renderStates.TryGetValue(entry.View, out var state))
                     {
                         continue;
@@ -234,7 +234,7 @@ internal sealed unsafe partial class ManagedSession
             {
                 continue;
             }
-            _detachStack.Push((child.View, false));
+            _unmountStack.Push((child.View, false));
         }
     }
 

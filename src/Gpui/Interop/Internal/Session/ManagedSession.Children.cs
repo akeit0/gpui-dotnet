@@ -49,6 +49,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         ChildSlot requestedSlot,
         in TProps props
     )
+        where TProps : IEquatable<TProps>
         where TView : View<TProps>, IGeneratedViewFactory<TView>
     {
         EnsureParentIsRendering(parent);
@@ -84,6 +85,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     }
 
     private static TView CreateFrameworkPropsView<TView, TProps>()
+        where TProps : IEquatable<TProps>
         where TView : View<TProps>, IGeneratedViewFactory<TView>
     {
         var child = TView.CreateGpuiView();

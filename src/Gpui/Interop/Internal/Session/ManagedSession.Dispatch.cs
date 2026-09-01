@@ -5,9 +5,9 @@ namespace Gpui.Interop.Internal.Session;
 
 internal sealed unsafe partial class ManagedSession
 {
-    internal void DispatchResourceCommand(ViewBase owner, ResourceCommand command)
+    internal void DispatchResourceCommand(uint ownerView, ResourceCommand command)
     {
-        if (Volatile.Read(ref _stopped) != 0 || owner.RuntimeViewHandle == 0)
+        if (Volatile.Read(ref _stopped) != 0 || ownerView == 0)
         {
             return;
         }
@@ -25,7 +25,7 @@ internal sealed unsafe partial class ManagedSession
         {
             var native = new NativeResourceCommand
             {
-                owner_view = owner.RuntimeViewHandle,
+                owner_view = ownerView,
                 resource_kind = (ushort)command.ResourceKind,
                 command = (ushort)command.Command,
                 key = key,
@@ -51,12 +51,12 @@ internal sealed unsafe partial class ManagedSession
     }
 
     internal void DispatchUtf8InputValue(
-        ViewBase owner,
+        uint ownerView,
         ReadOnlySpan<byte> utf8Key,
         ReadOnlySpan<byte> utf8Value
     )
     {
-        if (Volatile.Read(ref _stopped) != 0 || owner.RuntimeViewHandle == 0)
+        if (Volatile.Read(ref _stopped) != 0 || ownerView == 0)
         {
             return;
         }
@@ -70,7 +70,7 @@ internal sealed unsafe partial class ManagedSession
         {
             var native = new NativeResourceCommand
             {
-                owner_view = owner.RuntimeViewHandle,
+                owner_view = ownerView,
                 resource_kind = (ushort)ResourceKind.Input,
                 command = (ushort)ResourceCommandKind.InputSetValue,
                 key = key,
@@ -106,7 +106,7 @@ internal sealed unsafe partial class ManagedSession
         if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
         {
             throw new InvalidOperationException(
-                $"Event references detached or unknown view handle {viewHandle}."
+                $"Event references unmounted or unknown view handle {viewHandle}."
             );
         }
 
@@ -128,7 +128,7 @@ internal sealed unsafe partial class ManagedSession
         if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
         {
             throw new InvalidOperationException(
-                $"Input event references detached or unknown view handle {viewHandle}."
+                $"Input event references unmounted or unknown view handle {viewHandle}."
             );
         }
 
@@ -188,7 +188,7 @@ internal sealed unsafe partial class ManagedSession
         if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
         {
             throw new InvalidOperationException(
-                $"Slider event references detached or unknown view handle {viewHandle}."
+                $"Slider event references unmounted or unknown view handle {viewHandle}."
             );
         }
 

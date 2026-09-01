@@ -189,6 +189,33 @@ public sealed class GeneratorTests
         Assert.Contains("IGeneratedViewFactory<HeaderView>", generated, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void NonEquatableStructPropsAreRejectedByTheGenericConstraint()
+    {
+        const string source = """
+            using Gpui;
+
+            public readonly struct HeaderProps
+            {
+                public HeaderProps(string title) => Title = title;
+                public string Title { get; }
+            }
+
+            [GpuiView]
+            public sealed partial class HeaderView : View<HeaderProps>
+            {
+                protected override Element Render(ref RenderContext ui) => ui.Text(Props.Title);
+            }
+            """;
+
+        var (_, output) = RunGeneratorAndUpdateCompilation(source);
+        var errors = output
+            .GetDiagnostics(TestContext.Current.CancellationToken)
+            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+
+        Assert.Contains(errors, diagnostic => diagnostic.Id == "CS0315");
+    }
+
     private static GeneratorDriverRunResult RunGenerator(string source)
     {
         var (result, _) = RunGeneratorAndUpdateCompilation(source);

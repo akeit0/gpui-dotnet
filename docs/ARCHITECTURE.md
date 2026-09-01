@@ -65,6 +65,16 @@ Each window has one `ManagedSession` and one root `View`. Framework-owned childr
 slot through source-generated factories. A slot retains the same child while its requested type is
 unchanged; a keyed slot can replace its child type for routes and tabs.
 
+UI ownership, rather than CLR reachability, defines lifetime. An open window owns its root and a
+committed parent slot owns its child. Holding a managed reference does not retain either ownership.
+Unmount is terminal; an instance that leaves its window or slot cannot join another tree.
+
+`ViewBase` keeps one-shot identity/lifecycle state separate from mounted runtime state. A stable,
+non-pooled `ViewCommandRoute` admits any-thread invalidation and controller commands without
+touching UI state. A `MountedViewAttachment` owns the GPUI-thread-only native handle,
+resource-key sequence, and lazy event-binding collections. Unmount deactivates the route, removes
+and resets the attachment, and returns the attachment to a bounded pool before user cleanup.
+
 `View` and `View<TProps>` are sibling authoring shapes over the shared `ViewBase` runtime. Their
 type relationship makes required props a compile-time child declaration constraint.
 
@@ -73,8 +83,10 @@ the current root arena. Staged props changes and child invalidation mark the nec
 its ancestors dirty. Application-wide theme changes invalidate every retained fragment because a
 theme is ambient render input rather than child props.
 
-Tree replacement commits the new composition before detaching the old subtree. Unmount proceeds
-child-first. See [VIEW_LIFECYCLE.md](VIEW_LIFECYCLE.md).
+New children are session-owned candidates while a transactional render is retried. Tree
+replacement commits the new composition before terminally unmounting the old subtree; abandoned
+candidates are also unmounted during reconciliation. Unmount proceeds child-first. See
+[VIEW_LIFECYCLE.md](VIEW_LIFECYCLE.md).
 
 ## Retained resource path
 
@@ -123,6 +135,8 @@ as render-session IDs.
 Window and resource commands may originate from managed threads, but all GPUI mutations occur on
 the native event-loop thread. The application exits after its final registered window closes. A
 failure is recorded against its managed session; other windows continue until normal shutdown.
+See [THREADING.md](THREADING.md) for GPUI entity release, managed callback serialization, async
+continuations, and the binding's any-thread ingress contract.
 
 ## Themes and styles
 

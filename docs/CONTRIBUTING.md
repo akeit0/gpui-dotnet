@@ -69,7 +69,8 @@ perform I/O, start tasks, invoke controllers, or call `Invalidate()`. Ref-bound 
 controllers may acquire their stable key during rendering.
 
 Perform state transitions in events and lifecycle methods. Pass `View.Lifetime` to cancellable
-asynchronous work that must stop when the view unmounts.
+asynchronous work that must stop when the view unmounts. A window or committed parent slot owns
+each View; CLR references do not retain UI ownership, and unmounted instances are terminal.
 
 ## Generated files
 

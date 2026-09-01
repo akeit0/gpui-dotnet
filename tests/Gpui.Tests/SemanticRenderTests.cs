@@ -77,7 +77,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -170,7 +170,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -199,7 +199,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -238,7 +238,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -286,7 +286,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -332,7 +332,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -370,7 +370,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -421,7 +421,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -447,7 +447,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -490,7 +490,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -538,7 +538,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -580,7 +580,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -610,7 +610,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -643,7 +643,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -671,7 +671,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -696,7 +696,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -716,7 +716,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -760,7 +760,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -785,8 +785,8 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            target.DetachRuntime();
-            owner.DetachRuntime();
+            target.UnmountRuntime();
+            owner.UnmountRuntime();
         }
     }
 
@@ -823,7 +823,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -855,7 +855,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -891,7 +891,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -934,7 +934,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -959,7 +959,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -975,7 +975,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -991,7 +991,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -1007,7 +1007,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -1030,7 +1030,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -1050,7 +1050,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -1068,7 +1068,7 @@ public sealed class SemanticRenderTests
         Assert.Throws<ArgumentException>(() => controller.RefreshRanges());
         Assert.Throws<ArgumentOutOfRangeException>(() => controller.RefreshRanges((0, 1), (-1, 1)));
         Assert.Throws<ArgumentOutOfRangeException>(() => controller.RefreshRanges((0, -1)));
-        // A detached controller still rejects the command only after argument validation.
+        // An unmounted controller still rejects the command only after argument validation.
         Assert.Throws<InvalidOperationException>(() => controller.RefreshRanges((0, 1)));
     }
 
@@ -1160,7 +1160,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -1181,7 +1181,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.DetachRuntime();
+            view.UnmountRuntime();
         }
     }
 
@@ -1375,6 +1375,7 @@ public sealed class SemanticRenderTests
             in TProps props,
             Gpui.Interop.RenderArena* destination
         )
+            where TProps : IEquatable<TProps>
             where TView : View<TProps>, IGeneratedViewFactory<TView> =>
             throw new NotSupportedException();
     }
