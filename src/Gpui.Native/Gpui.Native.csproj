@@ -4,7 +4,6 @@
         <RootNamespace>Gpui</RootNamespace>
         <AssemblyName>Gpui.Native</AssemblyName>
         <PackageId>GPUI.NET.Native</PackageId>
-        <Version>0.4.0</Version>
         <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
         <Description>RID-specific native assets for GPUI.NET.</Description>
         <IsPackable>true</IsPackable>

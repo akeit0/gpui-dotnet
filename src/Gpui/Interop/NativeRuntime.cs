@@ -12,16 +12,16 @@ public sealed unsafe class NativeRuntime
 {
     private const string ApiExportName = "gpui_dotnet_get_api";
 
-    private readonly GpuiDotnetApiV6* _api;
+    private readonly GpuiDotnetApiV1* _api;
     private readonly NativeLibraryHandle? _libraryHandle;
 
-    private NativeRuntime(GpuiDotnetApiV6* api, NativeLibraryHandle? libraryHandle)
+    private NativeRuntime(GpuiDotnetApiV1* api, NativeLibraryHandle? libraryHandle)
     {
         _api = api;
         _libraryHandle = libraryHandle;
     }
 
-    internal GpuiDotnetApiV6* Api
+    internal GpuiDotnetApiV1* Api
     {
         get
         {
@@ -48,7 +48,7 @@ public sealed unsafe class NativeRuntime
         {
             libraryHandle = NativeLibraryHandle.Load(options.LibraryPath);
             var export = NativeLibrary.GetExport(libraryHandle.DangerousGetHandle(), ApiExportName);
-            var getApi = (delegate* unmanaged[Cdecl]<uint, GpuiDotnetApiV6*>)export;
+            var getApi = (delegate* unmanaged[Cdecl]<uint, GpuiDotnetApiV1*>)export;
             return CreateValidated(getApi(NativeConstants.AbiVersion), libraryHandle);
         }
         catch
@@ -58,7 +58,7 @@ public sealed unsafe class NativeRuntime
         }
     }
 
-    private static NativeRuntime CreateValidated(GpuiDotnetApiV6* api, NativeLibraryHandle? libraryHandle = null)
+    private static NativeRuntime CreateValidated(GpuiDotnetApiV1* api, NativeLibraryHandle? libraryHandle = null)
     {
         if (api == null)
         {
@@ -67,10 +67,10 @@ public sealed unsafe class NativeRuntime
             );
         }
 
-        if (api->struct_size < (uint)sizeof(GpuiDotnetApiV6))
+        if (api->struct_size < (uint)sizeof(GpuiDotnetApiV1))
         {
             throw new InvalidOperationException(
-                $"Native API table is too small. Managed={sizeof(GpuiDotnetApiV6)}, native={api->struct_size}."
+                $"Native API table is too small. Managed={sizeof(GpuiDotnetApiV1)}, native={api->struct_size}."
             );
         }
 

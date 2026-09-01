@@ -21,7 +21,7 @@ namespace Gpui.Interop
 
 
         [DllImport(__DllName, EntryPoint = "gpui_dotnet_get_api", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        internal static extern GpuiDotnetApiV6* gpui_dotnet_get_api(uint requested_version);
+        internal static extern GpuiDotnetApiV1* gpui_dotnet_get_api(uint requested_version);
 
 
     }
@@ -162,7 +162,7 @@ namespace Gpui.Interop
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    internal unsafe partial struct GpuiDotnetApiV6
+    internal unsafe partial struct GpuiDotnetApiV1
     {
         public uint struct_size;
         public uint abi_version;

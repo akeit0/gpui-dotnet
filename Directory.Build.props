@@ -6,5 +6,6 @@
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Deterministic>true</Deterministic>
+        <Version>0.1.0-preview.1</Version>
     </PropertyGroup>
 </Project>

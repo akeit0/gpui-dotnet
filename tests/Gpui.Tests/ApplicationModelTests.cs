@@ -6,6 +6,13 @@ namespace Gpui.Tests;
 public sealed class ApplicationModelTests
 {
     [Fact]
+    public void FirstPreviewStartsWithVersionOneProtocols()
+    {
+        Assert.Equal(1u, NativeConstants.AbiVersion);
+        Assert.Equal(1u, SemanticRegistry.SchemaVersion);
+    }
+
+    [Fact]
     public void ApplicationRequiresAnInitialWindow()
     {
         var application = new GpuiApplication();

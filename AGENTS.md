@@ -100,7 +100,7 @@ resources, or deferred layers inside a row renderer.
 - Batch reverse datasource calls and avoid per-row managed closures.
 
 An ABI layout or entry-point change requires Rust and managed contract updates, generated bindings,
-tests, and `docs/ABI.md`. A semantic-only schema change normally keeps ABI version 6 and changes the
+tests, and `docs/ABI.md`. A semantic-only schema change normally keeps ABI version 1 and changes the
 schema hash.
 
 ## Editing and formatting

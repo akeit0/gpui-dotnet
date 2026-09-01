@@ -7,6 +7,9 @@ materializes GPUI elements, windows, controls, and retained resources.
 The API is semantic rather than a direct binding of every GPUI Rust type. This keeps normal C#
 code platform-neutral and lets the native implementation evolve behind a versioned C ABI.
 
+The current package line is `0.1.0-preview.1`. It is a first preview: public APIs, the semantic
+schema, and the native ABI may change before a stable release.
+
 ## Requirements
 
 - .NET SDK 10
@@ -86,7 +89,7 @@ C# application and View state
         │ dirty render
         ▼
 flat RenderArena: nodes, operations, children, UTF-8
-        │ ABI v6 + semantic schema hash
+        │ ABI v1 + semantic schema hash
         ▼
 Rust validation and retained snapshot
         │

@@ -4,7 +4,6 @@
         <RootNamespace>Gpui</RootNamespace>
         <AssemblyName>Gpui.Core</AssemblyName>
         <PackageId>GPUI.NET.Core</PackageId>
-        <Version>0.4.0</Version>
         <Description>Managed API and application runtime for GPUI.NET.</Description>
         <IsPackable>true</IsPackable>
         <PackageReadmeFile>README.md</PackageReadmeFile>

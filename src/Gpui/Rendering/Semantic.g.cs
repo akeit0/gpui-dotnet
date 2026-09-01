@@ -122,8 +122,8 @@ namespace Gpui.Interop
 
     internal static class SemanticRegistry
     {
-        internal const uint SchemaVersion = 22;
-        internal const ulong SchemaHash = 0xC2AF5F84A11748A4UL;
+        internal const uint SchemaVersion = 1;
+        internal const ulong SchemaHash = 0x7DF615CE213DDA66UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {

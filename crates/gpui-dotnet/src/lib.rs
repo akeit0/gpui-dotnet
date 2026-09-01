@@ -20,13 +20,13 @@ mod trace;
 use std::{mem::size_of, panic::AssertUnwindSafe, ptr};
 
 use abi::{
-    ABI_VERSION, GpuiDotnetApiV6, ManagedCallbacks, NativeApplicationCommand, NativeMenuCommand,
+    ABI_VERSION, GpuiDotnetApiV1, ManagedCallbacks, NativeApplicationCommand, NativeMenuCommand,
     NativeMenuRecord, NativeResourceCommand, NativeThemePayload, RenderArena,
 };
 use semantic::SCHEMA_HASH;
 
-static API_V6: GpuiDotnetApiV6 = GpuiDotnetApiV6 {
-    struct_size: GpuiDotnetApiV6::struct_size(),
+static API_V1: GpuiDotnetApiV1 = GpuiDotnetApiV1 {
+    struct_size: GpuiDotnetApiV1::struct_size(),
     abi_version: ABI_VERSION,
     schema_hash: SCHEMA_HASH,
     validate_render: Some(validate_render),
@@ -38,11 +38,11 @@ static API_V6: GpuiDotnetApiV6 = GpuiDotnetApiV6 {
 };
 
 #[unsafe(no_mangle)]
-pub extern "C" fn gpui_dotnet_get_api(requested_version: u32) -> *const GpuiDotnetApiV6 {
+pub extern "C" fn gpui_dotnet_get_api(requested_version: u32) -> *const GpuiDotnetApiV1 {
     if requested_version != ABI_VERSION {
         return ptr::null();
     }
-    &API_V6
+    &API_V1
 }
 
 unsafe extern "C" fn validate_render(arena: *const RenderArena, root: u32) -> i32 {

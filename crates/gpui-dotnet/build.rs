@@ -22,7 +22,7 @@ fn main() {
             "NativeMenuCommand",
             "NativeMenuRecord",
             "ManagedCallbacks",
-            "GpuiDotnetApiV6",
+            "GpuiDotnetApiV1",
         ])
         .generate_csharp_file("../../src/Gpui/Interop/NativeMethods.g.cs")
         .expect("failed to generate C# native bindings");

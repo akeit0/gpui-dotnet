@@ -1,6 +1,6 @@
 # Native ABI
 
-GPUI.NET currently uses ABI version 6. Managed startup requires an exact ABI version, a compatible
+GPUI.NET currently uses ABI version 1. Managed startup requires an exact ABI version, a compatible
 API-table prefix, all required function entries, and the semantic schema hash generated from
 `bindings/schema.json`.
 
@@ -10,7 +10,7 @@ not manipulate pointers or wire records directly.
 ## Discovery
 
 ```c
-const gpui_dotnet_api_v6* gpui_dotnet_get_api(uint32_t requested_version);
+const gpui_dotnet_api_v1* gpui_dotnet_get_api(uint32_t requested_version);
 ```
 
 The API table contains:
@@ -209,7 +209,7 @@ panics from crossing the C boundary.
 
 When changing C layouts or entry points:
 
-1. update Rust records and `GpuiDotnetApiV6` (or introduce the next table version);
+1. update Rust records and `GpuiDotnetApiV1` (or introduce the next table version);
 2. regenerate `src/Gpui/Interop/NativeMethods.g.cs` through the native build/csbindgen path;
 3. update managed size/version checks and tests;
 4. update this document;

@@ -7,7 +7,6 @@ namespace Gpui.Interop.Internal;
 
 /// <summary>
 /// Manages the lifetime of native windows for a single <see cref="GpuiApplication"/>.
-/// Previously nested inside NativeRuntime; now a top-level internal class for single responsibility.
 /// </summary>
 internal sealed class ManagedApplication : IGpuiApplicationHost
 {

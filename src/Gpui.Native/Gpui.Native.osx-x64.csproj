@@ -4,7 +4,6 @@
         <RootNamespace>Gpui</RootNamespace>
         <AssemblyName>Gpui.Native.osx-x64</AssemblyName>
         <PackageId>GPUI.NET.Native.osx-x64</PackageId>
-        <Version>0.4.0</Version>
         <Description>GPUI.NET native host for osx-x64.</Description>
         <IsPackable>true</IsPackable>
         <PackageReadmeFile>README.md</PackageReadmeFile>

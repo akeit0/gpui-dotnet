@@ -7,6 +7,8 @@
 extern "C" {
 #endif
 
+#define GPUI_DOTNET_ABI_VERSION 1u
+
 typedef struct gpui_node_record {
     uint16_t component;
     uint16_t flags;
@@ -92,6 +94,45 @@ typedef struct gpui_native_application_command {
     float height;
 } gpui_native_application_command;
 
+typedef struct gpui_native_theme_payload_v1 {
+    uint32_t version;
+    uint32_t background;
+    uint32_t text;
+    uint32_t text_muted;
+    uint32_t text_placeholder;
+    uint32_t text_on_accent;
+    uint32_t border;
+    uint32_t border_variant;
+    uint32_t border_focused;
+    uint32_t surface_background;
+    uint32_t element_background;
+    uint32_t element_hover;
+    uint32_t element_active;
+    uint32_t accent;
+    uint32_t info;
+    uint32_t info_background;
+    uint32_t error;
+    uint32_t scrollbar_thumb_background;
+    uint32_t scrollbar_track_background;
+} gpui_native_theme_payload_v1;
+
+typedef struct gpui_native_menu_record {
+    uint32_t parent;
+    uint16_t kind;
+    uint16_t flags;
+    uint64_t action_id;
+    const uint8_t* title;
+    int32_t title_length;
+    uint32_t reserved;
+} gpui_native_menu_record;
+
+typedef struct gpui_native_menu_command {
+    const gpui_native_menu_record* items;
+    int32_t item_length;
+    uint32_t reserved;
+    uint32_t reserved2;
+} gpui_native_menu_command;
+
 typedef int32_t (*gpui_managed_render_fn)(
     uint64_t session_id,
     gpui_render_arena* arena,
@@ -123,6 +164,10 @@ typedef int32_t (*gpui_managed_window_closed_fn)(
     uint64_t window_id,
     int32_t native_status);
 
+typedef int32_t (*gpui_managed_menu_action_fn)(
+    uint64_t application_id,
+    uint64_t action_id);
+
 typedef struct gpui_managed_callbacks {
     uint32_t struct_size;
     gpui_managed_render_fn render;
@@ -131,6 +176,7 @@ typedef struct gpui_managed_callbacks {
     gpui_managed_control_event_fn control_event;
     gpui_managed_application_started_fn application_started;
     gpui_managed_window_closed_fn window_closed;
+    gpui_managed_menu_action_fn menu_action;
 } gpui_managed_callbacks;
 
 typedef int32_t (*gpui_validate_render_fn)(
@@ -151,7 +197,11 @@ typedef int32_t (*gpui_dispatch_application_command_fn)(
     uint64_t application_id,
     const gpui_native_application_command* command);
 
-typedef struct gpui_dotnet_api_v5 {
+typedef int32_t (*gpui_dispatch_application_menu_fn)(
+    uint64_t application_id,
+    const gpui_native_menu_command* command);
+
+typedef struct gpui_dotnet_api_v1 {
     uint32_t struct_size;
     uint32_t abi_version;
     uint64_t schema_hash;
@@ -160,9 +210,10 @@ typedef struct gpui_dotnet_api_v5 {
     gpui_notify_view_fn notify_view;
     gpui_dispatch_command_fn dispatch_command;
     gpui_dispatch_application_command_fn dispatch_application_command;
-} gpui_dotnet_api_v5;
+    gpui_dispatch_application_menu_fn dispatch_application_menu;
+} gpui_dotnet_api_v1;
 
-const gpui_dotnet_api_v5* gpui_dotnet_get_api(uint32_t requested_version);
+const gpui_dotnet_api_v1* gpui_dotnet_get_api(uint32_t requested_version);
 
 #ifdef __cplusplus
 }

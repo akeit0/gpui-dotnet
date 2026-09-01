@@ -17,7 +17,7 @@ A host requiring Rust-side behavior ships a uniquely named native library for ea
 It must export:
 
 ```c
-const gpui_dotnet_api_v6* gpui_dotnet_get_api(uint32_t requested_version);
+const gpui_dotnet_api_v1* gpui_dotnet_get_api(uint32_t requested_version);
 ```
 
 The managed runtime validates:
