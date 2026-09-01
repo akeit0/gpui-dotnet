@@ -153,6 +153,7 @@ Current commands are:
 | SetTitle | non-empty UTF-8 title |
 | Resize | positive finite width and height |
 | SetTheme | versioned resolved semantic palette, application-scoped |
+| ManagedCodeUpdated | empty application-scoped Hot Reload invalidation |
 
 Open flags encode optional position, activation, and `System`, `Custom`, or `Hidden` title-bar
 style. Runtime reposition is not exposed because the pinned GPUI revision has no durable
@@ -160,6 +161,8 @@ cross-platform operation for it.
 
 The theme command uses the command record's byte pointer as a private fixed-size payload. It sends
 resolved semantic roles used by native components; application style variants do not cross the ABI.
+The managed-code update command clears native List/Table row snapshots and dirties each managed
+window without resetting retained control identity or interaction state.
 
 ## Application menus
 

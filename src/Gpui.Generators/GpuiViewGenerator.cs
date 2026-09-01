@@ -353,28 +353,32 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
         IReadOnlyList<ListRendererModel> renderers
     )
     {
-        if (renderers.Count == 0)
-            return;
         builder.AppendLine();
         builder.AppendLine("    private GeneratedGpuiRows Rows => new(this);");
         builder.AppendLine();
         builder.AppendLine("    private readonly struct GeneratedGpuiRows");
         builder.AppendLine("    {");
-        builder.Append("        private readonly ").Append(viewIdentifier).AppendLine(" _owner;");
+        builder
+            .Append("        private readonly ")
+            .Append(viewIdentifier)
+            .AppendLine(" _owner;");
         builder.AppendLine();
         builder
             .Append("        internal GeneratedGpuiRows(")
             .Append(viewIdentifier)
             .AppendLine(" owner) => _owner = owner;");
-        builder.AppendLine();
-        foreach (var renderer in renderers)
+        if (renderers.Count != 0)
         {
-            builder
-                .Append("        internal global::Gpui.ListItemRenderer ")
-                .Append(EscapeIdentifier(renderer.Method.Name))
-                .Append(" => _owner.BindListRenderer(0x")
-                .Append(renderer.Id.ToString("X8"))
-                .AppendLine("u);");
+            builder.AppendLine();
+            foreach (var renderer in renderers)
+            {
+                builder
+                    .Append("        internal global::Gpui.ListItemRenderer ")
+                    .Append(EscapeIdentifier(renderer.Method.Name))
+                    .Append(" => _owner.BindListRenderer(0x")
+                    .Append(renderer.Id.ToString("X8"))
+                    .AppendLine("u);");
+            }
         }
         builder.AppendLine("    }");
         builder.AppendLine();

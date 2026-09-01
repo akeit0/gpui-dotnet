@@ -30,6 +30,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     private int _renderingManaged;
     private int _notifyAfterRender;
     private int _stopped;
+    private Exception? _renderFailure;
 
     internal ManagedSession(
         NativeRuntime runtime,
@@ -47,10 +48,13 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
 
     internal View RootView { get; }
     internal SynchronizationContext SynchronizationContext { get; }
-    internal Exception? Failure => Volatile.Read(ref _failure);
+    internal Exception? Failure => Volatile.Read(ref _failure) ?? Volatile.Read(ref _renderFailure);
 
     internal void RecordFailure(Exception exception) =>
         Interlocked.CompareExchange(ref _failure, exception, null);
+
+    internal void RecordRenderFailure(Exception exception) =>
+        Interlocked.CompareExchange(ref _renderFailure, exception, null);
 
     internal void Invalidate(ViewBase view)
     {
@@ -68,6 +72,17 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     /// normal parent/child reconciliation path.
     /// </summary>
     internal void InvalidateAllViews()
+    {
+        InvalidateAllViews(notify: true);
+    }
+
+    internal void PrepareManagedCodeUpdate()
+    {
+        Volatile.Write(ref _renderFailure, null);
+        InvalidateAllViews(notify: false);
+    }
+
+    private void InvalidateAllViews(bool notify)
     {
         if (Volatile.Read(ref _stopped) != 0)
         {
@@ -87,7 +102,10 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
             }
         }
 
-        NotifyRenderPending();
+        if (notify)
+        {
+            NotifyRenderPending();
+        }
     }
 
     /// <summary>

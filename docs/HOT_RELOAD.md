@@ -1,16 +1,15 @@
 # Managed renderer Hot Reload
 
-> Status: proposed design. GPUI.NET does not yet trigger managed renderer refreshes after a .NET
-> metadata update.
+> Status: implemented for the standard CLR metadata-update path.
 
-GPUI.NET should support the standard .NET Hot Reload workflow for application-side managed code:
+GPUI.NET supports the standard .NET Hot Reload workflow for application-side managed code:
 
 ```sh
 dotnet watch --project path/to/App.csproj
 ```
 
-The binding should react to CLR metadata updates and render the existing managed View tree again.
-It should not load replacement assemblies, recreate the application, or introduce a second dynamic
+The binding reacts to CLR metadata updates and renders the existing managed View tree again. It
+does not load replacement assemblies, recreate the application, or introduce a second dynamic
 component model.
 
 ## Goals
@@ -47,7 +46,7 @@ Replacing assemblies through `AssemblyLoadContext` is the wrong model. Existing 
 props, generated generic factories, and controllers would retain the old type identities and make
 safe unloading or state migration impractical.
 
-## Proposed flow
+## Runtime flow
 
 ```text
 Roslyn emits a supported metadata delta
@@ -77,7 +76,7 @@ the queued invalidation must produce another render afterward.
 
 ## Metadata-update entry point
 
-`Gpui.Core` should register one internal assembly-level `MetadataUpdateHandler`. It needs only:
+`Gpui.Core` registers one internal assembly-level `MetadataUpdateHandler` with this entry point:
 
 ```csharp
 static void UpdateApplication(Type[]? updatedTypes)
@@ -86,24 +85,28 @@ static void UpdateApplication(Type[]? updatedTypes)
 There is currently no metadata-derived reflection cache that requires `ClearCache`. Event binder
 entries and generated factories are based on stable runtime identities and must not be cleared.
 
-The handler should invalidate every active GPUI application. It should not filter to Views whose
+The handler invalidates every active GPUI application. It does not filter to Views whose
 runtime type appears in `updatedTypes`: a changed style helper, service, extension method, or theme
 factory can affect any View. Metadata updates are rare development events, so correctness is more
 important than selective invalidation.
 
-The handler can run on a non-GPUI thread. It must:
+The handler can run on a non-GPUI thread. It therefore:
 
 - use only thread-safe application/session ingress;
 - never call `Render()`, lifecycle hooks, event handlers, or controller methods directly;
 - tolerate applications starting or stopping concurrently;
 - isolate failures per application and never throw through the runtime's metadata-update callback.
 
-No public Hot Reload API is required initially. The feature should activate automatically when the
-runtime applies an update.
+There is no public Hot Reload API or application opt-in. The feature activates automatically when
+the runtime applies an update.
+
+The handler, registry walk, and native update command run only after a metadata update. Normal
+render and event paths do not query `MetadataUpdater.IsSupported`, poll files, or allocate Hot
+Reload state. Release rendering therefore has no per-frame Hot Reload branch or allocation.
 
 ## Managed invalidation
 
-Each live `ManagedSession` should increment `RequiredVersion` for every retained View fragment. The
+Each live `ManagedSession` increments `RequiredVersion` for every retained View fragment. The
 existing full-fragment invalidation used by application-wide theme changes is the right primitive.
 
 This preserves:
@@ -119,13 +122,13 @@ are not refresh hooks. Changes to them apply only to subsequently created instan
 
 ## Native invalidation
 
-A distinct native application command, conceptually `ManagedCodeUpdated`, should:
+A distinct native application command, `ManagedCodeUpdated`:
 
 1. invalidate every cached List and Table row batch;
 2. mark every native `ManagedView` dirty;
 3. refresh its window.
 
-It should preserve retained controls and interaction state. Inputs, scroll containers, sliders,
+It preserves retained controls and interaction state. Inputs, scroll containers, sliders,
 focus, overlays, and other resources will reconcile normally against the next snapshot. Resources
 whose stable owner/key identity disappears from that snapshot will be released by ordinary
 retention.
@@ -156,35 +159,27 @@ declaration changes a structural option that already requires a normal reset.
 
 ## Generated View shape
 
-Generated factory support already has a stable shape: every `[GpuiView]` receives its factory from
-the initial compilation.
-
-Generated virtual-row dispatch is currently conditional. A View with no `[GpuiListItem]` methods
-does not receive the generated `RenderListItem` override or `Rows` helper. Adding its first renderer
-during Hot Reload can therefore require adding an override, which Roslyn treats as a structural
-edit.
-
-To improve this case, generation should emit an empty row-dispatch scaffold and `Rows` helper for
-every generated View from the initial build. Adding the first list renderer then updates an existing
-dispatch method and adds ordinary generated members. Renderer ids remain derived from stable method
-identity; changing that identity is allowed to produce a new token because native row batches are
-cleared for the update.
+Generated factory support and virtual-row dispatch have a stable initial shape. Every `[GpuiView]`
+receives its factory, an empty `RenderListItem` override, and a `Rows` helper even when the View has
+no `[GpuiListItem]` methods. Adding the first list renderer then updates existing dispatch machinery
+instead of introducing the virtual override during Hot Reload. Renderer ids remain derived from
+stable method identity; changing that identity is allowed to produce a new token because native row
+batches are cleared for the update.
 
 ## Render failure recovery
 
 Compilation failures do not apply a metadata delta, so the running application should continue to
 show its last committed UI.
 
-A compiling edit can still throw or produce invalid semantic output. Native already has a managed
-render error surface, but the managed session currently retains its first failure for final
-application shutdown. Hot Reload needs a distinction between:
+A compiling edit can still throw or produce invalid semantic output. Native has a managed render
+error surface, and the managed session distinguishes between:
 
 - recoverable render/list-render failures; and
 - terminal event, lifecycle, interop, or native failures.
 
-A later metadata update should clear or supersede only recoverable renderer failures and request a
-new render. A successful render should remove the native error surface. It must not erase unrelated
-terminal failures.
+A later metadata update clears only recoverable renderer failures and requests a new render. A
+successful render removes the native error surface. The update does not erase unrelated terminal
+failures.
 
 ## Expected edit behavior
 
@@ -206,9 +201,18 @@ The authoritative supported-edit boundary belongs to the active .NET runtime and
 `dotnet watch` should restart the application for unsupported or rude edits rather than GPUI.NET
 attempting its own fallback type migration.
 
-## Verification plan
+## Verification
 
-Automated managed tests should call the internal update path directly and verify:
+Automated managed tests verify handler registration and harmless updates when no application is
+running. Generator tests verify that a View with no row renderer still receives the stable generated
+row scaffold. Native tests verify command scoping and that ambient managed-render changes clear
+retained List/Table row batches.
+
+The macOS sample has also been exercised under `dotnet watch`: a method-body edit to the mounted root
+View reached the metadata handler and immediately rendered the updated method without restarting the
+process. Adding the first `[GpuiListItem]` to an existing View also applied in process.
+
+Broader framework tests should continue to cover:
 
 - every retained fragment becomes dirty;
 - an update before first render is harmless;
@@ -217,14 +221,14 @@ Automated managed tests should call the internal update path directly and verify
 - event bindings are refreshed by the next successful render;
 - recoverable renderer failures do not clear terminal failures.
 
-Rust tests should verify that `ManagedCodeUpdated`:
+Native coverage should continue to verify that `ManagedCodeUpdated`:
 
 - clears List and Table row batches;
 - dirties every managed native window;
 - preserves input, scroll, focus, slider, and other retained-resource identities;
 - is safe with zero windows and during normal window removal.
 
-Manual acceptance should run a static, non-animated sample through `dotnet watch` on macOS and
+Release acceptance should run a static, non-animated sample through `dotnet watch` on macOS and
 Windows. It should cover text/layout changes, event behavior, an unchanged-revision virtual list,
 child replacement, a compiling render failure followed by recovery, rapid saves, and window-close
 races. The static screen is important: an animation or user event must not accidentally provide the
@@ -235,3 +239,4 @@ invalidation that the Hot Reload integration is intended to prove.
 - [.NET `dotnet watch`](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-watch)
 - [.NET `MetadataUpdateHandlerAttribute`](https://learn.microsoft.com/en-us/dotnet/api/system.reflection.metadata.metadataupdatehandlerattribute?view=net-10.0)
 - [Roslyn supported Hot Reload edits](https://github.com/dotnet/roslyn/blob/main/docs/wiki/EnC-Supported-Edits.md)
+- [Uno Platform metadata-update handler](https://github.com/unoplatform/uno/blob/master/src/Uno.UI/RuntimeTypeMetadataUpdateHandler.cs)

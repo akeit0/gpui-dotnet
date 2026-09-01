@@ -165,9 +165,9 @@ impl ResourceStore {
         self.lists.borrow().values().cloned().collect()
     }
 
-    /// Discards retained managed row snapshots whose resolved colors belong to the previous
-    /// application theme. Tables use the same row engines as lists, so this covers both.
-    pub(crate) fn invalidate_theme_dependent_resources(&self) {
+    /// Discards retained managed row snapshots after an ambient theme or managed-code update.
+    /// Tables use the same row engines as lists, so this covers both.
+    pub(crate) fn invalidate_managed_rendered_rows(&self) {
         for engine in self.list_engines() {
             engine.borrow_mut().invalidate_all_batches();
         }
@@ -1532,7 +1532,7 @@ mod tests {
     }
 
     #[test]
-    fn theme_change_invalidates_retained_list_and_table_rows() {
+    fn ambient_render_change_invalidates_retained_list_and_table_rows() {
         let store = ResourceStore::new(1, callbacks(), theme());
         let list = store.list_resource(
             &ResourceKey::new(7, shared("list")),
@@ -1547,7 +1547,7 @@ mod tests {
         list.borrow_mut().batches.insert(0, CachedBatch::new());
         table.borrow_mut().batches.insert(0, CachedBatch::new());
 
-        store.invalidate_theme_dependent_resources();
+        store.invalidate_managed_rendered_rows();
 
         assert!(list.borrow().batches.is_empty());
         assert!(table.borrow().batches.is_empty());

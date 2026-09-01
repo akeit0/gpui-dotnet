@@ -41,7 +41,7 @@ internal static unsafe class NativeCallbacks
         }
         catch (Exception exception)
         {
-            NativeRegistry.RecordFailure(sessionId, exception);
+            NativeRegistry.RecordRenderFailure(sessionId, exception);
             return -101;
         }
     }
@@ -88,7 +88,7 @@ internal static unsafe class NativeCallbacks
         }
         catch (Exception exception)
         {
-            NativeRegistry.RecordFailure(sessionId, exception);
+            NativeRegistry.RecordRenderFailure(sessionId, exception);
             return -106;
         }
     }

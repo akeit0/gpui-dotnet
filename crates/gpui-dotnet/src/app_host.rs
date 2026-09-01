@@ -88,6 +88,7 @@ impl Drop for ViewRegistration {
 pub(crate) enum ApplicationCommand {
     SetMenuBar(Vec<ManagedMenu>),
     SetTheme(NativeTheme),
+    ManagedCodeUpdated,
     Open {
         window_id: u64,
         title: String,
@@ -581,7 +582,19 @@ fn apply_application_command(
                     continue;
                 };
                 let _ = handle.update(cx, |view, window, cx| {
-                    view.resources.invalidate_theme_dependent_resources();
+                    view.resources.invalidate_managed_rendered_rows();
+                    view.invalidate(cx);
+                    window.refresh();
+                });
+            }
+        }
+        ApplicationCommand::ManagedCodeUpdated => {
+            for entry in windows.borrow().values() {
+                let Some(handle) = entry.handle.downcast::<ManagedView>() else {
+                    continue;
+                };
+                let _ = handle.update(cx, |view, window, cx| {
+                    view.resources.invalidate_managed_rendered_rows();
                     view.invalidate(cx);
                     window.refresh();
                 });
@@ -1035,6 +1048,15 @@ mod tests {
         assert!(matches!(
             receiver.try_recv(),
             Ok(ApplicationCommand::Close(7))
+        ));
+
+        assert_eq!(
+            dispatch_application_command(application_id, ApplicationCommand::ManagedCodeUpdated),
+            0
+        );
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(ApplicationCommand::ManagedCodeUpdated)
         ));
 
         drop(registration);

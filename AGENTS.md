@@ -20,7 +20,7 @@ Read the relevant focused document before changing a subsystem:
 - `docs/COMPONENTS.md`: component classes and authoring workflow
 - `docs/VIEW_LIFECYCLE.md`: child slots, render purity, and teardown
 - `docs/THREADING.md`: GPUI entities, managed lifecycle, async continuations, and thread boundaries
-- `docs/HOT_RELOAD.md`: proposed managed metadata-update and renderer refresh contract
+- `docs/HOT_RELOAD.md`: managed metadata-update and renderer refresh contract
 - `docs/ABI.md`: C layouts, validation, commands, and callbacks
 - `docs/BINDING_GENERATION.md`: generated code ownership
 - `docs/PERFORMANCE.md`: crossing and allocation constraints

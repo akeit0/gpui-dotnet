@@ -157,8 +157,10 @@ unsafe fn dispatch_application_command_inner(
         return -60;
     };
     let is_theme = command.command == 8;
+    let is_managed_code_update = command.command == 9;
+    let is_application_scoped = is_theme || is_managed_code_update;
     if application_id == 0
-        || (!is_theme && command.window_id == 0)
+        || (!is_application_scoped && command.window_id == 0)
         || command.reserved != 0
         || command.reserved2 != 0
         || command.title_length < 0
@@ -186,6 +188,17 @@ unsafe fn dispatch_application_command_inner(
         return app_host::dispatch_application_command(
             application_id,
             app_host::ApplicationCommand::SetTheme(theme),
+        );
+    }
+    if is_managed_code_update {
+        let payload_valid =
+            command.window_id == 0 && command.flags == 0 && no_title && no_position && no_size;
+        if !payload_valid {
+            return -62;
+        }
+        return app_host::dispatch_application_command(
+            application_id,
+            app_host::ApplicationCommand::ManagedCodeUpdated,
         );
     }
 
@@ -410,4 +423,46 @@ unsafe extern "C" fn run_application(
         app_host::run(application_id, callbacks)
     }))
     .unwrap_or(-99)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn empty_application_command(command: u16) -> NativeApplicationCommand {
+        NativeApplicationCommand {
+            window_id: 0,
+            command,
+            flags: 0,
+            reserved: 0,
+            title: std::ptr::null(),
+            title_length: 0,
+            reserved2: 0,
+            left: 0.0,
+            top: 0.0,
+            width: 0.0,
+            height: 0.0,
+        }
+    }
+
+    #[test]
+    fn managed_code_update_is_an_empty_application_scoped_command() {
+        let mut command = empty_application_command(9);
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -40
+        );
+
+        command.window_id = 1;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -62
+        );
+        command.window_id = 0;
+        command.flags = 1;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -62
+        );
+    }
 }

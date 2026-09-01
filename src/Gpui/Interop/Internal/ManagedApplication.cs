@@ -35,6 +35,37 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
     internal void RecordFailure(Exception exception) =>
         Interlocked.CompareExchange(ref _failure, exception, null);
 
+    internal void ApplyManagedCodeUpdate()
+    {
+        if (Volatile.Read(ref _stopped) != 0)
+        {
+            return;
+        }
+
+        var sessions = _sessions.Values.ToArray();
+        foreach (var session in sessions)
+        {
+            session.PrepareManagedCodeUpdate();
+        }
+
+        try
+        {
+            // Managed state is dirty before native schedules the frame, so the callback cannot
+            // consume an unchanged retained fragment after this command.
+            Dispatch(9, 0);
+        }
+        catch
+        {
+            // Preserve a useful managed-only fallback if registration or shutdown races the
+            // metadata callback. Native row caches still require a later successful update.
+            foreach (var session in sessions)
+            {
+                session.InvalidateAllViews();
+            }
+            throw;
+        }
+    }
+
     internal void Start()
     {
         // Theme precedes every initial Open command, so native defaults are correct on the first

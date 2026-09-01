@@ -70,6 +70,30 @@ public sealed class GeneratorTests
     }
 
     [Fact]
+    public void ViewsWithoutRowsStillGenerateStableRowDispatch()
+    {
+        const string source = """
+            using Gpui;
+
+            [GpuiView]
+            public sealed partial class PlainView : View
+            {
+                protected override Element Render(ref RenderContext ui) => ui.Div();
+            }
+            """;
+
+        var result = RunGenerator(source);
+
+        Assert.Empty(
+            result.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+        );
+        var generated = Assert.Single(result.GeneratedTrees).ToString();
+        Assert.Contains("override global::Gpui.Element RenderListItem", generated);
+        Assert.Contains("private GeneratedGpuiRows Rows => new(this);", generated);
+        Assert.Contains("private readonly struct GeneratedGpuiRows", generated);
+    }
+
+    [Fact]
     public void PropsViewsRequireThePropsChildOverloadAtCompileTime()
     {
         const string source = """

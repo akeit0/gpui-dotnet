@@ -25,4 +25,12 @@ internal static class NativeRegistry
             session.RecordFailure(exception);
         }
     }
+
+    internal static void RecordRenderFailure(ulong sessionId, Exception exception)
+    {
+        if (Sessions.TryGetValue(sessionId, out var session))
+        {
+            session.RecordRenderFailure(exception);
+        }
+    }
 }
