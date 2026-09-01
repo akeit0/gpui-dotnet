@@ -168,6 +168,7 @@ jobs:
           dotnet new console --framework net10.0 --output artifacts/package-smoke
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $smokeProject = 'artifacts/package-smoke/package-smoke.csproj'
+          $nugetSource = 'https://api.nuget.org/v3/index.json'
           @'
           using Gpui.Interop;
 
@@ -178,9 +179,7 @@ jobs:
               --version $version `
               --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet restore $smokeProject `
-              --source artifacts/packages `
-              --source 'https://api.nuget.org/v3/index.json'
+          dotnet restore $smokeProject --source artifacts/packages --source $nugetSource
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet build $smokeProject --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -220,6 +219,7 @@ jobs:
           dotnet new console --framework net10.0 --output artifacts/package-smoke
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $smokeProject = 'artifacts/package-smoke/package-smoke.csproj'
+          $nugetSource = 'https://api.nuget.org/v3/index.json'
           @'
           using Gpui.Interop;
 
@@ -254,9 +254,7 @@ jobs:
               --version $version `
               --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet restore $smokeProject `
-              --source artifacts/packages `
-              --source 'https://api.nuget.org/v3/index.json'
+          dotnet restore $smokeProject --source artifacts/packages --source $nugetSource
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet build $smokeProject --no-restore -p:ApplicationManifest=app.manifest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
