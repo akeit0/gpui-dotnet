@@ -41,7 +41,7 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -62,9 +62,11 @@ jobs:
             libxkbcommon-x11-dev \
             libzstd-dev
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: 1.98.0
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
         with:
           workspaces: crates/gpui-dotnet
 
@@ -80,7 +82,7 @@ jobs:
         run: ./eng/stage-native.ps1 -Rid ${{ matrix.rid }} -Library ${{ matrix.library }}
 
       - name: Upload native library
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: native-${{ matrix.rid }}
           path: artifacts/native/${{ matrix.rid }}
@@ -93,7 +95,7 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Verify release package version
         if: github.event_name == 'release'
@@ -123,26 +125,26 @@ jobs:
             libxkbcommon-x11-dev \
             libzstd-dev
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.0.400
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: native-win-x64
           path: artifacts/native/win-x64
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: native-linux-x64
           path: artifacts/native/linux-x64
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: native-osx-x64
           path: artifacts/native/osx-x64
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: native-osx-arm64
           path: artifacts/native/osx-arm64
@@ -168,27 +170,40 @@ jobs:
           dotnet new console --framework net10.0 --output artifacts/package-smoke
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $smokeProject = 'artifacts/package-smoke/package-smoke.csproj'
+          $rid = 'linux-x64'
           $nugetSource = 'https://api.nuget.org/v3/index.json'
+          $packageSource = (Resolve-Path -LiteralPath 'artifacts/packages').Path
+          $nugetConfig = 'artifacts/package-smoke/NuGet.Config'
+          $packagesPath = 'artifacts/package-smoke/packages'
           @'
           using Gpui.Interop;
 
           var runtime = NativeRuntime.Load();
           Console.WriteLine($"Loaded {runtime.GetType().FullName} from GPUI.NET packages.");
           '@ | Set-Content -LiteralPath artifacts/package-smoke/Program.cs -Encoding utf8
+          @"
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="local" value="$packageSource" />
+              <add key="nuget.org" value="$nugetSource" />
+            </packageSources>
+          </configuration>
+          "@ | Set-Content -LiteralPath $nugetConfig -Encoding utf8
           dotnet add $smokeProject package GPUI.NET `
               --version $version `
               --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          # Windows SDK/NuGet versions mis-parse an HTTPS source when a local source comes first.
-          dotnet restore $smokeProject --source $nugetSource --source artifacts/packages
+          dotnet restore $smokeProject --configfile $nugetConfig --packages $packagesPath --runtime $rid
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet build $smokeProject --no-restore
+          dotnet build $smokeProject --runtime $rid --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet run --project $smokeProject --no-build --no-restore
+          dotnet run --project $smokeProject --runtime $rid --no-build --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nuget-packages
           path: artifacts/packages/*.nupkg
@@ -201,18 +216,18 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 10.0.400
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: nuget-packages
           path: artifacts/packages
 
-      - name: Restore, build, and run clean Windows consumer
+      - name: Restore and build clean Windows consumer
         shell: pwsh
         run: |
           [xml] $props = Get-Content Directory.Build.props
@@ -220,53 +235,107 @@ jobs:
           dotnet new console --framework net10.0 --output artifacts/package-smoke
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $smokeProject = 'artifacts/package-smoke/package-smoke.csproj'
+          $rid = 'win-x64'
           $nugetSource = 'https://api.nuget.org/v3/index.json'
+          $packageSource = (Resolve-Path -LiteralPath 'artifacts/packages').Path
+          $nugetConfig = 'artifacts/package-smoke/NuGet.Config'
+          $packagesPath = 'artifacts/package-smoke/packages'
           @'
           using Gpui.Interop;
 
           var runtime = NativeRuntime.Load();
           Console.WriteLine($"Loaded {runtime.GetType().FullName} from GPUI.NET packages.");
           '@ | Set-Content -LiteralPath artifacts/package-smoke/Program.cs -Encoding utf8
-          @'
+          @"
           <?xml version="1.0" encoding="utf-8"?>
-          <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
-            <assemblyIdentity version="1.0.0.0" name="Gpui.PackageSmoke" />
-            <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
-              <security>
-                <requestedPrivileges>
-                  <requestedExecutionLevel level="asInvoker" uiAccess="false" />
-                </requestedPrivileges>
-              </security>
-            </trustInfo>
-            <dependency>
-              <dependentAssembly>
-                <assemblyIdentity
-                  type="win32"
-                  name="Microsoft.Windows.Common-Controls"
-                  version="6.0.0.0"
-                  processorArchitecture="*"
-                  publicKeyToken="6595b64144ccf1df"
-                  language="*" />
-              </dependentAssembly>
-            </dependency>
-          </assembly>
-          '@ | Set-Content -LiteralPath artifacts/package-smoke/app.manifest -Encoding utf8
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="local" value="$packageSource" />
+              <add key="nuget.org" value="$nugetSource" />
+            </packageSources>
+          </configuration>
+          "@ | Set-Content -LiteralPath $nugetConfig -Encoding utf8
           dotnet add $smokeProject package GPUI.NET `
               --version $version `
               --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          # Windows SDK/NuGet versions mis-parse an HTTPS source when a local source comes first.
-          dotnet restore $smokeProject --source $nugetSource --source artifacts/packages
+          dotnet restore $smokeProject --configfile $nugetConfig --packages $packagesPath --runtime $rid
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet build $smokeProject --no-restore -p:ApplicationManifest=app.manifest
+          # Windows application manifests are consumer-owned; this job validates restore and build only.
+          dotnet build $smokeProject --runtime $rid --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          dotnet run --project $smokeProject --no-build --no-restore
+
+  macos-consumer:
+    name: Validate ${{ matrix.rid }} NuGet consumer
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            rid: osx-x64
+          - runner: macos-14
+            rid: osx-arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.400
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: nuget-packages
+          path: artifacts/packages
+
+      - name: Restore, build, and run clean macOS consumer
+        shell: pwsh
+        run: |
+          [xml] $props = Get-Content Directory.Build.props
+          $version = [string] $props.Project.PropertyGroup.Version
+          dotnet new console --framework net10.0 --output artifacts/package-smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $smokeProject = 'artifacts/package-smoke/package-smoke.csproj'
+          $rid = '${{ matrix.rid }}'
+          $nugetSource = 'https://api.nuget.org/v3/index.json'
+          $packageSource = (Resolve-Path -LiteralPath 'artifacts/packages').Path
+          $nugetConfig = 'artifacts/package-smoke/NuGet.Config'
+          $packagesPath = 'artifacts/package-smoke/packages'
+          @'
+          using Gpui.Interop;
+
+          var runtime = NativeRuntime.Load();
+          Console.WriteLine($"Loaded {runtime.GetType().FullName} from GPUI.NET packages.");
+          '@ | Set-Content -LiteralPath artifacts/package-smoke/Program.cs -Encoding utf8
+          @"
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="local" value="$packageSource" />
+              <add key="nuget.org" value="$nugetSource" />
+            </packageSources>
+          </configuration>
+          "@ | Set-Content -LiteralPath $nugetConfig -Encoding utf8
+          dotnet add $smokeProject package GPUI.NET `
+              --version $version `
+              --no-restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet restore $smokeProject --configfile $nugetConfig --packages $packagesPath --runtime $rid
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet build $smokeProject --runtime $rid --no-restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project $smokeProject --runtime $rid --no-build --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   publish:
     name: Publish to NuGet.org
     if: inputs.publish || github.event_name == 'release'
-    needs: [package, windows-consumer]
+    needs: [package, windows-consumer, macos-consumer]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: nuget
@@ -275,23 +344,37 @@ jobs:
       id-token: write
 
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
       - name: Require the main branch
         if: github.event_name != 'release' && github.ref != 'refs/heads/main'
         shell: pwsh
         run: throw 'Publishing is only allowed from the main branch.'
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
+      - name: Require release commit on main
+        if: github.event_name == 'release'
+        shell: pwsh
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) {
+              throw 'Publishing a GitHub Release requires its tag commit to be contained in main.'
+          }
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 10.0.400
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: nuget-packages
           path: artifacts/packages
 
       - name: NuGet login
         id: nuget_login
-        uses: NuGet/login@v1
+        uses: NuGet/login@ebc737b6fc418a6ca0073cf116ec8dc156d8b81e # v1
         with:
           user: ${{ secrets.NUGET_USER }}
 

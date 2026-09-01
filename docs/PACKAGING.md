@@ -77,7 +77,8 @@ application meta package, verifies the native entries, and writes packages to
 
 The `Release NuGet packages` GitHub Actions workflow runs manually and when a GitHub Release is
 published. It builds and tests all four native RIDs on their platform runners, assembles the package
-family, and verifies clean local restores and runtime loading. The package version comes from
+family, and verifies clean local restores and runtime loading on Linux and macOS plus a Windows
+restore/build consumer check. The package version comes from
 `Directory.Build.props`; a release tag must match that version, with an optional leading `v`.
 
 Configure a NuGet.org trusted publishing policy with:
@@ -110,7 +111,8 @@ A release pipeline should verify:
 
 Windows consumers must also embed a Common Controls v6 application manifest in the executable;
 the sample's `app.manifest` is the reference. Without it, Windows may fail to load the native host
-because the common-control API set is not activated for the process.
+because the common-control API set is not activated for the process. The release workflow therefore
+keeps its Windows package check at restore/build; the application manifest remains consumer-owned.
 
 ## Extensions
 

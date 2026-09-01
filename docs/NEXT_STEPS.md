@@ -62,6 +62,5 @@ proven large-dataset behavior.
 - generate and verify a public C header with `sizeof`/`offsetof` assertions per RID;
 - add symbolic native status diagnostics;
 - define coalescing policies for high-frequency window commands;
-- add Linux native CI and clean NuGet consumer tests;
 - run NativeAOT smoke tests for every supported RID;
 - decide whether full managed render validation remains enabled in Release builds.
