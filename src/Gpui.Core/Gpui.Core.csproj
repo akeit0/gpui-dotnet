@@ -20,7 +20,7 @@
         <NativeBuildCommand Condition="$([MSBuild]::IsOSPlatform('Windows'))"
             >powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(NativeBuildScript)&quot; -ManifestPath &quot;$(NativeCrateDir)/Cargo.toml&quot; -Configuration $(NativeCargoProfile)</NativeBuildCommand>
         <NativeBuildCommand Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
-            >pwsh -NoProfile -File &quot;$(NativeBuildScript)&quot; -ManifestPath &quot;$(NativeCrateDir)/Cargo.toml&quot; -Configuration $(NativeCargoProfile)</NativeBuildCommand>
+            >sh &quot;$(RepositoryRoot)/eng/build-native.sh&quot; &quot;$(NativeCrateDir)/Cargo.toml&quot; $(NativeCargoProfile)</NativeBuildCommand>
         <NativeLibraryName Condition="$([MSBuild]::IsOSPlatform('Windows'))">gpui_dotnet.dll</NativeLibraryName>
         <NativeLibraryName Condition="$([MSBuild]::IsOSPlatform('Linux'))">libgpui_dotnet.so</NativeLibraryName>
         <NativeLibraryName Condition="$([MSBuild]::IsOSPlatform('OSX'))">libgpui_dotnet.dylib</NativeLibraryName>
@@ -42,6 +42,7 @@
         <_GpuiNativeInput Include="$(NativeCrateDir)/Cargo.lock" />
         <_GpuiNativeInput Include="$(NativeCrateDir)/build.rs" />
         <_GpuiNativeInput Include="$(NativeBuildScript)" />
+        <_GpuiNativeInput Include="$(RepositoryRoot)/eng/build-native.sh" />
         <_GpuiBindingInput Include="$(NativeCrateDir)/src/abi.rs" />
         <_GpuiBindingInput Include="$(NativeCrateDir)/src/lib.rs" />
         <_GpuiBindingInput Include="$(NativeCrateDir)/Cargo.toml" />

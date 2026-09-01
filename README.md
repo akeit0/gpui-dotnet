@@ -386,9 +386,13 @@ Managed startup validates both ABI version and semantic schema hash (`0x66378CAB
 
 Prerequisites:
 
-- .NET SDK `10.0.303` (pinned in `global.json`)
+- .NET SDK `10`
 - current Rust toolchain with Cargo
 - GPUI platform prerequisites
+
+PowerShell is only required when invoking the `.ps1` release/packaging helpers directly.
+Building the managed projects on macOS and Linux uses the POSIX shell build helper, so a
+PowerShell installation is not required for the normal `dotnet build` workflow.
 
 ```powershell
 dotnet build Gpui.slnx
