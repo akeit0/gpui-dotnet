@@ -4,7 +4,7 @@
         <RootNamespace>Gpui</RootNamespace>
         <AssemblyName>Gpui.Native.win-x64</AssemblyName>
         <PackageId>GPUI.NET.Native.win-x64</PackageId>
-        <Description>GPUI.NET native host for win-x64.</Description>
+        <Description>Native GPUI bindings for win-x64.</Description>
         <IsPackable>true</IsPackable>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>

@@ -5,7 +5,7 @@
         <AssemblyName>Gpui.Native</AssemblyName>
         <PackageId>GPUI.NET.Native</PackageId>
         <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
-        <Description>RID-specific native assets for GPUI.NET.</Description>
+        <Description>Native GPUI bindings for .NET.</Description>
         <IsPackable>true</IsPackable>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <NuspecFile>$(MSBuildThisFileDirectory)Gpui.Native.nuspec</NuspecFile>

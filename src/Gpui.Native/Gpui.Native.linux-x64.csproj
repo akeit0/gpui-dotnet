@@ -4,7 +4,7 @@
         <RootNamespace>Gpui</RootNamespace>
         <AssemblyName>Gpui.Native.linux-x64</AssemblyName>
         <PackageId>GPUI.NET.Native.linux-x64</PackageId>
-        <Description>GPUI.NET native host for linux-x64.</Description>
+        <Description>Native GPUI bindings for linux-x64.</Description>
         <IsPackable>true</IsPackable>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>

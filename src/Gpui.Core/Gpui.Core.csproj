@@ -4,7 +4,7 @@
         <RootNamespace>Gpui</RootNamespace>
         <AssemblyName>Gpui.Core</AssemblyName>
         <PackageId>GPUI.NET.Core</PackageId>
-        <Description>Managed API and application runtime for GPUI.NET.</Description>
+        <Description>Managed GPUI bindings for .NET.</Description>
         <IsPackable>true</IsPackable>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

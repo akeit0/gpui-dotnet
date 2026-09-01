@@ -70,7 +70,29 @@ After all four assets are available:
 
 The pack script refuses to continue when any expected RID asset is missing. It sets
 `BuildGpuiNative=false`, packs the Core project, all RID projects, the native aggregate, and the
-application meta package, and writes packages to `artifacts/packages`.
+application meta package, verifies the native entries, and writes packages to
+`artifacts/packages`.
+
+## NuGet release
+
+The `Release NuGet packages` GitHub Actions workflow is manual. It builds and tests all four native
+RIDs on their platform runners, assembles the package family, and verifies a clean local restore.
+The package version comes from `Directory.Build.props`.
+
+Configure a NuGet.org trusted publishing policy with:
+
+- repository owner: `akeit0`
+- repository: `gpui-dotnet`
+- workflow file: `release-nuget.yml`
+- environment: `nuget`
+
+Create a GitHub environment named `nuget`, restrict its deployment branches to `main`, and add the
+NuGet.org profile name—not an email address—as its `NUGET_USER` secret. No API-key secret is
+needed; the publish job exchanges GitHub's OIDC token for a short-lived key.
+
+Run the workflow with `publish` disabled for a dry run and downloadable package artifact. Enable
+`publish` on `main` to push the validated packages to NuGet.org; an existing package version is
+skipped so a partial release can be retried.
 
 ## Consumer verification
 

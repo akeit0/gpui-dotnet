@@ -3,9 +3,13 @@
     <metadata>
         <id>$id$</id>
         <version>$version$</version>
-        <authors>GPUI.NET contributors</authors>
+        <authors>Akito Inoue</authors>
+        <license type="expression">MIT</license>
+        <projectUrl>https://github.com/akeit0/gpui-dotnet</projectUrl>
+        <repository type="git" url="https://github.com/akeit0/gpui-dotnet" />
         <readme>README.md</readme>
-        <description>RID-specific native assets for GPUI.NET.</description>
+        <description>Native GPUI bindings for .NET.</description>
+        <copyright>Copyright (c) 2026 Akito Inoue</copyright>
         <dependencies>
             <group targetFramework="net10.0">
                 <dependency id="GPUI.NET.Native.win-x64" version="$version$" />

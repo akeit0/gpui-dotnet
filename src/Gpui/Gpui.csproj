@@ -5,8 +5,7 @@
         <AssemblyName>Gpui</AssemblyName>
         <PackageId>GPUI.NET</PackageId>
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-        <Authors>GPUI.NET contributors</Authors>
-        <Description>Allocation-conscious .NET frontend for GPUI with multi-window managed Views, retained native controls, virtualized List batching, and view-bound event/data-source dispatch.</Description>
+        <Description>GPUI bindings for .NET.</Description>
         <PackageTags>gpui;gui;dotnet;csharp;rust</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <RepositoryRoot>$(MSBuildThisFileDirectory)../..</RepositoryRoot>
