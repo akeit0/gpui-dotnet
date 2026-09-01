@@ -19,15 +19,13 @@ internal readonly record struct SampleButtonStyle(
     Color Text,
     Color Border,
     Pixels Padding,
-    Pixels Radius,
-    Pixels FontSize
+    Pixels Radius
 ) : IGpuiElementStyle<ButtonTag>
 {
     public Element<ButtonTag> Apply(Element<ButtonTag> button) =>
         button
             .Padding(Padding)
             .Radius(Radius)
-            .FontSize(FontSize)
             .Background(Background)
             .HoverBackground(HoverBackground)
             .ActiveBackground(ActiveBackground)
@@ -45,7 +43,8 @@ internal static class SampleStyles
     )
     {
         var colors = theme.Colors;
-        var fontSize = Px(theme.Typography.Button);
+        var padding = Px(8);
+        var radius = Px(6);
         return variant switch
         {
             SampleButtonVariant.Primary => new SampleButtonStyle(
@@ -54,9 +53,8 @@ internal static class SampleStyles
                 colors.AccentActive,
                 colors.TextOnAccent,
                 colors.Accent,
-                Px(10),
-                Px(6),
-                fontSize
+                padding,
+                radius
             ),
             SampleButtonVariant.Navigation when selected => new SampleButtonStyle(
                 colors.Accent,
@@ -64,9 +62,8 @@ internal static class SampleStyles
                 colors.AccentActive,
                 colors.TextOnAccent,
                 colors.BorderFocused,
-                Px(10),
-                Px(6),
-                fontSize
+                padding,
+                radius
             ),
             SampleButtonVariant.Navigation => new SampleButtonStyle(
                 colors.TitleBarBackground,
@@ -74,9 +71,8 @@ internal static class SampleStyles
                 colors.TitleBarInactiveBackground,
                 colors.TitleBarText,
                 colors.TitleBarHover,
-                Px(10),
-                Px(6),
-                fontSize
+                padding,
+                radius
             ),
             _ => new SampleButtonStyle(
                 colors.ElementBackground,
@@ -84,9 +80,8 @@ internal static class SampleStyles
                 colors.ElementActive,
                 colors.Text,
                 colors.Border,
-                Px(8),
-                Px(6),
-                fontSize
+                padding,
+                radius
             ),
         };
     }

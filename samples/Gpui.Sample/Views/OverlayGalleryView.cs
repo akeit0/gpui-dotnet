@@ -25,10 +25,9 @@ internal sealed partial class OverlayGalleryView : View
                                     view.Invalidate();
                                 }
                             )
-                            .Padding(Px(10))
-                            .Background(theme.Colors.Accent)
-                            .BorderColor(theme.Colors.BorderSelected)
-                            .TextColor(theme.Colors.TitleBarText),
+                            .Style(
+                                SampleStyles.Button(theme, SampleButtonVariant.Primary)
+                            ),
                         ui.Button("open-sheet", "Open right sheet")
                             .OnClick(
                                 this,

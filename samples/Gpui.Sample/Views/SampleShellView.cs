@@ -146,6 +146,7 @@ internal sealed partial class SampleShellView : View
                     .TextColor(theme.Colors.Info)
                     .Padding(Px(7))
             )
+            .Gap(Px(6))
             .ItemsCenter();
 
         var content = ui.VStack(topBar, ui.Divider(), pageSlot)
