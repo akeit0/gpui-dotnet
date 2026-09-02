@@ -6,7 +6,7 @@ use std::{
 
 use gpui::{
     AnyElement, App, AppContext as _, Entity, IntoElement as _, SharedString, Styled as _,
-    Subscription, Window,
+    Subscription, Window, px,
 };
 use gpui_component::input::{Editor, EditorState, InputEvent};
 use gpui_dotnet::{
@@ -34,6 +34,7 @@ struct EditorExtension;
 struct RetainedEditor {
     state: Entity<EditorState>,
     flags: Rc<Cell<u32>>,
+    line_number_width: Rc<Cell<Option<f32>>>,
     bootstrapped: Rc<Cell<bool>>,
     events: Rc<EditorEventState>,
     _subscription: Rc<Subscription>,
@@ -153,6 +154,7 @@ impl NativeExtension for EditorExtension {
                 EditorState::new(window, cx)
                     .language(configuration.language)
                     .line_number(configuration.flags & EDITOR_FLAG_LINE_NUMBERS != 0)
+                    .line_number_width(configuration.line_number_width.map(px))
                     .folding(configuration.flags & EDITOR_FLAG_FOLDING != 0)
                     .show_whitespaces(configuration.flags & EDITOR_FLAG_SHOW_WHITESPACE != 0)
             });
@@ -177,6 +179,7 @@ impl NativeExtension for EditorExtension {
             RetainedEditor {
                 state,
                 flags: Rc::new(Cell::new(configuration.flags)),
+                line_number_width: Rc::new(Cell::new(configuration.line_number_width)),
                 bootstrapped: Rc::new(Cell::new(false)),
                 events,
                 _subscription: Rc::new(subscription),
@@ -235,6 +238,20 @@ impl NativeExtension for EditorExtension {
             });
         }
 
+        if resource
+            .line_number_width
+            .replace(configuration.line_number_width)
+            != configuration.line_number_width
+        {
+            resource.state.update(cx, |state, cx| {
+                state.set_line_number_width(
+                    configuration.line_number_width.map(px),
+                    window,
+                    cx,
+                );
+            });
+        }
+
         Ok(Editor::new(&resource.state)
             .disabled(configuration.flags & EDITOR_FLAG_DISABLED != 0)
             .readonly(configuration.flags & EDITOR_FLAG_READ_ONLY != 0)
@@ -247,21 +264,27 @@ struct EditorConfiguration<'a> {
     flags: u32,
     language: &'a str,
     changed_event: u64,
+    line_number_width: Option<f32>,
 }
 
 impl<'a> EditorConfiguration<'a> {
     fn parse(value: &'a str) -> Option<Self> {
-        let mut fields = value.splitn(3, '\n');
+        let mut fields = value.splitn(4, '\n');
         let flags = fields.next()?.parse::<u32>().ok()?;
         let language = fields.next()?;
         let changed_event = fields.next()?.parse::<u64>().ok()?;
-        if flags & !EDITOR_KNOWN_FLAGS != 0 {
+        let line_number_width = fields.next()?.parse::<f32>().ok()?;
+        if flags & !EDITOR_KNOWN_FLAGS != 0
+            || !line_number_width.is_finite()
+            || line_number_width < 0.
+        {
             return None;
         }
         Some(Self {
             flags,
             language,
             changed_event,
+            line_number_width: (line_number_width > 0.).then_some(line_number_width),
         })
     }
 }
@@ -285,15 +308,23 @@ mod tests {
 
     #[test]
     fn parses_editor_configuration() {
-        let configuration = EditorConfiguration::parse("12\nrust\n42").unwrap();
+        let configuration = EditorConfiguration::parse("12\nrust\n42\n64").unwrap();
         assert_eq!(
             configuration.flags,
             EDITOR_FLAG_LINE_NUMBERS | EDITOR_FLAG_FOLDING
         );
         assert_eq!(configuration.language, "rust");
         assert_eq!(configuration.changed_event, 42);
-        assert!(EditorConfiguration::parse("32\nrust\n42").is_none());
-        assert!(EditorConfiguration::parse("12\nrust").is_none());
+        assert_eq!(configuration.line_number_width, Some(64.));
+        assert_eq!(
+            EditorConfiguration::parse("12\nrust\n42\n0")
+                .unwrap()
+                .line_number_width,
+            None
+        );
+        assert!(EditorConfiguration::parse("32\nrust\n42\n64").is_none());
+        assert!(EditorConfiguration::parse("12\nrust\n42\n-1").is_none());
+        assert!(EditorConfiguration::parse("12\nrust\n42").is_none());
     }
 
     #[test]

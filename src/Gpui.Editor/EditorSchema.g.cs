@@ -5,8 +5,8 @@ namespace Gpui.Editor;
 internal static class EditorSchema
 {
     internal const string ExtensionId = "gpui.net.editor";
-    internal const uint SchemaVersion = 3u;
-    internal const ulong SchemaHash = 0x7274911E03D21DF5UL;
+    internal const uint SchemaVersion = 4u;
+    internal const ulong SchemaHash = 0x98BDD874D7123B33UL;
 
     internal static class Editor
     {

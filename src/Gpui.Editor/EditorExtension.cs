@@ -25,6 +25,13 @@ public sealed record EditorOptions
     public bool Disabled { get; init; }
     public bool ReadOnly { get; init; }
     public bool LineNumbers { get; init; } = true;
+
+    /// <summary>
+    /// Optional fixed width of the line-number column. When omitted, the native editor sizes it
+    /// from the document's line count. Folding controls reserve separate space.
+    /// </summary>
+    public Pixels? LineNumberWidth { get; init; }
+
     public bool Folding { get; init; } = true;
     public bool ShowWhitespace { get; init; }
 }
@@ -238,12 +245,22 @@ public static class EditorElements
         flags |= options.LineNumbers ? EditorSchema.Editor.FlagLineNumbers : 0;
         flags |= options.Folding ? EditorSchema.Editor.FlagFolding : 0;
         flags |= options.ShowWhitespace ? EditorSchema.Editor.FlagShowWhitespace : 0;
+        var lineNumberWidth = options.LineNumberWidth?.Value ?? 0;
+        if (!float.IsFinite(lineNumberWidth) || lineNumberWidth < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(options),
+                "The editor line-number width must be finite and non-negative."
+            );
+        }
         return string.Concat(
             flags.ToString(CultureInfo.InvariantCulture),
             "\n",
             options.Language,
             "\n",
-            changedEventToken.ToString(CultureInfo.InvariantCulture)
+            changedEventToken.ToString(CultureInfo.InvariantCulture),
+            "\n",
+            lineNumberWidth.ToString("R", CultureInfo.InvariantCulture)
         );
     }
 }

@@ -56,6 +56,21 @@ public sealed class NativeExtensionTests
     }
 
     [Fact]
+    public void EditorOptionsRejectNegativeLineNumberWidth()
+    {
+        var view = new ExtensionProbeView();
+        Attach(view, 41);
+        try
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => RenderNegativeLineNumberWidth(view));
+        }
+        finally
+        {
+            view.UnmountRuntime();
+        }
+    }
+
+    [Fact]
     public void OptionalEditorSchemaWritesGenericExtensionEnvelope()
     {
         var view = new ExtensionProbeView();
@@ -155,6 +170,19 @@ public sealed class NativeExtensionTests
         using var arena = new RenderArenaOwner();
         var ui = arena.BeginRender();
         ui.NativeExtension(default, "resource", ReadOnlySpan<char>.Empty);
+    }
+
+    private static void RenderNegativeLineNumberWidth(ExtensionProbeView view)
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender(new ExtensionNoopRenderer(), view);
+        ui.Editor(
+            view.Editor,
+            new EditorOptions
+            {
+                LineNumberWidth = new Pixels(-1),
+            }
+        );
     }
 
     private static void Attach(

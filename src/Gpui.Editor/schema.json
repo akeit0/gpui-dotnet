@@ -1,10 +1,10 @@
 {
   "extensionId": "gpui.net.editor",
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "components": [
     {
       "kind": "editor",
-      "configuration": "flags-u32-decimal\\nlanguage\\nchanged-event-token-u64-decimal",
+      "configuration": "flags-u32-decimal\\nlanguage\\nchanged-event-token-u64-decimal\\nline-number-width-f32-decimal-or-zero-for-auto",
       "flags": {
         "disabled": 0,
         "read_only": 1,

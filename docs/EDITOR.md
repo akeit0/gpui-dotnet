@@ -11,10 +11,12 @@ references `GPUI.NET.Core`; it carries no native asset. `gpui-dotnet-editor-host
 host that links the base runtime with a retained `gpui-component` Editor provider.
 
 The current probe supports a one-shot UTF-8 document bootstrap, a language identifier,
-disabled/read-only state, line numbers, folding, whitespace visibility, and an opt-in typed change
-callback. Rust retains the Rope, selection, undo history, scrolling, focus, and IME state. Each
-native editing transaction increments the document revision and reports one minimal contiguous
-UTF-8 replacement. The broader focus/selection/edit/undo command set is not yet implemented.
+disabled/read-only state, line numbers, an optional fixed line-number column width, folding,
+whitespace visibility, and an opt-in typed change callback. Without a fixed width, the native
+editor sizes the number column from the document line count. Rust retains the Rope, selection,
+undo history, scrolling, focus, and IME state. Each native editing transaction increments the
+document revision and reports one minimal contiguous UTF-8 replacement. The broader
+focus/selection/edit/undo command set is not yet implemented.
 
 The extension ID, protocol version, component kinds, flags, and schema hash come from
 `src/Gpui.Editor/schema.json`. The normal binding generator emits matching C# and Rust constants,

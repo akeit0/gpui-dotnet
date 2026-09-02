@@ -90,11 +90,11 @@ var application = new GpuiApplication(
 ```
 
 The editor probe retains native Rope, selection, scrolling, highlighting, undo, focus, and IME
-state. Its managed schema exposes language, disabled/read-only state, line numbers, folding, and
-whitespace visibility. `EditorController.Bootstrap` transfers the initial UTF-8 document once,
-outside render snapshots. An opt-in typed callback reports native edits as minimal contiguous
-UTF-8 replacements with base/result revisions. Additional commands and release packaging remain
-open work.
+state. Its managed schema exposes language, disabled/read-only state, line numbers, optional fixed
+line-number width, folding, and whitespace visibility. `EditorController.Bootstrap` transfers the
+initial UTF-8 document once, outside render snapshots. An opt-in typed callback reports native
+edits as minimal contiguous UTF-8 replacements with base/result revisions. Additional commands and
+release packaging remain open work.
 
 The accepted ownership, revision, bootstrap, command, and event design is documented in
 [EDITOR.md](EDITOR.md).
