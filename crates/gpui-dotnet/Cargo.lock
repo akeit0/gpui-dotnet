@@ -2476,6 +2476,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "gpui-dotnet-default-host"
+version = "0.1.0-preview.1"
+dependencies = [
+ "gpui-dotnet",
+]
+
+[[package]]
+name = "gpui-dotnet-editor-host"
+version = "0.1.0-preview.1"
+dependencies = [
+ "gpui",
+ "gpui-component",
+ "gpui-dotnet",
+]
+
+[[package]]
 name = "gpui_apple"
 version = "0.1.0"
 source = "git+https://github.com/zed-industries/zed#f66ed399cdde86092af8af3dc7b418abf45f37f8"

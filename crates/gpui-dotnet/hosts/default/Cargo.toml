@@ -1,0 +1,12 @@
+[package]
+name = "gpui-dotnet-default-host"
+version = "0.1.0-preview.1"
+edition = "2024"
+publish = false
+
+[lib]
+name = "gpui_dotnet"
+crate-type = ["cdylib"]
+
+[dependencies]
+gpui-dotnet = { path = "../.." }

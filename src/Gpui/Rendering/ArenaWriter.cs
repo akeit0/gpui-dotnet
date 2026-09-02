@@ -7,6 +7,67 @@ namespace Gpui;
 
 internal static unsafe class ArenaWriter
 {
+    internal static Element<NativeExtensionTag> AddNativeExtensionNode(
+        RenderArena* arena,
+        NativeExtensionComponent component,
+        ReadOnlySpan<char> key,
+        ReadOnlySpan<char> configuration
+    )
+    {
+        Span<char> version = stackalloc char[10];
+        Span<char> schemaHash = stackalloc char[16];
+        if (!component.Extension.Version.TryFormat(version, out var versionLength))
+        {
+            throw new InvalidOperationException("Failed to encode the extension version.");
+        }
+        if (
+            !component.Extension.SchemaHash.TryFormat(
+                schemaHash,
+                out var schemaHashLength,
+                "X16"
+            )
+        )
+        {
+            throw new InvalidOperationException("Failed to encode the extension schema hash.");
+        }
+
+        EnsureNodes(arena, 1);
+        var byteCount = checked(
+            Encoding.UTF8.GetByteCount(component.Extension.Id)
+            + Encoding.UTF8.GetByteCount(component.Kind)
+            + Encoding.UTF8.GetByteCount(key)
+            + Encoding.UTF8.GetByteCount(version[..versionLength])
+            + Encoding.UTF8.GetByteCount(schemaHash[..schemaHashLength])
+            + Encoding.UTF8.GetByteCount(configuration)
+            + 5
+        );
+        EnsureUtf8(arena, byteCount);
+
+        var offset = arena->Utf8Length;
+        var destination = new Span<byte>(arena->Utf8 + offset, byteCount);
+        var written = Encoding.UTF8.GetBytes(component.Extension.Id, destination);
+        destination[written++] = 0;
+        written += Encoding.UTF8.GetBytes(component.Kind, destination[written..]);
+        destination[written++] = 0;
+        written += Encoding.UTF8.GetBytes(key, destination[written..]);
+        destination[written++] = 0;
+        written += Encoding.UTF8.GetBytes(version[..versionLength], destination[written..]);
+        destination[written++] = 0;
+        written += Encoding.UTF8.GetBytes(schemaHash[..schemaHashLength], destination[written..]);
+        destination[written++] = 0;
+        written += Encoding.UTF8.GetBytes(configuration, destination[written..]);
+        arena->Utf8Length += written;
+
+        var node = checked((uint)arena->NodeLength);
+        arena->Nodes[arena->NodeLength++] = new NodeRecord
+        {
+            Component = (ushort)ComponentId.NativeExtension,
+            DataOffset = checked((uint)offset),
+            DataLength = checked((uint)written),
+        };
+        return new Element<NativeExtensionTag>(new Element(arena, node, arena->Generation));
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static Element<TTag> AddNode<TTag>(RenderArena* arena, ComponentId component)
         where TTag : unmanaged

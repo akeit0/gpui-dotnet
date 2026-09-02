@@ -136,6 +136,8 @@ keeps its Windows package check at restore/build; the application manifest remai
 
 ## Extensions
 
-An extension can reference `GPUI.NET.Core` and supply a compatible host with its own file name and
-RID assets. Select it through `NativeRuntimeOptions.LibraryPath`. The custom host must satisfy the
-same API table, ABI version, and schema hash. See [EXTENSIONS.md](EXTENSIONS.md).
+An extension schema references `GPUI.NET.Core` but carries no native assets. Its runtime is a
+custom host built with one or more Rust providers and shipped under a unique file name with its own
+RID packages. Select it through `NativeRuntimeOptions.LibraryPath` and declare required extension
+ID/version/hash tuples through `NativeRuntimeOptions.Extensions`. See
+[EXTENSIONS.md](EXTENSIONS.md).

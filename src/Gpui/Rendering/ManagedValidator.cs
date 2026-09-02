@@ -114,6 +114,19 @@ internal static unsafe class ManagedValidator
                     );
                 }
             }
+            else if ((ComponentId)node.Component == ComponentId.NativeExtension)
+            {
+                var payload = new ReadOnlySpan<byte>(
+                    arena->Utf8 + node.DataOffset,
+                    checked((int)node.DataLength)
+                );
+                if (!IsValidNativeExtensionPayload(payload))
+                {
+                    throw new InvalidOperationException(
+                        $"NativeExtension node {i} has a malformed extension envelope."
+                    );
+                }
+            }
         }
 
         var rootComponent = (ComponentId)arena->Nodes[root.Node].Component;
@@ -470,5 +483,117 @@ internal static unsafe class ManagedValidator
             checked((int)node.DataLength)
         );
         return payload[..payload.IndexOf((byte)0)];
+    }
+
+    private static bool IsValidNativeExtensionPayload(ReadOnlySpan<byte> payload)
+    {
+        var remaining = payload;
+        if (
+            !TryTakeExtensionField(ref remaining, out var extensionId)
+            || !TryTakeExtensionField(ref remaining, out var componentKind)
+            || !TryTakeExtensionField(ref remaining, out var key)
+            || !TryTakeExtensionField(ref remaining, out var version)
+            || !TryTakeExtensionField(ref remaining, out var schemaHash)
+            || remaining.Contains((byte)0)
+        )
+        {
+            return false;
+        }
+
+        return IsExtensionIdentifier(extensionId)
+            && IsExtensionIdentifier(componentKind)
+            && !key.IsEmpty
+            && key[0] >= 0x20
+            && key.IndexOfAnyInRange((byte)0, (byte)0x1F) < 0
+            && TryParseNonZeroDecimal(version)
+            && IsNonZeroSchemaHash(schemaHash);
+    }
+
+    private static bool TryTakeExtensionField(
+        ref ReadOnlySpan<byte> remaining,
+        out ReadOnlySpan<byte> field
+    )
+    {
+        var separator = remaining.IndexOf((byte)0);
+        if (separator < 0)
+        {
+            field = default;
+            return false;
+        }
+        field = remaining[..separator];
+        remaining = remaining[(separator + 1)..];
+        return true;
+    }
+
+    private static bool IsExtensionIdentifier(ReadOnlySpan<byte> value)
+    {
+        if (value.IsEmpty || value.Length > 127)
+        {
+            return false;
+        }
+        foreach (var character in value)
+        {
+            if (
+                character is not (
+                    >= (byte)'a' and <= (byte)'z'
+                    or >= (byte)'A' and <= (byte)'Z'
+                    or >= (byte)'0' and <= (byte)'9'
+                    or (byte)'.'
+                    or (byte)'-'
+                    or (byte)'_'
+                )
+            )
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool TryParseNonZeroDecimal(ReadOnlySpan<byte> value)
+    {
+        if (value.IsEmpty || value.Length > 10)
+        {
+            return false;
+        }
+        uint result = 0;
+        foreach (var digit in value)
+        {
+            if (digit is < (byte)'0' or > (byte)'9')
+            {
+                return false;
+            }
+            try
+            {
+                result = checked(result * 10 + (uint)(digit - (byte)'0'));
+            }
+            catch (OverflowException)
+            {
+                return false;
+            }
+        }
+        return result != 0;
+    }
+
+    private static bool IsAsciiHex(byte value) =>
+        value is >= (byte)'0' and <= (byte)'9'
+            or >= (byte)'A' and <= (byte)'F';
+
+    private static bool IsNonZeroSchemaHash(ReadOnlySpan<byte> value)
+    {
+        if (value.Length != 16)
+        {
+            return false;
+        }
+        var nonZero = false;
+        foreach (var digit in value)
+        {
+            if (!IsAsciiHex(digit))
+            {
+                return false;
+            }
+            nonZero |= digit != (byte)'0';
+        }
+        return nonZero;
     }
 }

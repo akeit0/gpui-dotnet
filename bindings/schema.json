@@ -27,7 +27,8 @@
     "dock_split",
     "dock_tabs",
     "dock_panel",
-    "dock_region"
+    "dock_region",
+    "extension"
   ],
   "components": [
     {
@@ -422,6 +423,23 @@
         "dock_region"
       ],
       "nativeAdapter": "dock_region"
+    },
+    {
+      "id": 27,
+      "name": "native_extension",
+      "csharp": "NativeExtension",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "parent",
+        "layout",
+        "native_state",
+        "extension"
+      ],
+      "nativeAdapter": "native_extension"
     }
   ],
   "operations": [

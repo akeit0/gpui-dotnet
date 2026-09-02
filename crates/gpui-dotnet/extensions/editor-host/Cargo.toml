@@ -1,0 +1,14 @@
+[package]
+name = "gpui-dotnet-editor-host"
+version = "0.1.0-preview.1"
+edition = "2024"
+publish = false
+
+[lib]
+name = "gpui_dotnet_editor"
+crate-type = ["cdylib"]
+
+[dependencies]
+gpui = { git = "https://github.com/zed-industries/zed" }
+gpui-component = { path = "../../../../external/gpui-component/crates/ui" }
+gpui-dotnet = { path = "../.." }

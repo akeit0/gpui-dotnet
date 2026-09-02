@@ -1,9 +1,10 @@
-mod abi;
+pub mod abi;
 mod app_host;
 mod arena;
 mod components;
 mod context_menu;
 mod dock;
+pub mod extension;
 mod input;
 mod materializer;
 mod overlay;
@@ -21,13 +22,13 @@ mod trace;
 use std::{mem::size_of, panic::AssertUnwindSafe, ptr};
 
 use abi::{
-    ABI_VERSION, GpuiDotnetApiV1, ManagedCallbacks, NativeApplicationCommand, NativeMenuCommand,
+    ABI_VERSION, GpuiDotnetApiV2, ManagedCallbacks, NativeApplicationCommand, NativeMenuCommand,
     NativeMenuRecord, NativeResourceCommand, NativeThemePayload, RenderArena,
 };
 use semantic::SCHEMA_HASH;
 
-static API_V1: GpuiDotnetApiV1 = GpuiDotnetApiV1 {
-    struct_size: GpuiDotnetApiV1::struct_size(),
+static API_V2: GpuiDotnetApiV2 = GpuiDotnetApiV2 {
+    struct_size: GpuiDotnetApiV2::struct_size(),
     abi_version: ABI_VERSION,
     schema_hash: SCHEMA_HASH,
     validate_render: Some(validate_render),
@@ -36,14 +37,33 @@ static API_V1: GpuiDotnetApiV1 = GpuiDotnetApiV1 {
     dispatch_command: Some(dispatch_command),
     dispatch_application_command: Some(dispatch_application_command),
     dispatch_application_menu: Some(dispatch_application_menu),
+    supports_extension: Some(supports_extension),
 };
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_dotnet_get_api(requested_version: u32) -> *const GpuiDotnetApiV1 {
+pub fn api(requested_version: u32) -> *const GpuiDotnetApiV2 {
     if requested_version != ABI_VERSION {
         return ptr::null();
     }
-    &API_V1
+    &API_V2
+}
+
+unsafe extern "C" fn supports_extension(
+    id: *const u8,
+    id_length: i32,
+    version: u32,
+    schema_hash: u64,
+) -> i32 {
+    std::panic::catch_unwind(AssertUnwindSafe(|| {
+        if id_length <= 0 || id_length > 127 || id.is_null() || version == 0 || schema_hash == 0 {
+            return -80;
+        }
+        let bytes = unsafe { std::slice::from_raw_parts(id, id_length as usize) };
+        let Ok(id) = std::str::from_utf8(bytes) else {
+            return -80;
+        };
+        extension::supports(id, version, schema_hash).map_or_else(|status| status, |()| 0)
+    }))
+    .unwrap_or(-99)
 }
 
 unsafe extern "C" fn validate_render(arena: *const RenderArena, root: u32) -> i32 {
@@ -465,5 +485,15 @@ mod tests {
             unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
             -62
         );
+    }
+
+    #[test]
+    fn default_host_does_not_advertise_optional_extensions() {
+        let id = b"gpui.net.editor";
+        assert_eq!(
+            unsafe { supports_extension(id.as_ptr(), id.len() as i32, 1, 1) },
+            -81
+        );
+        assert_eq!(unsafe { supports_extension(id.as_ptr(), 128, 1, 1) }, -80);
     }
 }

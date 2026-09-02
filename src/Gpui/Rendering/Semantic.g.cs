@@ -32,6 +32,7 @@ namespace Gpui.Interop
         DockTabs = 24,
         DockPanel = 25,
         DockRegion = 26,
+        NativeExtension = 27,
     }
 
     internal enum OpCode : ushort
@@ -166,7 +167,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0xB55E495914E16758UL;
+        internal const ulong SchemaHash = 0x7E2AA437C92D7C1DUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -196,6 +197,7 @@ namespace Gpui.Interop
             ComponentId.DockTabs => true,
             ComponentId.DockPanel => true,
             ComponentId.DockRegion => true,
+            ComponentId.NativeExtension => true,
             _ => false,
         };
 
@@ -216,6 +218,7 @@ namespace Gpui.Interop
             ComponentId.Slider => true,
             ComponentId.DockArea => true,
             ComponentId.DockPanel => true,
+            ComponentId.NativeExtension => true,
             _ => false,
         };
 
@@ -367,6 +370,7 @@ namespace Gpui.Interop
             ComponentId.DockTabs => 0x0000000001400002UL,
             ComponentId.DockPanel => 0x0000000002000002UL,
             ComponentId.DockRegion => 0x0000000004400002UL,
+            ComponentId.NativeExtension => 0x0000000008000047UL,
             _ => 0,
         };
 
@@ -588,6 +592,7 @@ namespace Gpui
     public interface IDockTabsElementTag { }
     public interface IDockPanelElementTag { }
     public interface IDockRegionElementTag { }
+    public interface IExtensionElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
@@ -615,6 +620,7 @@ namespace Gpui
     public readonly struct DockTabsTag : IParentElementTag, IDockContainerElementTag, IDockTabsElementTag { }
     public readonly struct DockPanelTag : IParentElementTag, IDockPanelElementTag { }
     public readonly struct DockRegionTag : IParentElementTag, IDockContainerElementTag, IDockRegionElementTag { }
+    public readonly struct NativeExtensionTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IExtensionElementTag { }
 
     public readonly unsafe ref partial struct RenderContext
     {

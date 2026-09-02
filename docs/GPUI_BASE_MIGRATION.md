@@ -49,7 +49,7 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 | 6. Input | Complete | GPUI.NET retains its single-line editing engine because it preserves the revisioned contiguous UTF-8 event path without per-event native value materialization. The retained root now exposes the foundation-equivalent text-input role. | IME, Unicode, selection, clipboard, focus, commands, revisions, and events reach parity before old behavior is removed. |
 | 7. Scrolling and scrollbar | Complete | Scroll, List, and Table use foundation Scrollbar interaction and paint. GPUI.NET retains wheel smoothing, controller commands, and gutter geometry while seeding GPUI's native ListState with estimated heights for unmeasured rows. | Foundation scrollbar behavior is adopted selectively without additional managed/native traffic. |
 | 8. List and Table evaluation | Complete | GPUI.NET retains GPUI `ListState`, managed aligned range batches, stable row identity, structural commands, and table column reconciliation. Foundation scrollbar behavior remains shared. | Migration to foundation `VirtualList` is rejected because its integration cost and ownership tradeoffs do not provide a corresponding API or performance benefit. |
-| 9. Advanced retained components | In progress | DockArea retains a component-skinned foundation Dock with stable string panel IDs, declarative center tabs/splits and left/bottom/right regions, ordinary element or child-View content, native tab activation/reordering/cross-group moves, split and side-region resizing, region collapse, focus, close/zoom affordances, and theme projection. Ordinary content renders do not reset native layout or region state. Persistence, tiles, commands, and coarse layout events remain open; rich Editor follows separately. | At least one advanced component proves stable managed identity, coarse events, native high-frequency interaction, lifecycle, and theme integration. |
+| 9. Advanced retained components | In progress | DockArea retains a component-skinned foundation Dock with stable string panel IDs, declarative center tabs/splits and left/bottom/right regions, ordinary element or child-View content, and native interaction. The optional Editor probe is split into an independent managed schema and a build-time custom host provider; the default package graph contains no editor-specific contract. Commands, revisioned deltas, document bootstrap, packaging, and broad behavior tests remain open. | Advanced components prove stable managed identity, coarse events, native high-frequency interaction, lifecycle, theme integration, and optional packaging where appropriate. |
 | 10. Cleanup and protocol freeze candidate | Planned | Compatibility remains preview-level. | Superseded behavior and protocol paths are removed and the new contract is deliberately reviewed for stability. |
 
 No semantic component is considered migrated merely because the dependency and initializer exist.
@@ -222,11 +222,13 @@ layout operations, close/layout-change events, and application reconciliation po
 designed together rather than exposing foundation entities piecemeal. Pointer dragging, resizing,
 region collapse, drop targeting, focus, and frame-sensitive layout remain native.
 
-Treat rich Editor as a separate component from the existing single-line Input. Its contract must
-define document revisions, value/delta events, selection, commands, language/highlighting options,
-undo/redo, IME, and lifecycle without copying the whole document across the boundary per keypress.
-The native Rope and high-frequency editing state remain native; C# owns application state and
-product-level editor configuration.
+Rich Editor is separate from the existing single-line Input and from the default package graph.
+The base schema now has one generic NativeExtension envelope; `Gpui.Editor` owns the typed managed
+schema, while `gpui-dotnet-editor-host` links the matching provider into a custom host. ABI version
+2 negotiates the editor ID, version, and schema hash before startup. The first provider retains the
+native Rope and frame-sensitive editing state and exposes initial text plus basic presentation
+options. Revisioned value/delta events, selection and editing commands, runtime highlighter changes,
+and large-document bootstrap remain to be designed without copying the whole document per keypress.
 
 The remaining protocol questions stay open for later families:
 

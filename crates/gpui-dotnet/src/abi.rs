@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-pub const ABI_VERSION: u32 = 1;
+pub const ABI_VERSION: u32 = 2;
 pub const ARENA_FLAG_NATIVE_OWNED: u32 = 1;
 pub const RENDER_GROW_REQUIRED: i32 = 1;
 
@@ -181,9 +181,10 @@ pub type DispatchCommandFn = unsafe extern "C" fn(u64, *const NativeResourceComm
 pub type DispatchApplicationCommandFn =
     unsafe extern "C" fn(u64, *const NativeApplicationCommand) -> i32;
 pub type DispatchApplicationMenuFn = unsafe extern "C" fn(u64, *const NativeMenuCommand) -> i32;
+pub type SupportsExtensionFn = unsafe extern "C" fn(*const u8, i32, u32, u64) -> i32;
 
 #[repr(C)]
-pub struct GpuiDotnetApiV1 {
+pub struct GpuiDotnetApiV2 {
     pub struct_size: u32,
     pub abi_version: u32,
     pub schema_hash: u64,
@@ -193,9 +194,10 @@ pub struct GpuiDotnetApiV1 {
     pub dispatch_command: Option<DispatchCommandFn>,
     pub dispatch_application_command: Option<DispatchApplicationCommandFn>,
     pub dispatch_application_menu: Option<DispatchApplicationMenuFn>,
+    pub supports_extension: Option<SupportsExtensionFn>,
 }
 
-impl GpuiDotnetApiV1 {
+impl GpuiDotnetApiV2 {
     pub const fn struct_size() -> u32 {
         size_of::<Self>() as u32
     }

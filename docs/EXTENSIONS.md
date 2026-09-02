@@ -1,69 +1,92 @@
 # Extensions and custom native hosts
 
-An extension can add managed APIs, generators, semantic components, and native assets without
-exposing Rust or GPUI types directly to C#.
+Extensions keep optional component families out of the default managed API and native package.
+The contract deliberately separates an extension's managed schema from its Rust runtime.
 
-## Managed-only extensions
+## Boundary
 
-Reference `GPUI.NET` for the normal application surface, or `GPUI.NET.Core` when the extension owns
-its native dependency selection. Keep extension components in their own assembly and package.
+`GPUI.NET.Core` contains one generic `NativeExtension` semantic envelope and host negotiation. It
+does not contain extension-specific component kinds, configuration fields, controllers, events, or
+native implementations.
 
-Managed compositions and `IGpuiElementStyle<TTag>` variants require no native host change when they
-use existing semantic components and operations.
+An extension consists of two independently packaged halves:
 
-## Custom native host contract
+```text
+extension schema assembly
+  typed C# builders + options + schema ID/version/hash
 
-A host requiring Rust-side behavior ships a uniquely named native library for each supported RID.
-It must export:
-
-```c
-const gpui_dotnet_api_v1* gpui_dotnet_get_api(uint32_t requested_version);
+custom native host
+  gpui-dotnet runtime + selected Rust providers, linked into one binary
 ```
 
-The managed runtime validates:
+The schema assembly references `GPUI.NET.Core`. It wraps `RenderContext.NativeExtension` with a
+typed API and writes an opaque UTF-8 configuration owned by that extension schema. Extension
+definitions do not enter `bindings/schema.json` and do not change the base semantic schema hash.
 
-- the requested and reported ABI version;
-- the API-table `struct_size` prefix;
-- the semantic schema hash;
-- all required function entries.
+Rust providers implement `gpui_dotnet::extension::NativeExtension`. A custom host calls
+`install_native_extensions` once and delegates its `gpui_dotnet_get_api` export to
+`gpui_dotnet::api`. The runtime crate is an `rlib`; explicit default and custom `cdylib` host crates
+own the native entry-point exports. GPUI and Rust values never cross a dynamic-library boundary.
 
-The host must preserve the record layouts, ownership rules, pointer/length validation, callback
-semantics, and panic barriers documented in [ABI.md](ABI.md). A matching Rust compiler ABI is not a
-substitute for this C contract.
+Runtime loading arbitrary Rust plugin DLLs is intentionally unsupported. Rust has no stable ABI,
+and separately linked GPUI revisions would create incompatible type universes. Combining multiple
+native extensions requires building one host with all selected providers.
 
-## Selecting a host
+## Compatibility
 
-Choose the native library before opening or running the application:
+Every extension has:
+
+- a stable ASCII identifier;
+- an independent protocol version;
+- a deterministic 64-bit schema hash;
+- one or more component-kind identifiers.
+
+`NativeRuntimeOptions.Extensions` lists the schemas required by an application. ABI version 2's
+`supports_extension` entry verifies every ID/version/hash before the event loop starts. An extension
+node repeats that identity in its envelope, so a declaration cannot accidentally reach a provider
+built from another schema.
+
+The retained resource identity is `(session, owner View, extension ID, component kind, key,
+version, schema hash)`. Extension state lives in a type-erased store owned by the managed View's
+native resource store and is dropped when the committed snapshot stops declaring it.
+
+## Optional editor probe
+
+`src/Gpui.Editor` is a separate managed schema project. The
+`gpui-dotnet-editor-host` crate is a separate custom host that registers a retained
+`gpui-component` Editor provider. Neither project is referenced by the `GPUI.NET` or
+`GPUI.NET.Core` package graph.
+
+The sample proves build-time composition and startup negotiation:
+
+```sh
+dotnet run --project samples/Gpui.Editor.Sample/Gpui.Editor.Sample.csproj
+```
+
+Its project builds the custom host, copies the uniquely named native library beside the executable,
+and selects it explicitly:
 
 ```csharp
-using Gpui;
-
 var application = new GpuiApplication(
     new NativeRuntimeOptions
     {
-        LibraryPath = Path.Combine(
-            AppContext.BaseDirectory,
-            "my_gpui_extension_host.dylib"
-        ),
+        LibraryPath = Path.Combine(AppContext.BaseDirectory, "gpui_dotnet_editor.dll"),
+        Extensions = [EditorExtension.Requirement],
     }
 );
-
-application.OpenWindow(new MainView());
-application.Run();
 ```
 
-The single-window convenience overload accepts the same runtime options. When `LibraryPath` is not
-set, GPUI.NET resolves its packaged `gpui_dotnet` host for the current RID.
+The initial editor probe retains native Rope, selection, scrolling, highlighting, undo, focus, and
+IME state. Its managed schema currently exposes initial text, language, disabled/read-only state,
+line numbers, folding, and whitespace visibility. Commands, document revisions, delta events, and
+release packaging remain open work.
 
 ## Packaging guidance
 
-- use a unique native file name so the extension and base host can coexist;
-- put each native library under the extension package's `runtimes/<rid>/native` path;
-- build each RID on its natural platform;
-- version the managed package and native assets together;
-- test discovery, ABI/schema rejection, application startup, and a clean consumer restore;
-- own extension-specific staging and packing scripts rather than modifying base-package checks to
-  accept unrelated assets.
-
-If the extension changes the semantic schema, it owns a complete compatible managed/native pair.
-An application cannot combine independently generated semantic registries in one GPUI.NET host.
+- keep schema assemblies free of native assets;
+- use a unique native host file name so custom and default hosts can coexist;
+- put release host libraries under RID-specific runtime packages;
+- build every host on its natural target platform;
+- version each schema and its provider together;
+- test missing-extension and schema-mismatch rejection before application startup;
+- test a clean consumer restore without requiring Cargo or a Rust toolchain.

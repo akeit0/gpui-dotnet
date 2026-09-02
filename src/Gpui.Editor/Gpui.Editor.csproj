@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Gpui.Editor</RootNamespace>
+        <AssemblyName>Gpui.Editor</AssemblyName>
+        <PackageId>GPUI.NET.Editor.Schema</PackageId>
+        <Description>Optional managed schema for the GPUI.NET native code editor extension.</Description>
+        <IsPackable>true</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../Gpui.Core/Gpui.Core.csproj" AdditionalProperties="BuildGpuiNative=false" />
+        <None Include="schema.json" Pack="true" PackagePath="schema" />
+    </ItemGroup>
+</Project>

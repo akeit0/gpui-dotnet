@@ -15,7 +15,7 @@ durable API is available, add semantic roles, names, values, selection, and anno
 
 Treat accessibility as a semantic batch rather than platform-specific managed branches.
 
-## Input and editor
+## Input
 
 Harden the single-line Input before introducing a multiline editor:
 
@@ -25,8 +25,17 @@ Harden the single-line Input before introducing a multiline editor:
 - controlled-value conflict semantics;
 - IME and clipboard integration tests on every desktop platform.
 
-A multiline editor should reuse the native entity, focus, IME, selection, UTF-8 event, and command
-contracts rather than moving edit state into managed renders.
+## Optional editor extension
+
+Build on the separate `Gpui.Editor` schema and `gpui-dotnet-editor-host` runtime probe with:
+
+- a controller for focus, selection, document replacement, edits, undo, and redo;
+- revisioned UTF-8 edit/delta events without materializing the whole Rope per keypress;
+- an initial-document bootstrap path that does not resend large text on unrelated dirty renders;
+- runtime language/highlighter changes and explicit unsupported-language behavior;
+- schema generation/verification instead of duplicated managed and Rust constants;
+- RID runtime packages and clean-consumer tests that never require Cargo;
+- IME, clipboard, undo, large-document, accessibility, and cross-platform behavior tests.
 
 ## Dock
 

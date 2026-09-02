@@ -15,6 +15,9 @@ use crate::{
     app_host::ManagedView,
     arena::OwnedRenderArena,
     dock::{DockConfiguration, ManagedDockResource, dock_configuration},
+    extension::{
+        NativeExtensionResourceKey, NativeExtensionStore, declaration as extension_declaration,
+    },
     input::{InputBindings, InputInitialState, ManagedInput},
     scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics},
     semantic::{
@@ -77,8 +80,10 @@ pub(crate) struct ResourceStore {
     inputs: RefCell<HashMap<ResourceKey, Entity<ManagedInput>>>,
     sliders: RefCell<HashMap<ResourceKey, Entity<ManagedSlider>>>,
     docks: RefCell<HashMap<ResourceKey, Rc<RefCell<ManagedDockResource>>>>,
+    extensions: NativeExtensionStore,
     pending: RefCell<HashMap<(u16, ResourceKey), Vec<ResourceCommand>>>,
     active_scratch: RefCell<HashSet<(u16, ResourceKey)>>,
+    extension_active_scratch: RefCell<HashSet<NativeExtensionResourceKey>>,
 }
 
 impl ResourceStore {
@@ -93,13 +98,19 @@ impl ResourceStore {
             inputs: RefCell::new(HashMap::new()),
             sliders: RefCell::new(HashMap::new()),
             docks: RefCell::new(HashMap::new()),
+            extensions: NativeExtensionStore::new(),
             pending: RefCell::new(HashMap::new()),
             active_scratch: RefCell::new(HashSet::new()),
+            extension_active_scratch: RefCell::new(HashSet::new()),
         }
     }
 
     pub(crate) fn theme(&self) -> NativeTheme {
         *self.theme.borrow()
+    }
+
+    pub(crate) fn extensions(&self) -> &NativeExtensionStore {
+        &self.extensions
     }
 
     pub(crate) fn scroll_resource(&self, key: &ResourceKey) -> Rc<ManagedScrollResource> {
@@ -366,6 +377,8 @@ impl ResourceStore {
     pub(crate) fn retain_snapshot(&self, snapshot: &ValidatedSnapshot) {
         let mut active = self.active_scratch.borrow_mut();
         active.clear();
+        let mut extension_active = self.extension_active_scratch.borrow_mut();
+        extension_active.clear();
         for node in &snapshot.nodes {
             let Some(metadata) = component_metadata(node.component) else {
                 continue;
@@ -378,6 +391,7 @@ impl ResourceStore {
                     | NativeAdapter::Input
                     | NativeAdapter::Slider
                     | NativeAdapter::DockArea
+                    | NativeAdapter::NativeExtension
             ) {
                 continue;
             }
@@ -392,6 +406,17 @@ impl ResourceStore {
                         .map(|configuration| (4, configuration.key)),
                     NativeAdapter::DockArea => dock_configuration(snapshot, node)
                         .map(|configuration| (5, configuration.key)),
+                    NativeAdapter::NativeExtension => {
+                        if let (Some(owner), Some(declaration)) = (
+                            last_u32(snapshot, node, OP_RESOURCE_OWNER),
+                            extension_declaration(node),
+                        ) {
+                            if owner != 0 {
+                                extension_active.insert(declaration.resource_key(owner));
+                            }
+                        }
+                        None
+                    }
                     _ => None,
                 };
             if let Some(resource) = active_resource {
@@ -416,6 +441,7 @@ impl ResourceStore {
         self.docks
             .borrow_mut()
             .retain(|key, _| active.contains(&(5, key.clone())));
+        self.extensions.retain(&extension_active);
         self.pending
             .borrow_mut()
             .retain(|(kind, key), _| active.contains(&(*kind, key.clone())));

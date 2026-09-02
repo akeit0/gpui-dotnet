@@ -180,6 +180,11 @@ The package boundary permits a compatible custom native host selected through
 `NativeRuntimeOptions.LibraryPath`. Every host must satisfy the same ABI version, API-table size,
 schema hash, and required entry points.
 
+Optional native component families use the generic NativeExtension envelope. Their typed managed
+schema remains in a separate assembly, with its own extension ID, version, and hash. A custom host
+links the selected Rust providers with the base runtime at build time and advertises those schemas
+through ABI negotiation. GPUI/Rust objects are never passed between independently built libraries.
+
 ## Dependency policy
 
 The `external/gpui-component` submodule pins `gpui-base` and `gpui-component` to an exact revision

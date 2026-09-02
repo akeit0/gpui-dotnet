@@ -21,6 +21,11 @@ There are three implementation classes:
 3. Managed compositions combine existing primitives without adding an ABI component. Dialog,
    Sheet, and the shared title-bar helper use this model.
 
+Optional native families use a fourth boundary: a typed schema assembly wraps the generic
+NativeExtension node, while a custom host links the matching Rust provider at build time. The base
+managed and native packages contain no extension-specific component contract. See
+[EXTENSIONS.md](EXTENSIONS.md).
+
 Choose the simplest class that satisfies the behavior. A component needs a retained resource only
 when interaction state must survive independently from managed renders.
 

@@ -4,8 +4,13 @@ version = "0.1.0-preview.1"
 edition = "2024"
 publish = false
 
+[workspace]
+members = ["hosts/default", "extensions/editor-host"]
+default-members = [".", "hosts/default"]
+resolver = "3"
+
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [dependencies]
 async-channel = "2"

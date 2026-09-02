@@ -15,6 +15,10 @@ use crate::{
     components,
     context_menu::{ContextMenuConfiguration, context_menu},
     dock::dock_configuration,
+    extension::{
+        NativeExtensionRequest, declaration as extension_declaration,
+        provider as extension_provider,
+    },
     overlay::OverlayKind,
     popover_menu::{PopoverMenuConfiguration, popover_menu},
     resources::{
@@ -74,6 +78,9 @@ impl ManagedView {
             NativeAdapter::Input => self.materialize_input(node, snapshot, window, cx),
             NativeAdapter::Slider => self.materialize_slider(node, snapshot, cx),
             NativeAdapter::DockArea => self.materialize_dock(node, snapshot, window, cx),
+            NativeAdapter::NativeExtension => {
+                self.materialize_native_extension(node, snapshot, window, cx)
+            }
             NativeAdapter::Overlay => self.materialize_overlay(node, snapshot, window, cx),
             NativeAdapter::Tooltip => self.materialize_tooltip(node, snapshot, window, cx),
             NativeAdapter::ContextMenu => self.materialize_context_menu(node, snapshot, window, cx),
@@ -99,6 +106,64 @@ impl ManagedView {
                 .dock_resource(&configuration, cx.entity().downgrade(), window, cx);
         let element = div().size_full().child(area);
         apply_styles(element, node, snapshot).into_any_element()
+    }
+
+    fn materialize_native_extension(
+        &self,
+        node: &SnapshotNode,
+        snapshot: &ValidatedSnapshot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let Some(declaration) = extension_declaration(node) else {
+            return div()
+                .child("Native extension declaration is malformed.")
+                .into_any_element();
+        };
+        let Some(owner_view) = last_op(snapshot, node, OP_RESOURCE_OWNER)
+            .map(|operation| operation.a as u32)
+            .filter(|owner| *owner != 0)
+        else {
+            return div()
+                .child("Native extension declaration is missing its owner.")
+                .into_any_element();
+        };
+        let Some(provider) = extension_provider(declaration.extension_id.as_ref()) else {
+            return div()
+                .child(format!(
+                    "Native extension '{}' is not installed in this host.",
+                    declaration.extension_id
+                ))
+                .into_any_element();
+        };
+        let descriptor = provider.descriptor();
+        if descriptor.version != declaration.version
+            || descriptor.schema_hash != declaration.schema_hash
+        {
+            return div()
+                .child(format!(
+                    "Native extension '{}' has an incompatible schema.",
+                    declaration.extension_id
+                ))
+                .into_any_element();
+        }
+
+        let children = snapshot
+            .children(node)
+            .iter()
+            .map(|child| self.materialize_node(*child, snapshot, window, cx))
+            .collect();
+        let request = NativeExtensionRequest {
+            resource_key: declaration.resource_key(owner_view),
+            configuration: declaration.configuration,
+            children,
+        };
+        match provider.materialize(request, self.resources.extensions(), window, cx) {
+            Ok(content) => {
+                apply_styles(div().size_full().child(content), node, snapshot).into_any_element()
+            }
+            Err(error) => div().child(error).into_any_element(),
+        }
     }
 
     fn materialize_dynamic(
@@ -990,6 +1055,7 @@ pub(crate) fn materialize_snapshot_node_detached(
             | NativeAdapter::DockTabs
             | NativeAdapter::DockPanel
             | NativeAdapter::DockRegion
+            | NativeAdapter::NativeExtension
     ) {
         return div()
             .child(

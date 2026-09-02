@@ -26,6 +26,8 @@ schema, and the native ABI may change before a stable release.
 - Native image decoding/caching and vector drawing with paths, fills, strokes, curves, arcs, and
   view boxes.
 - Multiple windows, application menus, system or custom title bars, and native window controls.
+- Build-time native extension hosts with independently versioned managed schemas; the optional
+  editor probe retains Rope, selection, highlighting, undo, scrolling, focus, and IME in Rust.
 
 ### Platform support
 
@@ -159,12 +161,12 @@ C# application and View state
         │ dirty render
         ▼
 flat RenderArena: nodes, operations, children, UTF-8
-        │ ABI v1 + semantic schema hash
+        │ ABI v2 + base/extension schema negotiation
         ▼
 Rust validation and retained snapshot
         │
         ├── semantic adapters ──► GPUI elements and deferred layers
-        └── retained resources ─► scroll, list/table, input, slider, dock
+        └── retained resources ─► scroll, list/table, input, slider, dock, extensions
 ```
 
 Clean native repaints do not call managed `Render()`. High-frequency state such as scrolling,

@@ -7,10 +7,11 @@ use crate::{
     semantic::{
         COMPONENT_CONTEXT_MENU, COMPONENT_DOCK_AREA, COMPONENT_DOCK_PANEL, COMPONENT_DOCK_REGION,
         COMPONENT_DOCK_SPLIT, COMPONENT_DOCK_TABS, COMPONENT_DRAWING, COMPONENT_DYNAMIC,
-        COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_OVERLAY, COMPONENT_PATH, COMPONENT_POPOVER_MENU,
-        COMPONENT_SLIDER, COMPONENT_TABLE, COMPONENT_TOOLTIP, DataKind, OP_DOCK_ACTIVE_INDEX,
-        OP_DOCK_REGION_SIDE, OP_DRAWING_VIEW_BOX_SIZE, OP_PATH_ARC_RADII, OP_RESOURCE_OWNER,
-        ValueKind, allows_payload, component_metadata, operation_metadata, payload_error,
+        COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_NATIVE_EXTENSION, COMPONENT_OVERLAY,
+        COMPONENT_PATH, COMPONENT_POPOVER_MENU, COMPONENT_SLIDER, COMPONENT_TABLE,
+        COMPONENT_TOOLTIP, DataKind, OP_DOCK_ACTIVE_INDEX, OP_DOCK_REGION_SIDE,
+        OP_DRAWING_VIEW_BOX_SIZE, OP_PATH_ARC_RADII, OP_RESOURCE_OWNER, ValueKind, allows_payload,
+        component_metadata, operation_metadata, payload_error,
     },
 };
 
@@ -321,6 +322,10 @@ fn validate_with_scratch(
             {
                 return Err(-61);
             }
+        }
+        if node.component == COMPONENT_NATIVE_EXTENSION && !crate::extension::valid_payload(payload)
+        {
+            return Err(-62);
         }
     }
 

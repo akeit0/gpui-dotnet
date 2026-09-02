@@ -1,6 +1,6 @@
 # Native ABI
 
-GPUI.NET currently uses ABI version 1. Managed startup requires an exact ABI version, a compatible
+GPUI.NET currently uses ABI version 2. Managed startup requires an exact ABI version, a compatible
 API-table prefix, all required function entries, and the semantic schema hash generated from
 `bindings/schema.json`.
 
@@ -10,7 +10,7 @@ not manipulate pointers or wire records directly.
 ## Discovery
 
 ```c
-const gpui_dotnet_api_v1* gpui_dotnet_get_api(uint32_t requested_version);
+const gpui_dotnet_api_v2* gpui_dotnet_get_api(uint32_t requested_version);
 ```
 
 The API table contains:
@@ -21,11 +21,17 @@ The API table contains:
 - `notify_view`;
 - `dispatch_command` for retained resources;
 - `dispatch_application_command` for windows and themes;
-- `dispatch_application_menu`.
+- `dispatch_application_menu`;
+- `supports_extension` for independently versioned build-time extension schemas.
 
-The generated schema hash is deliberately separate from the ABI version. Component IDs,
+The generated base schema hash is deliberately separate from the ABI version. Component IDs,
 operation IDs, capabilities, or payload constraints can change without altering C record layouts;
 the hash rejects a managed/native pair built from different schemas.
+
+An optional extension has its own ID, protocol version, and schema hash. `supports_extension`
+checks that tuple before application startup. Extension-specific definitions never enter the base
+schema; the generic NativeExtension node carries the tuple, component kind, retained key, and an
+opaque UTF-8 configuration owned by the extension schema.
 
 ## Application and callbacks
 
@@ -220,8 +226,8 @@ DockArea is a keyed retained semantic component with one center tree and up to o
 each left, bottom, and right placement. Center and region trees use DockSplit/DockTabs/DockPanel
 nodes; each panel has a unique string ID across the area, a title, and exactly one ordinary content
 subtree. Initial center/region declarations, placement, open/collapsible state, and panel options
-use generated semantic operations, so these additions change the schema hash but not ABI version 1
-or any C record layout. Native pointer dragging, split and region resizing, region collapse, focus,
+use generated semantic operations; they change the base schema hash without changing any C record
+layout. Native pointer dragging, split and region resizing, region collapse, focus,
 and tab activation require no managed callback. There is no Dock resource-command or retained-
 control-event packet in the current slice.
 
@@ -239,7 +245,7 @@ panics from crossing the C boundary.
 
 When changing C layouts or entry points:
 
-1. update Rust records and `GpuiDotnetApiV1` (or introduce the next table version);
+1. update Rust records and `GpuiDotnetApiV2` (or introduce the next table version);
 2. regenerate `src/Gpui/Interop/NativeMethods.g.cs` through the native build/csbindgen path;
 3. update managed size/version checks and tests;
 4. update this document;
