@@ -1,14 +1,18 @@
 # gpui-base migration
 
-This is the living development plan and status tracker for adopting `gpui-base` as GPUI.NET's
-native behavior foundation. Keep it aligned with the current implementation. Exact dependency
-revisions and the downstream patch ledger live in [UPSTREAM_BASELINE.md](UPSTREAM_BASELINE.md).
+This is the living development plan and status tracker for adopting `gpui-base` and selected
+`gpui-component` facilities as GPUI.NET's native behavior foundation. Keep it aligned with the
+current implementation. Exact dependency revisions and the downstream patch ledger live in
+[UPSTREAM_BASELINE.md](UPSTREAM_BASELINE.md).
 
 ## Objective
 
-Reuse `gpui-base` for native interaction, focus, accessibility, controlled state, text editing,
-popups, scrolling, motion, and other broadly useful behavior while preserving GPUI.NET's semantic
-managed/native boundary.
+Reuse foundation implementations for native interaction, focus, accessibility, controlled state,
+text editing, docking, popups, scrolling, motion, and other broadly useful behavior while keeping
+the managed/native boundary efficient. GPUI.NET APIs may evolve when foundation concepts produce a
+better component model, but adoption should not require disproportionate protocol complexity,
+crossing cost, or duplicated machinery merely to replace a working implementation. Rust foundation
+types remain private implementation details selected by native adapters.
 
 The target dependency direction is:
 
@@ -21,13 +25,14 @@ GPUI.NET semantic IR and native protocol
         ▼
 GPUI.NET native adapters and retained identity
         │
-        ├── gpui-base reusable behavior
+        ├── gpui-base reusable behavior and retained components
+        ├── selected gpui-component components
         ├── direct GPUI primitives
         └── platform-specific integration
 ```
 
-`gpui-base` is an implementation foundation, not part of the managed public contract. C# APIs do
-not expose Rust implementation types.
+The Rust crates are implementation foundations, not part of the managed public contract. C# APIs
+do not expose Rust implementation types or inherit the Rust component hierarchy.
 
 ## Current status
 
@@ -43,8 +48,9 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 | 5. Slider | Complete | GPUI.NET retains its native Slider engine because the foundation state cannot reconcile configuration and lacks keyboard/focus plus released-event parity. The retained root now exposes foundation-equivalent slider accessibility metadata. | Foundation behavior reaches pointer/keyboard/controller/event parity, or the custom implementation is retained with rationale. |
 | 6. Input | Complete | GPUI.NET retains its single-line editing engine because it preserves the revisioned contiguous UTF-8 event path without per-event native value materialization. The retained root now exposes the foundation-equivalent text-input role. | IME, Unicode, selection, clipboard, focus, commands, revisions, and events reach parity before old behavior is removed. |
 | 7. Scrolling and scrollbar | Complete | Scroll, List, and Table use foundation Scrollbar interaction and paint. GPUI.NET retains wheel smoothing, controller commands, and gutter geometry while seeding GPUI's native ListState with estimated heights for unmeasured rows. | Foundation scrollbar behavior is adopted selectively without additional managed/native traffic. |
-| 8. List and Table evaluation | Decision pending | The existing aligned range-batch cache remains authoritative. | Benchmarks record an explicit keep or migrate decision. |
-| 9. Cleanup and protocol freeze candidate | Planned | Compatibility remains preview-level. | Superseded behavior and protocol paths are removed and the new contract is deliberately reviewed for stability. |
+| 8. List and Table evaluation | Complete | GPUI.NET retains GPUI `ListState`, managed aligned range batches, stable row identity, structural commands, and table column reconciliation. Foundation scrollbar behavior remains shared. | Migration to foundation `VirtualList` is rejected because its integration cost and ownership tradeoffs do not provide a corresponding API or performance benefit. |
+| 9. Advanced retained components | Planned | Dock and rich Editor are the first integration candidates. Their managed contracts and native foundation adapters should be designed together, adopting useful foundation concepts without exposing incidental Rust types. | At least one advanced component proves stable managed identity, coarse events, native high-frequency interaction, lifecycle, and theme integration. |
+| 10. Cleanup and protocol freeze candidate | Planned | Compatibility remains preview-level. | Superseded behavior and protocol paths are removed and the new contract is deliberately reviewed for stability. |
 
 No semantic component is considered migrated merely because the dependency and initializer exist.
 Implementation ownership changes only after the component-specific exit criteria pass.
@@ -182,12 +188,35 @@ hints before the sibling scrollbar reads the range. The remaining adapter only a
 geometry and cancels queued wheel easing on direct scrollbar input; it delegates offsets, maximum
 range, track clicks, and drag lifecycle to `ListState`. No ABI, schema, or fork change is required.
 
-## Next development slice: List and Table evaluation
+## List and Table decision
 
-Benchmark the existing aligned range-batch cache and retained List/Table row engine against the
-foundation virtual-list facilities. Record an explicit keep or migrate decision while preserving
-stable item identity, structural commands, variable-height rows, table column reconciliation, and
-the managed crossing budget.
+GPUI.NET retains its existing List/Table engine. GPUI's native `ListState` owns variable-height
+measurement and viewport state, while the GPUI.NET adapter owns aligned managed range batches,
+stable model identity, content revisions, structural commands, and table column reconciliation.
+Those responsibilities directly implement the managed crossing budget and remain authoritative.
+
+Foundation `VirtualList` instead expects a Rust-owned range renderer and a complete vector of item
+sizes. Adopting it would either move application data and sizing into Rust or rebuild the current
+batching and reconciliation protocol around a less suitable layout primitive. That cost currently
+has no corresponding API, behavior, or performance benefit. Foundation scrollbar and focus
+behavior remain reusable independently. Performance benchmarks should continue to validate
+GPUI.NET's retained engine, but comparison with `VirtualList` is no longer a migration gate. Reopen
+the decision if the foundation implementation later offers a concrete advantage that justifies the
+integration work.
+
+## Next development slice: advanced retained component contract
+
+Begin with Dock as the first advanced component probe. Co-design the managed API and native adapter,
+using the foundation model where it simplifies the result and adapting it where direct exposure
+would create avoidable coupling. Cover stable panel IDs, panel content ownership, declarative
+layout, controller commands, layout-change events, persistence, teardown, and theme behavior.
+Pointer dragging, resizing, drop targeting, focus, and frame-sensitive layout remain native.
+
+Treat rich Editor as a separate component from the existing single-line Input. Its contract must
+define document revisions, value/delta events, selection, commands, language/highlighting options,
+undo/redo, IME, and lifecycle without copying the whole document across the boundary per keypress.
+The native Rope and high-frequency editing state remain native; C# owns application state and
+product-level editor configuration.
 
 The remaining protocol questions stay open for later families:
 
