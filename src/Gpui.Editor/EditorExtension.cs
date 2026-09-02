@@ -41,6 +41,26 @@ public enum EditorChangeOrigin : ushort
 {
     /// <summary>The user changed the document through the native editor.</summary>
     User = 0,
+
+    /// <summary>The document changed through an <see cref="EditorController"/> command.</summary>
+    Command = 1,
+}
+
+/// <summary>Identifies an imperative editor operation.</summary>
+public enum EditorCommandKind : ushort
+{
+    Bootstrap = EditorSchema.Editor.CommandBootstrap,
+    Focus = EditorSchema.Editor.CommandFocus,
+    SetSelection = EditorSchema.Editor.CommandSetSelection,
+    ReplaceDocument = EditorSchema.Editor.CommandReplaceDocument,
+    ApplyEdit = EditorSchema.Editor.CommandApplyEdit,
+}
+
+/// <summary>Explains why a state-dependent editor command was not applied.</summary>
+public enum EditorCommandRejectedReason : ushort
+{
+    StaleRevision = 1,
+    InvalidRange = 2,
 }
 
 /// <summary>One contiguous UTF-8 replacement, expressed in bytes of the prior revision.</summary>
@@ -80,7 +100,7 @@ public sealed class EditorChangedEvent : INativeExtensionEvent<EditorChangedEven
         {
             throw new InvalidOperationException($"Unknown editor event kind {nativeEvent.Kind}.");
         }
-        if (nativeEvent.Flags != (ushort)EditorChangeOrigin.User)
+        if (!Enum.IsDefined((EditorChangeOrigin)nativeEvent.Flags))
         {
             throw new InvalidOperationException(
                 $"Unknown editor change origin {nativeEvent.Flags}."
@@ -153,6 +173,62 @@ public sealed class EditorChangedEvent : INativeExtensionEvent<EditorChangedEven
     }
 }
 
+/// <summary>A revision-checked editor command that native state could not apply.</summary>
+public sealed class EditorCommandRejectedEvent
+    : INativeExtensionEvent<EditorCommandRejectedEvent>
+{
+    private EditorCommandRejectedEvent(
+        EditorCommandKind command,
+        EditorCommandRejectedReason reason,
+        ulong expectedRevision,
+        ulong currentRevision
+    )
+    {
+        Command = command;
+        Reason = reason;
+        ExpectedRevision = expectedRevision;
+        CurrentRevision = currentRevision;
+    }
+
+    public EditorCommandKind Command { get; }
+    public EditorCommandRejectedReason Reason { get; }
+    public ulong ExpectedRevision { get; }
+    public ulong CurrentRevision { get; }
+
+    public static EditorCommandRejectedEvent Decode(NativeExtensionEvent nativeEvent)
+    {
+        ArgumentNullException.ThrowIfNull(nativeEvent);
+        if (nativeEvent.Kind != EditorSchema.Editor.EventCommandRejected)
+        {
+            throw new InvalidOperationException($"Unknown editor event kind {nativeEvent.Kind}.");
+        }
+        if (!Enum.IsDefined((EditorCommandRejectedReason)nativeEvent.Flags))
+        {
+            throw new InvalidOperationException(
+                $"Unknown editor command rejection reason {nativeEvent.Flags}."
+            );
+        }
+
+        var span = nativeEvent.Payload.Span;
+        if (span.Length != 12 || BinaryPrimitives.ReadUInt16LittleEndian(span[2..]) != 0)
+        {
+            throw new InvalidOperationException("The editor command rejection payload is invalid.");
+        }
+        var command = (EditorCommandKind)BinaryPrimitives.ReadUInt16LittleEndian(span);
+        if (!Enum.IsDefined(command) || command == EditorCommandKind.Bootstrap)
+        {
+            throw new InvalidOperationException($"Unknown rejected editor command {command}.");
+        }
+
+        return new EditorCommandRejectedEvent(
+            command,
+            (EditorCommandRejectedReason)nativeEvent.Flags,
+            BinaryPrimitives.ReadUInt64LittleEndian(span[4..]),
+            nativeEvent.Revision
+        );
+    }
+}
+
 /// <summary>Imperative handle for one retained native editor document.</summary>
 public readonly struct EditorController
 {
@@ -175,6 +251,60 @@ public readonly struct EditorController
     /// <summary>UTF-8 bootstrap variant. Native code copies the bytes before returning.</summary>
     public void Bootstrap(ReadOnlySpan<byte> utf8Value) =>
         _native.Dispatch(EditorSchema.Editor.CommandBootstrap, utf8Value);
+
+    /// <summary>Moves native keyboard focus to this editor.</summary>
+    public void Focus() => _native.Dispatch(EditorSchema.Editor.CommandFocus);
+
+    /// <summary>Sets the selection using UTF-8 byte offsets against a known document revision.</summary>
+    public void SetSelection(ulong expectedRevision, ulong start, ulong end)
+    {
+        if (end < start)
+        {
+            throw new ArgumentOutOfRangeException(nameof(end), "Selection end cannot precede start.");
+        }
+        Span<byte> payload = stackalloc byte[16];
+        BinaryPrimitives.WriteUInt64LittleEndian(payload, start);
+        BinaryPrimitives.WriteUInt64LittleEndian(payload[8..], end);
+        _native.Dispatch(
+            EditorSchema.Editor.CommandSetSelection,
+            payload,
+            expectedRevision: expectedRevision
+        );
+    }
+
+    /// <summary>Replaces the complete document if the native revision still matches.</summary>
+    public void ReplaceDocument(ulong expectedRevision, string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        ReplaceDocument(expectedRevision, Encoding.UTF8.GetBytes(value));
+    }
+
+    /// <summary>UTF-8 document replacement variant.</summary>
+    public void ReplaceDocument(ulong expectedRevision, ReadOnlySpan<byte> utf8Value) =>
+        _native.Dispatch(
+            EditorSchema.Editor.CommandReplaceDocument,
+            utf8Value,
+            expectedRevision: expectedRevision
+        );
+
+    /// <summary>Applies one contiguous UTF-8 replacement against a known document revision.</summary>
+    public void ApplyEdit(ulong expectedRevision, in EditorEdit edit)
+    {
+        if (ulong.MaxValue - edit.Start < edit.DeletedLength)
+        {
+            throw new ArgumentOutOfRangeException(nameof(edit), "The editor edit range overflows.");
+        }
+        var inserted = edit.InsertedUtf8.Span;
+        var payload = new byte[checked(16 + inserted.Length)];
+        BinaryPrimitives.WriteUInt64LittleEndian(payload, edit.Start);
+        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(8), edit.DeletedLength);
+        inserted.CopyTo(payload.AsSpan(16));
+        _native.Dispatch(
+            EditorSchema.Editor.CommandApplyEdit,
+            payload,
+            expectedRevision: expectedRevision
+        );
+    }
 
     internal NativeExtensionController Native => _native;
 }
@@ -199,7 +329,7 @@ public static class EditorElements
         this RenderContext ui,
         EditorController controller,
         EditorOptions? options = null
-    ) => ui.NativeExtension(controller.Native, Configuration(options, 0));
+    ) => ui.NativeExtension(controller.Native, Configuration(options, 0, 0));
 
     /// <summary>Declares an editor and binds a typed callback for native document transactions.</summary>
     public static Element<NativeExtensionTag> Editor<TView>(
@@ -212,7 +342,28 @@ public static class EditorElements
         where TView : ViewBase
     {
         var binding = ui.BindNativeExtensionEvent(view, onChanged);
-        return ui.NativeExtension(controller.Native, Configuration(options, binding.Token));
+        return ui.NativeExtension(controller.Native, Configuration(options, binding.Token, 0));
+    }
+
+    /// <summary>
+    /// Declares an editor with document-change and state-dependent command-rejection callbacks.
+    /// </summary>
+    public static Element<NativeExtensionTag> Editor<TView>(
+        this RenderContext ui,
+        EditorController controller,
+        TView view,
+        Action<TView, EditorChangedEvent> onChanged,
+        Action<TView, EditorCommandRejectedEvent> onCommandRejected,
+        EditorOptions? options = null
+    )
+        where TView : ViewBase
+    {
+        var changed = ui.BindNativeExtensionEvent(view, onChanged);
+        var rejected = ui.BindNativeExtensionEvent(view, onCommandRejected);
+        return ui.NativeExtension(
+            controller.Native,
+            Configuration(options, changed.Token, rejected.Token)
+        );
     }
 
     /// <summary>
@@ -225,10 +376,14 @@ public static class EditorElements
         EditorOptions? options = null
     )
     {
-        return ui.NativeExtension(EditorExtension.Component, key, Configuration(options, 0));
+        return ui.NativeExtension(EditorExtension.Component, key, Configuration(options, 0, 0));
     }
 
-    private static string Configuration(EditorOptions? options, ulong changedEventToken)
+    private static string Configuration(
+        EditorOptions? options,
+        ulong changedEventToken,
+        ulong commandRejectedEventToken
+    )
     {
         options ??= new EditorOptions();
         ArgumentNullException.ThrowIfNull(options.Language);
@@ -259,6 +414,8 @@ public static class EditorElements
             options.Language,
             "\n",
             changedEventToken.ToString(CultureInfo.InvariantCulture),
+            "\n",
+            commandRejectedEventToken.ToString(CultureInfo.InvariantCulture),
             "\n",
             lineNumberWidth.ToString("R", CultureInfo.InvariantCulture)
         );

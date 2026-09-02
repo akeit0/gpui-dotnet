@@ -1,10 +1,10 @@
 {
   "extensionId": "gpui.net.editor",
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "components": [
     {
       "kind": "editor",
-      "configuration": "flags-u32-decimal\\nlanguage\\nchanged-event-token-u64-decimal\\nline-number-width-f32-decimal-or-zero-for-auto",
+      "configuration": "flags-u32-decimal\\nlanguage\\nchanged-event-token-u64-decimal\\ncommand-rejected-event-token-u64-decimal\\nline-number-width-f32-decimal-or-zero-for-auto",
       "flags": {
         "disabled": 0,
         "read_only": 1,
@@ -17,6 +17,26 @@
           "id": 1,
           "payload": "utf8-document",
           "revision": "none"
+        },
+        "focus": {
+          "id": 2,
+          "payload": "none",
+          "revision": "none"
+        },
+        "set_selection": {
+          "id": 3,
+          "payload": "start-u64-le;end-u64-le",
+          "revision": "expected"
+        },
+        "replace_document": {
+          "id": 4,
+          "payload": "utf8-document",
+          "revision": "expected"
+        },
+        "apply_edit": {
+          "id": 5,
+          "payload": "start-u64-le;deleted-u64-le;inserted-utf8",
+          "revision": "expected"
         }
       },
       "events": {
@@ -25,6 +45,12 @@
           "flags": "origin",
           "payload": "base-revision-u64-le; edit-count-u32-le; repeated(start-u64-le,deleted-u64-le,inserted-length-u64-le,inserted-utf8)",
           "revision": "result"
+        },
+        "command_rejected": {
+          "id": 2,
+          "flags": "reason",
+          "payload": "command-u16-le;reserved-u16-zero;expected-revision-u64-le",
+          "revision": "current"
         }
       }
     }

@@ -5,8 +5,8 @@ namespace Gpui.Editor;
 internal static class EditorSchema
 {
     internal const string ExtensionId = "gpui.net.editor";
-    internal const uint SchemaVersion = 4u;
-    internal const ulong SchemaHash = 0x98BDD874D7123B33UL;
+    internal const uint SchemaVersion = 5u;
+    internal const ulong SchemaHash = 0x71E653D1D546F7FFUL;
 
     internal static class Editor
     {
@@ -17,7 +17,12 @@ internal static class EditorSchema
         internal const uint FlagFolding = 1u << 3;
         internal const uint FlagShowWhitespace = 1u << 4;
         internal const ushort CommandBootstrap = 1;
+        internal const ushort CommandFocus = 2;
+        internal const ushort CommandSetSelection = 3;
+        internal const ushort CommandReplaceDocument = 4;
+        internal const ushort CommandApplyEdit = 5;
         internal const ushort EventChanged = 1;
+        internal const ushort EventCommandRejected = 2;
         internal const uint KnownFlags =
             FlagDisabled
             | FlagReadOnly

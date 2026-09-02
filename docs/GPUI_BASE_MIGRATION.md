@@ -49,7 +49,7 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 | 6. Input | Complete | GPUI.NET retains its single-line editing engine because it preserves the revisioned contiguous UTF-8 event path without per-event native value materialization. The retained root now exposes the foundation-equivalent text-input role. | IME, Unicode, selection, clipboard, focus, commands, revisions, and events reach parity before old behavior is removed. |
 | 7. Scrolling and scrollbar | Complete | Scroll, List, and Table use foundation Scrollbar interaction and paint. GPUI.NET retains wheel smoothing, controller commands, and gutter geometry while seeding GPUI's native ListState with estimated heights for unmeasured rows. | Foundation scrollbar behavior is adopted selectively without additional managed/native traffic. |
 | 8. List and Table evaluation | Complete | GPUI.NET retains GPUI `ListState`, managed aligned range batches, stable row identity, structural commands, and table column reconciliation. Foundation scrollbar behavior remains shared. | Migration to foundation `VirtualList` is rejected because its integration cost and ownership tradeoffs do not provide a corresponding API or performance benefit. |
-| 9. Advanced retained components | In progress | DockArea retains a component-skinned foundation Dock with stable string panel IDs, declarative center tabs/splits and left/bottom/right regions, ordinary element or child-View content, and native interaction. The optional Editor probe is split into an independent managed schema and a build-time custom host provider; the default package graph contains no editor-specific contract. Commands, revisioned deltas, document bootstrap, packaging, and broad behavior tests remain open. | Advanced components prove stable managed identity, coarse events, native high-frequency interaction, lifecycle, theme integration, and optional packaging where appropriate. |
+| 9. Advanced retained components | In progress | DockArea retains a component-skinned foundation Dock with stable string panel IDs, declarative center tabs/splits and left/bottom/right regions, ordinary element or child-View content, and native interaction. The optional Editor probe is split into an independent managed schema and build-time custom host; it now proves one-shot bootstrap, revisioned UTF-8 deltas, typed commands, and explicit stale-command rejection without adding editor contracts to Core. Packaging and broad behavior tests remain open. | Advanced components prove stable managed identity, coarse events, native high-frequency interaction, lifecycle, theme integration, and optional packaging where appropriate. |
 | 10. Cleanup and protocol freeze candidate | Planned | Compatibility remains preview-level. | Superseded behavior and protocol paths are removed and the new contract is deliberately reviewed for stability. |
 
 No semantic component is considered migrated merely because the dependency and initializer exist.
@@ -223,12 +223,14 @@ designed together rather than exposing foundation entities piecemeal. Pointer dr
 region collapse, drop targeting, focus, and frame-sensitive layout remain native.
 
 Rich Editor is separate from the existing single-line Input and from the default package graph.
-The base schema now has one generic NativeExtension envelope; `Gpui.Editor` owns the typed managed
+The base schema has one generic NativeExtension envelope; `Gpui.Editor` owns the typed managed
 schema, while `gpui-dotnet-editor-host` links the matching provider into a custom host. ABI version
-2 negotiates the editor ID, version, and schema hash before startup. The first provider retains the
-native Rope and frame-sensitive editing state and exposes initial text plus basic presentation
-options. Revisioned value/delta events, selection and editing commands, runtime highlighter changes,
-and large-document bootstrap remain to be designed without copying the whole document per keypress.
+3 negotiates the editor ID, version, and schema hash before startup and routes schema-owned commands.
+The provider retains the native Rope and frame-sensitive editing state. It supports one-shot
+bootstrap, revisioned UTF-8 delta events, focus, revision-checked selection, whole-document
+replacement, one contiguous edit, and explicit stale/range rejection events. This deliberately
+small surface validates the generic extension contract; editor-specific depth such as undo/redo,
+highlighter reconfiguration, and persistence remains optional roadmap work.
 
 The remaining protocol questions stay open for later families:
 

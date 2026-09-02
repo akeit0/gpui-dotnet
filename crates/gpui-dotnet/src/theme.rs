@@ -112,6 +112,7 @@ impl NativeTheme {
         let colors = &mut theme.colors;
         colors.background = background;
         colors.foreground = text;
+        colors.caret = text;
         colors.muted = element;
         colors.muted_foreground = text_muted;
         colors.border = border;
@@ -314,6 +315,25 @@ mod tests {
                 .text_color(projected.tokens.colors.primary_foreground)
                 .child("Probe")
                 .into_any_element();
+        });
+    }
+
+    #[gpui::test]
+    fn projects_managed_text_into_the_component_caret(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_component::init(cx);
+            let theme = NativeTheme {
+                appearance: NativeThemeAppearance::Dark,
+                text: 0xF0F4F8FF,
+                ..Default::default()
+            };
+
+            theme.apply_to_components(cx);
+
+            let projected = gpui_component::Theme::global(cx);
+            assert_eq!(projected.mode, gpui_component::ThemeMode::Dark);
+            assert_eq!(projected.colors.foreground, color(theme.text));
+            assert_eq!(projected.colors.caret, color(theme.text));
         });
     }
 }

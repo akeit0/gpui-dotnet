@@ -248,10 +248,13 @@ complete extension resource identity and delivered on the GPUI thread during mat
 committed snapshot that omits that identity discards both its retained native state and pending
 commands. Providers validate schema-specific commands before they enter the View queue.
 
-The editor schema currently defines command `1` as its one-shot UTF-8 document bootstrap. It has no
-flags or expected revision and replaces the initially empty native document exactly once. Editor
-event `1` reports a native document transaction with its base revision and one or more UTF-8
-replacement records; the envelope revision is the resulting document revision.
+The editor schema defines one-shot UTF-8 bootstrap, revision-independent focus, and
+revision-checked selection, whole-document replacement, and contiguous-edit commands. Editor event
+`1` reports a native or command-originated document transaction with its base revision and one or
+more UTF-8 replacement records; the envelope revision is the resulting document revision. Event
+`2` reports a rejected state-dependent command, including its expected revision while the envelope
+revision carries the current native document revision. Invalid UTF-8 byte ranges and stale
+revisions are rejected without changing native state.
 
 ## Semantic window and interaction operations
 

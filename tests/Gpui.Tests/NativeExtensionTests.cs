@@ -56,6 +56,93 @@ public sealed class NativeExtensionTests
     }
 
     [Fact]
+    public void EditorCommandRejectionDecodesCurrentRevision()
+    {
+        Span<byte> payload = stackalloc byte[12];
+        BinaryPrimitives.WriteUInt16LittleEndian(
+            payload,
+            (ushort)EditorCommandKind.ApplyEdit
+        );
+        BinaryPrimitives.WriteUInt64LittleEndian(payload[4..], 7);
+
+        var rejected = EditorCommandRejectedEvent.Decode(
+            new NativeExtensionEvent(
+                2,
+                (ushort)EditorCommandRejectedReason.StaleRevision,
+                8,
+                payload.ToArray()
+            )
+        );
+
+        Assert.Equal(EditorCommandKind.ApplyEdit, rejected.Command);
+        Assert.Equal(EditorCommandRejectedReason.StaleRevision, rejected.Reason);
+        Assert.Equal(7ul, rejected.ExpectedRevision);
+        Assert.Equal(8ul, rejected.CurrentRevision);
+    }
+
+    [Fact]
+    public void EditorControllerEncodesTypedRevisionedCommands()
+    {
+        var commands = new List<CapturedEditorCommand>();
+        var view = new ExtensionProbeView();
+        Attach(
+            view,
+            41,
+            (_, _, _, _, _, _, command, flags, revision, payload) =>
+                commands.Add(new CapturedEditorCommand(command, flags, revision, payload.ToArray()))
+        );
+        try
+        {
+            view.Editor.Focus();
+            view.Editor.SetSelection(7, 1, 4);
+            view.Editor.ReplaceDocument(7, "界");
+            view.Editor.ApplyEdit(8, new EditorEdit(1, 3, "z"u8.ToArray()));
+
+            Assert.Collection(
+                commands,
+                command =>
+                {
+                    Assert.Equal((ushort)EditorCommandKind.Focus, command.Command);
+                    Assert.Equal(0ul, command.ExpectedRevision);
+                    Assert.Empty(command.Payload);
+                },
+                command =>
+                {
+                    Assert.Equal((ushort)EditorCommandKind.SetSelection, command.Command);
+                    Assert.Equal(7ul, command.ExpectedRevision);
+                    Assert.Equal(1ul, BinaryPrimitives.ReadUInt64LittleEndian(command.Payload));
+                    Assert.Equal(
+                        4ul,
+                        BinaryPrimitives.ReadUInt64LittleEndian(command.Payload.AsSpan(8))
+                    );
+                },
+                command =>
+                {
+                    Assert.Equal((ushort)EditorCommandKind.ReplaceDocument, command.Command);
+                    Assert.Equal(7ul, command.ExpectedRevision);
+                    Assert.Equal("界"u8.ToArray(), command.Payload);
+                },
+                command =>
+                {
+                    Assert.Equal((ushort)EditorCommandKind.ApplyEdit, command.Command);
+                    Assert.Equal(8ul, command.ExpectedRevision);
+                    Assert.Equal(1ul, BinaryPrimitives.ReadUInt64LittleEndian(command.Payload));
+                    Assert.Equal(
+                        3ul,
+                        BinaryPrimitives.ReadUInt64LittleEndian(command.Payload.AsSpan(8))
+                    );
+                    Assert.Equal("z"u8.ToArray(), command.Payload[16..]);
+                }
+            );
+            Assert.All(commands, command => Assert.Equal(0, command.Flags));
+        }
+        finally
+        {
+            view.UnmountRuntime();
+        }
+    }
+
+    [Fact]
     public void EditorOptionsRejectNegativeLineNumberWidth()
     {
         var view = new ExtensionProbeView();
@@ -216,6 +303,13 @@ public sealed class NativeExtensionTests
         public static ProbeExtensionEvent Decode(NativeExtensionEvent nativeEvent) =>
             new(nativeEvent.Payload.Span[0]);
     }
+
+    private sealed record CapturedEditorCommand(
+        ushort Command,
+        ushort Flags,
+        ulong ExpectedRevision,
+        byte[] Payload
+    );
 
     private sealed unsafe class ExtensionNoopRenderer : IViewRenderer
     {

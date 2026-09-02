@@ -43,6 +43,7 @@ internal sealed partial class EditorSampleView : View
     private int _changeCount;
     private string _lastChange = "Waiting for a native edit";
     private string _lastInsertion = "Type in the editor to inspect its UTF-8 delta.";
+    private string _lastCommand = "No managed command sent.";
 
     protected override void OnMounted(ref ViewContext context)
     {
@@ -75,6 +76,7 @@ internal sealed partial class EditorSampleView : View
                 _editor,
                 this,
                 static (view, changed) => view.OnEditorChanged(changed),
+                static (view, rejected) => view.OnEditorCommandRejected(rejected),
                 options
             )
             : ui.Editor(_editor, options);
@@ -93,7 +95,7 @@ internal sealed partial class EditorSampleView : View
                             )
                             .Gap(Px(4)),
                         ui.Spacer(),
-                        ui.Badge(ui.Text("schema v4"u8))
+                        ui.Badge(ui.Text("schema v5"u8))
                             .Background(theme.Colors.InfoBackground)
                             .TextColor(theme.Colors.Info)
                     )
@@ -134,12 +136,19 @@ internal sealed partial class EditorSampleView : View
                 ui.Divider(),
                 ui.Text(_lastChange)
                     .FontSize(Px(theme.Typography.BodySmall))
-                    .TextColor(theme.Colors.TextAccent),
+                    .TextColor(theme.Colors.TextAccent)
+                    .Width(Percent(100)),
                 ui.Text(_lastInsertion)
                     .FontSize(Px(theme.Typography.Detail))
                     .TextColor(theme.Colors.TextMuted)
+                    .Width(Percent(100)),
+                ui.Text(_lastCommand)
+                    .FontSize(Px(theme.Typography.Detail))
+                    .TextColor(theme.Colors.Warning)
+                    .Width(Percent(100))
             )
             .Gap(Px(7))
+            .Width(Percent(100))
             .Padding(Px(14))
             .Background(theme.Colors.InfoBackground)
             .Radius(Px(10));
@@ -240,11 +249,40 @@ internal sealed partial class EditorSampleView : View
                     .ItemsCenter()
                     .Padding(Px(12))
                     .Background(theme.Colors.TabBarBackground),
+                ui.HStack(
+                        CommandButton(ref ui, "editor-focus", "Focus", EditorCommand.Focus),
+                        CommandButton(
+                            ref ui,
+                            "editor-caret-start",
+                            "Caret at 0",
+                            EditorCommand.CaretStart
+                        ),
+                        CommandButton(
+                            ref ui,
+                            "editor-insert-marker",
+                            "Insert marker",
+                            EditorCommand.InsertMarker
+                        ),
+                        CommandButton(
+                            ref ui,
+                            "editor-replace",
+                            "Replace",
+                            EditorCommand.Replace
+                        ),
+                        CommandButton(
+                            ref ui,
+                            "editor-stale",
+                            "Stale probe",
+                            EditorCommand.StaleProbe
+                        )
+                    )
+                    .Gap(Px(8))
+                    .Padding(Px(10))
+                    .Background(theme.Colors.SurfaceBackground),
                 ui.Divider(),
                 editor.Grow().Width(Percent(100))
             )
             .Grow()
-            .Width(Percent(100))
             .Height(Percent(100))
             .Background(theme.Colors.PanelBackground)
             .BorderWidth(Px(1))
@@ -287,6 +325,15 @@ internal sealed partial class EditorSampleView : View
         Invalidate();
     }
 
+    private void OnEditorCommandRejected(EditorCommandRejectedEvent rejected)
+    {
+        _revision = rejected.CurrentRevision;
+        _lastCommand =
+            $"Rejected {rejected.Command}: {rejected.Reason} "
+            + $"(expected {rejected.ExpectedRevision:N0}, current {rejected.CurrentRevision:N0})";
+        Invalidate();
+    }
+
     private Element Option(
         ref RenderContext ui,
         ReadOnlySpan<char> id,
@@ -309,6 +356,56 @@ internal sealed partial class EditorSampleView : View
         ui.Badge(ui.Text(label))
             .Background(ui.Theme.Colors.ElementSelected)
             .TextColor(ui.Theme.Colors.TextAccent);
+
+    private Element CommandButton(
+        ref RenderContext ui,
+        ReadOnlySpan<char> id,
+        ReadOnlySpan<char> label,
+        EditorCommand command
+    ) =>
+        ui.Button(id, label)
+            .OnClick(
+                this,
+                static (view, click) => view.RunCommand((EditorCommand)click.Payload),
+                (ulong)command
+            )
+            .Padding(Px(7));
+
+    private void RunCommand(EditorCommand command)
+    {
+        switch (command)
+        {
+            case EditorCommand.Focus:
+                _editor.Focus();
+                _lastCommand = "Sent Focus (revision independent).";
+                break;
+            case EditorCommand.CaretStart:
+                _editor.SetSelection(_revision, 0, 0);
+                _lastCommand = $"Sent SetSelection at revision {_revision:N0}.";
+                break;
+            case EditorCommand.InsertMarker:
+                _editor.ApplyEdit(
+                    _revision,
+                    new EditorEdit(0, 0, "// inserted through EditorController\n"u8.ToArray())
+                );
+                _lastCommand = $"Sent ApplyEdit at revision {_revision:N0}.";
+                break;
+            case EditorCommand.Replace:
+                _editor.ReplaceDocument(
+                    _revision,
+                    "// replaced through a revision-checked extension command\nfn main() {}\n"
+                );
+                _lastCommand = $"Sent ReplaceDocument at revision {_revision:N0}.";
+                break;
+            case EditorCommand.StaleProbe:
+                _editor.SetSelection(_revision + 1, 0, 0);
+                _lastCommand = $"Sent deliberately stale command from revision {_revision + 1:N0}.";
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(command));
+        }
+        Invalidate();
+    }
 
     private void ToggleOption(EditorOption option)
     {
@@ -350,5 +447,14 @@ internal sealed partial class EditorSampleView : View
         ShowWhitespace,
         ReadOnly,
         Disabled,
+    }
+
+    private enum EditorCommand : ulong
+    {
+        Focus = 1,
+        CaretStart,
+        InsertMarker,
+        Replace,
+        StaleProbe,
     }
 }
