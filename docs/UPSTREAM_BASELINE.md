@@ -8,10 +8,10 @@ fork pin; the reviewable copy of the revision tuple is `crates/native-baseline.t
 
 - Fork: <https://github.com/akeit0/gpui-component>
 - Upstream: <https://github.com/longbridge/gpui-component>
-- Validated fork revision: `d6c10c21a58617b29494f8efeba4895ca384e465`
+- Validated fork revision: `40566467b3810362508145e019a2f3c873486a8a`
 - Upstream base revision: `d6c10c21a58617b29494f8efeba4895ca384e465`
-- Fork delta: zero commits
-- Integration branch: none; create one when the first downstream-only patch is required
+- Fork delta: one commit
+- Integration branch: `codex/gpui-dotnet-integration`
 
 The submodule uses `origin` for the fork. Add `upstream` for Longbridge when refreshing the
 baseline, measure `origin/main...upstream/main`, and validate the candidate revision before
@@ -31,7 +31,7 @@ guards against incompatible GPUI type universes.
 
 | Patch | Reason | Upstream status |
 |---|---|---|
-| None | The validated fork revision matches upstream exactly. | Not applicable |
+| Side-aware popup positioning | Anchored tooltips and menus need generic placement, alignment, offset, viewport margin, and deferred priority controls. | PR deferred until the GPUI.NET anchored-layer migration validates the API across the remaining components. |
 
 Fork-only changes must stay generic, include focused tests when appropriate, and be recorded here
 with their upstream issue or pull-request status. GPUI.NET ABI, FFI, callback, and managed-runtime

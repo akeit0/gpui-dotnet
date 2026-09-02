@@ -190,6 +190,12 @@ Rust owns geometry, input interception, deterministic stacking, focus entry/rest
 dismissal. Managed code owns visuals and actions. Deferred layers can contain normal child views and
 retained controls, but cannot appear inside virtualized rows.
 
+During the deferred-layer migration, Tooltip and PopoverMenu delegate trigger measurement and
+viewport-aware positioning to `gpui-base` Popup/Positioner. PopoverMenu also delegates its
+open/focus/restoration lifecycle to foundation PopoverState. GPUI.NET continues to own tooltip
+timing, menu-group switching, priority arbitration, and topmost dismissal guards until the
+remaining foundation behavior passes the same integration checks.
+
 ## Window chrome
 
 `WindowControlArea` marks Div or Button nodes as native Drag, Minimize, Maximize, or Close regions.
