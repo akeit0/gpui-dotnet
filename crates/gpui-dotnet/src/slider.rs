@@ -1,8 +1,9 @@
 use gpui::{
     App, AppContext, Axis, Bounds, Context, DragMoveEvent, ElementId, Empty, EntityId, FocusHandle,
     Focusable, InteractiveElement, IntoElement, KeyDownEvent, KeyUpEvent, MouseButton,
-    MouseDownEvent, MouseUpEvent, ParentElement, Pixels, Point, Render, StatefulInteractiveElement,
-    Styled, Window, canvas, div, prelude::FluentBuilder, px, relative, rgba,
+    MouseDownEvent, MouseUpEvent, Orientation, ParentElement, Pixels, Point, Render, Role,
+    StatefulInteractiveElement, Styled, Window, canvas, div, prelude::FluentBuilder, px, relative,
+    rgba,
 };
 
 use crate::{
@@ -431,6 +432,10 @@ impl Render for ManagedSlider {
         let is_range = self.value.is_range();
         let axis = self.axis;
         let disabled = self.disabled;
+        let value = self.value.end() as f64;
+        let min = self.min as f64;
+        let max = self.max as f64;
+        let step = self.step as f64;
         let slider = cx.entity();
         let focus_handle = self.focus_handle.clone();
 
@@ -540,6 +545,16 @@ impl Render for ManagedSlider {
 
         let root = div()
             .id(&focus_handle)
+            .role(Role::Slider)
+            .aria_numeric_value(value)
+            .aria_min_numeric_value(min)
+            .aria_max_numeric_value(max)
+            .aria_numeric_value_step(step)
+            .aria_orientation(if axis == Axis::Vertical {
+                Orientation::Vertical
+            } else {
+                Orientation::Horizontal
+            })
             .size_full()
             .min_w_0()
             .relative()

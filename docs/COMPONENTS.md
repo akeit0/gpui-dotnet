@@ -175,6 +175,12 @@ logarithmic mapping, bounds, and step size. GPUI owns pointer drag and keyboard 
 interaction. `SliderController.SetValue` updates retained native state without synthesizing an
 interaction event.
 
+The retained GPUI.NET engine remains authoritative after comparison with the foundation Slider.
+It supports snapshot-time configuration reconciliation, focus and keyboard interaction, range
+thumb selection, release events for pointer and keyboard input, and controller updates without
+synthetic events. The foundation Slider does not yet cover that contract. The retained root uses
+the same slider role, numeric value, bounds, step, and orientation accessibility metadata.
+
 ## Deferred layers
 
 Deferred layers paint relative to the window rather than the local layout tree:
