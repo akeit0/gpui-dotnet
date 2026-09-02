@@ -16,7 +16,7 @@ use crate::{
     context_menu::{ContextMenuConfiguration, context_menu},
     dock::dock_configuration,
     extension::{
-        NativeExtensionRequest, declaration as extension_declaration,
+        NativeExtensionEventEmitter, NativeExtensionRequest, declaration as extension_declaration,
         provider as extension_provider,
     },
     overlay::OverlayKind,
@@ -156,6 +156,7 @@ impl ManagedView {
         let resource_key = declaration.resource_key(owner_view);
         let request = NativeExtensionRequest {
             commands: self.resources.extensions().take_commands(&resource_key),
+            events: NativeExtensionEventEmitter::new(self.view_id, owner_view, self.callbacks),
             resource_key,
             configuration: declaration.configuration,
             children,

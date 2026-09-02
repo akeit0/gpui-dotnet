@@ -583,6 +583,12 @@ internal static class BindingGenerator
                     $"Extension component '{component.Kind}' needs a commands object."
                 );
             }
+            if (component.Events is null)
+            {
+                throw new InvalidOperationException(
+                    $"Extension component '{component.Kind}' needs an events object."
+                );
+            }
             EnsureUnique(component.Flags.Values, $"flag bit on extension component {component.Kind}");
             EnsureUnique(
                 component.Flags.Keys.Select(Pascal),
@@ -625,6 +631,42 @@ internal static class BindingGenerator
                 {
                     throw new InvalidOperationException(
                         $"Extension command '{name}' needs a revision policy."
+                    );
+                }
+            }
+            EnsureUnique(
+                component.Events.Values.Select(extensionEvent => extensionEvent.Id),
+                $"event ID on extension component {component.Kind}"
+            );
+            EnsureUnique(
+                component.Events.Keys.Select(Pascal),
+                $"generated event C# name on extension component {component.Kind}"
+            );
+            foreach (var (name, extensionEvent) in component.Events)
+            {
+                ValidateName(name, $"event on extension component {component.Kind}");
+                if (extensionEvent.Id == 0 || extensionEvent.Id >= 0x8000)
+                {
+                    throw new InvalidOperationException(
+                        $"Extension event '{name}' needs an ID between 1 and 32767."
+                    );
+                }
+                if (string.IsNullOrWhiteSpace(extensionEvent.Flags))
+                {
+                    throw new InvalidOperationException(
+                        $"Extension event '{name}' needs a flags description."
+                    );
+                }
+                if (string.IsNullOrWhiteSpace(extensionEvent.Payload))
+                {
+                    throw new InvalidOperationException(
+                        $"Extension event '{name}' needs a payload description."
+                    );
+                }
+                if (string.IsNullOrWhiteSpace(extensionEvent.Revision))
+                {
+                    throw new InvalidOperationException(
+                        $"Extension event '{name}' needs a revision policy."
                     );
                 }
             }
@@ -684,6 +726,12 @@ internal static class BindingGenerator
                     $"        internal const ushort Command{Pascal(name)} = {command.Id};"
                 );
             }
+            foreach (var (name, extensionEvent) in component.Events)
+            {
+                builder.AppendLine(
+                    $"        internal const ushort Event{Pascal(name)} = {extensionEvent.Id};"
+                );
+            }
             if (component.Flags.Count > 0)
             {
                 builder.AppendLine("        internal const uint KnownFlags =");
@@ -725,6 +773,12 @@ internal static class BindingGenerator
             {
                 builder.AppendLine(
                     $"pub const {componentName}_COMMAND_{UpperSnake(name)}: u16 = {command.Id};"
+                );
+            }
+            foreach (var (name, extensionEvent) in component.Events)
+            {
+                builder.AppendLine(
+                    $"pub const {componentName}_EVENT_{UpperSnake(name)}: u16 = {extensionEvent.Id};"
                 );
             }
             if (component.Flags.Count > 0)
@@ -1529,10 +1583,13 @@ internal sealed record ExtensionComponent(
     string Kind,
     string Configuration,
     Dictionary<string, int> Flags,
-    Dictionary<string, ExtensionCommand> Commands
+    Dictionary<string, ExtensionCommand> Commands,
+    Dictionary<string, ExtensionEvent> Events
 );
 
 internal sealed record ExtensionCommand(ushort Id, string Payload, string Revision);
+
+internal sealed record ExtensionEvent(ushort Id, string Flags, string Payload, string Revision);
 
 internal sealed record Component(
     int Id,

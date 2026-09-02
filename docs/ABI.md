@@ -147,6 +147,12 @@ FFI, so asynchronous event handlers never retain native borrowed memory.
 Input events carry UTF-8 data for Changed, Submitted, and FocusChanged transitions. Slider Changed
 and Released events carry one little-endian `f32`, or two ordered values when the range flag is set.
 
+Event kinds with bit `0x8000` set belong to the generic native-extension namespace. The lower 15
+bits contain the non-zero event ID generated from the extension schema; flags, revision, and byte
+payload retain their schema-defined meanings. Core validates and copies the envelope, then routes
+it through the render-bound event token to the typed extension decoder. This reserves no
+extension-specific IDs or payload layouts in the base ABI.
+
 ## Application commands
 
 `NativeApplicationCommand` is application-scoped and contains a window ID, command, flags, a
@@ -243,7 +249,9 @@ committed snapshot that omits that identity discards both its retained native st
 commands. Providers validate schema-specific commands before they enter the View queue.
 
 The editor schema currently defines command `1` as its one-shot UTF-8 document bootstrap. It has no
-flags or expected revision and replaces the initially empty native document exactly once.
+flags or expected revision and replaces the initially empty native document exactly once. Editor
+event `1` reports a native document transaction with its base revision and one or more UTF-8
+replacement records; the envelope revision is the resulting document revision.
 
 ## Semantic window and interaction operations
 

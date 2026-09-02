@@ -253,4 +253,29 @@ internal sealed unsafe partial class ManagedSession
             ObserveEventTask(pending);
         }
     }
+
+    internal void DispatchNativeExtension(
+        ulong eventToken,
+        NativeExtensionEvent nativeExtensionEvent
+    )
+    {
+        var viewHandle = (uint)(eventToken >> 32);
+        var handlerId = (uint)eventToken;
+        if (viewHandle == 0 || handlerId == 0)
+        {
+            throw new InvalidOperationException("Malformed native extension event token.");
+        }
+        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
+        {
+            throw new InvalidOperationException(
+                $"Native extension event references unmounted or unknown view handle {viewHandle}."
+            );
+        }
+
+        var pending = owner.DispatchNativeExtensionCore(handlerId, nativeExtensionEvent);
+        if (!pending.IsCompletedSuccessfully)
+        {
+            ObserveEventTask(pending);
+        }
+    }
 }

@@ -7,7 +7,10 @@ use std::{
 
 use gpui::{AnyElement, App, SharedString, Window};
 
-use crate::snapshot::SnapshotNode;
+use crate::{
+    abi::{ManagedCallbacks, NativeControlEvent},
+    snapshot::SnapshotNode,
+};
 
 /// One extension schema compiled into a native host.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -52,6 +55,59 @@ pub struct NativeExtensionRequest {
     pub configuration: SharedString,
     pub children: Vec<AnyElement>,
     pub commands: Vec<NativeExtensionCommand>,
+    pub events: NativeExtensionEventEmitter,
+}
+
+/// Extension-neutral route back to a render-bound managed callback.
+#[derive(Clone, Copy)]
+pub struct NativeExtensionEventEmitter {
+    session_id: u64,
+    owner_view: u32,
+    callbacks: ManagedCallbacks,
+}
+
+impl NativeExtensionEventEmitter {
+    pub(crate) fn new(session_id: u64, owner_view: u32, callbacks: ManagedCallbacks) -> Self {
+        Self {
+            session_id,
+            owner_view,
+            callbacks,
+        }
+    }
+
+    /// Copies one extension-defined event into the managed callback before returning.
+    pub fn emit(
+        &self,
+        token: u64,
+        kind: u16,
+        flags: u16,
+        revision: u64,
+        payload: &[u8],
+    ) -> Result<(), i32> {
+        if token == 0 {
+            return Ok(());
+        }
+        if (token >> 32) != u64::from(self.owner_view)
+            || token as u32 == 0
+            || kind == 0
+            || kind >= 0x8000
+            || payload.len() > i32::MAX as usize
+        {
+            return Err(-86);
+        }
+        let event = NativeControlEvent {
+            kind: kind | 0x8000,
+            flags,
+            reserved: 0,
+            revision,
+            data: payload.as_ptr(),
+            data_length: payload.len() as i32,
+            reserved2: 0,
+        };
+        let callback = self.callbacks.control_event.ok_or(-86)?;
+        let status = unsafe { callback(self.session_id, token, &event) };
+        if status == 0 { Ok(()) } else { Err(status) }
+    }
 }
 
 /// One owned, extension-defined command delivered on the GPUI application thread.

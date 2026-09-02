@@ -197,3 +197,37 @@ public readonly struct NativeExtensionController
             ? "unbound"
             : $"{_component.Extension.Id}/{_component.Kind} ({_utf8Key.Length}-byte key)";
 }
+
+/// <summary>An owned, extension-neutral native event packet.</summary>
+public sealed class NativeExtensionEvent
+{
+    private readonly byte[] _payload;
+
+    internal NativeExtensionEvent(ushort kind, ushort flags, ulong revision, byte[] payload)
+    {
+        Kind = kind;
+        Flags = flags;
+        Revision = revision;
+        _payload = payload;
+    }
+
+    public ushort Kind { get; }
+    public ushort Flags { get; }
+    public ulong Revision { get; }
+    public ReadOnlyMemory<byte> Payload => _payload;
+}
+
+/// <summary>Implemented by typed extension events decoded from the generic native packet.</summary>
+public interface INativeExtensionEvent<TSelf>
+    where TSelf : INativeExtensionEvent<TSelf>
+{
+    static abstract TSelf Decode(NativeExtensionEvent nativeEvent);
+}
+
+/// <summary>Render-bound token for one typed extension event callback.</summary>
+public readonly struct NativeExtensionEventBinding
+{
+    internal NativeExtensionEventBinding(ulong token) => Token = token;
+
+    public ulong Token { get; }
+}

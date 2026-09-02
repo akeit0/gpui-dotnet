@@ -5,6 +5,45 @@ namespace Gpui;
 
 public readonly unsafe ref partial struct RenderContext
 {
+    /// <summary>Binds a typed callback for an optional extension package.</summary>
+    public NativeExtensionEventBinding BindNativeExtensionEvent<TView, TEvent>(
+        TView view,
+        Action<TView, TEvent> callback
+    )
+        where TView : ViewBase
+        where TEvent : INativeExtensionEvent<TEvent>
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        return new NativeExtensionEventBinding(view.BindNativeExtensionEvent(callback));
+    }
+
+    /// <summary>Binds an asynchronous typed callback for an optional extension package.</summary>
+    public NativeExtensionEventBinding BindNativeExtensionEvent<TView, TEvent>(
+        TView view,
+        Func<TView, TEvent, ValueTask> callback
+    )
+        where TView : ViewBase
+        where TEvent : INativeExtensionEvent<TEvent>
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        return new NativeExtensionEventBinding(view.BindNativeExtensionEvent(callback));
+    }
+
+    /// <summary>Binds an asynchronous typed callback for an optional extension package.</summary>
+    public NativeExtensionEventBinding BindNativeExtensionEvent<TView, TEvent>(
+        TView view,
+        Func<TView, TEvent, Task> callback
+    )
+        where TView : ViewBase
+        where TEvent : INativeExtensionEvent<TEvent>
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        return new NativeExtensionEventBinding(view.BindNativeExtensionEvent(callback));
+    }
+
     /// <summary>
     /// Declares the retained extension resource bound to a controller created by this View's
     /// lifecycle context. Commands may be queued before this declaration is materialized.

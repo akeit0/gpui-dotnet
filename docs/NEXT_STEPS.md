@@ -31,7 +31,7 @@ Build on the separate `Gpui.Editor` schema and `gpui-dotnet-editor-host` runtime
 
 - controller commands for focus, selection, document replacement, edits, undo, and redo beyond the
   implemented one-shot bootstrap;
-- revisioned UTF-8 edit/delta events without materializing the whole Rope per keypress;
+- managed reconciliation helpers for applying revisioned UTF-8 edits and handling stale commands;
 - runtime language/highlighter changes and explicit unsupported-language behavior;
 - RID runtime packages and clean-consumer tests that never require Cargo;
 - IME, clipboard, undo, large-document, accessibility, and cross-platform behavior tests.

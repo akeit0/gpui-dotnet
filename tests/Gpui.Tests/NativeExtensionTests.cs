@@ -1,10 +1,60 @@
+using System.Buffers.Binary;
 using Gpui.Editor;
 using Gpui.Interop;
 
 namespace Gpui.Tests;
 
-public sealed unsafe class NativeExtensionTests
+public sealed class NativeExtensionTests
 {
+    [Fact]
+    public async Task GenericExtensionEventBindingDecodesTypedEvent()
+    {
+        var view = new ExtensionProbeView();
+        Attach(view, 41);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new ExtensionNoopRenderer(), view);
+            var binding = ui.BindNativeExtensionEvent<ExtensionProbeView, ProbeExtensionEvent>(
+                view,
+                static (target, extensionEvent) => target.ExtensionEventValue = extensionEvent.Value
+            );
+
+            await view.DispatchNativeExtensionCore(
+                unchecked((uint)binding.Token),
+                new NativeExtensionEvent(7, 0, 3, [42])
+            );
+
+            Assert.Equal(42, view.ExtensionEventValue);
+        }
+        finally
+        {
+            view.UnmountRuntime();
+        }
+    }
+
+    [Fact]
+    public void EditorChangeDecodesRevisionedUtf8Replacement()
+    {
+        var payload = new byte[39];
+        BinaryPrimitives.WriteUInt64LittleEndian(payload, 7);
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(8), 1);
+        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(12), 1);
+        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(20), 4);
+        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(28), 3);
+        "界"u8.CopyTo(payload.AsSpan(36));
+
+        var changed = EditorChangedEvent.Decode(new NativeExtensionEvent(1, 0, 8, payload));
+
+        Assert.Equal(7ul, changed.BaseRevision);
+        Assert.Equal(8ul, changed.Revision);
+        Assert.Equal(EditorChangeOrigin.User, changed.Origin);
+        var edit = Assert.Single(changed.Edits);
+        Assert.Equal(1ul, edit.Start);
+        Assert.Equal(4ul, edit.DeletedLength);
+        Assert.Equal("界"u8.ToArray(), edit.InsertedUtf8.ToArray());
+    }
+
     [Fact]
     public void OptionalEditorSchemaWritesGenericExtensionEnvelope()
     {
@@ -124,6 +174,7 @@ public sealed unsafe class NativeExtensionTests
     private sealed class ExtensionProbeView : View
     {
         internal EditorController Editor { get; private set; }
+        internal byte ExtensionEventValue { get; set; }
 
         protected override void OnMounted(ref ViewContext context) =>
             Editor = context.CreateEditorController("document");
@@ -131,7 +182,14 @@ public sealed unsafe class NativeExtensionTests
         protected override Element Render(ref RenderContext ui) => ui.Div();
     }
 
-    private sealed class ExtensionNoopRenderer : IViewRenderer
+    private sealed record ProbeExtensionEvent(byte Value)
+        : INativeExtensionEvent<ProbeExtensionEvent>
+    {
+        public static ProbeExtensionEvent Decode(NativeExtensionEvent nativeEvent) =>
+            new(nativeEvent.Payload.Span[0]);
+    }
+
+    private sealed unsafe class ExtensionNoopRenderer : IViewRenderer
     {
         public Element RenderChild<TView>(ViewBase owner, ChildSlot slot, RenderArena* destination)
             where TView : View, IGeneratedViewFactory<TView> => throw new NotSupportedException();

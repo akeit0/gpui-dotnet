@@ -11,9 +11,10 @@ references `GPUI.NET.Core`; it carries no native asset. `gpui-dotnet-editor-host
 host that links the base runtime with a retained `gpui-component` Editor provider.
 
 The current probe supports a one-shot UTF-8 document bootstrap, a language identifier,
-disabled/read-only state, line numbers, folding, and whitespace visibility. Rust retains the Rope,
-selection, undo history, scrolling, focus, and IME state. There is not yet a managed edit event or
-the broader focus/selection/edit/undo command set.
+disabled/read-only state, line numbers, folding, whitespace visibility, and an opt-in typed change
+callback. Rust retains the Rope, selection, undo history, scrolling, focus, and IME state. Each
+native editing transaction increments the document revision and reports one minimal contiguous
+UTF-8 replacement. The broader focus/selection/edit/undo command set is not yet implemented.
 
 The extension ID, protocol version, component kinds, flags, and schema hash come from
 `src/Gpui.Editor/schema.json`. The normal binding generator emits matching C# and Rust constants,
@@ -62,10 +63,11 @@ emits one change event containing:
 - non-overlapping edits expressed in UTF-8 byte offsets against the base revision;
 - deleted byte lengths and inserted UTF-8 bytes.
 
-Edits in a batch are ordered from the end of the document toward the start, so consumers can apply
-them without rebasing later offsets. Managed callback code copies the borrowed packet before
-returning through FFI; typed event values expose the UTF-8 payload without eagerly allocating a
-complete UTF-16 document.
+When a schema emits multiple edits, they are ordered from the end of the document toward the start,
+so consumers can apply them without rebasing later offsets. The current editor provider emits one
+minimal contiguous edit per native transaction. Managed callback code copies the borrowed packet
+before returning through FFI; typed event values expose slices of that owned UTF-8 payload without
+eagerly allocating a complete UTF-16 document.
 
 Document-mutating commands carry an expected revision. A stale command cannot silently overwrite
 newer native input: the provider rejects it and reports the current revision so the application can

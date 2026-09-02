@@ -29,6 +29,7 @@ application.Run();
 internal sealed partial class EditorSampleView : View
 {
     private EditorController _editor;
+    private ulong _revision;
 
     protected override void OnMounted(ref ViewContext context)
     {
@@ -41,6 +42,8 @@ internal sealed partial class EditorSampleView : View
     protected override Element Render(ref RenderContext ui) =>
         ui.Editor(
                 _editor,
+                this,
+                static (view, changed) => view._revision = changed.Revision,
                 new EditorOptions
                 {
                     Language = "rust",

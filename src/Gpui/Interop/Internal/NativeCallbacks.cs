@@ -185,7 +185,32 @@ internal static unsafe class NativeCallbacks
             SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
             try
             {
-                if (
+                if ((nativeEvent->kind & 0x8000) != 0)
+                {
+                    var kind = checked((ushort)(nativeEvent->kind & 0x7FFF));
+                    if (kind == 0)
+                    {
+                        return -112;
+                    }
+
+                    var payload =
+                        nativeEvent->data_length == 0
+                            ? Array.Empty<byte>()
+                            : new ReadOnlySpan<byte>(
+                                nativeEvent->data,
+                                nativeEvent->data_length
+                            ).ToArray();
+                    session.DispatchNativeExtension(
+                        eventToken,
+                        new NativeExtensionEvent(
+                            kind,
+                            nativeEvent->flags,
+                            nativeEvent->revision,
+                            payload
+                        )
+                    );
+                }
+                else if (
                     nativeEvent->kind
                     is >= (ushort)InputEventKind.Changed
                         and <= (ushort)InputEventKind.FocusChanged

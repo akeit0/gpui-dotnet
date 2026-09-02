@@ -1,22 +1,31 @@
-use std::{cell::Cell, rc::Rc, sync::Once};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    sync::Once,
+};
 
-use gpui::{AnyElement, App, AppContext as _, Entity, IntoElement as _, SharedString, Styled as _, Window};
-use gpui_component::input::{Editor, EditorState};
+use gpui::{
+    AnyElement, App, AppContext as _, Entity, IntoElement as _, SharedString, Styled as _,
+    Subscription, Window,
+};
+use gpui_component::input::{Editor, EditorState, InputEvent};
 use gpui_dotnet::{
     abi::GpuiDotnetApiV3,
     extension::{
-        NativeExtension, NativeExtensionCommand, NativeExtensionDescriptor, NativeExtensionRequest,
-        NativeExtensionStore, install_native_extensions,
+        NativeExtension, NativeExtensionCommand, NativeExtensionDescriptor,
+        NativeExtensionEventEmitter, NativeExtensionRequest, NativeExtensionStore,
+        install_native_extensions,
     },
 };
+use ropey::Rope;
 
 #[path = "editor_schema.g.rs"]
 mod editor_schema;
 
 use editor_schema::{
     COMPONENT_EDITOR, EDITOR_COMMAND_BOOTSTRAP, EDITOR_FLAG_DISABLED, EDITOR_FLAG_FOLDING,
-    EDITOR_FLAG_LINE_NUMBERS, EDITOR_FLAG_READ_ONLY, EDITOR_FLAG_SHOW_WHITESPACE,
-    EDITOR_KNOWN_FLAGS, EXTENSION_ID, SCHEMA_HASH, SCHEMA_VERSION,
+    EDITOR_EVENT_CHANGED, EDITOR_FLAG_LINE_NUMBERS, EDITOR_FLAG_READ_ONLY,
+    EDITOR_FLAG_SHOW_WHITESPACE, EDITOR_KNOWN_FLAGS, EXTENSION_ID, SCHEMA_HASH, SCHEMA_VERSION,
 };
 
 struct EditorExtension;
@@ -26,6 +35,82 @@ struct RetainedEditor {
     state: Entity<EditorState>,
     flags: Rc<Cell<u32>>,
     bootstrapped: Rc<Cell<bool>>,
+    events: Rc<EditorEventState>,
+    _subscription: Rc<Subscription>,
+}
+
+struct EditorEventState {
+    token: Cell<u64>,
+    revision: Cell<u64>,
+    last_text: RefCell<Rope>,
+    emitter: NativeExtensionEventEmitter,
+    callback_error: Cell<Option<i32>>,
+}
+
+impl EditorEventState {
+    fn changed(&self, current: &Rope) {
+        let previous = self.last_text.replace(current.clone());
+        if previous == *current {
+            return;
+        }
+        let base_revision = self.revision.get();
+        let Some(revision) = base_revision.checked_add(1) else {
+            self.callback_error.set(Some(-86));
+            return;
+        };
+        self.revision.set(revision);
+        let token = self.token.get();
+        if token == 0 {
+            return;
+        }
+        let payload = encode_change(&previous, current, base_revision);
+        if let Err(status) = self.emitter.emit(
+            token,
+            EDITOR_EVENT_CHANGED,
+            0,
+            revision,
+            &payload,
+        ) {
+            self.callback_error.set(Some(status));
+        }
+    }
+}
+
+fn encode_change(previous: &Rope, current: &Rope, base_revision: u64) -> Vec<u8> {
+    let mut prefix = 0usize;
+    for (left, right) in previous.chars().zip(current.chars()) {
+        if left != right {
+            break;
+        }
+        prefix += left.len_utf8();
+    }
+
+    let mut previous_suffix = previous.chars_at(previous.len()).reversed();
+    let mut current_suffix = current.chars_at(current.len()).reversed();
+    let mut suffix = 0usize;
+    while suffix < previous.len() - prefix && suffix < current.len() - prefix {
+        let (Some(left), Some(right)) = (previous_suffix.next(), current_suffix.next()) else {
+            break;
+        };
+        if left != right
+            || suffix + left.len_utf8() > previous.len() - prefix
+            || suffix + right.len_utf8() > current.len() - prefix
+        {
+            break;
+        }
+        suffix += left.len_utf8();
+    }
+
+    let deleted_length = previous.len() - prefix - suffix;
+    let inserted = current.slice(prefix..current.len() - suffix);
+    let mut payload = Vec::with_capacity(12 + 24 + inserted.len());
+    payload.extend_from_slice(&base_revision.to_le_bytes());
+    payload.extend_from_slice(&1u32.to_le_bytes());
+    payload.extend_from_slice(&(prefix as u64).to_le_bytes());
+    payload.extend_from_slice(&(deleted_length as u64).to_le_bytes());
+    payload.extend_from_slice(&(inserted.len() as u64).to_le_bytes());
+    payload.extend(inserted.bytes());
+    payload
 }
 
 impl NativeExtension for EditorExtension {
@@ -71,12 +156,37 @@ impl NativeExtension for EditorExtension {
                     .folding(configuration.flags & EDITOR_FLAG_FOLDING != 0)
                     .show_whitespaces(configuration.flags & EDITOR_FLAG_SHOW_WHITESPACE != 0)
             });
+            let events = Rc::new(EditorEventState {
+                token: Cell::new(configuration.changed_event),
+                revision: Cell::new(0),
+                last_text: RefCell::new(state.read(cx).text().clone()),
+                emitter: request.events,
+                callback_error: Cell::new(None),
+            });
+            let dispatch = events.clone();
+            let observed_state = state.clone();
+            let subscription = window.subscribe(
+                &state,
+                cx,
+                move |_, emitted: &InputEvent, _, cx| {
+                    if matches!(emitted, InputEvent::Change) {
+                        dispatch.changed(observed_state.read(cx).text());
+                    }
+                },
+            );
             RetainedEditor {
                 state,
                 flags: Rc::new(Cell::new(configuration.flags)),
                 bootstrapped: Rc::new(Cell::new(false)),
+                events,
+                _subscription: Rc::new(subscription),
             }
         });
+
+        resource.events.token.set(configuration.changed_event);
+        if let Some(status) = resource.events.callback_error.take() {
+            return Err(format!("The managed editor event callback failed with status {status}.").into());
+        }
 
         for command in request.commands {
             if command.command != EDITOR_COMMAND_BOOTSTRAP || resource.bootstrapped.replace(true) {
@@ -88,6 +198,10 @@ impl NativeExtension for EditorExtension {
             resource
                 .state
                 .update(cx, |state, cx| state.set_value(value, window, cx));
+            resource
+                .events
+                .last_text
+                .replace(resource.state.read(cx).text().clone());
         }
 
         let previous_flags = resource.flags.replace(configuration.flags);
@@ -132,17 +246,23 @@ impl NativeExtension for EditorExtension {
 struct EditorConfiguration<'a> {
     flags: u32,
     language: &'a str,
+    changed_event: u64,
 }
 
 impl<'a> EditorConfiguration<'a> {
     fn parse(value: &'a str) -> Option<Self> {
-        let mut fields = value.splitn(2, '\n');
+        let mut fields = value.splitn(3, '\n');
         let flags = fields.next()?.parse::<u32>().ok()?;
         let language = fields.next()?;
+        let changed_event = fields.next()?.parse::<u64>().ok()?;
         if flags & !EDITOR_KNOWN_FLAGS != 0 {
             return None;
         }
-        Some(Self { flags, language })
+        Some(Self {
+            flags,
+            language,
+            changed_event,
+        })
     }
 }
 
@@ -165,13 +285,26 @@ mod tests {
 
     #[test]
     fn parses_editor_configuration() {
-        let configuration = EditorConfiguration::parse("12\nrust").unwrap();
+        let configuration = EditorConfiguration::parse("12\nrust\n42").unwrap();
         assert_eq!(
             configuration.flags,
             EDITOR_FLAG_LINE_NUMBERS | EDITOR_FLAG_FOLDING
         );
         assert_eq!(configuration.language, "rust");
-        assert!(EditorConfiguration::parse("32\nrust").is_none());
+        assert_eq!(configuration.changed_event, 42);
+        assert!(EditorConfiguration::parse("32\nrust\n42").is_none());
+        assert!(EditorConfiguration::parse("12\nrust").is_none());
+    }
+
+    #[test]
+    fn encodes_one_minimal_utf8_change() {
+        let payload = encode_change(&Rope::from("a🙂z"), &Rope::from("a界z"), 7);
+        assert_eq!(u64::from_le_bytes(payload[0..8].try_into().unwrap()), 7);
+        assert_eq!(u32::from_le_bytes(payload[8..12].try_into().unwrap()), 1);
+        assert_eq!(u64::from_le_bytes(payload[12..20].try_into().unwrap()), 1);
+        assert_eq!(u64::from_le_bytes(payload[20..28].try_into().unwrap()), 4);
+        assert_eq!(u64::from_le_bytes(payload[28..36].try_into().unwrap()), 3);
+        assert_eq!(&payload[36..], "界".as_bytes());
     }
 
     #[test]

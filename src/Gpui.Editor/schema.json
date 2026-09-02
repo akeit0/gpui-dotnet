@@ -1,10 +1,10 @@
 {
   "extensionId": "gpui.net.editor",
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "components": [
     {
       "kind": "editor",
-      "configuration": "flags-u32-decimal\\nlanguage",
+      "configuration": "flags-u32-decimal\\nlanguage\\nchanged-event-token-u64-decimal",
       "flags": {
         "disabled": 0,
         "read_only": 1,
@@ -17,6 +17,14 @@
           "id": 1,
           "payload": "utf8-document",
           "revision": "none"
+        }
+      },
+      "events": {
+        "changed": {
+          "id": 1,
+          "flags": "origin",
+          "payload": "base-revision-u64-le; edit-count-u32-le; repeated(start-u64-le,deleted-u64-le,inserted-length-u64-le,inserted-utf8)",
+          "revision": "result"
         }
       }
     }

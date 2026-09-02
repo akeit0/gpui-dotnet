@@ -5,9 +5,9 @@ The contract deliberately separates an extension's managed schema from its Rust 
 
 ## Boundary
 
-`GPUI.NET.Core` contains one generic `NativeExtension` semantic envelope and host negotiation. It
-does not contain extension-specific component kinds, configuration fields, controllers, events, or
-native implementations.
+`GPUI.NET.Core` contains a generic `NativeExtension` semantic envelope, command/event transports,
+and host negotiation. It does not contain extension-specific component kinds, configuration
+fields, typed controllers or events, or native implementations.
 
 An extension consists of two independently packaged halves:
 
@@ -25,8 +25,8 @@ definitions do not enter `bindings/schema.json` and do not change the base seman
 
 `bindings/extensions.json` registers extension schema files and their generated C#/Rust outputs.
 The normal binding generator canonicalizes each schema, derives its independent hash, and emits the
-shared identity, component-kind, flag, and command constants. Hand-maintained protocol numbers are
-not part of an extension implementation.
+shared identity, component-kind, flag, command, and event constants. Hand-maintained protocol
+numbers are not part of an extension implementation.
 
 Rust providers implement `gpui_dotnet::extension::NativeExtension`. A custom host calls
 `install_native_extensions` once and delegates its `gpui_dotnet_get_api` export to
@@ -59,6 +59,9 @@ Typed schema packages wrap `NativeExtensionController`, normally through a facto
 `ViewContext`. The controller uses the stable any-thread View route and sends schema-owned command
 IDs and opaque byte payloads through the generic ABI. A custom provider validates each command,
 while Core queues copied payloads by the full resource identity until native materialization.
+Typed schema packages also bind render-scoped callbacks through `NativeExtensionEventBinding` and
+decode copied `NativeExtensionEvent` packets into their public event types. Event IDs, flags,
+revisions, and payload layouts remain schema-owned.
 
 ## Optional editor probe
 
@@ -86,11 +89,12 @@ var application = new GpuiApplication(
 );
 ```
 
-The initial editor probe retains native Rope, selection, scrolling, highlighting, undo, focus, and
-IME state. Its managed schema exposes language, disabled/read-only state, line numbers, folding,
-and whitespace visibility. `EditorController.Bootstrap` transfers the initial UTF-8 document once,
-outside render snapshots. Additional commands, document revisions, delta events, and release
-packaging remain open work.
+The editor probe retains native Rope, selection, scrolling, highlighting, undo, focus, and IME
+state. Its managed schema exposes language, disabled/read-only state, line numbers, folding, and
+whitespace visibility. `EditorController.Bootstrap` transfers the initial UTF-8 document once,
+outside render snapshots. An opt-in typed callback reports native edits as minimal contiguous
+UTF-8 replacements with base/result revisions. Additional commands and release packaging remain
+open work.
 
 The accepted ownership, revision, bootstrap, command, and event design is documented in
 [EDITOR.md](EDITOR.md).
