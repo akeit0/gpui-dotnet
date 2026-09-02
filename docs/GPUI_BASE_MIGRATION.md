@@ -49,7 +49,7 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 | 6. Input | Complete | GPUI.NET retains its single-line editing engine because it preserves the revisioned contiguous UTF-8 event path without per-event native value materialization. The retained root now exposes the foundation-equivalent text-input role. | IME, Unicode, selection, clipboard, focus, commands, revisions, and events reach parity before old behavior is removed. |
 | 7. Scrolling and scrollbar | Complete | Scroll, List, and Table use foundation Scrollbar interaction and paint. GPUI.NET retains wheel smoothing, controller commands, and gutter geometry while seeding GPUI's native ListState with estimated heights for unmeasured rows. | Foundation scrollbar behavior is adopted selectively without additional managed/native traffic. |
 | 8. List and Table evaluation | Complete | GPUI.NET retains GPUI `ListState`, managed aligned range batches, stable row identity, structural commands, and table column reconciliation. Foundation scrollbar behavior remains shared. | Migration to foundation `VirtualList` is rejected because its integration cost and ownership tradeoffs do not provide a corresponding API or performance benefit. |
-| 9. Advanced retained components | In progress | DockArea retains a component-skinned foundation Dock with stable string panel IDs, declarative center tabs/splits and left/bottom/right regions, ordinary element or child-View content, and native interaction. The optional Editor probe is split into an independent managed schema and build-time custom host; it now proves one-shot bootstrap, revisioned UTF-8 deltas, typed commands, and explicit stale-command rejection without adding editor contracts to Core. Packaging and broad behavior tests remain open. | Advanced components prove stable managed identity, coarse events, native high-frequency interaction, lifecycle, theme integration, and optional packaging where appropriate. |
+| 9. Advanced retained components | In progress | DockArea retains a component-skinned foundation Dock with stable string panel IDs, declarative center tabs/splits and left/bottom/right regions, ordinary element or child-View content, and native interaction. The optional Editor probe is split into an independent managed schema and build-time custom host; it now proves one-shot bootstrap, revisioned UTF-8 deltas, typed commands, and explicit stale-command rejection without adding editor contracts to Core. The default Windows host currently retains too much of the monolithic `gpui-component` graph through the Dock skin. Packaging, dependency isolation, and broad behavior tests remain open. | Advanced components prove stable managed identity, coarse events, native high-frequency interaction, lifecycle, theme integration, optional packaging where appropriate, and no unrelated component families in the default native host. |
 | 10. Cleanup and protocol freeze candidate | Planned | Compatibility remains preview-level. | Superseded behavior and protocol paths are removed and the new contract is deliberately reviewed for stability. |
 
 No semantic component is considered migrated merely because the dependency and initializer exist.
@@ -231,6 +231,51 @@ bootstrap, revisioned UTF-8 delta events, focus, revision-checked selection, who
 replacement, one contiguous edit, and explicit stale/range rejection events. This deliberately
 small surface validates the generic extension contract; editor-specific depth such as undo/redo,
 highlighter reconfiguration, and persistence remains optional roadmap work.
+
+## Default native host size and dependency boundary
+
+Optional managed assemblies are not sufficient isolation when the default Rust host still links a
+broad implementation crate. The default host should contain GPUI.NET Core behavior and only the
+native component code needed by its supported semantic surface. Editor providers, language
+grammars, and other optional component families belong only in custom hosts that select them.
+
+An equivalent locked Windows x64 Release build established these reference points:
+
+| Native host boundary | `gpui_dotnet.dll` size |
+|---|---:|
+| Before the foundation migration | 13,194,240 bytes |
+| Initial `gpui-base` adoption | 13,557,760 bytes |
+| Current semantic surface immediately before styled Dock integration | 14,127,104 bytes |
+| Styled Dock integration through the monolithic `gpui-component` crate | 19,888,640 bytes |
+| Current default host | 19,929,600 bytes |
+
+The large boundary is the styled Dock integration, not the initial `gpui-base` adoption and not the
+optional Editor host. Dock currently makes the default host reference `gpui-component` and its
+asset crate. The resulting reachable graph includes substantially more component, theme,
+Markdown, regular-expression, and parsing code than the Dock contract needs. Bundled component
+assets are a small fraction of the increase. Replacing the full component initializer with minimal
+global initialization also produces only a small reduction, so initialization alone is not the
+solution.
+
+The preferred structural direction is:
+
+- keep the retained Dock behavior and layout engine in `gpui-base`;
+- isolate the styled Dock skin behind narrowly feature-gated crates, or provide a small skin that
+  does not depend on the complete `gpui-component` façade;
+- enable broad `gpui-component` facilities only in custom native hosts that require them;
+- keep the default host's Cargo feature set explicit and additive, with no accidental provider
+  activation through default features;
+- inspect release link maps or equivalent size reports so an optional family cannot silently enter
+  the default host.
+
+Release-profile optimization is complementary, not a substitute for dependency isolation. On the
+same Windows build, Thin LTO with one codegen unit and symbol stripping reduced the current host to
+18,287,616 bytes. Adopt those settings only after build-time and runtime-performance validation;
+they do not remove the roughly 5.8 MB dependency-boundary regression.
+
+The size work is complete when an equivalent Windows x64 Release build keeps the default host near
+the pre-Dock reference without removing Dock behavior, the optional Editor remains available from
+its custom host, and CI records enough artifact information to detect renewed dependency leakage.
 
 The remaining protocol questions stay open for later families:
 

@@ -3,6 +3,22 @@
 This file lists open work only. Completed behavior belongs in the README or the focused design
 documents.
 
+## Default native host size
+
+Prevent the default native host from retaining unrelated component families:
+
+- separate or narrowly feature-gate the styled Dock skin so using `gpui-base::dock` does not link
+  the complete `gpui-component` façade;
+- keep editor providers, grammars, and other optional runtime families exclusive to their custom
+  hosts;
+- add a reproducible per-RID release-size report and a default-host dependency/link-map check;
+- evaluate Thin LTO and one release codegen unit against build time and frame-sensitive runtime
+  performance before enabling them in packaging.
+
+The measured Windows x64 default host is 19,929,600 bytes, compared with 14,127,104 bytes at the
+equivalent pre-Dock boundary. The focused analysis and acceptance criteria are in
+[GPUI_BASE_MIGRATION.md](GPUI_BASE_MIGRATION.md#default-native-host-size-and-dependency-boundary).
+
 ## Accessibility
 
 The pinned GPUI revision does not expose a complete cross-platform accessibility-tree API. When a

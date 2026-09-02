@@ -35,6 +35,15 @@ exactly one native host under its `runtimes/<rid>/native` path:
 `GPUI.NET` is the application-facing meta package. It also carries the Roslyn analyzer so
 `[GpuiView]` and `[GpuiListItem]` work without an additional package reference.
 
+The default native host is also a dependency boundary. It must not link optional provider families
+merely because their managed schema packages are separate. Its Cargo dependencies and features
+should select only the implementations required by the base semantic surface. A custom host owns
+the additional component crates, parsers, grammars, and assets selected by its extension set.
+Release packaging should record native artifact sizes and inspect the resolved dependency or link
+graph so accidental provider leakage is visible. The current Dock-related size work and reference
+measurements are tracked in
+[GPUI_BASE_MIGRATION.md](GPUI_BASE_MIGRATION.md#default-native-host-size-and-dependency-boundary).
+
 ## Development builds
 
 `dotnet build` uses the `BuildGpuiNative` targets in `GPUI.NET.Core` to run Cargo for the current

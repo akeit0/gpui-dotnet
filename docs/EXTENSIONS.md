@@ -105,9 +105,16 @@ The accepted ownership, revision, bootstrap, command, and event design is docume
 ## Packaging guidance
 
 - keep schema assemblies free of native assets;
+- keep each host's Rust dependency and feature graph explicit; an optional schema assembly does not
+  provide isolation if its provider crate is still linked by the default host;
+- link provider-only component families, parsers, grammars, and assets only into the custom hosts
+  that select them;
+- avoid depending on a monolithic component façade for one provider when a feature-gated or
+  narrowly scoped runtime crate can preserve the same contract;
 - use a unique native host file name so custom and default hosts can coexist;
 - put release host libraries under RID-specific runtime packages;
 - build every host on its natural target platform;
 - version each schema and its provider together;
 - test missing-extension and schema-mismatch rejection before application startup;
-- test a clean consumer restore without requiring Cargo or a Rust toolchain.
+- test a clean consumer restore without requiring Cargo or a Rust toolchain;
+- record release artifact sizes and check that optional providers do not enter the default host.
