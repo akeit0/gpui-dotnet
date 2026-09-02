@@ -166,6 +166,14 @@ controller overloads avoid unnecessary UTF-16 allocation. `InputEvent.Value` dec
 `InputController` supports `Focus`, `Blur`, `SelectAll`, and `SetValue`. The declarative initial
 value is consumed only when the native keyed resource is created.
 
+The retained GPUI.NET engine remains authoritative after comparison with the foundation Input.
+Foundation `InputState` uses a Rope-backed editor and emits change notifications without a value or
+revision; adapting it to the existing callback packet would materialize the full value for each
+subscribed change and require separate revision bookkeeping. The retained engine instead exposes
+its contiguous UTF-8 value directly to the synchronous callback while preserving native IME,
+Unicode selection, clipboard, password, focus, and controller behavior. Its root declares the
+`TextInput` accessibility role.
+
 ## Retained Slider
 
 `ui.Slider` supports single values and ranges, horizontal or vertical orientation, linear or

@@ -41,7 +41,7 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 | 3. Protocol checkpoint | Complete | The snapshot and click protocols remain; the schema adds a narrow `disableable` capability and Boolean `Disabled` operation. | Findings from the first control family produce an explicit keep/change decision with tests and updated ABI documentation. |
 | 4. Deferred layers | Complete | Tooltip and PopoverMenu use foundation Popup/Positioner, ContextMenu uses Positioner, and PopoverMenu plus ContextMenu use PopoverState. Modal Overlay uses foundation FocusTrapElement, which also covers the managed Dialog and Sheet compositions. GPUI.NET retains its distinct timing, placement, backdrop, priority, topmost, and managed callback semantics. | Foundation behavior replaces duplicated placement, focus, and dismissal infrastructure where semantics match. |
 | 5. Slider | Complete | GPUI.NET retains its native Slider engine because the foundation state cannot reconcile configuration and lacks keyboard/focus plus released-event parity. The retained root now exposes foundation-equivalent slider accessibility metadata. | Foundation behavior reaches pointer/keyboard/controller/event parity, or the custom implementation is retained with rationale. |
-| 6. Input | Planned | GPUI.NET retains its single-line editing engine. | IME, Unicode, selection, clipboard, focus, commands, revisions, and events reach parity before old behavior is removed. |
+| 6. Input | Complete | GPUI.NET retains its single-line editing engine because it preserves the revisioned contiguous UTF-8 event path without per-event native value materialization. The retained root now exposes the foundation-equivalent text-input role. | IME, Unicode, selection, clipboard, focus, commands, revisions, and events reach parity before old behavior is removed. |
 | 7. Scrolling and scrollbar | Planned | GPUI.NET retains scrolling and scrollbar behavior. | Foundation scrollbar behavior is adopted selectively without additional managed/native traffic. |
 | 8. List and Table evaluation | Decision pending | The existing aligned range-batch cache remains authoritative. | Benchmarks record an explicit keep or migrate decision. |
 | 9. Cleanup and protocol freeze candidate | Planned | Compatibility remains preview-level. | Superseded behavior and protocol paths are removed and the new contract is deliberately reviewed for stability. |
@@ -134,12 +134,32 @@ Pointer drag and keyboard stepping stay native; `SliderController.SetValue` rema
 The retained root now supplies the same slider role, numeric value, bounds, step, and orientation
 accessibility metadata used by the foundation primitive. No ABI or schema change is required.
 
-## Next development slice: Input
+## Input decision
 
-Compare foundation Input behavior against the retained single-line editor. Preserve UTF-8 state,
-IME composition, Unicode selection, clipboard operations, password masking, focus commands,
-revisioned change/submission events, and declarative-initial-value semantics. Retain the current
-engine unless the foundation covers that contract without adding managed traffic or allocations.
+GPUI.NET retains its native single-line Input resource. Foundation `InputState` provides a mature
+Rope-backed editing engine with IME, Unicode, selection, clipboard, focus, read-only, disabled, and
+password behavior. Its `InputEvent::Change` is intentionally only a notification, however, and its
+public value accessor materializes the Rope into an owned string on every call. An adapter would
+therefore need to copy the full value for every subscribed change and separately maintain the
+revision carried by GPUI.NET's callback packet.
+
+The existing engine keeps the current value in contiguous UTF-8 storage, suppresses duplicate
+change notifications, and passes a borrowed value directly to the synchronous native callback.
+The managed event copies those bytes for async safety and decodes UTF-16 only when `Value` is read.
+It also preserves keyed retained identity, declarative-initial-value semantics, event-free
+`SetValue`, native IME composition, grapheme selection, clipboard operations, password masking,
+focus commands, and revisioned changed/submitted/focus events. The retained root now declares the
+`TextInput` accessibility role used by the foundation frame. No ABI or schema change is required.
+
+Richer editor behavior such as word navigation, undo/redo, and multiline editing remains separate
+roadmap work rather than grounds to replace the stable single-line ABI contract.
+
+## Next development slice: Scrolling and scrollbar
+
+Compare the retained Scroll and scrollbar implementation with foundation behavior. Adopt reusable
+native scrollbar interaction and motion where it preserves the current controller, viewport,
+event, nested-scroll, and native-only high-frequency paths without increasing managed/native
+traffic.
 
 The remaining protocol questions stay open for later families:
 

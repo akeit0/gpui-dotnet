@@ -4,8 +4,9 @@ use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId, ElementInputHandler,
     Entity, EntityInputHandler, FocusHandle, Focusable, GlobalElementId, IntoElement, KeyBinding,
     LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point,
-    Render, ShapedLine, SharedString, Style, Subscription, TextAlign, TextRun, UTF16Selection,
-    UnderlineStyle, Window, actions, div, fill, point, prelude::*, px, relative, rgba, size,
+    Render, Role, ShapedLine, SharedString, Style, Subscription, TextAlign, TextRun,
+    UTF16Selection, UnderlineStyle, Window, actions, div, fill, point, prelude::*, px, relative,
+    rgba, size,
 };
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -658,6 +659,7 @@ impl Render for ManagedInput {
 
         div()
             .id(&self.focus_handle)
+            .role(Role::TextInput)
             .size_full()
             .min_w_0()
             .flex()
