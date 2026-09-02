@@ -427,6 +427,24 @@ impl Render for ManagedView {
         self.schedule_dynamic_frame(dynamic_owners, window, cx);
 
         div()
+            .tab_group()
+            .on_key_down(|event, window, cx| {
+                let modifiers = event.keystroke.modifiers;
+                if event.keystroke.key != "tab"
+                    || modifiers.control
+                    || modifiers.alt
+                    || modifiers.platform
+                    || modifiers.function
+                {
+                    return;
+                }
+                if modifiers.shift {
+                    window.focus_prev(cx);
+                } else {
+                    window.focus_next(cx);
+                }
+                cx.stop_propagation();
+            })
             .size_full()
             .bg(rgba(theme.background))
             .text_color(rgba(theme.text))
@@ -486,7 +504,9 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
         gpui_base::init(cx);
         crate::input::init(cx);
         let windows: ManagedWindows = Rc::new(RefCell::new(HashMap::new()));
-        let theme: SharedTheme = Rc::new(RefCell::new(NativeTheme::default()));
+        let initial_theme = NativeTheme::default();
+        initial_theme.apply_to_base(cx);
+        let theme: SharedTheme = Rc::new(RefCell::new(initial_theme));
 
         let menu_status = Arc::clone(&application_status_in_app);
         cx.on_action(move |action: &ManagedMenuAction, _cx| {
@@ -572,6 +592,7 @@ fn apply_application_command(
             cx.set_menus(menus.into_iter().map(convert_menu));
         }
         ApplicationCommand::SetTheme(next) => {
+            next.apply_to_base(cx);
             *theme.borrow_mut() = next;
             for entry in windows.borrow().values() {
                 let Some(handle) = entry.handle.downcast::<ManagedView>() else {

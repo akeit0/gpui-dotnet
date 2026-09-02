@@ -1,0 +1,3 @@
+[submodule "external/gpui-component"]
+	path = external/gpui-component
+	url = https://github.com/akeit0/gpui-component

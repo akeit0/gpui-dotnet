@@ -474,7 +474,7 @@ mod tests {
         semantic::{
             COMPONENT_CHECKBOX, COMPONENT_CONTEXT_MENU, COMPONENT_DIV, COMPONENT_DRAWING,
             COMPONENT_IMAGE, COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_OVERLAY, COMPONENT_PATH,
-            COMPONENT_POPOVER_MENU, COMPONENT_TEXT, COMPONENT_TOOLTIP, OP_CHECKED,
+            COMPONENT_POPOVER_MENU, COMPONENT_TEXT, COMPONENT_TOOLTIP, OP_CHECKED, OP_DISABLED,
             OP_DRAWING_VIEW_BOX_SIZE, OP_GAP_PX, OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED,
             OP_LIST_ITEM_ID, OP_ON_CLICK, OP_OVERLAY_PLACEMENT, OP_PADDING_PX, OP_SCROLLBAR_GUTTER,
             OP_SCROLLBAR_WIDTH, OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA,
@@ -734,6 +734,13 @@ mod tests {
             a: 2,
             ..Default::default()
         };
+        let mut arena = arena_with(&mut node, Some(&mut operation));
+        arena.utf8 = &mut identifier;
+        arena.utf8_length = 1;
+        arena.utf8_capacity = 1;
+        assert_eq!(validate(&arena, 0), Err(-21));
+
+        operation.code = OP_DISABLED;
         let mut arena = arena_with(&mut node, Some(&mut operation));
         arena.utf8 = &mut identifier;
         arena.utf8_length = 1;

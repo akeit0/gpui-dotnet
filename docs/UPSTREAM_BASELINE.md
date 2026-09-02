@@ -1,8 +1,8 @@
 # Native upstream baseline
 
-GPUI.NET consumes `gpui-base` through the GPUI Component integration fork and locks the complete
-native dependency graph in `crates/gpui-dotnet/Cargo.lock`. The reviewable copy of the revision
-tuple is `crates/native-baseline.toml`.
+GPUI.NET consumes `gpui-base` from the `external/gpui-component` submodule and locks the complete
+native dependency graph in `crates/gpui-dotnet/Cargo.lock`. The submodule gitlink is the executable
+fork pin; the reviewable copy of the revision tuple is `crates/native-baseline.toml`.
 
 ## GPUI Component
 
@@ -13,9 +13,9 @@ tuple is `crates/native-baseline.toml`.
 - Fork delta: zero commits
 - Integration branch: none; create one when the first downstream-only patch is required
 
-The local integration clone uses `origin` for the fork and `upstream` for Longbridge. Refresh the
-baseline by fetching both remotes, measuring `origin/main...upstream/main`, and validating the
-candidate revision before changing GPUI.NET's dependency pin.
+The submodule uses `origin` for the fork. Add `upstream` for Longbridge when refreshing the
+baseline, measure `origin/main...upstream/main`, and validate the candidate revision before
+updating the parent repository's gitlink.
 
 ## Zed / GPUI
 
@@ -41,6 +41,9 @@ logic remains in this repository.
 
 1. Fetch the fork and upstream remotes and measure their divergence.
 2. Run the relevant `gpui-base` tests in the fork.
-3. Update the exact `gpui-base` revision and resolve the matching GPUI revision.
+3. Commit the fork change, check out that exact commit in the submodule, and resolve the matching
+   GPUI revision.
 4. Update `Cargo.lock`, `crates/native-baseline.toml`, and this document together.
-5. Run the locked dependency-graph check and the GPUI.NET native and managed verification suites.
+5. Commit the updated submodule gitlink in GPUI.NET only after the fork commit is available from
+   `origin`.
+6. Run the locked dependency-graph check and the GPUI.NET native and managed verification suites.

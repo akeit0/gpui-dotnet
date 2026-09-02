@@ -23,26 +23,26 @@ use crate::{
     semantic::{
         CAPABILITY_INTERACTIVE, NativeAdapter, OP_ACTIVE_BACKGROUND_RGBA, OP_ACTIVE_BORDER_RGBA,
         OP_ACTIVE_TEXT_RGBA, OP_BACKGROUND_RGBA, OP_BORDER_RGBA, OP_BORDER_WIDTH_PX, OP_CHECKED,
-        OP_CONTEXT_MENU_MARGIN_PX, OP_CONTEXT_MENU_PRIORITY, OP_DRAWING_VIEW_BOX_ORIGIN,
-        OP_DRAWING_VIEW_BOX_SIZE, OP_ELEMENT_OWNER, OP_FLEX, OP_FLEX_GROW, OP_FONT_SIZE_PX,
-        OP_GAP_PX, OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_HOVER_BACKGROUND_RGBA, OP_HOVER_BORDER_RGBA,
-        OP_HOVER_TEXT_RGBA, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_ITEMS_CENTER,
-        OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
-        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX,
-        OP_LIST_RENDERER, OP_ON_CLICK, OP_OVERLAY_BACKDROP_RGBA, OP_OVERLAY_DISMISS_ON_BACKDROP,
-        OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
-        OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY, OP_PADDING_PX,
-        OP_PATH_ARC_FLAGS, OP_PATH_ARC_RADII, OP_PATH_ARC_ROTATION, OP_PATH_ARC_TO,
-        OP_PATH_CIRCLE_CENTER, OP_PATH_CIRCLE_RADIUS, OP_PATH_CLOSE, OP_PATH_CUBIC_CONTROL_A,
-        OP_PATH_CUBIC_CONTROL_B, OP_PATH_CUBIC_TO, OP_PATH_DASH_PX, OP_PATH_FILL_RGBA,
-        OP_PATH_FILL_RULE, OP_PATH_LINE_TO, OP_PATH_MOVE_TO, OP_PATH_QUADRATIC_CONTROL,
-        OP_PATH_QUADRATIC_TO, OP_PATH_STROKE_RGBA, OP_PATH_STROKE_WIDTH_PX,
-        OP_POPOVER_MENU_MARGIN_PX, OP_POPOVER_MENU_PRIORITY, OP_RADIUS_PX, OP_RESOURCE_OWNER,
-        OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SHOW_SCROLLBAR,
-        OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER, OP_TEXT_RGBA,
-        OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS, OP_TOOLTIP_MARGIN_PX,
-        OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK, OP_WIDTH_PERCENT, OP_WIDTH_PX,
-        OP_WINDOW_CONTROL_AREA, component_metadata,
+        OP_CONTEXT_MENU_MARGIN_PX, OP_CONTEXT_MENU_PRIORITY, OP_DISABLED,
+        OP_DRAWING_VIEW_BOX_ORIGIN, OP_DRAWING_VIEW_BOX_SIZE, OP_ELEMENT_OWNER, OP_FLEX,
+        OP_FLEX_GROW, OP_FONT_SIZE_PX, OP_GAP_PX, OP_HEIGHT_PERCENT, OP_HEIGHT_PX,
+        OP_HOVER_BACKGROUND_RGBA, OP_HOVER_BORDER_RGBA, OP_HOVER_TEXT_RGBA, OP_IMAGE_GRAYSCALE,
+        OP_IMAGE_OBJECT_FIT, OP_ITEMS_CENTER, OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER,
+        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
+        OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_ON_CLICK,
+        OP_OVERLAY_BACKDROP_RGBA, OP_OVERLAY_DISMISS_ON_BACKDROP, OP_OVERLAY_DISMISS_ON_ESCAPE,
+        OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL, OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT,
+        OP_OVERLAY_PRIORITY, OP_PADDING_PX, OP_PATH_ARC_FLAGS, OP_PATH_ARC_RADII,
+        OP_PATH_ARC_ROTATION, OP_PATH_ARC_TO, OP_PATH_CIRCLE_CENTER, OP_PATH_CIRCLE_RADIUS,
+        OP_PATH_CLOSE, OP_PATH_CUBIC_CONTROL_A, OP_PATH_CUBIC_CONTROL_B, OP_PATH_CUBIC_TO,
+        OP_PATH_DASH_PX, OP_PATH_FILL_RGBA, OP_PATH_FILL_RULE, OP_PATH_LINE_TO, OP_PATH_MOVE_TO,
+        OP_PATH_QUADRATIC_CONTROL, OP_PATH_QUADRATIC_TO, OP_PATH_STROKE_RGBA,
+        OP_PATH_STROKE_WIDTH_PX, OP_POPOVER_MENU_MARGIN_PX, OP_POPOVER_MENU_PRIORITY, OP_RADIUS_PX,
+        OP_RESOURCE_OWNER, OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH,
+        OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER,
+        OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS,
+        OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK,
+        OP_WIDTH_PERCENT, OP_WIDTH_PX, OP_WINDOW_CONTROL_AREA, component_metadata,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
     theme::NativeTheme,
@@ -98,9 +98,21 @@ impl ManagedView {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let metadata = component_metadata(node.component).unwrap();
+        match metadata.adapter {
+            NativeAdapter::Button => {
+                return self.materialize_button(node_id, node, snapshot, window, cx);
+            }
+            NativeAdapter::Checkbox => {
+                return self.materialize_checkbox(node_id, node, snapshot, window, cx);
+            }
+            NativeAdapter::Radio => {
+                return self.materialize_radio(node_id, node, snapshot, window, cx);
+            }
+            _ => {}
+        }
+
         let theme = *self.theme.borrow();
-        let mut element =
-            components::apply_defaults(metadata.adapter, div(), node, snapshot, theme);
+        let mut element = components::apply_defaults(metadata.adapter, div(), theme);
 
         if metadata.adapter == NativeAdapter::Text {
             element = element.child(node.data.clone());
@@ -141,6 +153,142 @@ impl ManagedView {
         }
 
         element.into_any_element()
+    }
+
+    fn materialize_button(
+        &self,
+        node_id: u32,
+        node: &SnapshotNode,
+        snapshot: &ValidatedSnapshot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let theme = *self.theme.borrow();
+        let disabled = components::has_u32_flag(node, snapshot, OP_DISABLED);
+        let mut element = components::button(
+            interactive_element_id(node_id, node, snapshot),
+            disabled,
+            theme,
+        );
+        if let Some(label) = accessibility_label(node, snapshot) {
+            element = element.accessibility_label(label);
+        }
+        for child in snapshot.children(node) {
+            element = element.child(self.materialize_node(*child, snapshot, window, cx));
+        }
+        element = apply_styles(element, node, snapshot);
+        element = apply_window_control_area(element, node, snapshot);
+        if !disabled {
+            element = apply_interaction_styles(element.cursor_pointer(), node, snapshot, theme);
+        }
+
+        let Some((event_token, event_payload)) = click_binding(node, snapshot) else {
+            return element.into_any_element();
+        };
+        element
+            .on_click(cx.listener(move |this, event: &ClickEvent, _, cx| {
+                let status = invoke_click(
+                    this.callbacks,
+                    this.view_id,
+                    event_token,
+                    event_payload,
+                    event,
+                );
+                this.after_click(status, cx);
+            }))
+            .into_any_element()
+    }
+
+    fn materialize_checkbox(
+        &self,
+        node_id: u32,
+        node: &SnapshotNode,
+        snapshot: &ValidatedSnapshot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let theme = *self.theme.borrow();
+        let checked = components::has_u32_flag(node, snapshot, OP_CHECKED);
+        let disabled = components::has_u32_flag(node, snapshot, OP_DISABLED);
+        let mut element = components::checkbox(
+            interactive_element_id(node_id, node, snapshot),
+            checked,
+            disabled,
+            theme,
+        );
+        if let Some(label) = accessibility_label(node, snapshot) {
+            element = element.accessibility_label(label);
+        }
+        for child in snapshot.children(node) {
+            element = element.child(self.materialize_node(*child, snapshot, window, cx));
+        }
+        element = apply_styles(element, node, snapshot);
+        if !disabled {
+            element = apply_interaction_styles(element.cursor_pointer(), node, snapshot, theme);
+        }
+
+        let Some((event_token, event_payload)) = click_binding(node, snapshot) else {
+            return element.into_any_element();
+        };
+        let listener = cx.listener(move |this, event: &ClickEvent, _, cx| {
+            let status = invoke_click(
+                this.callbacks,
+                this.view_id,
+                event_token,
+                event_payload,
+                event,
+            );
+            this.after_click(status, cx);
+        });
+        element
+            .on_change(move |_, event, window, cx| listener(event, window, cx))
+            .into_any_element()
+    }
+
+    fn materialize_radio(
+        &self,
+        node_id: u32,
+        node: &SnapshotNode,
+        snapshot: &ValidatedSnapshot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let theme = *self.theme.borrow();
+        let checked = components::has_u32_flag(node, snapshot, OP_CHECKED);
+        let disabled = components::has_u32_flag(node, snapshot, OP_DISABLED);
+        let mut element = components::radio(
+            interactive_element_id(node_id, node, snapshot),
+            checked,
+            disabled,
+            theme,
+        );
+        if let Some(label) = accessibility_label(node, snapshot) {
+            element = element.accessibility_label(label);
+        }
+        for child in snapshot.children(node) {
+            element = element.child(self.materialize_node(*child, snapshot, window, cx));
+        }
+        element = apply_styles(element, node, snapshot);
+        if !disabled {
+            element = apply_interaction_styles(element.cursor_pointer(), node, snapshot, theme);
+        }
+
+        let Some((event_token, event_payload)) = click_binding(node, snapshot) else {
+            return element.into_any_element();
+        };
+        let listener = cx.listener(move |this, event: &ClickEvent, _, cx| {
+            let status = invoke_click(
+                this.callbacks,
+                this.view_id,
+                event_token,
+                event_payload,
+                event,
+            );
+            this.after_click(status, cx);
+        });
+        element
+            .on_change(move |_, event, window, cx| listener(event, window, cx))
+            .into_any_element()
     }
 
     fn materialize_scroll(
@@ -877,7 +1025,22 @@ pub(crate) fn materialize_snapshot_node_detached(
     }
 
     let theme = resources.theme();
-    let mut element = components::apply_defaults(metadata.adapter, div(), node, snapshot, theme);
+    if let Some(control) = materialize_detached_foundation_control(
+        metadata.adapter,
+        node_id,
+        node,
+        snapshot,
+        session_id,
+        callbacks,
+        resources,
+        list_key,
+        item_index,
+        item_id,
+        theme,
+    ) {
+        return control;
+    }
+    let mut element = components::apply_defaults(metadata.adapter, div(), theme);
     if metadata.adapter == NativeAdapter::Text {
         element = element.child(node.data.clone());
     }
@@ -918,6 +1081,108 @@ pub(crate) fn materialize_snapshot_node_detached(
     element.into_any_element()
 }
 
+#[allow(clippy::too_many_arguments)]
+fn materialize_detached_foundation_control(
+    adapter: NativeAdapter,
+    node_id: u32,
+    node: &SnapshotNode,
+    snapshot: &ValidatedSnapshot,
+    session_id: u64,
+    callbacks: ManagedCallbacks,
+    resources: &ResourceStore,
+    list_key: &crate::resources::ResourceKey,
+    item_index: usize,
+    item_id: Option<u64>,
+    theme: NativeTheme,
+) -> Option<AnyElement> {
+    if !matches!(
+        adapter,
+        NativeAdapter::Button | NativeAdapter::Checkbox | NativeAdapter::Radio
+    ) {
+        return None;
+    }
+
+    let children = snapshot
+        .children(node)
+        .iter()
+        .map(|child| {
+            materialize_snapshot_node_detached(
+                *child, snapshot, session_id, callbacks, resources, list_key, item_index, item_id,
+            )
+        })
+        .collect::<Vec<_>>();
+    let state_id = row_state_id(list_key, item_index, item_id, node_id, &node.data);
+    let element_id: ElementId = ("managed-list-row", state_id).into();
+    let disabled = components::has_u32_flag(node, snapshot, OP_DISABLED);
+    let label = accessibility_label(node, snapshot);
+    let binding = click_binding(node, snapshot).map(|(token, payload)| {
+        let payload = if payload == 0 {
+            item_id.unwrap_or(0)
+        } else {
+            payload
+        };
+        (token, payload)
+    });
+
+    Some(match adapter {
+        NativeAdapter::Button => {
+            let mut element = components::button(element_id, disabled, theme);
+            if let Some(label) = label {
+                element = element.accessibility_label(label);
+            }
+            element = element.children(children);
+            element = apply_styles(element, node, snapshot);
+            element = apply_window_control_area(element, node, snapshot);
+            if !disabled {
+                element = apply_interaction_styles(element.cursor_pointer(), node, snapshot, theme);
+            }
+            if let Some((event_token, event_payload)) = binding {
+                element = element.on_click(move |event: &ClickEvent, _, _| {
+                    let _ = invoke_click(callbacks, session_id, event_token, event_payload, event);
+                });
+            }
+            element.into_any_element()
+        }
+        NativeAdapter::Checkbox => {
+            let checked = components::has_u32_flag(node, snapshot, OP_CHECKED);
+            let mut element = components::checkbox(element_id, checked, disabled, theme);
+            if let Some(label) = label {
+                element = element.accessibility_label(label);
+            }
+            element = element.children(children);
+            element = apply_styles(element, node, snapshot);
+            if !disabled {
+                element = apply_interaction_styles(element.cursor_pointer(), node, snapshot, theme);
+            }
+            if let Some((event_token, event_payload)) = binding {
+                element = element.on_change(move |_, event, _, _| {
+                    let _ = invoke_click(callbacks, session_id, event_token, event_payload, event);
+                });
+            }
+            element.into_any_element()
+        }
+        NativeAdapter::Radio => {
+            let checked = components::has_u32_flag(node, snapshot, OP_CHECKED);
+            let mut element = components::radio(element_id, checked, disabled, theme);
+            if let Some(label) = label {
+                element = element.accessibility_label(label);
+            }
+            element = element.children(children);
+            element = apply_styles(element, node, snapshot);
+            if !disabled {
+                element = apply_interaction_styles(element.cursor_pointer(), node, snapshot, theme);
+            }
+            if let Some((event_token, event_payload)) = binding {
+                element = element.on_change(move |_, event, _, _| {
+                    let _ = invoke_click(callbacks, session_id, event_token, event_payload, event);
+                });
+            }
+            element.into_any_element()
+        }
+        _ => unreachable!(),
+    })
+}
+
 fn invoke_click(
     callbacks: ManagedCallbacks,
     session_id: u64,
@@ -944,6 +1209,36 @@ fn invoke_click(
         event_payload,
         native_event,
     )
+}
+
+fn click_binding(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> Option<(u64, u64)> {
+    let binding = last_op(snapshot, node, OP_ON_CLICK)?;
+    (binding.a != 0).then_some((binding.a, binding.b))
+}
+
+fn accessibility_label(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> Option<SharedString> {
+    let mut label = String::new();
+    append_accessibility_text(node, snapshot, &mut label);
+    (!label.is_empty()).then(|| SharedString::from(label))
+}
+
+fn append_accessibility_text(
+    node: &SnapshotNode,
+    snapshot: &ValidatedSnapshot,
+    label: &mut String,
+) {
+    for child_id in snapshot.children(node) {
+        let child = &snapshot.nodes[*child_id as usize];
+        if component_metadata(child.component).is_some_and(|metadata| {
+            metadata.adapter == NativeAdapter::Text && !child.data.is_empty()
+        }) {
+            if !label.is_empty() {
+                label.push(' ');
+            }
+            label.push_str(&child.data);
+        }
+        append_accessibility_text(child, snapshot, label);
+    }
 }
 
 fn invoke_native_click(
@@ -994,6 +1289,7 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
             | OP_ACTIVE_TEXT_RGBA
             | OP_ACTIVE_BORDER_RGBA => element,
             OP_CHECKED
+            | OP_DISABLED
             | OP_ELEMENT_OWNER
             | OP_ON_CLICK
             | OP_RESOURCE_OWNER
@@ -1073,6 +1369,9 @@ fn apply_interaction_styles<T>(
 where
     T: StatefulInteractiveElement,
 {
+    element = element
+        .focus_visible(move |style| style.border_1().border_color(rgba(theme.border_focused)));
+
     let hover = interaction_paint(
         node,
         snapshot,
@@ -1264,11 +1563,10 @@ fn table_header_strip(spec: &std::rc::Rc<TableSpec>, theme: NativeTheme) -> gpui
     strip
 }
 
-fn apply_window_control_area(
-    element: gpui::Div,
-    node: &SnapshotNode,
-    snapshot: &ValidatedSnapshot,
-) -> gpui::Div {
+fn apply_window_control_area<T>(element: T, node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> T
+where
+    T: Styled + InteractiveElement,
+{
     let Some(operation) = last_op(snapshot, node, OP_WINDOW_CONTROL_AREA) else {
         return element;
     };
@@ -1652,7 +1950,12 @@ fn last_op<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{abi::OpRecord, resources::ResourceKey, semantic::ValueKind};
+    use crate::{
+        abi::{ChildRecord, NodeRecord, OpRecord, RenderArena},
+        resources::ResourceKey,
+        semantic::{COMPONENT_BUTTON, COMPONENT_TEXT, ValueKind},
+        snapshot::{RetainedStrings, SnapshotScratch},
+    };
 
     fn key() -> ResourceKey {
         ResourceKey::new(4, "service-grid".into())
@@ -1667,6 +1970,62 @@ mod tests {
         assert_ne!(alpha, beta);
         assert_ne!(alpha, other_key);
         assert_eq!(alpha, managed_control_state_id(17, "increment"));
+    }
+
+    #[test]
+    fn foundation_control_accessible_name_comes_from_semantic_text() {
+        let mut nodes = [
+            NodeRecord {
+                component: COMPONENT_BUTTON,
+                data_length: 1,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_TEXT,
+                data_offset: 1,
+                data_length: 5,
+                ..Default::default()
+            },
+        ];
+        let mut children = [ChildRecord {
+            parent: 0,
+            child: 1,
+        }];
+        let mut utf8 = *b"xHello";
+        let arena = RenderArena {
+            nodes: nodes.as_mut_ptr(),
+            node_length: nodes.len() as i32,
+            node_capacity: nodes.len() as i32,
+            ops: std::ptr::null_mut(),
+            op_length: 0,
+            op_capacity: 0,
+            children: children.as_mut_ptr(),
+            child_length: children.len() as i32,
+            child_capacity: children.len() as i32,
+            utf8: utf8.as_mut_ptr(),
+            utf8_length: utf8.len() as i32,
+            utf8_capacity: utf8.len() as i32,
+            generation: 1,
+            flags: 0,
+            required_node_capacity: 0,
+            required_op_capacity: 0,
+            required_child_capacity: 0,
+            required_utf8_capacity: 0,
+        };
+        let mut snapshot = ValidatedSnapshot::default();
+        snapshot
+            .decode_into(
+                &arena,
+                0,
+                &mut RetainedStrings::default(),
+                &mut SnapshotScratch::default(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            accessibility_label(&snapshot.nodes[0], &snapshot).as_deref(),
+            Some("Hello")
+        );
     }
 
     #[test]

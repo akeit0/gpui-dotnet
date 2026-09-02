@@ -6,6 +6,7 @@
     "layout",
     "interactive",
     "checkable",
+    "disableable",
     "native_state",
     "scrollable",
     "virtualized",
@@ -64,6 +65,7 @@
         "styled",
         "parent",
         "interactive",
+        "disableable",
         "window_control"
       ],
       "nativeAdapter": "button"
@@ -80,7 +82,8 @@
         "styled",
         "parent",
         "interactive",
-        "checkable"
+        "checkable",
+        "disableable"
       ],
       "nativeAdapter": "checkbox"
     },
@@ -96,7 +99,8 @@
         "styled",
         "parent",
         "interactive",
-        "checkable"
+        "checkable",
+        "disableable"
       ],
       "nativeAdapter": "radio"
     },
@@ -533,6 +537,15 @@
       "value": "u32",
       "requires": "interactive",
       "managedApi": "color"
+    },
+    {
+      "id": 119,
+      "name": "disabled",
+      "csharp": "Disabled",
+      "value": "u32",
+      "requires": "disableable",
+      "managedApi": "bool",
+      "validation": { "kind": "bool", "status": -21 }
     },
     {
       "id": 200,

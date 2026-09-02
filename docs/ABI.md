@@ -152,15 +152,19 @@ Current commands are:
 | ToggleMaximize | existing window ID |
 | SetTitle | non-empty UTF-8 title |
 | Resize | positive finite width and height |
-| SetTheme | versioned resolved semantic palette, application-scoped |
+| SetTheme | versioned appearance and resolved semantic palette, application-scoped |
 | ManagedCodeUpdated | empty application-scoped Hot Reload invalidation |
 
 Open flags encode optional position, activation, and `System`, `Custom`, or `Hidden` title-bar
 style. Runtime reposition is not exposed because the pinned GPUI revision has no durable
 cross-platform operation for it.
 
-The theme command uses the command record's byte pointer as a private fixed-size payload. It sends
-resolved semantic roles used by native components; application style variants do not cross the ABI.
+The theme command uses the command record's byte pointer as a private fixed-size payload. Payload
+version 2 is 20 sequential little-endian `u32` values: version, appearance (`0` Light or `1` Dark),
+and 18 resolved RGBA semantic roles. The native entry point requires the exact payload size and
+rejects unsupported versions or appearance values. Resolved roles feed GPUI.NET native rendering
+and the global `gpui-base` theme; application style variants and Rust foundation types do not cross
+the ABI.
 The managed-code update command clears native List/Table row snapshots and dirties each managed
 window without resetting retained control identity or interaction state.
 
@@ -201,6 +205,12 @@ regions. These operations stay in the render snapshot and do not create managed 
 
 Hover and active background/text/border operations carry resolved RGBA values and apply only to
 interactive components. They express transient native paint state, not durable application state.
+
+Button, Checkbox, and Radio advertise the generated `disableable` capability. Their `Disabled`
+operation is a canonical Boolean `U32`; Checkbox and Radio continue to carry controlled state in
+`Checked`. Foundation activation and change requests reuse the existing click callback token and
+payload, so no Rust event object crosses the ABI. Accessible names are derived natively from
+descendant semantic Text nodes.
 
 ContextMenu and PopoverMenu are keyed two-child semantic components. Their native adapters own
 trigger interception, deferred placement, viewport snapping, focus restoration, and dismissal.

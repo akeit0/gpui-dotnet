@@ -108,6 +108,7 @@ pub struct NativeApplicationCommand {
 #[derive(Clone, Copy, Default)]
 pub struct NativeThemePayload {
     pub version: u32,
+    pub appearance: u32,
     pub background: u32,
     pub text: u32,
     pub text_muted: u32,

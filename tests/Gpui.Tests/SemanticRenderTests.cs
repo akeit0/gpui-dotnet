@@ -82,6 +82,29 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void FoundationControlFamilyCarriesControlledAndDisabledState()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+
+        var button = ui.Button("button", "Button").Disabled(true);
+        arena.Validate(button);
+        Assert.Equal(1u, ReadLastU32Op(arena, OpCode.Disabled));
+
+        ui = arena.BeginRender();
+        var checkbox = ui.Checkbox("checkbox", "Checkbox").Checked(true).Disabled(true);
+        arena.Validate(checkbox);
+        Assert.Equal(1u, ReadLastU32Op(arena, OpCode.Checked));
+        Assert.Equal(1u, ReadLastU32Op(arena, OpCode.Disabled));
+
+        ui = arena.BeginRender();
+        var radio = ui.Radio("radio", "Radio").Checked(true).Disabled(false);
+        arena.Validate(radio);
+        Assert.Equal(1u, ReadLastU32Op(arena, OpCode.Checked));
+        Assert.Equal(0u, ReadLastU32Op(arena, OpCode.Disabled));
+    }
+
+    [Fact]
     public void ElementOnlyInteractiveElementDoesNotRequireAMountedView()
     {
         using var arena = new RenderArenaOwner();

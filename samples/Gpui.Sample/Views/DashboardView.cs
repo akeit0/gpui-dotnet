@@ -7,6 +7,8 @@ internal sealed partial class DashboardView : View
     private ScrollController _scroll;
     private int _propsRevision;
     private bool _reverseCounters;
+    private bool _foundationChecked;
+    private int _foundationRadio;
 
     protected override void OnMounted(ref ViewContext context)
     {
@@ -65,6 +67,53 @@ internal sealed partial class DashboardView : View
             .Gap(Px(8))
             .ItemsCenter();
 
+        var foundationControls = ui.HStack(
+                ui.Checkbox("foundation-checkbox", "Foundation checkbox")
+                    .Checked(_foundationChecked)
+                    .OnClick(
+                        this,
+                        (view, _) =>
+                        {
+                            view._foundationChecked = !view._foundationChecked;
+                            view.Invalidate();
+                        }
+                    )
+                    .Padding(Px(8))
+                    .Radius(Px(6))
+                    .HoverBackground(ui.Theme.Colors.ElementHover),
+                ui.Radio("foundation-radio-a", "Choice A")
+                    .Checked(_foundationRadio == 0)
+                    .OnClick(
+                        this,
+                        (view, _) =>
+                        {
+                            view._foundationRadio = 0;
+                            view.Invalidate();
+                        }
+                    )
+                    .Padding(Px(8))
+                    .Radius(Px(6))
+                    .HoverBackground(ui.Theme.Colors.ElementHover),
+                ui.Radio("foundation-radio-b", "Choice B")
+                    .Checked(_foundationRadio == 1)
+                    .OnClick(
+                        this,
+                        (view, _) =>
+                        {
+                            view._foundationRadio = 1;
+                            view.Invalidate();
+                        }
+                    )
+                    .Padding(Px(8))
+                    .Radius(Px(6))
+                    .HoverBackground(ui.Theme.Colors.ElementHover),
+                ui.Button("foundation-disabled", "Disabled")
+                    .Disabled(true)
+                    .Style(SampleStyles.Button(ui.Theme))
+            )
+            .Gap(Px(8))
+            .ItemsCenter();
+
         var retainedCounters = ui.VStack(
                 ui.Text("Required props + keyed retention"u8)
                     .FontSize(Px(ui.Theme.Typography.Heading))
@@ -113,6 +162,6 @@ internal sealed partial class DashboardView : View
             .Grow()
             .Width(Percent(100));
 
-        return ui.VStack(controls, retainedCounters, scroll).Gap(Px(10)).Grow();
+        return ui.VStack(controls, foundationControls, retainedCounters, scroll).Gap(Px(10)).Grow();
     }
 }

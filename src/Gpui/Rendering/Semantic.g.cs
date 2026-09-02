@@ -56,6 +56,7 @@ namespace Gpui.Interop
         ActiveBackgroundRgba = 116,
         ActiveTextRgba = 117,
         ActiveBorderRgba = 118,
+        Disabled = 119,
         OnClick = 200,
         WindowControlArea = 201,
         ElementOwner = 202,
@@ -150,7 +151,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x177F52C11588A433UL;
+        internal const ulong SchemaHash = 0x374C63DEB997BC8AUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -223,6 +224,7 @@ namespace Gpui.Interop
             OpCode.ActiveBackgroundRgba => ValueKind.U32,
             OpCode.ActiveTextRgba => ValueKind.U32,
             OpCode.ActiveBorderRgba => ValueKind.U32,
+            OpCode.Disabled => ValueKind.U32,
             OpCode.OnClick => ValueKind.Callback,
             OpCode.WindowControlArea => ValueKind.U32,
             OpCode.ElementOwner => ValueKind.U32,
@@ -307,27 +309,27 @@ namespace Gpui.Interop
 
         private static ulong Capabilities(ComponentId component) => component switch
         {
-            ComponentId.Div => 0x0000000000001007UL,
+            ComponentId.Div => 0x0000000000002007UL,
             ComponentId.Text => 0x0000000000000001UL,
-            ComponentId.Button => 0x000000000000100BUL,
-            ComponentId.Checkbox => 0x000000000000001BUL,
-            ComponentId.Radio => 0x000000000000001BUL,
+            ComponentId.Button => 0x000000000000202BUL,
+            ComponentId.Checkbox => 0x000000000000003BUL,
+            ComponentId.Radio => 0x000000000000003BUL,
             ComponentId.Badge => 0x0000000000000003UL,
             ComponentId.Divider => 0x0000000000000001UL,
             ComponentId.Spacer => 0x0000000000000001UL,
-            ComponentId.Scroll => 0x0000000000000067UL,
-            ComponentId.List => 0x00000000000000A1UL,
-            ComponentId.Image => 0x0000000000000101UL,
-            ComponentId.Input => 0x0000000000000221UL,
-            ComponentId.Overlay => 0x0000000000000422UL,
-            ComponentId.Tooltip => 0x0000000000000822UL,
-            ComponentId.ContextMenu => 0x0000000000002023UL,
-            ComponentId.PopoverMenu => 0x0000000000004023UL,
-            ComponentId.Table => 0x00000000000080A1UL,
-            ComponentId.Slider => 0x0000000000010021UL,
-            ComponentId.Drawing => 0x0000000000020003UL,
-            ComponentId.Path => 0x0000000000040000UL,
-            ComponentId.Dynamic => 0x0000000000080022UL,
+            ComponentId.Scroll => 0x00000000000000C7UL,
+            ComponentId.List => 0x0000000000000141UL,
+            ComponentId.Image => 0x0000000000000201UL,
+            ComponentId.Input => 0x0000000000000441UL,
+            ComponentId.Overlay => 0x0000000000000842UL,
+            ComponentId.Tooltip => 0x0000000000001042UL,
+            ComponentId.ContextMenu => 0x0000000000004043UL,
+            ComponentId.PopoverMenu => 0x0000000000008043UL,
+            ComponentId.Table => 0x0000000000010141UL,
+            ComponentId.Slider => 0x0000000000020041UL,
+            ComponentId.Drawing => 0x0000000000040003UL,
+            ComponentId.Path => 0x0000000000080000UL,
+            ComponentId.Dynamic => 0x0000000000100042UL,
             _ => 0,
         };
 
@@ -358,85 +360,86 @@ namespace Gpui.Interop
             OpCode.ActiveBackgroundRgba => 0x0000000000000008UL,
             OpCode.ActiveTextRgba => 0x0000000000000008UL,
             OpCode.ActiveBorderRgba => 0x0000000000000008UL,
+            OpCode.Disabled => 0x0000000000000020UL,
             OpCode.OnClick => 0x0000000000000008UL,
-            OpCode.WindowControlArea => 0x0000000000001000UL,
+            OpCode.WindowControlArea => 0x0000000000002000UL,
             OpCode.ElementOwner => 0x0000000000000008UL,
-            OpCode.ResourceOwner => 0x0000000000000020UL,
-            OpCode.ScrollAxis => 0x0000000000000040UL,
-            OpCode.SmoothScroll => 0x0000000000000020UL,
-            OpCode.ShowScrollbar => 0x0000000000000020UL,
-            OpCode.ListItemCount => 0x0000000000000080UL,
-            OpCode.ListRenderer => 0x0000000000000080UL,
-            OpCode.ListBatchSize => 0x0000000000000080UL,
-            OpCode.ListOverdrawPx => 0x0000000000000080UL,
-            OpCode.ListAlignment => 0x0000000000000080UL,
-            OpCode.ListEstimatedItemHeightPx => 0x0000000000000080UL,
-            OpCode.ListContentRevision => 0x0000000000000080UL,
+            OpCode.ResourceOwner => 0x0000000000000040UL,
+            OpCode.ScrollAxis => 0x0000000000000080UL,
+            OpCode.SmoothScroll => 0x0000000000000040UL,
+            OpCode.ShowScrollbar => 0x0000000000000040UL,
+            OpCode.ListItemCount => 0x0000000000000100UL,
+            OpCode.ListRenderer => 0x0000000000000100UL,
+            OpCode.ListBatchSize => 0x0000000000000100UL,
+            OpCode.ListOverdrawPx => 0x0000000000000100UL,
+            OpCode.ListAlignment => 0x0000000000000100UL,
+            OpCode.ListEstimatedItemHeightPx => 0x0000000000000100UL,
+            OpCode.ListContentRevision => 0x0000000000000100UL,
             OpCode.ListItemId => 0x0000000000000001UL,
-            OpCode.ImageObjectFit => 0x0000000000000100UL,
-            OpCode.ImageGrayscale => 0x0000000000000100UL,
-            OpCode.InputDisabled => 0x0000000000000200UL,
-            OpCode.InputReadOnly => 0x0000000000000200UL,
-            OpCode.InputPassword => 0x0000000000000200UL,
-            OpCode.InputOnChanged => 0x0000000000000200UL,
-            OpCode.InputOnSubmitted => 0x0000000000000200UL,
-            OpCode.InputOnFocusChanged => 0x0000000000000200UL,
-            OpCode.OverlayPlacement => 0x0000000000000400UL,
-            OpCode.OverlayPriority => 0x0000000000000400UL,
-            OpCode.OverlayMarginPx => 0x0000000000000400UL,
-            OpCode.OverlayModal => 0x0000000000000400UL,
-            OpCode.OverlayBackdropRgba => 0x0000000000000400UL,
-            OpCode.OverlayDismissOnBackdrop => 0x0000000000000400UL,
-            OpCode.OverlayDismissOnEscape => 0x0000000000000400UL,
-            OpCode.OverlayOnDismiss => 0x0000000000000400UL,
-            OpCode.TooltipPlacement => 0x0000000000000800UL,
-            OpCode.TooltipAlignment => 0x0000000000000800UL,
-            OpCode.TooltipShowDelayMs => 0x0000000000000800UL,
-            OpCode.TooltipHideDelayMs => 0x0000000000000800UL,
-            OpCode.TooltipGapPx => 0x0000000000000800UL,
-            OpCode.TooltipMarginPx => 0x0000000000000800UL,
-            OpCode.ContextMenuPriority => 0x0000000000002000UL,
-            OpCode.ContextMenuMarginPx => 0x0000000000002000UL,
-            OpCode.PopoverMenuPriority => 0x0000000000004000UL,
-            OpCode.PopoverMenuMarginPx => 0x0000000000004000UL,
-            OpCode.TableShowHeader => 0x0000000000008000UL,
+            OpCode.ImageObjectFit => 0x0000000000000200UL,
+            OpCode.ImageGrayscale => 0x0000000000000200UL,
+            OpCode.InputDisabled => 0x0000000000000400UL,
+            OpCode.InputReadOnly => 0x0000000000000400UL,
+            OpCode.InputPassword => 0x0000000000000400UL,
+            OpCode.InputOnChanged => 0x0000000000000400UL,
+            OpCode.InputOnSubmitted => 0x0000000000000400UL,
+            OpCode.InputOnFocusChanged => 0x0000000000000400UL,
+            OpCode.OverlayPlacement => 0x0000000000000800UL,
+            OpCode.OverlayPriority => 0x0000000000000800UL,
+            OpCode.OverlayMarginPx => 0x0000000000000800UL,
+            OpCode.OverlayModal => 0x0000000000000800UL,
+            OpCode.OverlayBackdropRgba => 0x0000000000000800UL,
+            OpCode.OverlayDismissOnBackdrop => 0x0000000000000800UL,
+            OpCode.OverlayDismissOnEscape => 0x0000000000000800UL,
+            OpCode.OverlayOnDismiss => 0x0000000000000800UL,
+            OpCode.TooltipPlacement => 0x0000000000001000UL,
+            OpCode.TooltipAlignment => 0x0000000000001000UL,
+            OpCode.TooltipShowDelayMs => 0x0000000000001000UL,
+            OpCode.TooltipHideDelayMs => 0x0000000000001000UL,
+            OpCode.TooltipGapPx => 0x0000000000001000UL,
+            OpCode.TooltipMarginPx => 0x0000000000001000UL,
+            OpCode.ContextMenuPriority => 0x0000000000004000UL,
+            OpCode.ContextMenuMarginPx => 0x0000000000004000UL,
+            OpCode.PopoverMenuPriority => 0x0000000000008000UL,
+            OpCode.PopoverMenuMarginPx => 0x0000000000008000UL,
+            OpCode.TableShowHeader => 0x0000000000010000UL,
             OpCode.TableCellColumn => 0x0000000000000001UL,
-            OpCode.ScrollbarGutter => 0x0000000000000020UL,
-            OpCode.ScrollbarWidth => 0x0000000000000020UL,
-            OpCode.TableColumn => 0x0000000000008000UL,
-            OpCode.SliderMin => 0x0000000000010000UL,
-            OpCode.SliderMax => 0x0000000000010000UL,
-            OpCode.SliderStep => 0x0000000000010000UL,
-            OpCode.SliderAxis => 0x0000000000010000UL,
-            OpCode.SliderDisabled => 0x0000000000010000UL,
-            OpCode.SliderScale => 0x0000000000010000UL,
-            OpCode.SliderValue => 0x0000000000010000UL,
-            OpCode.SliderRangeStart => 0x0000000000010000UL,
-            OpCode.SliderRangeEnd => 0x0000000000010000UL,
-            OpCode.SliderOnChanged => 0x0000000000010000UL,
-            OpCode.SliderOnReleased => 0x0000000000010000UL,
-            OpCode.DrawingViewBoxOrigin => 0x0000000000020000UL,
-            OpCode.DrawingViewBoxSize => 0x0000000000020000UL,
-            OpCode.DynamicActive => 0x0000000000080000UL,
-            OpCode.PathMoveTo => 0x0000000000040000UL,
-            OpCode.PathLineTo => 0x0000000000040000UL,
-            OpCode.PathQuadraticControl => 0x0000000000040000UL,
-            OpCode.PathQuadraticTo => 0x0000000000040000UL,
-            OpCode.PathCubicControlA => 0x0000000000040000UL,
-            OpCode.PathCubicControlB => 0x0000000000040000UL,
-            OpCode.PathCubicTo => 0x0000000000040000UL,
-            OpCode.PathArcRadii => 0x0000000000040000UL,
-            OpCode.PathArcRotation => 0x0000000000040000UL,
-            OpCode.PathArcFlags => 0x0000000000040000UL,
-            OpCode.PathArcTo => 0x0000000000040000UL,
-            OpCode.PathClose => 0x0000000000040000UL,
-            OpCode.PathFillRgba => 0x0000000000040000UL,
-            OpCode.PathFillRule => 0x0000000000040000UL,
-            OpCode.PathStrokeRgba => 0x0000000000040000UL,
-            OpCode.PathStrokeWidthPx => 0x0000000000040000UL,
-            OpCode.PathDashPx => 0x0000000000040000UL,
-            OpCode.PathCircleCenter => 0x0000000000040000UL,
-            OpCode.PathCircleRadius => 0x0000000000040000UL,
+            OpCode.ScrollbarGutter => 0x0000000000000040UL,
+            OpCode.ScrollbarWidth => 0x0000000000000040UL,
+            OpCode.TableColumn => 0x0000000000010000UL,
+            OpCode.SliderMin => 0x0000000000020000UL,
+            OpCode.SliderMax => 0x0000000000020000UL,
+            OpCode.SliderStep => 0x0000000000020000UL,
+            OpCode.SliderAxis => 0x0000000000020000UL,
+            OpCode.SliderDisabled => 0x0000000000020000UL,
+            OpCode.SliderScale => 0x0000000000020000UL,
+            OpCode.SliderValue => 0x0000000000020000UL,
+            OpCode.SliderRangeStart => 0x0000000000020000UL,
+            OpCode.SliderRangeEnd => 0x0000000000020000UL,
+            OpCode.SliderOnChanged => 0x0000000000020000UL,
+            OpCode.SliderOnReleased => 0x0000000000020000UL,
+            OpCode.DrawingViewBoxOrigin => 0x0000000000040000UL,
+            OpCode.DrawingViewBoxSize => 0x0000000000040000UL,
+            OpCode.DynamicActive => 0x0000000000100000UL,
+            OpCode.PathMoveTo => 0x0000000000080000UL,
+            OpCode.PathLineTo => 0x0000000000080000UL,
+            OpCode.PathQuadraticControl => 0x0000000000080000UL,
+            OpCode.PathQuadraticTo => 0x0000000000080000UL,
+            OpCode.PathCubicControlA => 0x0000000000080000UL,
+            OpCode.PathCubicControlB => 0x0000000000080000UL,
+            OpCode.PathCubicTo => 0x0000000000080000UL,
+            OpCode.PathArcRadii => 0x0000000000080000UL,
+            OpCode.PathArcRotation => 0x0000000000080000UL,
+            OpCode.PathArcFlags => 0x0000000000080000UL,
+            OpCode.PathArcTo => 0x0000000000080000UL,
+            OpCode.PathClose => 0x0000000000080000UL,
+            OpCode.PathFillRgba => 0x0000000000080000UL,
+            OpCode.PathFillRule => 0x0000000000080000UL,
+            OpCode.PathStrokeRgba => 0x0000000000080000UL,
+            OpCode.PathStrokeWidthPx => 0x0000000000080000UL,
+            OpCode.PathDashPx => 0x0000000000080000UL,
+            OpCode.PathCircleCenter => 0x0000000000080000UL,
+            OpCode.PathCircleRadius => 0x0000000000080000UL,
             _ => 0,
         };
 
@@ -456,6 +459,7 @@ namespace Gpui.Interop
         internal static int PayloadError(OpCode operation, ulong a) => operation switch
         {
             OpCode.Checked when !(a <= 1UL) => -21,
+            OpCode.Disabled when !(a <= 1UL) => -21,
             OpCode.WindowControlArea when !(a <= 3UL) => -39,
             OpCode.ElementOwner when !(a >= 1UL) => -25,
             OpCode.ResourceOwner when !(a >= 1UL) => -25,
@@ -506,6 +510,7 @@ namespace Gpui
     public interface ILayoutElementTag { }
     public interface IInteractiveElementTag { }
     public interface ICheckableElementTag { }
+    public interface IDisableableElementTag { }
     public interface INativeStateElementTag { }
     public interface IScrollableElementTag { }
     public interface IVirtualizedElementTag { }
@@ -524,9 +529,9 @@ namespace Gpui
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
-    public readonly struct ButtonTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, IWindowControlElementTag { }
-    public readonly struct CheckboxTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag { }
-    public readonly struct RadioTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag { }
+    public readonly struct ButtonTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, IDisableableElementTag, IWindowControlElementTag { }
+    public readonly struct CheckboxTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag, IDisableableElementTag { }
+    public readonly struct RadioTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag, IDisableableElementTag { }
     public readonly struct BadgeTag : IStyledElementTag, IParentElementTag { }
     public readonly struct DividerTag : IStyledElementTag { }
     public readonly struct SpacerTag : IStyledElementTag { }
@@ -906,6 +911,14 @@ namespace Gpui
             where TTag : unmanaged, IInteractiveElementTag
         {
             ArenaWriter.AddU32(element.Inner, OpCode.ActiveBorderRgba, color.Rgba);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Disabled<TTag>(this Element<TTag> element, bool value)
+            where TTag : unmanaged, IDisableableElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.Disabled, value ? 1u : 0u);
             return element;
         }
 

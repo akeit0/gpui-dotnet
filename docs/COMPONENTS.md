@@ -4,9 +4,10 @@ GPUI.NET exposes semantic components. C# builders write component IDs, typed ope
 records, and UTF-8 data into the render arena. Rust chooses the concrete GPUI implementation through
 the component's `NativeAdapter`.
 
-The native application initializes `gpui-base` as its reusable behavior foundation. The current
-component adapters remain direct GPUI or GPUI.NET implementations until each behavior family meets
-the migration parity criteria; dependency adoption alone does not change component ownership.
+The native application initializes `gpui-base` as its reusable behavior foundation. Button,
+Checkbox, and Radio use foundation primitives for activation, focus, keyboard, accessibility, and
+disabled behavior. Other adapters remain direct GPUI or GPUI.NET implementations until their
+behavior families meet the migration parity criteria.
 
 ## Component classes
 
@@ -68,8 +69,12 @@ can override a value. Do not add application variant enums or style objects to t
 
 ### Interactive and display
 
-- `Button` owns native pointer states and managed click dispatch.
-- `Checkbox` and `Radio` use the `Checked` operation for semantic state.
+- `Button`, `Checkbox`, and `Radio` use `gpui-base` behavior with stable GPUI.NET element identity.
+  Their descendant Text content supplies the accessible name. `Disabled(bool)` prevents pointer and
+  keyboard activation and removes the control from focus traversal.
+- `Checkbox` and `Radio` use the controlled `Checked(bool)` operation. Foundation change requests
+  translate back into the existing managed click callback; the next managed snapshot remains
+  authoritative.
 - `Badge` provides minimal native defaults that managed styling can override.
 - `Image` uses GPUI's decoder and cache. Its data is a filesystem path; presentation supports
   object fit and grayscale.
@@ -115,6 +120,10 @@ row roots.
 
 Keep `contentRevision` stable when a managed render cannot change any row output. Increment it when
 row content, styling, or height can change. Theme changes invalidate batches automatically.
+
+Native adapters that use `gpui-base` read the same application theme through the projected global
+foundation theme. Product variants still flatten into semantic operations; they do not become
+foundation theme types or cross the ABI.
 
 Row renderer restrictions:
 

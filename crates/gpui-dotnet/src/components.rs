@@ -1,31 +1,17 @@
-use gpui::{Div, ParentElement, Styled, div, px, rgba};
+use gpui::{Div, ElementId, ParentElement, Styled, div, px, rgba};
+use gpui_base::{Button, Checkbox, Radio};
 
 use crate::{
-    semantic::{NativeAdapter, OP_CHECKED},
+    semantic::NativeAdapter,
     snapshot::{SnapshotNode, ValidatedSnapshot},
     theme::NativeTheme,
 };
 
 /// Applies the semantic defaults for one Rust-side component adapter. Adding a component is a
 /// schema change plus one adapter branch here; managed code never mirrors GPUI's Rust trait API.
-pub(crate) fn apply_defaults(
-    adapter: NativeAdapter,
-    element: Div,
-    node: &SnapshotNode,
-    snapshot: &ValidatedSnapshot,
-    theme: NativeTheme,
-) -> Div {
+pub(crate) fn apply_defaults(adapter: NativeAdapter, element: Div, theme: NativeTheme) -> Div {
     match adapter {
-        NativeAdapter::Button => element
-            .rounded(px(6.))
-            .border(px(1.))
-            .border_color(rgba(theme.border))
-            .bg(rgba(theme.element_background))
-            .text_color(rgba(theme.text)),
-        NativeAdapter::Checkbox => {
-            checkbox(element, has_u32_flag(node, snapshot, OP_CHECKED), theme)
-        }
-        NativeAdapter::Radio => radio(element, has_u32_flag(node, snapshot, OP_CHECKED), theme),
+        NativeAdapter::Button | NativeAdapter::Checkbox | NativeAdapter::Radio => element,
         NativeAdapter::Badge => element
             .flex()
             .items_center()
@@ -54,7 +40,23 @@ pub(crate) fn apply_defaults(
     }
 }
 
-fn checkbox(element: Div, checked: bool, theme: NativeTheme) -> Div {
+pub(crate) fn button(id: ElementId, disabled: bool, theme: NativeTheme) -> Button {
+    Button::new(id)
+        .disabled(disabled)
+        .styles(|styles| styles.disabled(|style| style.opacity(0.5)))
+        .rounded(px(6.))
+        .border(px(1.))
+        .border_color(rgba(theme.border))
+        .bg(rgba(theme.element_background))
+        .text_color(rgba(theme.text))
+}
+
+pub(crate) fn checkbox(
+    id: ElementId,
+    checked: bool,
+    disabled: bool,
+    theme: NativeTheme,
+) -> Checkbox {
     let mut indicator = div()
         .flex()
         .items_center()
@@ -74,7 +76,10 @@ fn checkbox(element: Div, checked: bool, theme: NativeTheme) -> Div {
         indicator = indicator.bg(rgba(theme.element_background));
     }
 
-    element
+    Checkbox::new(id)
+        .checked(checked)
+        .disabled(disabled)
+        .styles(|styles| styles.disabled(|style| style.opacity(0.5)))
         .flex()
         .flex_row()
         .items_center()
@@ -82,7 +87,7 @@ fn checkbox(element: Div, checked: bool, theme: NativeTheme) -> Div {
         .child(indicator)
 }
 
-fn radio(element: Div, checked: bool, theme: NativeTheme) -> Div {
+pub(crate) fn radio(id: ElementId, checked: bool, disabled: bool, theme: NativeTheme) -> Radio {
     let mut indicator = div()
         .flex()
         .items_center()
@@ -103,7 +108,10 @@ fn radio(element: Div, checked: bool, theme: NativeTheme) -> Div {
         );
     }
 
-    element
+    Radio::new(id)
+        .checked(checked)
+        .disabled(disabled)
+        .styles(|styles| styles.disabled(|style| style.opacity(0.5)))
         .flex()
         .flex_row()
         .items_center()
@@ -111,7 +119,7 @@ fn radio(element: Div, checked: bool, theme: NativeTheme) -> Div {
         .child(indicator)
 }
 
-fn has_u32_flag(node: &SnapshotNode, snapshot: &ValidatedSnapshot, code: u16) -> bool {
+pub(crate) fn has_u32_flag(node: &SnapshotNode, snapshot: &ValidatedSnapshot, code: u16) -> bool {
     snapshot
         .ops(node)
         .iter()

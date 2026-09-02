@@ -75,7 +75,11 @@ growth. On Windows, the sample embeds
 
 ## Build and run
 
-From the repository root:
+Clone with submodules, then build from the repository root:
+
+```sh
+git clone --recurse-submodules https://github.com/akeit0/gpui-dotnet
+```
 
 ```sh
 dotnet build Gpui.slnx

@@ -141,12 +141,21 @@ continuations, and the binding's any-thread ingress contract.
 ## Themes and styles
 
 `GpuiTheme` is application-scoped ambient input. Managed views resolve semantic tokens while
-rendering. A fixed native palette payload supplies equivalent roles to native controls, error
-surfaces, table chrome, and scrollbars.
+rendering. The private versioned native theme payload supplies explicit appearance and equivalent
+resolved roles to native controls, error surfaces, table chrome, and scrollbars. After
+`gpui_base::init`, the native host projects those roles into the global foundation theme at startup
+and before refreshing windows for every theme update. Foundation typography, spacing, radii,
+shadows, scrollbar mode, and scrollbar motion retain their defaults until the managed semantic
+theme deliberately defines corresponding roles.
 
 The native ABI does not carry product variant names or component style objects. Applications define
 variants with `IGpuiElementStyle<TTag>` and flatten them to ordinary semantic operations. Native
 hover and active operations are transient paint states, not application variant identifiers.
+
+The managed window root is one native tab group. Button, Checkbox, and Radio delegate focus,
+Enter/Space activation, accessibility roles/state, and disabled behavior to `gpui-base`; their
+foundation callbacks are translated into the existing semantic click packet. Checkbox and Radio
+remain controlled by the next managed snapshot.
 
 ## Title bars and menus
 
@@ -173,11 +182,11 @@ schema hash, and required entry points.
 
 ## Dependency policy
 
-The native crate pins `gpui-base` to an exact revision of the `akeit0/gpui-component` integration
-fork. That fork and its resolved Zed/GPUI revision form one validated compatibility tuple recorded
-in [UPSTREAM_BASELINE.md](UPSTREAM_BASELINE.md). `gpui-base` owns reusable native behavior as
-components migrate; GPUI.NET retains its ABI, semantic decoding, managed callback routing, resource
-identity, and platform integration.
+The `external/gpui-component` submodule pins `gpui-base` to an exact revision of the
+`akeit0/gpui-component` integration fork. Its gitlink and resolved Zed/GPUI revision form one
+validated compatibility tuple recorded in [UPSTREAM_BASELINE.md](UPSTREAM_BASELINE.md).
+`gpui-base` owns reusable native behavior as components migrate; GPUI.NET retains its ABI,
+semantic decoding, managed callback routing, resource identity, and platform integration.
 
 The managed API does not expose `gpui-base` or GPUI implementation types. Platform-specific
 implementation remains in Rust; C# APIs should express durable application semantics rather than

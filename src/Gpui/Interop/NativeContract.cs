@@ -18,9 +18,10 @@ internal static class NativeConstants
 [StructLayout(LayoutKind.Sequential)]
 internal struct NativeThemePayload
 {
-    internal const uint CurrentVersion = 1;
+    internal const uint CurrentVersion = 2;
 
     internal uint Version;
+    internal uint Appearance;
     internal uint Background;
     internal uint Text;
     internal uint TextMuted;
@@ -46,6 +47,7 @@ internal struct NativeThemePayload
         return new NativeThemePayload
         {
             Version = CurrentVersion,
+            Appearance = (uint)theme.Appearance,
             Background = colors.Background.Rgba,
             Text = colors.Text.Rgba,
             TextMuted = colors.TextMuted.Rgba,

@@ -5,6 +5,7 @@
 Install .NET SDK 10, the stable Rust toolchain, and the platform prerequisites for GPUI. Then run:
 
 ```sh
+git submodule update --init --recursive
 dotnet restore Gpui.slnx
 dotnet build Gpui.slnx
 dotnet test Gpui.slnx --no-restore

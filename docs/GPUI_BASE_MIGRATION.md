@@ -36,9 +36,9 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 | Phase | Status | Current state | Exit condition |
 |---|---|---|---|
 | 0. Forked native baseline | Complete | The fork is pinned to an exact SHA, the compatible GPUI revision is locked, CI/builds use `--locked`, and the graph guard resolves one GPUI package. | The dependency tuple is deterministic and documented. |
-| 1. Initialization and theme bridge | In progress | `gpui_base::init(cx)` runs before queued window creation. Theme projection and a foundation-backed render probe remain. | Existing and foundation-backed controls use the same managed-authoritative theme source. |
-| 2. Button, Checkbox, and Radio probe | Planned | Existing adapters still use GPUI.NET/direct GPUI behavior. | The family is foundation-backed with pointer, keyboard, focus, accessibility, disabled, and controlled-state parity. |
-| 3. Protocol checkpoint | Planned | The current arena, event, command, and identity protocols remain in place. | Findings from the first control family produce an explicit keep/change decision with tests and updated ABI documentation. |
+| 1. Initialization and theme bridge | Complete | `gpui_base::init(cx)` runs before queued window creation. The version 2 native theme payload carries explicit appearance, and startup plus every theme update project managed semantic roles into the foundation theme. | Existing and foundation-backed controls use the same managed-authoritative theme source. |
+| 2. Button, Checkbox, and Radio probe | Complete | Root and virtual-row adapters use foundation primitives with stable identity, derived accessible names, controlled checked state, disabled behavior, native focus traversal, and existing click dispatch. | The family is foundation-backed with pointer, keyboard, focus, accessibility, disabled, and controlled-state parity. |
+| 3. Protocol checkpoint | Complete | The snapshot and click protocols remain; the schema adds a narrow `disableable` capability and Boolean `Disabled` operation. | Findings from the first control family produce an explicit keep/change decision with tests and updated ABI documentation. |
 | 4. Deferred layers | Planned | Tooltip, PopoverMenu, ContextMenu, Overlay, Dialog, and Sheet retain their current implementations. | Foundation behavior replaces duplicated placement, focus, and dismissal infrastructure where semantics match. |
 | 5. Slider | Planned | GPUI.NET retains slider interaction and state. | Foundation behavior reaches pointer/keyboard/controller/event parity, or the custom implementation is retained with rationale. |
 | 6. Input | Planned | GPUI.NET retains its single-line editing engine. | IME, Unicode, selection, clipboard, focus, commands, revisions, and events reach parity before old behavior is removed. |
@@ -49,56 +49,68 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 No semantic component is considered migrated merely because the dependency and initializer exist.
 Implementation ownership changes only after the component-specific exit criteria pass.
 
-## Next development slice: theme projection
+## Foundation theme bridge
 
-`GpuiTheme` remains the application-wide source of truth. Implement one native adapter that maps
-the resolved `NativeTheme` roles into `gpui_base::Theme`.
+`GpuiTheme` remains the application-wide source of truth. The native adapter maps resolved
+`NativeTheme` roles into `gpui_base::Theme`; foundation types do not cross the managed API or ABI.
 
-Required work:
+The private version 2 theme payload carries explicit `Light` or `Dark` appearance rather than
+inferring it from colors. The projection supplies foundation color tokens, scrollbar paint,
+resizable-handle colors, and selection color. Foundation typography, radius, spacing, shadow,
+scrollbar mode, and scrollbar motion remain at their defaults because GPUI.NET does not yet expose
+equivalent semantic roles.
 
-1. Define the projection in `crates/gpui-dotnet/src/theme.rs` without exposing foundation types to
-   managed code or the ABI.
-2. Decide how light/dark appearance is represented. The version 1 native payload currently carries
-   resolved colors but no explicit appearance field; do not silently infer a compatibility contract
-   from a foundation implementation type.
-3. Map the color and scrollbar roles available in `NativeTheme`. Keep foundation typography,
-   radius, spacing, and shadow defaults until GPUI.NET deliberately adds corresponding semantic
-   roles to its versioned theme protocol.
-4. Apply the initial projection during native startup after `gpui_base::init(cx)`.
-5. Apply the same projection for every `SetTheme` application command before refreshing windows.
-6. Preserve retained resource and component identity across theme updates.
-7. Add tests for appearance handling and representative color and scrollbar roles supported by the
-   current native payload.
-8. Render a minimal foundation-backed control in a native test or focused adapter probe to prove
-   it observes the projected theme.
-
-The slice is complete when existing native defaults and the probe observe one managed-authoritative
-theme update without recreating retained state.
+Startup applies the default projection immediately after foundation initialization. Every
+`SetTheme` command replaces the projection before windows refresh, without rebuilding retained
+resources or component identity. Native tests cover payload validation, appearance, representative
+roles, preservation of foundation-owned token groups, and construction of a foundation Button from
+the projected tokens.
 
 ## First behavior probe
 
-After theme projection, migrate Button, Checkbox, and Radio as one design probe. Preserve the
-managed authoring API unless integration evidence justifies a better semantic contract.
+Button, Checkbox, and Radio use `gpui-base` primitives for native activation, Enter/Space keyboard
+behavior, focus, accessibility, and disabled state. The managed API remains semantic: `Checked`
+supplies controlled Checkbox/Radio state, `Disabled` is available only on the disableable control
+family, and `OnClick` remains the callback surface.
+
+The native adapter derives accessible names from descendant Text nodes, translates foundation
+change requests into the existing click callback packet, and keeps the next managed snapshot
+authoritative. The same adapter behavior is used inside detached virtual-row batches, with identity
+derived from the list, model or row position, and semantic node.
+
+The sample exposes a focused control row for pointer, keyboard, disabled, controlled-state,
+accessibility, and theme-transition verification.
+
+## Protocol checkpoint decision
+
+The first behavior probe keeps the flat semantic snapshot, managed click callback packet, and
+owner/key identity model. It does not justify typed foundation nodes, a general component-state
+registry, a new event envelope, new retained commands, or an API-table change.
+
+One schema change is justified: a `disableable` capability scopes the Boolean `Disabled` operation
+to Button, Checkbox, and Radio. This changes the generated schema hash but not ABI version 1 or C
+record layouts. Foundation Checkbox/Radio change requests map to the existing click callback because
+the managed handler already owns the state transition and publishes the authoritative snapshot.
+
+## Next development slice: deferred layers
+
+Evaluate Tooltip, PopoverMenu, ContextMenu, Overlay, Dialog, and Sheet against foundation popup,
+positioning, focus, and dismissal behavior. Start with the shared deferred-layer infrastructure,
+not six independent component rewrites. Preserve the current semantic declarations and priority
+model unless concrete integration evidence requires a protocol change.
 
 Validate:
 
-- stable native identity and deterministic element IDs;
-- pointer activation and Enter/Space keyboard behavior;
-- focus traversal and focus-visible behavior;
-- accessibility roles, labels, actions, checked state, and disabled state;
-- controlled Checkbox and Radio transitions;
-- click/event translation without raw GPUI events crossing the ABI;
-- native hover, active, checked, selected, and disabled style projection;
-- no new per-frame or high-frequency managed/native traffic;
-- removal of superseded GPUI.NET behavior after parity is established.
+- viewport-aware placement, flipping, margins, and anchor identity;
+- deterministic priority and declaration-order tie breaking;
+- modal and non-modal pointer interception;
+- Escape and backdrop dismissal;
+- focus entry, trapping where applicable, and restoration;
+- tooltip timing and non-interactive behavior;
+- existing managed dismissal callbacks and retained identity;
+- no per-frame managed geometry or pointer traffic.
 
-If the probe exposes a protocol mismatch, stop scaling component migration and complete the Phase 3
-protocol checkpoint first.
-
-## Protocol checkpoint questions
-
-The implementation may change preview ABI and semantic protocol shapes when migration evidence
-supports a cleaner model. Review these areas after the first behavior probe:
+The remaining protocol questions stay open for later families:
 
 | Area | Decision to record |
 |---|---|
@@ -122,14 +134,14 @@ Preserve these invariants through any redesign:
 
 ## Fork and upstream workflow
 
-The local `C:\Users\akito\gpui-component` clone uses:
+The `external/gpui-component` submodule uses:
 
 - `origin`: `akeit0/gpui-component`, the GPUI.NET integration fork;
 - `upstream`: `longbridge/gpui-component`, the authoritative upstream.
 
 Keep fork `main` synchronized with upstream while the downstream delta is zero. Create an
-integration branch when the first fork-only patch is required. GPUI.NET always pins an exact commit,
-not a branch.
+integration branch when the first fork-only patch is required. GPUI.NET pins the exact submodule
+commit, never a branch.
 
 Classify every discovered change before editing the fork:
 
