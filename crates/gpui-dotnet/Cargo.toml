@@ -39,3 +39,23 @@ csbindgen = "1.9.8"
 gpui = { git = "https://github.com/zed-industries/zed", features = [
     "test-support",
 ] }
+
+# Cargo only honors profiles from the workspace root. gpui-component carries equivalent
+# settings for its own development workspace, but they do not apply when gpui-base is consumed
+# here as a dependency. Keep frame-sensitive GPUI, layout, text, and component code optimized in
+# Debug builds so native hover/press feedback does not wait on an unoptimized full-frame draw.
+[profile.dev]
+codegen-units = 16
+debug = "limited"
+split-debuginfo = "unpacked"
+
+[profile.dev.package]
+gpui = { opt-level = 3 }
+gpui-base = { opt-level = 3 }
+gpui_platform = { opt-level = 3 }
+gpui_macros = { opt-level = 3 }
+resvg = { opt-level = 3 }
+rustybuzz = { opt-level = 3 }
+smol = { opt-level = 3 }
+taffy = { opt-level = 3 }
+ttf-parser = { opt-level = 3 }
