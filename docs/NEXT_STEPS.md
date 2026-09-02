@@ -29,11 +29,10 @@ Harden the single-line Input before introducing a multiline editor:
 
 Build on the separate `Gpui.Editor` schema and `gpui-dotnet-editor-host` runtime probe with:
 
-- a controller for focus, selection, document replacement, edits, undo, and redo;
+- controller commands for focus, selection, document replacement, edits, undo, and redo beyond the
+  implemented one-shot bootstrap;
 - revisioned UTF-8 edit/delta events without materializing the whole Rope per keypress;
-- an initial-document bootstrap path that does not resend large text on unrelated dirty renders;
 - runtime language/highlighter changes and explicit unsupported-language behavior;
-- schema generation/verification instead of duplicated managed and Rust constants;
 - RID runtime packages and clean-consumer tests that never require Cargo;
 - IME, clipboard, undo, large-document, accessibility, and cross-platform behavior tests.
 

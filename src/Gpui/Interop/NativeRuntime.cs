@@ -13,16 +13,16 @@ public sealed unsafe class NativeRuntime
 {
     private const string ApiExportName = "gpui_dotnet_get_api";
 
-    private readonly GpuiDotnetApiV2* _api;
+    private readonly GpuiDotnetApiV3* _api;
     private readonly NativeLibraryHandle? _libraryHandle;
 
-    private NativeRuntime(GpuiDotnetApiV2* api, NativeLibraryHandle? libraryHandle)
+    private NativeRuntime(GpuiDotnetApiV3* api, NativeLibraryHandle? libraryHandle)
     {
         _api = api;
         _libraryHandle = libraryHandle;
     }
 
-    internal GpuiDotnetApiV2* Api
+    internal GpuiDotnetApiV3* Api
     {
         get
         {
@@ -52,7 +52,7 @@ public sealed unsafe class NativeRuntime
         {
             libraryHandle = NativeLibraryHandle.Load(options.LibraryPath);
             var export = NativeLibrary.GetExport(libraryHandle.DangerousGetHandle(), ApiExportName);
-            var getApi = (delegate* unmanaged[Cdecl]<uint, GpuiDotnetApiV2*>)export;
+            var getApi = (delegate* unmanaged[Cdecl]<uint, GpuiDotnetApiV3*>)export;
             return CreateValidated(
                 getApi(NativeConstants.AbiVersion),
                 libraryHandle,
@@ -67,7 +67,7 @@ public sealed unsafe class NativeRuntime
     }
 
     private static NativeRuntime CreateValidated(
-        GpuiDotnetApiV2* api,
+        GpuiDotnetApiV3* api,
         NativeLibraryHandle? libraryHandle = null,
         IReadOnlyList<NativeExtensionRequirement>? requirements = null
     )
@@ -79,10 +79,10 @@ public sealed unsafe class NativeRuntime
             );
         }
 
-        if (api->struct_size < (uint)sizeof(GpuiDotnetApiV2))
+        if (api->struct_size < (uint)sizeof(GpuiDotnetApiV3))
         {
             throw new InvalidOperationException(
-                $"Native API table is too small. Managed={sizeof(GpuiDotnetApiV2)}, native={api->struct_size}."
+                $"Native API table is too small. Managed={sizeof(GpuiDotnetApiV3)}, native={api->struct_size}."
             );
         }
 
@@ -108,6 +108,7 @@ public sealed unsafe class NativeRuntime
                 || api->dispatch_application_command == null
                 || api->dispatch_application_menu == null
                 || api->supports_extension == null
+                || api->dispatch_extension_command == null
         )
         {
             throw new InvalidOperationException(
@@ -120,7 +121,7 @@ public sealed unsafe class NativeRuntime
     }
 
     private static void ValidateExtensions(
-        GpuiDotnetApiV2* api,
+        GpuiDotnetApiV3* api,
         IReadOnlyList<NativeExtensionRequirement>? requirements
     )
     {

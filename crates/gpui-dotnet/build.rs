@@ -19,11 +19,12 @@ fn main() {
             "NativeClickEvent",
             "NativeControlEvent",
             "NativeResourceCommand",
+            "NativeExtensionCommand",
             "NativeApplicationCommand",
             "NativeMenuCommand",
             "NativeMenuRecord",
             "ManagedCallbacks",
-            "GpuiDotnetApiV2",
+            "GpuiDotnetApiV3",
         ])
         .generate_csharp_file("../../src/Gpui/Interop/NativeMethods.g.cs")
         .expect("failed to generate C# native bindings");

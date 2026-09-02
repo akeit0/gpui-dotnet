@@ -21,7 +21,7 @@ namespace Gpui.Interop
 
 
         [DllImport(__DllName, EntryPoint = "gpui_dotnet_get_api", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        internal static extern GpuiDotnetApiV2* gpui_dotnet_get_api(uint requested_version);
+        internal static extern GpuiDotnetApiV3* gpui_dotnet_get_api(uint requested_version);
 
 
     }
@@ -100,6 +100,26 @@ namespace Gpui.Interop
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    internal unsafe partial struct NativeExtensionCommand
+    {
+        public uint owner_view;
+        public ushort command;
+        public ushort flags;
+        public uint schema_version;
+        public uint reserved;
+        public ulong schema_hash;
+        public ulong expected_revision;
+        public byte* extension_id;
+        public int extension_id_length;
+        public byte* component_kind;
+        public int component_kind_length;
+        public byte* key;
+        public int key_length;
+        public byte* payload;
+        public int payload_length;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     internal unsafe partial struct NativeControlEvent
     {
         public ushort kind;
@@ -163,7 +183,7 @@ namespace Gpui.Interop
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    internal unsafe partial struct GpuiDotnetApiV2
+    internal unsafe partial struct GpuiDotnetApiV3
     {
         public uint struct_size;
         public uint abi_version;
@@ -175,6 +195,7 @@ namespace Gpui.Interop
         public delegate* unmanaged[Cdecl]<ulong, NativeApplicationCommand*, int> dispatch_application_command;
         public delegate* unmanaged[Cdecl]<ulong, NativeMenuCommand*, int> dispatch_application_menu;
         public delegate* unmanaged[Cdecl]<byte*, int, uint, ulong, int> supports_extension;
+        public delegate* unmanaged[Cdecl]<ulong, NativeExtensionCommand*, int> dispatch_extension_command;
     }
 
 

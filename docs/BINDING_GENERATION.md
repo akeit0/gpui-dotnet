@@ -11,6 +11,11 @@ The repository has two generators with separate responsibilities.
 - matching component IDs, operation IDs, capabilities, adapters, value constraints, and schema
   hash on both sides.
 
+It also reads `bindings/extensions.json`. Each registered optional schema produces a C# constants
+file in its managed schema assembly and a matching Rust constants file in its native provider.
+Extension IDs, versions, component kinds, flags, commands, and hashes therefore have one source of
+truth.
+
 Run:
 
 ```sh
@@ -18,8 +23,8 @@ dotnet run --project tools/Gpui.Bindings.Generator -- generate
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
 ```
 
-`verify` fails when committed outputs do not match the schema. Never edit either generated semantic
-file by hand.
+`verify` fails when any committed base or extension output does not match its schema. Never edit a
+generated semantic or extension file by hand.
 
 The schema defines:
 

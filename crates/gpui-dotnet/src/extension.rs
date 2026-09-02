@@ -2,7 +2,7 @@ use std::{
     any::Any,
     cell::RefCell,
     collections::{HashMap, HashSet},
-    sync::OnceLock,
+    sync::{Arc, OnceLock},
 };
 
 use gpui::{AnyElement, App, SharedString, Window};
@@ -51,6 +51,17 @@ pub struct NativeExtensionRequest {
     pub resource_key: NativeExtensionResourceKey,
     pub configuration: SharedString,
     pub children: Vec<AnyElement>,
+    pub commands: Vec<NativeExtensionCommand>,
+}
+
+/// One owned, extension-defined command delivered on the GPUI application thread.
+#[derive(Clone, Debug)]
+pub struct NativeExtensionCommand {
+    pub resource_key: NativeExtensionResourceKey,
+    pub command: u16,
+    pub flags: u16,
+    pub expected_revision: u64,
+    pub payload: Arc<[u8]>,
 }
 
 /// Per-managed-View type-erased storage for extension-owned retained native state.
@@ -58,12 +69,14 @@ pub struct NativeExtensionRequest {
 /// Values are removed when their declaring extension node disappears from the committed snapshot.
 pub struct NativeExtensionStore {
     resources: RefCell<HashMap<NativeExtensionResourceKey, Box<dyn Any>>>,
+    pending_commands: RefCell<HashMap<NativeExtensionResourceKey, Vec<NativeExtensionCommand>>>,
 }
 
 impl NativeExtensionStore {
     pub(crate) fn new() -> Self {
         Self {
             resources: RefCell::new(HashMap::new()),
+            pending_commands: RefCell::new(HashMap::new()),
         }
     }
 
@@ -101,6 +114,27 @@ impl NativeExtensionStore {
         self.resources
             .borrow_mut()
             .retain(|key, _| active.contains(key));
+        self.pending_commands
+            .borrow_mut()
+            .retain(|key, _| active.contains(key));
+    }
+
+    pub(crate) fn enqueue_command(&self, command: NativeExtensionCommand) {
+        self.pending_commands
+            .borrow_mut()
+            .entry(command.resource_key.clone())
+            .or_default()
+            .push(command);
+    }
+
+    pub(crate) fn take_commands(
+        &self,
+        key: &NativeExtensionResourceKey,
+    ) -> Vec<NativeExtensionCommand> {
+        self.pending_commands
+            .borrow_mut()
+            .remove(key)
+            .unwrap_or_default()
     }
 }
 
@@ -110,6 +144,11 @@ impl NativeExtensionStore {
 /// providers and the `gpui-dotnet` runtime into one binary.
 pub trait NativeExtension: Sync {
     fn descriptor(&self) -> NativeExtensionDescriptor;
+
+    /// Performs schema-specific validation before a command is copied into a View's UI queue.
+    fn validate_command(&self, _command: &NativeExtensionCommand) -> bool {
+        false
+    }
 
     fn materialize(
         &self,
@@ -190,6 +229,24 @@ impl NativeExtensionDeclaration {
     }
 }
 
+pub(crate) fn resource_key(
+    owner_view: u32,
+    extension_id: &str,
+    component_kind: &str,
+    key: &str,
+    version: u32,
+    schema_hash: u64,
+) -> NativeExtensionResourceKey {
+    NativeExtensionResourceKey {
+        owner_view,
+        extension_id: extension_id.to_owned().into(),
+        component_kind: component_kind.to_owned().into(),
+        key: key.to_owned().into(),
+        version,
+        schema_hash,
+    }
+}
+
 pub(crate) fn declaration(node: &SnapshotNode) -> Option<NativeExtensionDeclaration> {
     let mut fields = node.data.splitn(6, '\0');
     let extension_id = fields.next()?;
@@ -244,7 +301,7 @@ pub(crate) fn valid_payload(payload: &[u8]) -> bool {
         && !configuration.contains('\0')
 }
 
-fn valid_identifier(value: &str) -> bool {
+pub(crate) fn valid_identifier(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= 127
         && value

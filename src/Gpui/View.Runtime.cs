@@ -9,6 +9,19 @@ internal delegate void Utf8InputValueDispatcher(
     ReadOnlySpan<byte> utf8Value
 );
 
+internal delegate void NativeExtensionCommandDispatcher(
+    uint ownerView,
+    uint schemaVersion,
+    ulong schemaHash,
+    ReadOnlySpan<byte> extensionId,
+    ReadOnlySpan<byte> componentKind,
+    ReadOnlySpan<byte> utf8Key,
+    ushort command,
+    ushort flags,
+    ulong expectedRevision,
+    ReadOnlySpan<byte> payload
+);
+
 public abstract partial class ViewBase
 {
     private static readonly CancellationToken CancelledLifetime = new(canceled: true);
@@ -30,7 +43,8 @@ public abstract partial class ViewBase
             Action<Action> post,
             Action<ViewBase> invalidate,
             Action<uint, ResourceCommand> resourceCommand,
-            Utf8InputValueDispatcher utf8InputValue
+            Utf8InputValueDispatcher utf8InputValue,
+            NativeExtensionCommandDispatcher nativeExtensionCommand
         )
         {
             ViewHandle = viewHandle;
@@ -38,6 +52,7 @@ public abstract partial class ViewBase
             Invalidate = invalidate;
             ResourceCommand = resourceCommand;
             Utf8InputValue = utf8InputValue;
+            NativeExtensionCommand = nativeExtensionCommand;
         }
 
         internal uint ViewHandle { get; }
@@ -45,6 +60,7 @@ public abstract partial class ViewBase
         internal Action<ViewBase> Invalidate { get; }
         internal Action<uint, ResourceCommand> ResourceCommand { get; }
         internal Utf8InputValueDispatcher Utf8InputValue { get; }
+        internal NativeExtensionCommandDispatcher NativeExtensionCommand { get; }
 
         internal bool TryPost(Action callback)
         {
@@ -94,6 +110,40 @@ public abstract partial class ViewBase
                     return false;
                 }
                 Utf8InputValue(ViewHandle, utf8Key, utf8Value);
+                return true;
+            }
+        }
+
+        internal bool TryNativeExtensionCommand(
+            uint schemaVersion,
+            ulong schemaHash,
+            ReadOnlySpan<byte> extensionId,
+            ReadOnlySpan<byte> componentKind,
+            ReadOnlySpan<byte> utf8Key,
+            ushort command,
+            ushort flags,
+            ulong expectedRevision,
+            ReadOnlySpan<byte> payload
+        )
+        {
+            lock (_gate)
+            {
+                if (!_active)
+                {
+                    return false;
+                }
+                NativeExtensionCommand(
+                    ViewHandle,
+                    schemaVersion,
+                    schemaHash,
+                    extensionId,
+                    componentKind,
+                    utf8Key,
+                    command,
+                    flags,
+                    expectedRevision,
+                    payload
+                );
                 return true;
             }
         }
@@ -280,7 +330,8 @@ public abstract partial class ViewBase
         Action<Action> post,
         Action<ViewBase> invalidate,
         Action<uint, ResourceCommand> resourceCommand,
-        Utf8InputValueDispatcher utf8InputValue
+        Utf8InputValueDispatcher utf8InputValue,
+        NativeExtensionCommandDispatcher nativeExtensionCommand
     )
     {
         if (viewHandle == 0)
@@ -291,6 +342,7 @@ public abstract partial class ViewBase
         ArgumentNullException.ThrowIfNull(invalidate);
         ArgumentNullException.ThrowIfNull(resourceCommand);
         ArgumentNullException.ThrowIfNull(utf8InputValue);
+        ArgumentNullException.ThrowIfNull(nativeExtensionCommand);
 
         lock (_lifecycleGate)
         {
@@ -308,7 +360,14 @@ public abstract partial class ViewBase
 
             Volatile.Write(
                 ref _commandRoute,
-                new ViewCommandRoute(viewHandle, post, invalidate, resourceCommand, utf8InputValue)
+                new ViewCommandRoute(
+                    viewHandle,
+                    post,
+                    invalidate,
+                    resourceCommand,
+                    utf8InputValue,
+                    nativeExtensionCommand
+                )
             );
             _uiAttachment = RentUiAttachment(viewHandle);
             Volatile.Write(ref _lifecycle, LifecycleMounting);
@@ -445,6 +504,38 @@ public abstract partial class ViewBase
     {
         var route = Volatile.Read(ref _commandRoute);
         if (route is null || !route.TryUtf8InputValue(utf8Key, utf8Value))
+        {
+            throw new InvalidOperationException("The view is not mounted in a GPUI application.");
+        }
+    }
+
+    internal void DispatchNativeExtensionCommand(
+        uint schemaVersion,
+        ulong schemaHash,
+        ReadOnlySpan<byte> extensionId,
+        ReadOnlySpan<byte> componentKind,
+        ReadOnlySpan<byte> utf8Key,
+        ushort command,
+        ushort flags,
+        ulong expectedRevision,
+        ReadOnlySpan<byte> payload
+    )
+    {
+        var route = Volatile.Read(ref _commandRoute);
+        if (
+            route is null
+            || !route.TryNativeExtensionCommand(
+                schemaVersion,
+                schemaHash,
+                extensionId,
+                componentKind,
+                utf8Key,
+                command,
+                flags,
+                expectedRevision,
+                payload
+            )
+        )
         {
             throw new InvalidOperationException("The view is not mounted in a GPUI application.");
         }

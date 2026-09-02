@@ -383,15 +383,16 @@ back to `dotnet watch`, which restarts the application when required.
 ## Repository layout
 
 ```text
-bindings/                 semantic component and operation schema
+bindings/                 base schema and optional-extension registry
 crates/gpui-dotnet/       Rust native host
 src/Gpui/                 managed public API and runtime sources
 src/Gpui.Core/            platform-neutral package project
+src/Gpui.Editor/          optional editor schema assembly
 src/Gpui.Native/          RID-specific native package projects
 src/Gpui.Generators/      Roslyn generators for views and list rows
 samples/Gpui.Sample/      interactive component gallery
 tests/Gpui.Tests/         managed contract and generator tests
-tools/                    semantic binding generator and UI driver
+tools/                    base/extension binding generator and UI driver
 eng/                      native build, staging, and packaging scripts
 docs/                     design and contributor documentation
 ```
@@ -408,20 +409,22 @@ dotnet test Gpui.slnx --no-restore
 dotnet build samples/Gpui.Sample/Gpui.Sample.csproj --no-restore
 ```
 
-When `bindings/schema.json` changes, regenerate both managed and Rust bindings:
+When the base schema or a schema registered by `bindings/extensions.json` changes, regenerate the
+managed and Rust bindings:
 
 ```sh
 dotnet run --project tools/Gpui.Bindings.Generator -- generate
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
 ```
 
-Do not edit `Semantic.g.cs` or `semantic.g.rs` by hand.
+Do not edit generated semantic or extension schema files by hand.
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [gpui-base migration](docs/GPUI_BASE_MIGRATION.md)
 - [Components and retained resources](docs/COMPONENTS.md)
+- [Optional editor extension](docs/EDITOR.md)
 - [View lifecycle](docs/VIEW_LIFECYCLE.md)
 - [Lifecycle and threading](docs/THREADING.md)
 - [Managed renderer Hot Reload](docs/HOT_RELOAD.md)

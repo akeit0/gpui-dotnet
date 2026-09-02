@@ -1,6 +1,6 @@
 # Native ABI
 
-GPUI.NET currently uses ABI version 2. Managed startup requires an exact ABI version, a compatible
+GPUI.NET currently uses ABI version 3. Managed startup requires an exact ABI version, a compatible
 API-table prefix, all required function entries, and the semantic schema hash generated from
 `bindings/schema.json`.
 
@@ -10,7 +10,7 @@ not manipulate pointers or wire records directly.
 ## Discovery
 
 ```c
-const gpui_dotnet_api_v2* gpui_dotnet_get_api(uint32_t requested_version);
+const gpui_dotnet_api_v3* gpui_dotnet_get_api(uint32_t requested_version);
 ```
 
 The API table contains:
@@ -23,6 +23,7 @@ The API table contains:
 - `dispatch_application_command` for windows and themes;
 - `dispatch_application_menu`;
 - `supports_extension` for independently versioned build-time extension schemas.
+- `dispatch_extension_command` for schema-owned commands to retained extension resources.
 
 The generated base schema hash is deliberately separate from the ABI version. Component IDs,
 operation IDs, capabilities, or payload constraints can change without altering C record layouts;
@@ -32,6 +33,11 @@ An optional extension has its own ID, protocol version, and schema hash. `suppor
 checks that tuple before application startup. Extension-specific definitions never enter the base
 schema; the generic NativeExtension node carries the tuple, component kind, retained key, and an
 opaque UTF-8 configuration owned by the extension schema.
+
+ABI version 3 adds extension commands without putting extension-specific IDs or payload layouts in
+Core. A command contains its extension ID, component kind, version, schema hash, owner View, key,
+numeric command and flags, expected revision, and opaque byte payload. Native code validates the
+envelope and provider compatibility and copies the payload before the FFI call returns.
 
 ## Application and callbacks
 
@@ -204,6 +210,41 @@ All payloads are canonical: no-payload commands require zero words and empty dat
 must fit their documented words, offsets must be finite and non-negative, and Input data must be
 valid UTF-8.
 
+## Native extension commands
+
+`NativeExtensionCommand` is the generic command envelope for build-time extensions. Extension
+schemas own command IDs, flags, revision policies, and payload formats; the base ABI owns only safe
+routing. Extension and component identifiers are ASCII, the retained key is non-empty UTF-8 without
+control characters, and the payload is an arbitrary owned byte sequence limited to 256 MiB.
+
+```c
+typedef struct gpui_native_extension_command {
+    uint32_t owner_view;
+    uint16_t command;
+    uint16_t flags;
+    uint32_t schema_version;
+    uint32_t reserved;
+    uint64_t schema_hash;
+    uint64_t expected_revision;
+    const uint8_t* extension_id;
+    int32_t extension_id_length;
+    const uint8_t* component_kind;
+    int32_t component_kind_length;
+    const uint8_t* key;
+    int32_t key_length;
+    const uint8_t* payload;
+    int32_t payload_length;
+} gpui_native_extension_command;
+```
+
+Commands may arrive before the matching extension node is materialized. They are queued by the
+complete extension resource identity and delivered on the GPUI thread during materialization. A
+committed snapshot that omits that identity discards both its retained native state and pending
+commands. Providers validate schema-specific commands before they enter the View queue.
+
+The editor schema currently defines command `1` as its one-shot UTF-8 document bootstrap. It has no
+flags or expected revision and replaces the initially empty native document exactly once.
+
 ## Semantic window and interaction operations
 
 `WindowControlArea` marks Div or Button nodes as native Drag, Minimize, Maximize, or Close hit-test
@@ -245,7 +286,7 @@ panics from crossing the C boundary.
 
 When changing C layouts or entry points:
 
-1. update Rust records and `GpuiDotnetApiV2` (or introduce the next table version);
+1. update Rust records and `GpuiDotnetApiV3` (or introduce the next table version);
 2. regenerate `src/Gpui/Interop/NativeMethods.g.cs` through the native build/csbindgen path;
 3. update managed size/version checks and tests;
 4. update this document;

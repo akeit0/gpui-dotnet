@@ -18,6 +18,7 @@ use gpui::{
 use crate::{
     abi::ManagedCallbacks,
     arena::OwnedRenderArena,
+    extension::NativeExtensionCommand,
     overlay::OverlayStack,
     popover_menu::PopoverMenuGroup,
     resources::{ResourceCommand, ResourceStore},
@@ -47,6 +48,7 @@ pub(crate) struct ManagedView {
 enum ViewMessage {
     Invalidate,
     ResourceCommand(ResourceCommand),
+    ExtensionCommand(NativeExtensionCommand),
 }
 
 #[derive(Clone)]
@@ -220,6 +222,23 @@ pub(crate) fn dispatch_command(view_id: u64, command: ResourceCommand) -> i32 {
         notifier.sender.clone()
     };
     match sender.try_send(ViewMessage::ResourceCommand(command)) {
+        Ok(()) => 0,
+        Err(TrySendError::Full(_)) => -33,
+        Err(TrySendError::Closed(_)) => -31,
+    }
+}
+
+pub(crate) fn dispatch_extension_command(view_id: u64, command: NativeExtensionCommand) -> i32 {
+    let sender = {
+        let Ok(notifiers) = view_notifiers().lock() else {
+            return -32;
+        };
+        let Some(notifier) = notifiers.get(&view_id) else {
+            return -30;
+        };
+        notifier.sender.clone()
+    };
+    match sender.try_send(ViewMessage::ExtensionCommand(command)) {
         Ok(()) => 0,
         Err(TrySendError::Full(_)) => -33,
         Err(TrySendError::Closed(_)) => -31,
@@ -933,6 +952,10 @@ fn create_managed_view(
                         if notify_native_only {
                             cx.notify();
                         }
+                    }
+                    ViewMessage::ExtensionCommand(command) => {
+                        view.resources.extensions().enqueue_command(command);
+                        cx.notify();
                     }
                 })
                 .is_err()

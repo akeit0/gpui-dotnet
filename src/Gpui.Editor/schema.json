@@ -1,1 +1,24 @@
-{"extensionId":"gpui.net.editor","schemaVersion":1,"components":[{"kind":"editor","configuration":"flags-u32-decimal\\nlanguage\\ninitial-utf8","flags":{"disabled":0,"readOnly":1,"lineNumbers":2,"folding":3,"showWhitespace":4}}]}
+{
+  "extensionId": "gpui.net.editor",
+  "schemaVersion": 2,
+  "components": [
+    {
+      "kind": "editor",
+      "configuration": "flags-u32-decimal\\nlanguage",
+      "flags": {
+        "disabled": 0,
+        "read_only": 1,
+        "line_numbers": 2,
+        "folding": 3,
+        "show_whitespace": 4
+      },
+      "commands": {
+        "bootstrap": {
+          "id": 1,
+          "payload": "utf8-document",
+          "revision": "none"
+        }
+      }
+    }
+  ]
+}

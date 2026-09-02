@@ -22,13 +22,14 @@ mod trace;
 use std::{mem::size_of, panic::AssertUnwindSafe, ptr};
 
 use abi::{
-    ABI_VERSION, GpuiDotnetApiV2, ManagedCallbacks, NativeApplicationCommand, NativeMenuCommand,
-    NativeMenuRecord, NativeResourceCommand, NativeThemePayload, RenderArena,
+    ABI_VERSION, GpuiDotnetApiV3, ManagedCallbacks, NativeApplicationCommand,
+    NativeExtensionCommand as NativeExtensionCommandAbi, NativeMenuCommand, NativeMenuRecord,
+    NativeResourceCommand, NativeThemePayload, RenderArena,
 };
 use semantic::SCHEMA_HASH;
 
-static API_V2: GpuiDotnetApiV2 = GpuiDotnetApiV2 {
-    struct_size: GpuiDotnetApiV2::struct_size(),
+static API_V3: GpuiDotnetApiV3 = GpuiDotnetApiV3 {
+    struct_size: GpuiDotnetApiV3::struct_size(),
     abi_version: ABI_VERSION,
     schema_hash: SCHEMA_HASH,
     validate_render: Some(validate_render),
@@ -38,13 +39,114 @@ static API_V2: GpuiDotnetApiV2 = GpuiDotnetApiV2 {
     dispatch_application_command: Some(dispatch_application_command),
     dispatch_application_menu: Some(dispatch_application_menu),
     supports_extension: Some(supports_extension),
+    dispatch_extension_command: Some(dispatch_extension_command),
 };
 
-pub fn api(requested_version: u32) -> *const GpuiDotnetApiV2 {
+pub fn api(requested_version: u32) -> *const GpuiDotnetApiV3 {
     if requested_version != ABI_VERSION {
         return ptr::null();
     }
-    &API_V2
+    &API_V3
+}
+
+unsafe extern "C" fn dispatch_extension_command(
+    view_id: u64,
+    command: *const NativeExtensionCommandAbi,
+) -> i32 {
+    std::panic::catch_unwind(AssertUnwindSafe(|| unsafe {
+        dispatch_extension_command_inner(view_id, command)
+    }))
+    .unwrap_or(-99)
+}
+
+unsafe fn dispatch_extension_command_inner(
+    view_id: u64,
+    command: *const NativeExtensionCommandAbi,
+) -> i32 {
+    const MAX_KEY_LENGTH: i32 = 4096;
+    const MAX_PAYLOAD_LENGTH: i32 = 256 * 1024 * 1024;
+
+    let Some(command) = (unsafe { command.as_ref() }) else {
+        return -83;
+    };
+    if view_id == 0
+        || command.owner_view == 0
+        || command.command == 0
+        || command.schema_version == 0
+        || command.schema_hash == 0
+        || command.reserved != 0
+        || command.extension_id_length <= 0
+        || command.extension_id_length > 127
+        || command.extension_id.is_null()
+        || command.component_kind_length <= 0
+        || command.component_kind_length > 127
+        || command.component_kind.is_null()
+        || command.key_length <= 0
+        || command.key_length > MAX_KEY_LENGTH
+        || command.key.is_null()
+        || command.payload_length < 0
+        || command.payload_length > MAX_PAYLOAD_LENGTH
+        || (command.payload_length != 0 && command.payload.is_null())
+    {
+        return -83;
+    }
+
+    let extension_id_bytes = unsafe {
+        std::slice::from_raw_parts(command.extension_id, command.extension_id_length as usize)
+    };
+    let component_kind_bytes = unsafe {
+        std::slice::from_raw_parts(
+            command.component_kind,
+            command.component_kind_length as usize,
+        )
+    };
+    let key_bytes = unsafe { std::slice::from_raw_parts(command.key, command.key_length as usize) };
+    let (Ok(extension_id), Ok(component_kind), Ok(key)) = (
+        std::str::from_utf8(extension_id_bytes),
+        std::str::from_utf8(component_kind_bytes),
+        std::str::from_utf8(key_bytes),
+    ) else {
+        return -84;
+    };
+    if !extension::valid_identifier(extension_id)
+        || !extension::valid_identifier(component_kind)
+        || key.bytes().any(|byte| byte < 0x20)
+    {
+        return -84;
+    }
+    if let Err(status) =
+        extension::supports(extension_id, command.schema_version, command.schema_hash)
+    {
+        return status;
+    }
+
+    let payload = if command.payload_length == 0 {
+        std::sync::Arc::<[u8]>::from([])
+    } else {
+        let bytes =
+            unsafe { std::slice::from_raw_parts(command.payload, command.payload_length as usize) };
+        std::sync::Arc::<[u8]>::from(bytes)
+    };
+    let command = extension::NativeExtensionCommand {
+        resource_key: extension::resource_key(
+            command.owner_view,
+            extension_id,
+            component_kind,
+            key,
+            command.schema_version,
+            command.schema_hash,
+        ),
+        command: command.command,
+        flags: command.flags,
+        expected_revision: command.expected_revision,
+        payload,
+    };
+    let provider = extension::provider(extension_id)
+        .expect("supports_extension succeeded without an installed provider");
+    if !provider.validate_command(&command) {
+        return -85;
+    }
+    app_host::dispatch_extension_command(view_id, command)
 }
 
 unsafe extern "C" fn supports_extension(

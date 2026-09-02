@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Text;
+
 namespace Gpui;
 
 /// <summary>
@@ -96,4 +99,101 @@ public readonly record struct NativeExtensionComponent
         }
         NativeExtensionRequirement.ValidateIdentifier(Kind, paramName);
     }
+}
+
+/// <summary>
+/// Extension-neutral imperative route to one retained native extension resource. Typed extension
+/// packages wrap this value and define their own command IDs and payload formats.
+/// </summary>
+[DebuggerDisplay("{DebuggerView,nq}")]
+public readonly struct NativeExtensionController
+{
+    private readonly ViewBase? _owner;
+    private readonly NativeExtensionComponent _component;
+    private readonly byte[]? _utf8ExtensionId;
+    private readonly byte[]? _utf8ComponentKind;
+    private readonly byte[]? _utf8Key;
+
+    internal NativeExtensionController(
+        ViewBase owner,
+        NativeExtensionComponent component,
+        string key
+    )
+        : this(owner, component, Encoding.UTF8.GetBytes(key)) { }
+
+    internal NativeExtensionController(
+        ViewBase owner,
+        NativeExtensionComponent component,
+        ReadOnlySpan<byte> utf8Key
+    )
+        : this(owner, component, utf8Key.ToArray()) { }
+
+    private NativeExtensionController(
+        ViewBase owner,
+        NativeExtensionComponent component,
+        byte[] utf8Key
+    )
+    {
+        _owner = owner;
+        _component = component;
+        _utf8ExtensionId = Encoding.UTF8.GetBytes(component.Extension.Id);
+        _utf8ComponentKind = Encoding.UTF8.GetBytes(component.Kind);
+        _utf8Key = utf8Key;
+    }
+
+    /// <summary>True when this controller has a mounted View and retained resource identity.</summary>
+    public bool IsBound => _owner is not null;
+
+    /// <summary>
+    /// Dispatches an extension-defined command. The native entry point copies the payload before
+    /// returning, so the caller may reuse its source memory immediately.
+    /// </summary>
+    public void Dispatch(
+        ushort command,
+        ReadOnlySpan<byte> payload = default,
+        ushort flags = 0,
+        ulong expectedRevision = 0
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(command);
+        Owner.DispatchNativeExtensionCommand(
+            _component.Extension.Version,
+            _component.Extension.SchemaHash,
+            ExtensionId,
+            ComponentKind,
+            Key,
+            command,
+            flags,
+            expectedRevision,
+            payload
+        );
+    }
+
+    internal NativeExtensionComponent Component => _component;
+    internal ReadOnlySpan<byte> Key => _utf8Key;
+
+    internal void ValidateOwner(ViewBase owner)
+    {
+        if (_owner is null || !ReferenceEquals(_owner, owner))
+        {
+            throw new InvalidOperationException(
+                "A native extension controller can only declare its resource from the owning View."
+            );
+        }
+    }
+
+    private ViewBase Owner =>
+        _owner
+        ?? throw new InvalidOperationException("Default NativeExtensionController cannot be used.");
+    private ReadOnlySpan<byte> ExtensionId =>
+        _utf8ExtensionId
+        ?? throw new InvalidOperationException("Default NativeExtensionController cannot be used.");
+    private ReadOnlySpan<byte> ComponentKind =>
+        _utf8ComponentKind
+        ?? throw new InvalidOperationException("Default NativeExtensionController cannot be used.");
+
+    private string DebuggerView =>
+        _utf8Key is null
+            ? "unbound"
+            : $"{_component.Extension.Id}/{_component.Kind} ({_utf8Key.Length}-byte key)";
 }

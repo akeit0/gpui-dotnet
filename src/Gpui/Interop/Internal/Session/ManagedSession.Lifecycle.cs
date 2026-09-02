@@ -83,7 +83,8 @@ internal sealed unsafe partial class ManagedSession
                 Post,
                 Invalidate,
                 DispatchResourceCommand,
-                DispatchUtf8InputValue
+                DispatchUtf8InputValue,
+                DispatchNativeExtensionCommand
             );
         }
         catch

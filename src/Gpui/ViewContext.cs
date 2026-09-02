@@ -67,6 +67,31 @@ public readonly ref struct ViewContext
         return new SliderController(_view, utf8Key);
     }
 
+    /// <summary>
+    /// Creates an extension-neutral controller for a retained resource. Extension packages should
+    /// wrap this in a typed factory and expose only their schema-defined commands.
+    /// </summary>
+    public NativeExtensionController CreateNativeExtensionController(
+        NativeExtensionComponent component,
+        string key
+    )
+    {
+        component.Validate(nameof(component));
+        ValidateResourceKey(key);
+        return new NativeExtensionController(_view, component, key);
+    }
+
+    /// <summary>Creates an extension controller whose retained resource key is already UTF-8.</summary>
+    public NativeExtensionController CreateNativeExtensionController(
+        NativeExtensionComponent component,
+        ReadOnlySpan<byte> utf8Key
+    )
+    {
+        component.Validate(nameof(component));
+        ValidateResourceKey(utf8Key);
+        return new NativeExtensionController(_view, component, utf8Key);
+    }
+
     private static void ValidateResourceKey(string key)
     {
         ArgumentNullException.ThrowIfNull(key);

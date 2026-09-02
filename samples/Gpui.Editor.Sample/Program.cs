@@ -28,14 +28,22 @@ application.Run();
 [GpuiView]
 internal sealed partial class EditorSampleView : View
 {
+    private EditorController _editor;
+
+    protected override void OnMounted(ref ViewContext context)
+    {
+        _editor = context.CreateEditorController("main-document");
+        _editor.Bootstrap(
+            "fn main() {\n    println!(\"Hello from an optional GPUI.NET editor host\");\n}\n"
+        );
+    }
+
     protected override Element Render(ref RenderContext ui) =>
         ui.Editor(
-                "main-document",
+                _editor,
                 new EditorOptions
                 {
                     Language = "rust",
-                    InitialValue =
-                        "fn main() {\n    println!(\"Hello from an optional GPUI.NET editor host\");\n}\n",
                 }
             )
             .Width(Percent(100))

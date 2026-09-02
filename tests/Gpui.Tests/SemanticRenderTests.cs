@@ -1358,7 +1358,8 @@ public sealed class SemanticRenderTests
             static callback => callback(),
             static _ => { },
             static (_, _) => { },
-            static (_, _, _) => { }
+            static (_, _, _) => { },
+            static (_, _, _, _, _, _, _, _, _, _) => { }
         );
 
     private static void RenderInvalidMove()

@@ -196,7 +196,8 @@ public sealed class ViewLifetimeTests
             post ?? (static callback => callback()),
             invalidate ?? (static _ => { }),
             resourceCommand ?? (static (_, _) => { }),
-            static (_, _, _) => { }
+            static (_, _, _) => { },
+            static (_, _, _, _, _, _, _, _, _, _) => { }
         );
 
     private sealed class LifecycleView : View

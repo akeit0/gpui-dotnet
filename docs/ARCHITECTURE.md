@@ -94,15 +94,18 @@ Scroll, List, Table, Input, Slider, and Dock are declarations plus stable resour
 Identity is `(window session, owner View handle, UTF-8 key)`. Rust stores the mutable resource object and
 reconfigures it from later snapshots instead of recreating it.
 
-Controllers send small commands through the application UI channel:
+Controllers send small commands through the application UI channel. Optional component families
+use the same View route with an extension-neutral envelope and schema-owned payload:
 
 ```text
-managed controller ──► NativeResourceCommand ──► retained GPUI resource
+managed controller ──► native resource/extension command ──► retained GPUI resource
 ```
 
 Resource commands execute on the GPUI thread. Declarative snapshots remain authoritative. List
 measurement hints such as `Splice` and `Refresh` are committed with the next compatible snapshot;
 a mismatch falls back to a safe reset.
+Extension payloads are copied before returning through FFI and may wait for the first matching
+resource materialization.
 
 ## Virtual datasource path
 

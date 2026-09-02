@@ -153,8 +153,10 @@ impl ManagedView {
             .iter()
             .map(|child| self.materialize_node(*child, snapshot, window, cx))
             .collect();
+        let resource_key = declaration.resource_key(owner_view);
         let request = NativeExtensionRequest {
-            resource_key: declaration.resource_key(owner_view),
+            commands: self.resources.extensions().take_commands(&resource_key),
+            resource_key,
             configuration: declaration.configuration,
             children,
         };

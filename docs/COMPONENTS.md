@@ -276,3 +276,7 @@ For a snapshot component:
 For a retained resource, also define stable identity, configuration reconciliation, command/event
 semantics, teardown, pending-command behavior, and the high-frequency ownership boundary before
 adding public API.
+
+For an optional component family, keep its typed managed contract in a separate schema assembly,
+register that schema in `bindings/extensions.json`, and link its Rust provider into an explicit
+custom host. See [EXTENSIONS.md](EXTENSIONS.md).
