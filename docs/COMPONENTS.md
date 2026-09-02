@@ -106,10 +106,11 @@ Use `ScrollController` only for imperative operations such as `ScrollTo`, `Scrol
 materializer applies the required minimum-height behavior to growing flex items.
 
 The adapter preserves semantic scrollbar width, optional gutter placement, stable identity, and
-the existing native smoothing of discrete wheel deltas. List and Table use the same foundation
-scrollbar through an estimated-height handle adapter, so track clicks and thumb drags can target
-unmeasured virtual rows without managed calls. Precise trackpad deltas remain on GPUI's direct
-scroll path.
+the existing native smoothing of discrete wheel deltas. List and Table seed GPUI `ListState` with
+the declared estimated item height, so the same foundation scrollbar can use the native list
+handle and still target unmeasured virtual rows without managed calls. A native maintenance layer
+restores those hints after width changes before the scrollbar reads the range. Precise trackpad
+deltas remain on GPUI's direct scroll path.
 
 ## Retained List
 
@@ -120,9 +121,10 @@ scroll path.
 - a source-generated `[GpuiListItem]` renderer token;
 - viewport, batching, alignment, estimated-height, and scrollbar options.
 
-Rust owns `ListState`, row measurements, active-row keyboard navigation, and up to four aligned row
-batches. The managed renderer returns one synthetic root containing exactly the requested number of
-row roots.
+Rust owns `ListState`, estimated heights for unmeasured rows, actual visible-row measurements,
+active-row keyboard navigation, and up to four aligned row batches. The managed renderer returns
+one synthetic root containing exactly the requested number of row roots. Actual measurements
+replace their hints, allowing native scroll geometry to converge without measuring the full list.
 
 Keep `contentRevision` stable when a managed render cannot change any row output. Increment it when
 row content, styling, or height can change. Theme changes invalidate batches automatically.

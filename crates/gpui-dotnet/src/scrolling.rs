@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
 use gpui::{
-    Bounds, ElementId, InteractiveElement, ListOffset, ParentElement, Pixels, Point,
-    ScrollWheelEvent, Size, Styled, Window, div, point, px, size,
+    Bounds, ElementId, InteractiveElement, ParentElement, Pixels, Point, ScrollWheelEvent, Size,
+    Styled, Window, canvas, div, point, px, size,
 };
 use gpui_base::{
     Scrollbar, ScrollbarAxis, ScrollbarHandle as FoundationScrollbarHandle, ScrollbarMode,
@@ -79,13 +79,22 @@ pub(crate) fn scroll_overlay(
 
 pub(crate) fn list_overlay(
     resource: Rc<std::cell::RefCell<ManagedListResource>>,
-    estimated_item_height: Pixels,
     smooth: bool,
     show_scrollbar: bool,
     metrics: ScrollbarMetrics,
     id: ElementId,
 ) -> gpui::Div {
     let mut overlay = div().absolute().inset_0();
+
+    let hint_resource = resource.clone();
+    overlay = overlay.child(
+        canvas(
+            move |_, _, _| hint_resource.borrow_mut().maintain_height_hints(),
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .inset_0(),
+    );
 
     if smooth {
         let resource = resource.clone();
@@ -102,7 +111,7 @@ pub(crate) fn list_overlay(
     }
 
     if show_scrollbar {
-        let handle = ListFoundationHandle::new(resource.clone(), estimated_item_height, metrics);
+        let handle = ListFoundationHandle::new(resource.clone(), metrics);
         overlay = overlay.child(foundation_scrollbar(&handle, 0, metrics, id));
     }
 
@@ -300,62 +309,40 @@ impl FoundationScrollbarHandle for ScrollFoundationHandle {
 #[derive(Clone)]
 struct ListFoundationHandle {
     resource: Rc<std::cell::RefCell<ManagedListResource>>,
-    estimated_item_height: Pixels,
     metrics: ScrollbarMetrics,
 }
 
 impl ListFoundationHandle {
     fn new(
         resource: Rc<std::cell::RefCell<ManagedListResource>>,
-        estimated_item_height: Pixels,
         metrics: ScrollbarMetrics,
     ) -> Self {
-        Self {
-            resource,
-            estimated_item_height,
-            metrics,
-        }
-    }
-
-    fn scroll_metrics(&self) -> (Bounds<Pixels>, Pixels, Pixels) {
-        let resource = self.resource.borrow();
-        let bounds = resource.state.viewport_bounds();
-        let logical = resource.state.logical_scroll_top();
-        let (max, offset) = virtual_list_scroll_metrics(
-            bounds.size.height,
-            resource.item_count,
-            logical,
-            self.estimated_item_height,
-        );
-        (bounds, max, offset)
+        Self { resource, metrics }
     }
 }
 
 impl FoundationScrollbarHandle for ListFoundationHandle {
     fn viewport_bounds(&self) -> Bounds<Pixels> {
-        adjusted_bounds(self.scroll_metrics().0, self.metrics)
+        adjusted_bounds(self.resource.borrow().state.viewport_bounds(), self.metrics)
     }
 
     fn offset(&self) -> Point<Pixels> {
-        point(px(0.), self.scroll_metrics().2)
+        self.resource
+            .borrow()
+            .state
+            .scroll_px_offset_for_scrollbar()
     }
 
     fn set_offset(&self, offset: Point<Pixels>) {
-        let interaction = self.resource.borrow().interaction.clone();
-        interaction.remaining.set(Point::default());
-
-        let (_, max, _) = self.scroll_metrics();
-        self.resource.borrow().state.scroll_to(virtual_list_offset(
-            offset.y,
-            max,
-            self.estimated_item_height,
-        ));
+        let resource = self.resource.borrow();
+        resource.interaction.remaining.set(Point::default());
+        resource.state.set_offset_from_scrollbar(offset);
     }
 
     fn content_size(&self) -> Size<Pixels> {
-        let (bounds, max, _) = self.scroll_metrics();
-        let viewport = adjusted_bounds(bounds, self.metrics);
-        size(viewport.size.width, viewport.size.height + max)
+        let resource = self.resource.borrow();
+        let viewport = adjusted_bounds(resource.state.viewport_bounds(), self.metrics);
+        viewport.size + resource.state.max_offset_for_scrollbar().into()
     }
 
     fn start_drag(&self) {
@@ -366,30 +353,6 @@ impl FoundationScrollbarHandle for ListFoundationHandle {
 
     fn end_drag(&self) {
         self.resource.borrow().state.scrollbar_drag_ended();
-    }
-}
-
-fn virtual_list_scroll_metrics(
-    viewport_height: Pixels,
-    item_count: usize,
-    logical: ListOffset,
-    estimated_item_height: Pixels,
-) -> (Pixels, Pixels) {
-    let visible_items = viewport_height / estimated_item_height;
-    let scrollable_items = (item_count as f32 - visible_items).max(0.0);
-    let item_position =
-        logical.item_ix as f32 + (logical.offset_in_item / estimated_item_height).max(0.0);
-    let max = estimated_item_height * scrollable_items;
-    let offset = -(estimated_item_height * item_position.min(scrollable_items));
-    (max, offset)
-}
-
-fn virtual_list_offset(offset: Pixels, max: Pixels, estimated_item_height: Pixels) -> ListOffset {
-    let item_position = (-offset).clamp(px(0.), max) / estimated_item_height;
-    let item_ix = item_position.floor() as usize;
-    ListOffset {
-        item_ix,
-        offset_in_item: estimated_item_height * (item_position - item_ix as f32),
     }
 }
 
@@ -495,25 +458,6 @@ mod tests {
         assert_eq!(metrics.paint, px(12.));
         assert_eq!(metrics.hit, px(20.));
         assert_eq!(metrics.gutter, px(24.));
-    }
-
-    #[test]
-    fn virtual_list_scrollbar_maps_the_full_unmeasured_range() {
-        let (max, offset) = virtual_list_scroll_metrics(
-            px(500.),
-            20_000,
-            ListOffset {
-                item_ix: 10_000,
-                offset_in_item: px(20.),
-            },
-            px(40.),
-        );
-
-        assert_eq!(max, px(799_500.));
-        assert_eq!(offset, px(-400_020.));
-        let logical = virtual_list_offset(px(-400_020.), max, px(40.));
-        assert_eq!(logical.item_ix, 10_000);
-        assert_eq!(logical.offset_in_item, px(20.));
     }
 
     #[test]

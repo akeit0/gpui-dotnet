@@ -42,7 +42,7 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 | 4. Deferred layers | Complete | Tooltip and PopoverMenu use foundation Popup/Positioner, ContextMenu uses Positioner, and PopoverMenu plus ContextMenu use PopoverState. Modal Overlay uses foundation FocusTrapElement, which also covers the managed Dialog and Sheet compositions. GPUI.NET retains its distinct timing, placement, backdrop, priority, topmost, and managed callback semantics. | Foundation behavior replaces duplicated placement, focus, and dismissal infrastructure where semantics match. |
 | 5. Slider | Complete | GPUI.NET retains its native Slider engine because the foundation state cannot reconcile configuration and lacks keyboard/focus plus released-event parity. The retained root now exposes foundation-equivalent slider accessibility metadata. | Foundation behavior reaches pointer/keyboard/controller/event parity, or the custom implementation is retained with rationale. |
 | 6. Input | Complete | GPUI.NET retains its single-line editing engine because it preserves the revisioned contiguous UTF-8 event path without per-event native value materialization. The retained root now exposes the foundation-equivalent text-input role. | IME, Unicode, selection, clipboard, focus, commands, revisions, and events reach parity before old behavior is removed. |
-| 7. Scrolling and scrollbar | Complete | Scroll, List, and Table use foundation Scrollbar interaction and paint. GPUI.NET retains wheel smoothing, controller commands, gutter geometry, and estimated-height mapping across unmeasured virtual rows. | Foundation scrollbar behavior is adopted selectively without additional managed/native traffic. |
+| 7. Scrolling and scrollbar | Complete | Scroll, List, and Table use foundation Scrollbar interaction and paint. GPUI.NET retains wheel smoothing, controller commands, and gutter geometry while seeding GPUI's native ListState with estimated heights for unmeasured rows. | Foundation scrollbar behavior is adopted selectively without additional managed/native traffic. |
 | 8. List and Table evaluation | Decision pending | The existing aligned range-batch cache remains authoritative. | Benchmarks record an explicit keep or migrate decision. |
 | 9. Cleanup and protocol freeze candidate | Planned | Compatibility remains preview-level. | Superseded behavior and protocol paths are removed and the new contract is deliberately reviewed for stability. |
 
@@ -169,12 +169,18 @@ axis. `ScrollController` commands continue to mutate the retained `ScrollHandle`
 scroll callbacks. A small handle adapter preserves the declared two-pixel edge margin and gutter
 placement while keeping the same maximum offset.
 
-Foundation's direct `ListState` scrollbar handle derives its range from rows measured so far. That
-cannot represent a track jump into the unmeasured portion of GPUI.NET's large range-batched lists.
-The List/Table adapter therefore exposes the existing estimated-height/item-index mapping through
-the foundation `ScrollbarHandle` trait. Foundation still owns every pointer interaction and paint,
-while a track click or thumb drag can reach the full virtual range without rendering intermediate
-rows or crossing into managed code. No ABI, schema, or fork change is required.
+GPUI.NET seeds every native `ListState` row with the declared estimated item height. As visible rows
+are rendered, GPUI replaces their hints with actual measurements and its sum tree updates the pixel
+range. Foundation's direct list-handle mapping can therefore reach the full unmeasured range while
+converging toward real content geometry, without rendering intermediate rows or crossing into
+managed code. Reset and splice operations restore hints for new rows, while refresh operations
+preserve the previous measured height as the remeasurement hint.
+
+GPUI clears list measurements and hints when the viewport width changes because wrapping may alter
+row height. A zero-paint native maintenance layer runs after list prepaint and restores uniform
+hints before the sibling scrollbar reads the range. The remaining adapter only adjusts edge/gutter
+geometry and cancels queued wheel easing on direct scrollbar input; it delegates offsets, maximum
+range, track clicks, and drag lifecycle to `ListState`. No ABI, schema, or fork change is required.
 
 ## Next development slice: List and Table evaluation
 

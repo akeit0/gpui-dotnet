@@ -409,7 +409,6 @@ impl ManagedView {
         let show_scrollbar = last_op(snapshot, node, OP_SHOW_SCROLLBAR).is_none_or(|op| op.a != 0);
         let overlay = list_overlay(
             resource,
-            configuration.estimated_item_height,
             smooth,
             show_scrollbar,
             configuration.scrollbar,
@@ -505,7 +504,6 @@ impl ManagedView {
         let show_scrollbar = last_op(snapshot, node, OP_SHOW_SCROLLBAR).is_none_or(|op| op.a != 0);
         let overlay = list_overlay(
             resource,
-            configuration.estimated_item_height,
             smooth,
             show_scrollbar,
             configuration.scrollbar,

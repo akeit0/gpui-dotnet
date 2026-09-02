@@ -510,6 +510,8 @@ pub(crate) struct ManagedListResource {
     batch_size: usize,
     overdraw: Pixels,
     alignment: ListAlignment,
+    estimated_item_height: Pixels,
+    hinted_viewport_width: Option<Pixels>,
     snapshot_revision: u64,
     content_revision: Option<u64>,
     batches: HashMap<u32, CachedBatch>,
@@ -533,13 +535,16 @@ impl ManagedListResource {
                 configuration.item_count,
                 configuration.alignment,
                 configuration.overdraw,
-            ),
+            )
+            .with_uniform_item_height(configuration.estimated_item_height),
             interaction: Rc::new(ScrollInteraction::default()),
             item_count: configuration.item_count,
             renderer_token: configuration.renderer_token,
             batch_size: configuration.batch_size,
             overdraw: configuration.overdraw,
             alignment: configuration.alignment,
+            estimated_item_height: configuration.estimated_item_height,
+            hinted_viewport_width: None,
             snapshot_revision,
             content_revision: configuration.content_revision,
             batches: HashMap::new(),
@@ -557,8 +562,9 @@ impl ManagedListResource {
             (None, None) => revision_changed,
             _ => true,
         };
-        let layout_changed =
-            self.alignment != configuration.alignment || self.overdraw != configuration.overdraw;
+        let layout_changed = self.alignment != configuration.alignment
+            || self.overdraw != configuration.overdraw
+            || self.estimated_item_height != configuration.estimated_item_height;
 
         if layout_changed {
             // Rebuilding ListState already discards all measurements, so structural hints that
@@ -567,10 +573,13 @@ impl ManagedListResource {
                 configuration.item_count,
                 configuration.alignment,
                 configuration.overdraw,
-            );
+            )
+            .with_uniform_item_height(configuration.estimated_item_height);
             self.item_count = configuration.item_count;
             self.alignment = configuration.alignment;
             self.overdraw = configuration.overdraw;
+            self.estimated_item_height = configuration.estimated_item_height;
+            self.hinted_viewport_width = None;
             self.pending_commands.clear();
             self.clear_batches();
         } else if revision_changed && !self.pending_commands.is_empty() {
@@ -578,7 +587,10 @@ impl ManagedListResource {
         } else if self.item_count != configuration.item_count {
             // A normal declarative count change without a ListController splice hint still has to
             // be correct; it simply cannot preserve the old per-item measurements precisely.
-            self.state.reset(configuration.item_count);
+            self.state.reset_with_uniform_height(
+                configuration.item_count,
+                configuration.estimated_item_height,
+            );
             self.item_count = configuration.item_count;
             self.clear_batches();
         }
@@ -657,6 +669,7 @@ impl ManagedListResource {
         }
 
         let mut current_count = self.item_count;
+        let mut inserted_unmeasured_items = false;
         for change in changes {
             match change {
                 ListChange::ScrollTo(index) => {
@@ -674,18 +687,29 @@ impl ManagedListResource {
                     let batch = self.batch_size.max(1) as u32;
                     self.invalidate_batches_from((start as u32 / batch) * batch);
                     self.state.splice(start..start + removed, inserted);
+                    inserted_unmeasured_items |= inserted > 0;
                     current_count = current_count - removed + inserted;
                 }
                 ListChange::Reset(count) => {
                     current_count = count;
-                    self.state.reset(count);
+                    self.state
+                        .reset_with_uniform_height(count, self.estimated_item_height);
+                    inserted_unmeasured_items = false;
                     self.clear_batches();
                 }
                 ListChange::Refresh { start, count } => {
                     self.invalidate_batches_intersecting(start, count);
-                    self.state.splice(start..start + count, count);
+                    self.state.remeasure_items(start..start + count);
                 }
             }
+        }
+        if inserted_unmeasured_items {
+            // GPUI's splice API does not accept a size hint for inserted items. Reapplying the
+            // uniform hint fills those gaps while retaining each unaffected row's previous
+            // measured height as its new hint, so the full scrollbar range remains available.
+            self.state
+                .clone()
+                .with_uniform_item_height(self.estimated_item_height);
         }
         self.item_count = declared_item_count;
         self.pending_commands.clear();
@@ -713,7 +737,8 @@ impl ManagedListResource {
     }
 
     fn reset_native_state(&mut self, declared_item_count: usize) {
-        self.state.reset(declared_item_count);
+        self.state
+            .reset_with_uniform_height(declared_item_count, self.estimated_item_height);
         self.item_count = declared_item_count;
         self.pending_commands.clear();
         self.clear_batches();
@@ -754,6 +779,21 @@ impl ManagedListResource {
             item_ix: index,
             offset_in_item: px(0.),
         });
+    }
+
+    /// GPUI invalidates every cached height and size hint when the list width changes. The
+    /// maintenance canvas runs after list prepaint, detects that width transition, and restores
+    /// uniform hints before the sibling foundation scrollbar reads the native range.
+    pub(crate) fn maintain_height_hints(&mut self) {
+        let width = self.state.viewport_bounds().size.width;
+        if width <= px(0.) || self.hinted_viewport_width == Some(width) {
+            return;
+        }
+
+        self.state
+            .clone()
+            .with_uniform_item_height(self.estimated_item_height);
+        self.hinted_viewport_width = Some(width);
     }
 
     pub(crate) fn render_item(
@@ -1222,6 +1262,50 @@ mod tests {
             content_revision,
             scrollbar: ScrollbarMetrics::new(DEFAULT_SCROLLBAR_WIDTH, false),
         }
+    }
+
+    #[test]
+    fn estimated_height_hints_cover_the_full_unmeasured_range() {
+        let mut config = configuration(Some(1));
+        config.item_count = 20_000;
+        let resource = ManagedListResource::new(1, callbacks(), &config, 1);
+
+        assert_eq!(resource.state.max_offset_for_scrollbar().y, px(800_000.));
+    }
+
+    #[test]
+    fn estimated_height_hints_drive_native_pixel_offset_mapping() {
+        let resource = ManagedListResource::new(1, callbacks(), &configuration(Some(1)), 1);
+
+        resource.state.scroll_to(ListOffset {
+            item_ix: 50,
+            offset_in_item: px(20.),
+        });
+
+        assert_eq!(
+            resource.state.scroll_px_offset_for_scrollbar().y,
+            px(-2_020.)
+        );
+    }
+
+    #[test]
+    fn structural_insertions_receive_estimated_height_hints() {
+        let mut resource = ManagedListResource::new(1, callbacks(), &configuration(Some(1)), 1);
+        resource.apply_command(&command(11, 50, 5, ""));
+        resource.commit_pending_commands(105);
+
+        assert_eq!(resource.state.max_offset_for_scrollbar().y, px(4_200.));
+    }
+
+    #[test]
+    fn changing_estimated_height_rebuilds_native_height_hints() {
+        let mut resource = ManagedListResource::new(1, callbacks(), &configuration(Some(1)), 1);
+        let mut changed = configuration(Some(1));
+        changed.estimated_item_height = px(52.);
+
+        resource.configure(&changed, 2);
+
+        assert_eq!(resource.state.max_offset_for_scrollbar().y, px(5_200.));
     }
 
     #[test]
