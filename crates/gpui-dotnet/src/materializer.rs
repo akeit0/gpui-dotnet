@@ -354,7 +354,7 @@ impl ManagedView {
             smooth,
             show_scrollbar,
             metrics,
-            *self.theme.borrow(),
+            collection_focus_id("managed-scroll-scrollbar", &key),
         );
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
         element = element.min_h_0().min_w_0();
@@ -413,7 +413,7 @@ impl ManagedView {
             smooth,
             show_scrollbar,
             configuration.scrollbar,
-            *self.theme.borrow(),
+            collection_focus_id("managed-list-scrollbar", &key),
         );
         let focus_color = rgba(self.theme.borrow().border_focused);
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
@@ -509,7 +509,7 @@ impl ManagedView {
             smooth,
             show_scrollbar,
             configuration.scrollbar,
-            *self.theme.borrow(),
+            collection_focus_id("managed-table-scrollbar", &key),
         );
         let theme = *self.theme.borrow();
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);

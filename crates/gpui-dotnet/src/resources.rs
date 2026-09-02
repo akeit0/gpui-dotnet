@@ -449,17 +449,10 @@ pub(crate) struct TableSpec {
     pub(crate) columns: Vec<TableColumnSpec>,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum ScrollbarDrag {
-    Vertical { pointer_offset: Pixels },
-    Horizontal { pointer_offset: Pixels },
-}
-
 #[derive(Default)]
 pub(crate) struct ScrollInteraction {
     pub(crate) remaining: Cell<Point<Pixels>>,
     pub(crate) animating: Cell<bool>,
-    pub(crate) drag: Cell<Option<ScrollbarDrag>>,
 }
 
 pub(crate) struct ManagedScrollResource {

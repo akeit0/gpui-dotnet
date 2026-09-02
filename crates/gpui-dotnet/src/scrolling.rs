@@ -1,15 +1,14 @@
 use std::rc::Rc;
 
 use gpui::{
-    Bounds, InteractiveElement, ListOffset, MouseButton, MouseDownEvent, MouseMoveEvent,
-    MouseUpEvent, ParentElement, Pixels, Point, ScrollWheelEvent, Styled, Window, canvas, div,
-    point, px, quad, rgba, size, transparent_black,
+    Bounds, ElementId, InteractiveElement, ListOffset, ParentElement, Pixels, Point,
+    ScrollWheelEvent, Size, Styled, Window, div, point, px, size,
+};
+use gpui_base::{
+    Scrollbar, ScrollbarAxis, ScrollbarHandle as FoundationScrollbarHandle, ScrollbarMode,
 };
 
-use crate::resources::{
-    ManagedListResource, ManagedScrollResource, ScrollInteraction, ScrollbarDrag,
-};
-use crate::theme::NativeTheme;
+use crate::resources::{ManagedListResource, ManagedScrollResource, ScrollInteraction};
 
 const SMOOTHING: f32 = 0.24;
 const FINISH_THRESHOLD: Pixels = px(0.5);
@@ -26,7 +25,6 @@ const MIN_THUMB: Pixels = px(48.0);
 pub(crate) struct ScrollbarMetrics {
     pub(crate) paint: Pixels,
     pub(crate) hit: Pixels,
-    pub(crate) margin: Pixels,
     pub(crate) gutter: Pixels,
 }
 
@@ -41,22 +39,9 @@ impl ScrollbarMetrics {
         Self {
             paint: width,
             hit,
-            margin: BAR_MARGIN,
             gutter,
         }
     }
-}
-
-#[derive(Clone, Copy)]
-struct AxisGeometry {
-    track: Bounds<Pixels>,
-    thumb: Bounds<Pixels>,
-}
-
-#[derive(Clone, Copy, Default)]
-struct ScrollbarGeometry {
-    vertical: Option<AxisGeometry>,
-    horizontal: Option<AxisGeometry>,
 }
 
 pub(crate) fn scroll_overlay(
@@ -65,7 +50,7 @@ pub(crate) fn scroll_overlay(
     smooth: bool,
     show_scrollbar: bool,
     metrics: ScrollbarMetrics,
-    theme: NativeTheme,
+    id: ElementId,
 ) -> gpui::Div {
     let mut overlay = div().absolute().inset_0();
 
@@ -85,47 +70,8 @@ pub(crate) fn scroll_overlay(
     }
 
     if show_scrollbar {
-        let paint_resource = resource.clone();
-        overlay = overlay.child(
-            canvas(
-                move |_, _, _| scroll_geometry(&paint_resource, axis, metrics),
-                move |_, geometry, window, _| paint_scrollbar(geometry, metrics, theme, window),
-            )
-            .absolute()
-            .inset_0(),
-        );
-
-        let down_resource = resource.clone();
-        overlay = overlay.on_mouse_down(MouseButton::Left, move |event, window, cx| {
-            let geometry = scroll_geometry(&down_resource, axis, metrics);
-            if begin_drag(event, geometry, &down_resource.interaction) {
-                update_scroll_drag(&down_resource, event.position, geometry);
-                window.refresh();
-                cx.stop_propagation();
-            }
-        });
-
-        let move_resource = resource.clone();
-        overlay = overlay.on_mouse_move(move |event: &MouseMoveEvent, window, cx| {
-            if move_resource.interaction.drag.get().is_none() {
-                return;
-            }
-            if !event.dragging() {
-                move_resource.interaction.drag.set(None);
-                return;
-            }
-            let geometry = scroll_geometry(&move_resource, axis, metrics);
-            update_scroll_drag(&move_resource, event.position, geometry);
-            window.refresh();
-            cx.stop_propagation();
-        });
-
-        let up_interaction = resource.interaction.clone();
-        overlay = overlay.on_mouse_up(MouseButton::Left, move |_: &MouseUpEvent, _, cx| {
-            if up_interaction.drag.replace(None).is_some() {
-                cx.stop_propagation();
-            }
-        });
+        let handle = ScrollFoundationHandle::new(resource.clone(), metrics);
+        overlay = overlay.child(foundation_scrollbar(&handle, axis, metrics, id));
     }
 
     overlay
@@ -137,7 +83,7 @@ pub(crate) fn list_overlay(
     smooth: bool,
     show_scrollbar: bool,
     metrics: ScrollbarMetrics,
-    theme: NativeTheme,
+    id: ElementId,
 ) -> gpui::Div {
     let mut overlay = div().absolute().inset_0();
 
@@ -156,60 +102,8 @@ pub(crate) fn list_overlay(
     }
 
     if show_scrollbar {
-        let paint_resource = resource.clone();
-        overlay = overlay.child(
-            canvas(
-                move |_, _, _| {
-                    list_geometry(&paint_resource.borrow(), estimated_item_height, metrics)
-                },
-                move |_, geometry, window, _| paint_scrollbar(geometry, metrics, theme, window),
-            )
-            .absolute()
-            .inset_0(),
-        );
-
-        let down_resource = resource.clone();
-        overlay = overlay.on_mouse_down(MouseButton::Left, move |event, window, cx| {
-            let borrowed = down_resource.borrow();
-            let geometry = list_geometry(&borrowed, estimated_item_height, metrics);
-            let interaction = borrowed.interaction.clone();
-            drop(borrowed);
-            if begin_drag(event, geometry, &interaction) {
-                update_list_drag(
-                    &down_resource.borrow(),
-                    event.position,
-                    geometry,
-                    estimated_item_height,
-                );
-                window.refresh();
-                cx.stop_propagation();
-            }
-        });
-
-        let move_resource = resource.clone();
-        overlay = overlay.on_mouse_move(move |event: &MouseMoveEvent, window, cx| {
-            let interaction = move_resource.borrow().interaction.clone();
-            if interaction.drag.get().is_none() {
-                return;
-            }
-            if !event.dragging() {
-                interaction.drag.set(None);
-                return;
-            }
-            let borrowed = move_resource.borrow();
-            let geometry = list_geometry(&borrowed, estimated_item_height, metrics);
-            update_list_drag(&borrowed, event.position, geometry, estimated_item_height);
-            drop(borrowed);
-            window.refresh();
-            cx.stop_propagation();
-        });
-
-        let up_interaction = resource.borrow().interaction.clone();
-        overlay = overlay.on_mouse_up(MouseButton::Left, move |_: &MouseUpEvent, _, cx| {
-            if up_interaction.drag.replace(None).is_some() {
-                cx.stop_propagation();
-            }
-        });
+        let handle = ListFoundationHandle::new(resource.clone(), estimated_item_height, metrics);
+        overlay = overlay.child(foundation_scrollbar(&handle, 0, metrics, id));
     }
 
     overlay
@@ -360,273 +254,207 @@ fn apply_scroll_delta(resource: &ManagedScrollResource, delta: Point<Pixels>) {
     ));
 }
 
-fn scroll_geometry(
-    resource: &ManagedScrollResource,
-    axis: u32,
+#[derive(Clone)]
+struct ScrollFoundationHandle {
+    resource: Rc<ManagedScrollResource>,
     metrics: ScrollbarMetrics,
-) -> ScrollbarGeometry {
-    let bounds = resource.handle.bounds();
-    let offset = resource.handle.offset();
-    let max = resource.handle.max_offset();
-    ScrollbarGeometry {
-        vertical: (axis != 1)
-            .then(|| vertical_geometry(bounds, offset.y, max.y, metrics))
-            .flatten(),
-        horizontal: (axis != 0)
-            .then(|| horizontal_geometry(bounds, offset.x, max.x, metrics))
-            .flatten(),
+}
+
+impl ScrollFoundationHandle {
+    fn new(resource: Rc<ManagedScrollResource>, metrics: ScrollbarMetrics) -> Self {
+        Self { resource, metrics }
     }
 }
 
-fn list_geometry(
-    resource: &ManagedListResource,
+impl FoundationScrollbarHandle for ScrollFoundationHandle {
+    fn viewport_bounds(&self) -> Bounds<Pixels> {
+        adjusted_bounds(self.resource.handle.bounds(), self.metrics)
+    }
+
+    fn offset(&self) -> Point<Pixels> {
+        self.resource.handle.offset()
+    }
+
+    fn set_offset(&self, offset: Point<Pixels>) {
+        // Direct scrollbar interaction supersedes queued wheel easing so the thumb never fights
+        // a pending animation after a track click or drag begins.
+        self.resource.interaction.remaining.set(Point::default());
+        let max = self.resource.handle.max_offset();
+        self.resource.handle.set_offset(point(
+            offset.x.max(-max.x).min(px(0.)),
+            offset.y.max(-max.y).min(px(0.)),
+        ));
+    }
+
+    fn content_size(&self) -> Size<Pixels> {
+        let bounds = self.resource.handle.bounds();
+        let max = self.resource.handle.max_offset();
+        adjusted_size(bounds.size + max.into(), self.metrics)
+    }
+
+    fn start_drag(&self) {
+        self.resource.interaction.remaining.set(Point::default());
+    }
+}
+
+#[derive(Clone)]
+struct ListFoundationHandle {
+    resource: Rc<std::cell::RefCell<ManagedListResource>>,
     estimated_item_height: Pixels,
     metrics: ScrollbarMetrics,
-) -> ScrollbarGeometry {
-    let bounds = resource.state.viewport_bounds();
-    let visible_items = if estimated_item_height > px(0.) {
-        bounds.size.height / estimated_item_height
-    } else {
-        0.0
-    };
-    let scrollable_items = (resource.item_count as f32 - visible_items).max(0.0);
-    let logical = resource.state.logical_scroll_top();
+}
+
+impl ListFoundationHandle {
+    fn new(
+        resource: Rc<std::cell::RefCell<ManagedListResource>>,
+        estimated_item_height: Pixels,
+        metrics: ScrollbarMetrics,
+    ) -> Self {
+        Self {
+            resource,
+            estimated_item_height,
+            metrics,
+        }
+    }
+
+    fn scroll_metrics(&self) -> (Bounds<Pixels>, Pixels, Pixels) {
+        let resource = self.resource.borrow();
+        let bounds = resource.state.viewport_bounds();
+        let logical = resource.state.logical_scroll_top();
+        let (max, offset) = virtual_list_scroll_metrics(
+            bounds.size.height,
+            resource.item_count,
+            logical,
+            self.estimated_item_height,
+        );
+        (bounds, max, offset)
+    }
+}
+
+impl FoundationScrollbarHandle for ListFoundationHandle {
+    fn viewport_bounds(&self) -> Bounds<Pixels> {
+        adjusted_bounds(self.scroll_metrics().0, self.metrics)
+    }
+
+    fn offset(&self) -> Point<Pixels> {
+        point(px(0.), self.scroll_metrics().2)
+    }
+
+    fn set_offset(&self, offset: Point<Pixels>) {
+        let interaction = self.resource.borrow().interaction.clone();
+        interaction.remaining.set(Point::default());
+
+        let (_, max, _) = self.scroll_metrics();
+        self.resource.borrow().state.scroll_to(virtual_list_offset(
+            offset.y,
+            max,
+            self.estimated_item_height,
+        ));
+    }
+
+    fn content_size(&self) -> Size<Pixels> {
+        let (bounds, max, _) = self.scroll_metrics();
+        let viewport = adjusted_bounds(bounds, self.metrics);
+        size(viewport.size.width, viewport.size.height + max)
+    }
+
+    fn start_drag(&self) {
+        let resource = self.resource.borrow();
+        resource.interaction.remaining.set(Point::default());
+        resource.state.scrollbar_drag_started();
+    }
+
+    fn end_drag(&self) {
+        self.resource.borrow().state.scrollbar_drag_ended();
+    }
+}
+
+fn virtual_list_scroll_metrics(
+    viewport_height: Pixels,
+    item_count: usize,
+    logical: ListOffset,
+    estimated_item_height: Pixels,
+) -> (Pixels, Pixels) {
+    let visible_items = viewport_height / estimated_item_height;
+    let scrollable_items = (item_count as f32 - visible_items).max(0.0);
     let item_position =
         logical.item_ix as f32 + (logical.offset_in_item / estimated_item_height).max(0.0);
     let max = estimated_item_height * scrollable_items;
     let offset = -(estimated_item_height * item_position.min(scrollable_items));
-    ScrollbarGeometry {
-        vertical: vertical_geometry(bounds, offset, max, metrics),
-        horizontal: None,
-    }
+    (max, offset)
 }
 
-fn vertical_geometry(
-    viewport: Bounds<Pixels>,
-    offset: Pixels,
-    max: Pixels,
-    metrics: ScrollbarMetrics,
-) -> Option<AxisGeometry> {
-    if max <= px(0.) || viewport.size.height <= metrics.margin * 2.0 {
-        return None;
-    }
-    // Overlay mode keeps the track inside the viewport's right edge; gutter mode centers it
-    // in the reserved space beyond the content's right edge.
-    let track_left = if metrics.gutter > px(0.) {
-        viewport.right() + (metrics.gutter - metrics.hit) / 2.0
-    } else {
-        viewport.right() - metrics.hit - metrics.margin
-    };
-    let track = Bounds::new(
-        point(track_left, viewport.top() + metrics.margin),
-        size(metrics.hit, viewport.size.height - metrics.margin * 2.0),
-    );
-    let thumb_extent = (track.size.height * (viewport.size.height / (viewport.size.height + max)))
-        .max(MIN_THUMB)
-        .min(track.size.height);
-    let progress = (-offset / max).clamp(0.0, 1.0);
-    let thumb = Bounds::new(
-        point(
-            track.left(),
-            track.top() + (track.size.height - thumb_extent) * progress,
-        ),
-        size(metrics.hit, thumb_extent),
-    );
-    Some(AxisGeometry { track, thumb })
-}
-
-fn horizontal_geometry(
-    viewport: Bounds<Pixels>,
-    offset: Pixels,
-    max: Pixels,
-    metrics: ScrollbarMetrics,
-) -> Option<AxisGeometry> {
-    if max <= px(0.) || viewport.size.width <= metrics.margin * 2.0 {
-        return None;
-    }
-    let track = Bounds::new(
-        point(
-            viewport.left() + metrics.margin,
-            viewport.bottom() - metrics.hit - metrics.margin,
-        ),
-        size(viewport.size.width - metrics.margin * 2.0, metrics.hit),
-    );
-    let thumb_extent = (track.size.width * (viewport.size.width / (viewport.size.width + max)))
-        .max(MIN_THUMB)
-        .min(track.size.width);
-    let progress = (-offset / max).clamp(0.0, 1.0);
-    let thumb = Bounds::new(
-        point(
-            track.left() + (track.size.width - thumb_extent) * progress,
-            track.top(),
-        ),
-        size(thumb_extent, metrics.hit),
-    );
-    Some(AxisGeometry { track, thumb })
-}
-
-fn paint_scrollbar(
-    geometry: ScrollbarGeometry,
-    metrics: ScrollbarMetrics,
-    theme: NativeTheme,
-    window: &mut Window,
-) {
-    if let Some(vertical) = geometry.vertical {
-        paint_axis(vertical, true, metrics, theme, window);
-    }
-    if let Some(horizontal) = geometry.horizontal {
-        paint_axis(horizontal, false, metrics, theme, window);
-    }
-}
-
-fn paint_axis(
-    axis: AxisGeometry,
-    vertical: bool,
-    metrics: ScrollbarMetrics,
-    theme: NativeTheme,
-    window: &mut Window,
-) {
-    let visual_track = visual_bounds(axis.track, vertical, metrics);
-    let visual_thumb = visual_bounds(axis.thumb, vertical, metrics);
-    window.paint_quad(quad(
-        visual_track,
-        metrics.paint / 2.0,
-        rgba(theme.scrollbar_track_background),
-        px(0.),
-        transparent_black(),
-        Default::default(),
-    ));
-    window.paint_quad(quad(
-        visual_thumb,
-        metrics.paint / 2.0,
-        rgba(theme.scrollbar_thumb_background),
-        px(0.),
-        transparent_black(),
-        Default::default(),
-    ));
-}
-
-fn visual_bounds(
-    bounds: Bounds<Pixels>,
-    vertical: bool,
-    metrics: ScrollbarMetrics,
-) -> Bounds<Pixels> {
-    let inset = (metrics.hit - metrics.paint) / 2.0;
-    if vertical {
-        Bounds::new(
-            point(bounds.left() + inset, bounds.top()),
-            size(metrics.paint, bounds.size.height),
-        )
-    } else {
-        Bounds::new(
-            point(bounds.left(), bounds.top() + inset),
-            size(bounds.size.width, metrics.paint),
-        )
-    }
-}
-
-fn begin_drag(
-    event: &MouseDownEvent,
-    geometry: ScrollbarGeometry,
-    interaction: &ScrollInteraction,
-) -> bool {
-    if let Some(axis) = geometry.vertical
-        && axis.track.contains(&event.position)
-    {
-        let pointer_offset = if axis.thumb.contains(&event.position) {
-            event.position.y - axis.thumb.top()
-        } else {
-            axis.thumb.size.height / 2.0
-        };
-        interaction
-            .drag
-            .set(Some(ScrollbarDrag::Vertical { pointer_offset }));
-        interaction.remaining.set(Point::default());
-        return true;
-    }
-    if let Some(axis) = geometry.horizontal
-        && axis.track.contains(&event.position)
-    {
-        let pointer_offset = if axis.thumb.contains(&event.position) {
-            event.position.x - axis.thumb.left()
-        } else {
-            axis.thumb.size.width / 2.0
-        };
-        interaction
-            .drag
-            .set(Some(ScrollbarDrag::Horizontal { pointer_offset }));
-        interaction.remaining.set(Point::default());
-        return true;
-    }
-    false
-}
-
-fn update_scroll_drag(
-    resource: &ManagedScrollResource,
-    pointer: Point<Pixels>,
-    geometry: ScrollbarGeometry,
-) {
-    let max = resource.handle.max_offset();
-    let current = resource.handle.offset();
-    match resource.interaction.drag.get() {
-        Some(ScrollbarDrag::Vertical { pointer_offset }) => {
-            let Some(axis) = geometry.vertical else {
-                return;
-            };
-            let travel = axis.track.size.height - axis.thumb.size.height;
-            let progress = if travel <= px(0.) {
-                0.0
-            } else {
-                ((pointer.y - axis.track.top() - pointer_offset) / travel).clamp(0.0, 1.0)
-            };
-            resource
-                .handle
-                .set_offset(point(current.x, -(max.y * progress)));
-        }
-        Some(ScrollbarDrag::Horizontal { pointer_offset }) => {
-            let Some(axis) = geometry.horizontal else {
-                return;
-            };
-            let travel = axis.track.size.width - axis.thumb.size.width;
-            let progress = if travel <= px(0.) {
-                0.0
-            } else {
-                ((pointer.x - axis.track.left() - pointer_offset) / travel).clamp(0.0, 1.0)
-            };
-            resource
-                .handle
-                .set_offset(point(-(max.x * progress), current.y));
-        }
-        None => {}
-    }
-}
-
-fn update_list_drag(
-    resource: &ManagedListResource,
-    pointer: Point<Pixels>,
-    geometry: ScrollbarGeometry,
-    estimated_item_height: Pixels,
-) {
-    let Some(ScrollbarDrag::Vertical { pointer_offset }) = resource.interaction.drag.get() else {
-        return;
-    };
-    let Some(axis) = geometry.vertical else {
-        return;
-    };
-    let travel = axis.track.size.height - axis.thumb.size.height;
-    let progress = if travel <= px(0.) {
-        0.0
-    } else {
-        ((pointer.y - axis.track.top() - pointer_offset) / travel).clamp(0.0, 1.0)
-    };
-    let visible_items = resource.state.viewport_bounds().size.height / estimated_item_height;
-    let scrollable_items = (resource.item_count as f32 - visible_items).max(0.0);
-    let item_position = scrollable_items * progress;
+fn virtual_list_offset(offset: Pixels, max: Pixels, estimated_item_height: Pixels) -> ListOffset {
+    let item_position = (-offset).clamp(px(0.), max) / estimated_item_height;
     let item_ix = item_position.floor() as usize;
-    resource.state.scroll_to(ListOffset {
+    ListOffset {
         item_ix,
         offset_in_item: estimated_item_height * (item_position - item_ix as f32),
-    });
+    }
+}
+
+fn adjusted_bounds(bounds: Bounds<Pixels>, metrics: ScrollbarMetrics) -> Bounds<Pixels> {
+    Bounds::new(
+        bounds.origin + point(BAR_MARGIN, BAR_MARGIN),
+        adjusted_size(bounds.size, metrics),
+    )
+}
+
+fn adjusted_size(value: Size<Pixels>, metrics: ScrollbarMetrics) -> Size<Pixels> {
+    size(
+        (value.width - BAR_MARGIN * 2.0 + metrics.gutter).max(px(0.)),
+        (value.height - BAR_MARGIN * 2.0).max(px(0.)),
+    )
+}
+
+fn foundation_scrollbar<H>(
+    handle: &H,
+    axis: u32,
+    metrics: ScrollbarMetrics,
+    id: ElementId,
+) -> Scrollbar
+where
+    H: FoundationScrollbarHandle + Clone,
+{
+    let axis = match axis {
+        1 => ScrollbarAxis::Horizontal,
+        2 => ScrollbarAxis::Both,
+        _ => ScrollbarAxis::Vertical,
+    };
+    let inset = (metrics.hit - metrics.paint) / 2.0;
+    let min_length = MIN_THUMB + inset * 2.0;
+
+    Scrollbar::new(handle)
+        .id(id)
+        .axis(axis)
+        .mode(ScrollbarMode::Always)
+        .styles(|styles| {
+            styles
+                .track(|style| style.width(metrics.hit))
+                .track_hover(|style| style.width(metrics.hit))
+                .track_active(|style| style.width(metrics.hit))
+                .thumb(|style| {
+                    style
+                        .width(metrics.paint)
+                        .inset(inset)
+                        .radius(metrics.paint / 2.0)
+                        .min_length(min_length)
+                })
+                .thumb_hover(|style| {
+                    style
+                        .width(metrics.paint)
+                        .inset(inset)
+                        .radius(metrics.paint / 2.0)
+                        .min_length(min_length)
+                })
+                .thumb_active(|style| {
+                    style
+                        .width(metrics.paint)
+                        .inset(inset)
+                        .radius(metrics.paint / 2.0)
+                        .min_length(min_length)
+                })
+        })
 }
 
 #[cfg(test)]
@@ -641,41 +469,24 @@ mod tests {
     }
 
     #[test]
-    fn vertical_thumb_tracks_the_full_scroll_range() {
+    fn adjusted_viewport_preserves_scroll_range_and_reserves_the_gutter() {
         let viewport = Bounds::new(point(px(10.), px(20.)), size(px(200.), px(100.)));
-        let metrics = ScrollbarMetrics::new(px(8.), false);
-        let top = vertical_geometry(viewport, px(0.), px(900.), metrics).unwrap();
-        let bottom = vertical_geometry(viewport, px(-900.), px(900.), metrics).unwrap();
+        let content = size(px(500.), px(1000.));
+        let metrics = ScrollbarMetrics::new(px(8.), true);
+        let adjusted_viewport = adjusted_bounds(viewport, metrics);
+        let adjusted_content = adjusted_size(content, metrics);
 
-        assert_eq!(top.thumb.top(), top.track.top());
-        assert_eq!(bottom.thumb.bottom(), bottom.track.bottom());
-        assert_eq!(top.thumb.size.height, MIN_THUMB);
-    }
-
-    #[test]
-    fn gutter_mode_centers_the_track_right_of_the_content() {
-        let viewport = Bounds::new(point(px(10.), px(20.)), size(px(200.), px(100.)));
-        let overlay = vertical_geometry(
-            viewport,
-            px(0.),
-            px(900.),
-            ScrollbarMetrics::new(px(8.), false),
-        )
-        .unwrap();
-        let gutter = vertical_geometry(
-            viewport,
-            px(0.),
-            px(900.),
-            ScrollbarMetrics::new(px(8.), true),
-        )
-        .unwrap();
-
-        // Overlay track hugs the viewport's right edge; gutter track sits inside the
-        // reserved space beyond it, centered with the same margins.
-        assert_eq!(overlay.track.right(), viewport.right() - BAR_MARGIN);
-        assert_eq!(gutter.track.left(), viewport.right() + BAR_MARGIN);
-        assert_eq!(gutter.track.size, overlay.track.size);
-        assert_eq!(gutter.track.top(), overlay.track.top());
+        assert_eq!(adjusted_viewport.origin, point(px(12.), px(22.)));
+        assert_eq!(adjusted_viewport.size, size(px(216.), px(96.)));
+        assert_eq!(adjusted_content, size(px(516.), px(996.)));
+        assert_eq!(
+            adjusted_content.width - adjusted_viewport.size.width,
+            px(300.)
+        );
+        assert_eq!(
+            adjusted_content.height - adjusted_viewport.size.height,
+            px(900.)
+        );
     }
 
     #[test]
@@ -684,11 +495,25 @@ mod tests {
         assert_eq!(metrics.paint, px(12.));
         assert_eq!(metrics.hit, px(20.));
         assert_eq!(metrics.gutter, px(24.));
+    }
 
-        let viewport = Bounds::new(point(px(0.), px(0.)), size(px(200.), px(100.)));
-        let axis = vertical_geometry(viewport, px(0.), px(900.), metrics).unwrap();
-        assert_eq!(axis.track.size.width, metrics.hit);
-        assert_eq!(axis.track.left(), viewport.right() + metrics.margin);
+    #[test]
+    fn virtual_list_scrollbar_maps_the_full_unmeasured_range() {
+        let (max, offset) = virtual_list_scroll_metrics(
+            px(500.),
+            20_000,
+            ListOffset {
+                item_ix: 10_000,
+                offset_in_item: px(20.),
+            },
+            px(40.),
+        );
+
+        assert_eq!(max, px(799_500.));
+        assert_eq!(offset, px(-400_020.));
+        let logical = virtual_list_offset(px(-400_020.), max, px(40.));
+        assert_eq!(logical.item_ix, 10_000);
+        assert_eq!(logical.offset_in_item, px(20.));
     }
 
     #[test]

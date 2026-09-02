@@ -98,12 +98,18 @@ native resource.
 ## Retained Scroll
 
 `ui.Scroll` declares content, axis, smooth-scrolling behavior, and scrollbar options. Rust retains
-the `ScrollHandle`, consumes wheel and trackpad input, and paints the overlay scrollbar. Managed
-code is not notified for scroll deltas.
+the `ScrollHandle` and consumes wheel and trackpad input. Foundation `Scrollbar` owns track/thumb
+painting, hit testing, track clicks, and dragging. Managed code is not notified for scroll deltas.
 
 Use `ScrollController` only for imperative operations such as `ScrollTo`, `ScrollToTop`, and
 `ScrollToBottom`. A growing scroll viewport should be inside a parent that can shrink; the native
 materializer applies the required minimum-height behavior to growing flex items.
+
+The adapter preserves semantic scrollbar width, optional gutter placement, stable identity, and
+the existing native smoothing of discrete wheel deltas. List and Table use the same foundation
+scrollbar through an estimated-height handle adapter, so track clicks and thumb drags can target
+unmeasured virtual rows without managed calls. Precise trackpad deltas remain on GPUI's direct
+scroll path.
 
 ## Retained List
 
