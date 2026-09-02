@@ -191,7 +191,8 @@ dismissal. Managed code owns visuals and actions. Deferred layers can contain no
 retained controls, but cannot appear inside virtualized rows.
 
 During the deferred-layer migration, Tooltip and PopoverMenu delegate trigger measurement and
-viewport-aware positioning to `gpui-base` Popup/Positioner. PopoverMenu also delegates its
+viewport-aware positioning to `gpui-base` Popup/Positioner. ContextMenu uses the same Positioner
+for pointer-corner placement and viewport clamping. PopoverMenu and ContextMenu delegate their
 open/focus/restoration lifecycle to foundation PopoverState. GPUI.NET continues to own tooltip
 timing, menu-group switching, priority arbitration, and topmost dismissal guards until the
 remaining foundation behavior passes the same integration checks.
