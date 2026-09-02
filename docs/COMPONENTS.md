@@ -190,12 +190,16 @@ Rust owns geometry, input interception, deterministic stacking, focus entry/rest
 dismissal. Managed code owns visuals and actions. Deferred layers can contain normal child views and
 retained controls, but cannot appear inside virtualized rows.
 
-During the deferred-layer migration, Tooltip and PopoverMenu delegate trigger measurement and
-viewport-aware positioning to `gpui-base` Popup/Positioner. ContextMenu uses the same Positioner
-for pointer-corner placement and viewport clamping. PopoverMenu and ContextMenu delegate their
-open/focus/restoration lifecycle to foundation PopoverState. GPUI.NET continues to own tooltip
-timing, menu-group switching, priority arbitration, and topmost dismissal guards until the
-remaining foundation behavior passes the same integration checks.
+Tooltip and PopoverMenu delegate trigger measurement and viewport-aware positioning to
+`gpui-base` Popup/Positioner. ContextMenu uses the same Positioner for pointer-corner placement and
+viewport clamping. PopoverMenu and ContextMenu delegate their open/focus/restoration lifecycle to
+foundation PopoverState. Modal Overlay containers register with the foundation FocusTrapElement;
+Dialog and Sheet inherit that behavior because they are managed Overlay compositions.
+
+GPUI.NET retains tooltip timing, menu-group switching, overlay placement and backdrop rendering,
+priority arbitration, topmost dismissal guards, and managed dismissal callback routing. The
+foundation Sheet host couples Escape and backdrop closing and does not expose the independent
+semantic options or ordering needed by the generic Overlay contract.
 
 ## Window chrome
 

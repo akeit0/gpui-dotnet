@@ -439,9 +439,9 @@ impl Render for ManagedView {
                     return;
                 }
                 if modifiers.shift {
-                    window.focus_prev(cx);
+                    cycle_focus(false, window, cx);
                 } else {
-                    window.focus_next(cx);
+                    cycle_focus(true, window, cx);
                 }
                 cx.stop_propagation();
             })
@@ -449,6 +449,38 @@ impl Render for ManagedView {
             .bg(rgba(theme.background))
             .text_color(rgba(theme.text))
             .child(content)
+    }
+}
+
+fn cycle_focus(forward: bool, window: &mut Window, cx: &mut App) {
+    let step = |window: &mut Window, cx: &mut App| {
+        if forward {
+            window.focus_next(cx);
+        } else {
+            window.focus_prev(cx);
+        }
+    };
+
+    let Some(trap) = gpui_base::active_focus_trap(window, cx) else {
+        step(window, cx);
+        return;
+    };
+
+    let before = window.focused(cx);
+    step(window, cx);
+
+    const MAX_STEPS: usize = 100;
+    let mut steps = 0;
+    while !trap.contains_focused(window, cx) && steps < MAX_STEPS {
+        step(window, cx);
+        steps += 1;
+        if window.focused(cx) == before {
+            break;
+        }
+    }
+
+    if !trap.contains_focused(window, cx) {
+        trap.focus(window, cx);
     }
 }
 
@@ -913,6 +945,29 @@ fn create_managed_view(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gpui::FocusHandle;
+    use gpui_base::FocusTrapElement as _;
+
+    struct FocusTrapHarness {
+        trap: FocusHandle,
+        first: FocusHandle,
+        last: FocusHandle,
+        outside: FocusHandle,
+    }
+
+    impl Render for FocusTrapHarness {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+                .child(
+                    div()
+                        .track_focus(&self.trap)
+                        .child(div().track_focus(&self.first))
+                        .child(div().track_focus(&self.last))
+                        .focus_trap("managed-overlay-test", &self.trap),
+                )
+                .child(div().track_focus(&self.outside))
+        }
+    }
 
     #[gpui::test]
     fn gpui_base_foundation_initializes(cx: &mut gpui::TestAppContext) {
@@ -921,6 +976,28 @@ mod tests {
 
             assert!(cx.has_global::<gpui_base::Theme>());
             assert!(cx.has_global::<gpui_base::GlobalState>());
+        });
+    }
+
+    #[gpui::test]
+    fn root_focus_navigation_wraps_inside_foundation_trap(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_base::init);
+        let (view, cx) = cx.add_window_view(|_, cx| FocusTrapHarness {
+            trap: cx.focus_handle().tab_stop(false),
+            first: cx.focus_handle().tab_stop(true),
+            last: cx.focus_handle().tab_stop(true),
+            outside: cx.focus_handle().tab_stop(true),
+        });
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+
+        cx.update(|window, cx| {
+            let last = view.read(cx).last.clone();
+            last.focus(window, cx);
+            cycle_focus(true, window, cx);
+            assert!(view.read(cx).first.contains_focused(window, cx));
+
+            cycle_focus(false, window, cx);
+            assert!(view.read(cx).last.contains_focused(window, cx));
         });
     }
 

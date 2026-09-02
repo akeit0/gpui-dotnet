@@ -39,7 +39,7 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 | 1. Initialization and theme bridge | Complete | `gpui_base::init(cx)` runs before queued window creation. The version 2 native theme payload carries explicit appearance, and startup plus every theme update project managed semantic roles into the foundation theme. | Existing and foundation-backed controls use the same managed-authoritative theme source. |
 | 2. Button, Checkbox, and Radio probe | Complete | Root and virtual-row adapters use foundation primitives with stable identity, derived accessible names, controlled checked state, disabled behavior, native focus traversal, and existing click dispatch. | The family is foundation-backed with pointer, keyboard, focus, accessibility, disabled, and controlled-state parity. |
 | 3. Protocol checkpoint | Complete | The snapshot and click protocols remain; the schema adds a narrow `disableable` capability and Boolean `Disabled` operation. | Findings from the first control family produce an explicit keep/change decision with tests and updated ABI documentation. |
-| 4. Deferred layers | In progress | Tooltip and PopoverMenu use the foundation Popup/Positioner for trigger-relative geometry. ContextMenu uses Positioner for pointer-corner placement and clamping. PopoverMenu and ContextMenu use foundation PopoverState for open state and focus restoration. GPUI.NET still owns tooltip timing, menu switching, stacking, and topmost dismissal arbitration; Overlay, Dialog, and Sheet retain their current implementations. | Foundation behavior replaces duplicated placement, focus, and dismissal infrastructure where semantics match. |
+| 4. Deferred layers | Complete | Tooltip and PopoverMenu use foundation Popup/Positioner, ContextMenu uses Positioner, and PopoverMenu plus ContextMenu use PopoverState. Modal Overlay uses foundation FocusTrapElement, which also covers the managed Dialog and Sheet compositions. GPUI.NET retains its distinct timing, placement, backdrop, priority, topmost, and managed callback semantics. | Foundation behavior replaces duplicated placement, focus, and dismissal infrastructure where semantics match. |
 | 5. Slider | Planned | GPUI.NET retains slider interaction and state. | Foundation behavior reaches pointer/keyboard/controller/event parity, or the custom implementation is retained with rationale. |
 | 6. Input | Planned | GPUI.NET retains its single-line editing engine. | IME, Unicode, selection, clipboard, focus, commands, revisions, and events reach parity before old behavior is removed. |
 | 7. Scrolling and scrollbar | Planned | GPUI.NET retains scrolling and scrollbar behavior. | Foundation scrollbar behavior is adopted selectively without additional managed/native traffic. |
@@ -92,14 +92,9 @@ to Button, Checkbox, and Radio. This changes the generated schema hash but not A
 record layouts. Foundation Checkbox/Radio change requests map to the existing click callback because
 the managed handler already owns the state transition and publishes the authoritative snapshot.
 
-## Next development slice: deferred layers
+## Deferred-layer decision
 
-Evaluate Tooltip, PopoverMenu, ContextMenu, Overlay, Dialog, and Sheet against foundation popup,
-positioning, focus, and dismissal behavior. Start with the shared deferred-layer infrastructure,
-not six independent component rewrites. Preserve the current semantic declarations and priority
-model unless concrete integration evidence requires a protocol change.
-
-The anchored-layer probe now routes Tooltip and PopoverMenu through `gpui_base::Popup`. A generic
+Tooltip and PopoverMenu route through `gpui_base::Popup`. A generic
 foundation extension makes side placement, alignment, offset, viewport margin, and deferred
 priority configurable while preserving the existing Popup defaults. GPUI.NET maps its validated
 tooltip placement/alignment values at the native adapter and keeps its public options unchanged.
@@ -113,18 +108,23 @@ clamping, and Foundation `PopoverState` owns its open/focus/restoration lifecycl
 the full-window backdrop and OverlayStack guards so outside, selection, right-click, and Escape
 dismissal preserve their existing ordering and input interception.
 
-Continue the probe by comparing the modal foundation types against Overlay, Dialog, and Sheet.
+Modal Overlay registers its focus container with foundation `FocusTrapElement`, and the managed
+window root consults `active_focus_trap` when advancing focus. Dialog and Sheet already compose the
+same semantic Overlay and therefore inherit the foundation trap. GPUI.NET retains its own viewport
+placement, backdrop rendering, priority stack, topmost arbitration, focus restoration, and managed
+dismissal callback routing.
 
-Validate:
+Foundation `Sheet` is not used as the generic host because it couples Escape and backdrop closing,
+has no independent `DismissOnEscape` option, and does not participate in GPUI.NET's priority stack.
+Keeping those behaviors in the adapter preserves the semantic contract without adding ABI or
+schema changes. Phase 4 is complete.
 
-- viewport-aware placement, flipping, margins, and anchor identity;
-- deterministic priority and declaration-order tie breaking;
-- modal and non-modal pointer interception;
-- Escape and backdrop dismissal;
-- focus entry, trapping where applicable, and restoration;
-- tooltip timing and non-interactive behavior;
-- existing managed dismissal callbacks and retained identity;
-- no per-frame managed geometry or pointer traffic.
+## Next development slice: Slider
+
+Evaluate the foundation Slider state and primitives against GPUI.NET's retained Slider resource.
+Preserve native pointer and keyboard ownership, range and logarithmic mapping, controller updates,
+and the existing changed/released event contract. Migrate only if the foundation can retain stable
+resource identity without introducing per-frame managed traffic.
 
 The remaining protocol questions stay open for later families:
 

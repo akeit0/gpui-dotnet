@@ -7,6 +7,7 @@ use gpui::{
     WeakFocusHandle, Window, WindowControlArea, anchored, canvas, deferred, div, img, list, point,
     px, relative, rgba,
 };
+use gpui_base::FocusTrapElement as _;
 
 use crate::{
     abi::{ManagedCallbacks, NativeClickEvent},
@@ -654,12 +655,10 @@ impl ManagedView {
         let focus_state =
             window.use_keyed_state(overlay_id.clone(), cx, move |_, cx| OverlayFocusState {
                 focus: cx.focus_handle().tab_stop(false),
-                end_focus: cx.focus_handle().tab_stop(false),
                 previous_focus,
                 focus_pending: modal,
             });
         let focus = focus_state.read(cx).focus.clone();
-        let end_focus = focus_state.read(cx).end_focus.clone();
         let overlay_stack = self.overlay_stack.clone();
         let overlay_token = overlay_stack.register(
             key,
@@ -732,22 +731,6 @@ impl ManagedView {
                     }));
             }
             host = host.child(backdrop);
-
-            let trap_state = focus_state.clone();
-            host = host.on_key_down(move |event: &KeyDownEvent, window, cx| {
-                let modifiers = event.keystroke.modifiers;
-                if event.keystroke.key != "tab"
-                    || modifiers.control
-                    || modifiers.alt
-                    || modifiers.platform
-                    || modifiers.function
-                {
-                    return;
-                }
-
-                cx.stop_propagation();
-                cycle_overlay_focus(&trap_state, modifiers.shift, window, cx);
-            });
         }
 
         if dismiss_on_escape && dismiss_token != 0 {
@@ -783,9 +766,12 @@ impl ManagedView {
         }
 
         host = host.child(content);
-        if modal {
-            host = host.child(div().w(px(0.)).h(px(0.)).track_focus(&end_focus));
-        }
+        let host = if modal {
+            host.focus_trap((overlay_id, "focus-trap"), &focus)
+                .into_any_element()
+        } else {
+            host.into_any_element()
+        };
         let anchored = anchored().position(point(px(0.), px(0.))).child(host);
         deferred(anchored)
             .with_priority(priority as usize)
@@ -909,7 +895,6 @@ impl ManagedView {
 
 struct OverlayFocusState {
     focus: FocusHandle,
-    end_focus: FocusHandle,
     previous_focus: Option<WeakFocusHandle>,
     focus_pending: bool,
 }
@@ -950,35 +935,6 @@ fn restore_overlay_focus(
         previous.focus(window, cx);
     } else {
         window.blur(cx);
-    }
-}
-
-fn cycle_overlay_focus(
-    state: &Entity<OverlayFocusState>,
-    backwards: bool,
-    window: &mut Window,
-    cx: &mut gpui::App,
-) {
-    let (focus, end_focus) = {
-        let state = state.read(cx);
-        (state.focus.clone(), state.end_focus.clone())
-    };
-    if backwards {
-        window.focus_prev(cx);
-        if !focus.contains_focused(window, cx) {
-            end_focus.focus(window, cx);
-            window.focus_prev(cx);
-        }
-    } else {
-        window.focus_next(cx);
-        if !focus.contains_focused(window, cx) {
-            focus.focus(window, cx);
-            window.focus_next(cx);
-        }
-    }
-
-    if !focus.contains_focused(window, cx) {
-        focus.focus(window, cx);
     }
 }
 
