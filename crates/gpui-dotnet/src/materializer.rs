@@ -14,6 +14,7 @@ use crate::{
     app_host::ManagedView,
     components,
     context_menu::{ContextMenuConfiguration, context_menu},
+    dock::dock_configuration,
     overlay::OverlayKind,
     popover_menu::{PopoverMenuConfiguration, popover_menu},
     resources::{
@@ -72,12 +73,32 @@ impl ManagedView {
             NativeAdapter::Path => div().into_any_element(),
             NativeAdapter::Input => self.materialize_input(node, snapshot, window, cx),
             NativeAdapter::Slider => self.materialize_slider(node, snapshot, cx),
+            NativeAdapter::DockArea => self.materialize_dock(node, snapshot, window, cx),
             NativeAdapter::Overlay => self.materialize_overlay(node, snapshot, window, cx),
             NativeAdapter::Tooltip => self.materialize_tooltip(node, snapshot, window, cx),
             NativeAdapter::ContextMenu => self.materialize_context_menu(node, snapshot, window, cx),
             NativeAdapter::PopoverMenu => self.materialize_popover_menu(node, snapshot, window, cx),
             _ => self.materialize_regular(node_id, node, snapshot, window, cx),
         }
+    }
+
+    fn materialize_dock(
+        &self,
+        node: &SnapshotNode,
+        snapshot: &ValidatedSnapshot,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let Some(configuration) = dock_configuration(snapshot, node) else {
+            return div()
+                .child("Dock resource is missing its owner or layout configuration.")
+                .into_any_element();
+        };
+        let area =
+            self.resources
+                .dock_resource(&configuration, cx.entity().downgrade(), window, cx);
+        let element = div().size_full().child(area);
+        apply_styles(element, node, snapshot).into_any_element()
     }
 
     fn materialize_dynamic(
@@ -964,10 +985,15 @@ pub(crate) fn materialize_snapshot_node_detached(
             | NativeAdapter::Tooltip
             | NativeAdapter::ContextMenu
             | NativeAdapter::PopoverMenu
+            | NativeAdapter::DockArea
+            | NativeAdapter::DockSplit
+            | NativeAdapter::DockTabs
+            | NativeAdapter::DockPanel
+            | NativeAdapter::DockRegion
     ) {
         return div()
             .child(
-                "Retained Scroll/List/Table/Input/Slider resources and deferred layers inside a virtualized list row are not supported.",
+                "Retained resources, Dock declarations, and deferred layers inside a virtualized list row are not supported.",
             )
             .into_any_element();
     }

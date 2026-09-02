@@ -3,6 +3,7 @@ mod app_host;
 mod arena;
 mod components;
 mod context_menu;
+mod dock;
 mod input;
 mod materializer;
 mod overlay;

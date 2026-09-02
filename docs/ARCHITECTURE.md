@@ -22,7 +22,7 @@ Rust owns:
 - render-arena allocation, validation, and retained snapshots;
 - semantic component materialization;
 - scrolling, list/table viewport state, measurements, and row caches;
-- retained Input and Slider entities;
+- retained Input, Slider, and Dock entities;
 - deferred-layer geometry, focus, stacking, and dismissal;
 - native title-bar hit testing and platform window commands;
 - painting and clean repaints.
@@ -90,8 +90,8 @@ candidates are also unmounted during reconciliation. Unmount proceeds child-firs
 
 ## Retained resource path
 
-Scroll, List, Table, Input, and Slider are declarations plus stable resource identities. Identity
-is `(window session, owner View handle, UTF-8 key)`. Rust stores the mutable resource object and
+Scroll, List, Table, Input, Slider, and Dock are declarations plus stable resource identities.
+Identity is `(window session, owner View handle, UTF-8 key)`. Rust stores the mutable resource object and
 reconfigures it from later snapshots instead of recreating it.
 
 Controllers send small commands through the application UI channel:
@@ -142,10 +142,10 @@ continuations, and the binding's any-thread ingress contract.
 
 `GpuiTheme` is application-scoped ambient input. Managed views resolve semantic tokens while
 rendering. The private versioned native theme payload supplies explicit appearance and equivalent
-resolved roles to native controls, error surfaces, table chrome, and scrollbars. After
-`gpui_base::init`, the native host projects those roles into the global foundation theme at startup
-and before refreshing windows for every theme update. Foundation typography, spacing, radii,
-shadows, scrollbar mode, and scrollbar motion retain their defaults until the managed semantic
+resolved roles to native controls, error surfaces, table chrome, scrollbars, and Dock chrome. After
+`gpui_component::init`, the native host projects those roles into the global component and base
+themes at startup and before refreshing windows for every theme update. Foundation typography,
+spacing, radii, shadows, scrollbar mode, and scrollbar motion retain their defaults until the managed semantic
 theme deliberately defines corresponding roles.
 
 The native ABI does not carry product variant names or component style objects. Applications define
@@ -182,10 +182,11 @@ schema hash, and required entry points.
 
 ## Dependency policy
 
-The `external/gpui-component` submodule pins `gpui-base` to an exact revision of the
-`akeit0/gpui-component` integration fork. Its gitlink and resolved Zed/GPUI revision form one
+The `external/gpui-component` submodule pins `gpui-base` and `gpui-component` to an exact revision
+of the `akeit0/gpui-component` integration fork. Its gitlink and resolved Zed/GPUI revision form one
 validated compatibility tuple recorded in [UPSTREAM_BASELINE.md](UPSTREAM_BASELINE.md).
-`gpui-base` owns reusable native behavior as components migrate; GPUI.NET retains its ABI,
+The foundation crates own reusable native behavior and component skins as components migrate;
+GPUI.NET retains its ABI,
 semantic decoding, managed callback routing, resource identity, and platform integration.
 
 The managed API does not expose `gpui-base` or GPUI implementation types. Platform-specific

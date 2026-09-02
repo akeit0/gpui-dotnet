@@ -1209,6 +1209,144 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void DockAreaWritesRetainedStructuralLayout()
+    {
+        var view = new ProbeView();
+        Attach(view, 17);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var explorer = ui.DockTabs(
+                panels: ui.DockPanel(
+                    "explorer",
+                    "Explorer",
+                    ui.Text("Files"),
+                    new DockPanelOptions(closable: false)
+                )
+            );
+            var editors = ui
+                .DockTabs(
+                    activeIndex: 1,
+                    panels:
+                    [
+                        ui.DockPanel("first", "First.cs", ui.Text("first")),
+                        ui.DockPanel(
+                            "second",
+                            "Second.cs",
+                            ui.Text("second"),
+                            new DockPanelOptions(innerPadding: true)
+                        ),
+                    ]
+                )
+                .InitialSize(640);
+            var inspector = ui
+                .DockRegion(
+                    DockSide.Right,
+                    ui.DockTabs(
+                        panels: ui.DockPanel("inspector", "Inspector", ui.Text("details"))
+                    ),
+                    new DockRegionOptions(initiallyOpen: false, collapsible: false)
+                )
+                .InitialSize(280);
+            var dock = ui.DockArea(
+                "workspace",
+                ui.DockSplit(DockAxis.Horizontal, explorer, editors),
+                [inspector],
+                new DockOptions(locked: true)
+            );
+
+            arena.Validate(dock);
+
+            Assert.Equal(14, arena.GetStats().Nodes);
+            Assert.Equal(13, arena.GetStats().Children);
+            Assert.Equal(17u, ReadLastU32Op(arena, OpCode.ResourceOwner));
+            Assert.Equal(1u, ReadLastU32Op(arena, OpCode.DockActiveIndex));
+            Assert.Equal(280f, ReadLastF32Op(arena, OpCode.DockInitialSizePx));
+            Assert.Equal(1u, ReadLastU32Op(arena, OpCode.DockPanelInnerPadding));
+            Assert.Equal(1u, ReadLastU32Op(arena, OpCode.DockLocked));
+            Assert.Equal(2u, ReadLastU32Op(arena, OpCode.DockRegionSide));
+            Assert.Equal(0u, ReadLastU32Op(arena, OpCode.DockRegionOpen));
+            Assert.Equal(0u, ReadLastU32Op(arena, OpCode.DockRegionCollapsible));
+        }
+        finally
+        {
+            view.UnmountRuntime();
+        }
+    }
+
+    [Fact]
+    public void DockAreaRejectsDuplicatePanelIds()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var dock = ui.DockArea(
+                "workspace",
+                ui.DockTabs(panels: ui.DockPanel("same", "First", ui.Div())),
+                [
+                    ui.DockRegion(
+                        DockSide.Left,
+                        ui.DockTabs(panels: ui.DockPanel("same", "Second", ui.Div()))
+                    ),
+                ]
+            );
+
+            Assert.Throws<InvalidOperationException>(() => arena.Validate(dock));
+        }
+        finally
+        {
+            view.UnmountRuntime();
+        }
+    }
+
+    [Fact]
+    public void DockAreaRejectsDuplicateRegions()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var first = ui.DockRegion(
+                DockSide.Left,
+                ui.DockTabs(panels: ui.DockPanel("first", "First", ui.Div()))
+            );
+            var second = ui.DockRegion(
+                DockSide.Left,
+                ui.DockTabs(panels: ui.DockPanel("second", "Second", ui.Div()))
+            );
+            var dock = ui.DockArea(
+                "workspace",
+                ui.DockTabs(panels: ui.DockPanel("center", "Center", ui.Div())),
+                [first, second]
+            );
+
+            Assert.Throws<InvalidOperationException>(() => arena.Validate(dock));
+        }
+        finally
+        {
+            view.UnmountRuntime();
+        }
+    }
+
+    [Fact]
+    public void DockBuildersRejectInvalidDeclarations()
+    {
+        Assert.Throws<ArgumentException>(RenderDockPanelWithoutId);
+        Assert.Throws<ArgumentOutOfRangeException>(RenderDockSplitWithInvalidAxis);
+        Assert.Throws<ArgumentOutOfRangeException>(RenderDockTabsWithInvalidIndex);
+        Assert.Throws<ArgumentOutOfRangeException>(RenderDockTabsWithOutOfRangeIndex);
+        Assert.Throws<ArgumentOutOfRangeException>(RenderDockContainerWithInvalidSize);
+        Assert.Throws<ArgumentOutOfRangeException>(RenderDockRegionWithInvalidSide);
+        Assert.Throws<InvalidOperationException>(ValidateUncontainedDockStructure);
+    }
+
+    [Fact]
     public void DynamicRequiresAMountedOwningView()
     {
         Assert.Throws<InvalidOperationException>(RenderDynamicWithoutOwner);
@@ -1235,6 +1373,58 @@ public sealed class SemanticRenderTests
         using var arena = new RenderArenaOwner();
         var ui = arena.BeginRender();
         ui.Dynamic(ui.Div());
+    }
+
+    private static void RenderDockPanelWithoutId()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        ui.DockPanel("", "Title", ui.Div());
+    }
+
+    private static void RenderDockSplitWithInvalidAxis()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var tabs = ui.DockTabs(panels: ui.DockPanel("id", "Title", ui.Div()));
+        ui.DockSplit((DockAxis)2, tabs);
+    }
+
+    private static void RenderDockTabsWithInvalidIndex()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        ui.DockTabs(-1, ui.Div());
+    }
+
+    private static void RenderDockTabsWithOutOfRangeIndex()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        ui.DockTabs(1, ui.DockPanel("only", "Only", ui.Div()));
+    }
+
+    private static void RenderDockContainerWithInvalidSize()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        ui.DockTabs(panels: ui.DockPanel("sized", "Sized", ui.Div())).InitialSize(0);
+    }
+
+    private static void RenderDockRegionWithInvalidSide()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var tabs = ui.DockTabs(panels: ui.DockPanel("side", "Side", ui.Div()));
+        ui.DockRegion((DockSide)3, tabs);
+    }
+
+    private static void ValidateUncontainedDockStructure()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var tabs = ui.DockTabs(panels: ui.DockPanel("orphan", "Orphan", ui.Div()));
+        arena.Validate(tabs);
     }
 
     private static void RenderInvalidCircle()
@@ -1299,6 +1489,9 @@ public sealed class SemanticRenderTests
 
         throw new Xunit.Sdk.XunitException($"The render did not contain {code}.");
     }
+
+    private static unsafe float ReadLastF32Op(RenderArenaOwner arena, OpCode code) =>
+        BitConverter.UInt32BitsToSingle(ReadLastU32Op(arena, code));
 
     private static unsafe bool ContainsOp(RenderArenaOwner arena, OpCode code)
     {

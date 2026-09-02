@@ -81,6 +81,53 @@ internal static unsafe class ManagedValidator
                     );
                 }
             }
+            else if ((ComponentId)node.Component == ComponentId.DockArea)
+            {
+                var payload = new ReadOnlySpan<byte>(
+                    arena->Utf8 + node.DataOffset,
+                    checked((int)node.DataLength)
+                );
+                if (payload.Contains((byte)0))
+                {
+                    throw new InvalidOperationException(
+                        $"DockArea node {i} must contain a single resource key."
+                    );
+                }
+            }
+            else if ((ComponentId)node.Component == ComponentId.DockPanel)
+            {
+                var payload = new ReadOnlySpan<byte>(
+                    arena->Utf8 + node.DataOffset,
+                    checked((int)node.DataLength)
+                );
+                var firstSeparator = payload.IndexOf((byte)0);
+                var remainder = firstSeparator < 0 ? default : payload[(firstSeparator + 1)..];
+                var secondSeparator = remainder.IndexOf((byte)0);
+                if (
+                    firstSeparator <= 0
+                    || secondSeparator < 0
+                    || !remainder[(secondSeparator + 1)..].IsEmpty
+                )
+                {
+                    throw new InvalidOperationException(
+                        $"DockPanel node {i} must contain a non-empty ID and a terminated title."
+                    );
+                }
+            }
+        }
+
+        var rootComponent = (ComponentId)arena->Nodes[root.Node].Component;
+        if (
+            rootComponent
+            is ComponentId.DockSplit
+                or ComponentId.DockTabs
+                or ComponentId.DockPanel
+                or ComponentId.DockRegion
+        )
+        {
+            throw new InvalidOperationException(
+                $"{rootComponent} must be contained by a DockArea declaration."
+            );
         }
 
         for (var i = 0; i < arena->OpLength; i++)
@@ -209,6 +256,26 @@ internal static unsafe class ManagedValidator
                     );
                 }
 
+                var validDockEdge = parentComponent switch
+                {
+                    ComponentId.DockArea => childComponent is ComponentId.DockSplit or ComponentId.DockTabs or ComponentId.DockRegion,
+                    ComponentId.DockSplit => childComponent is ComponentId.DockSplit or ComponentId.DockTabs,
+                    ComponentId.DockTabs => childComponent == ComponentId.DockPanel,
+                    ComponentId.DockRegion => childComponent is ComponentId.DockSplit or ComponentId.DockTabs,
+                    _ => childComponent is not (
+                        ComponentId.DockSplit
+                            or ComponentId.DockTabs
+                            or ComponentId.DockPanel
+                            or ComponentId.DockRegion
+                    ),
+                };
+                if (!validDockEdge)
+                {
+                    throw new InvalidOperationException(
+                        $"{childComponent} is not a valid child of {parentComponent}."
+                    );
+                }
+
                 if (edge.Child == root.Node)
                 {
                     throw new InvalidOperationException("The root node cannot have a parent.");
@@ -232,6 +299,11 @@ internal static unsafe class ManagedValidator
                         or ComponentId.ContextMenu
                         or ComponentId.PopoverMenu
                         or ComponentId.Dynamic
+                        or ComponentId.DockArea
+                        or ComponentId.DockSplit
+                        or ComponentId.DockTabs
+                        or ComponentId.DockPanel
+                        or ComponentId.DockRegion
                     )
                 )
                 {
@@ -246,12 +318,113 @@ internal static unsafe class ManagedValidator
                         childCount++;
                     }
                 }
-                var expectedCount = component is ComponentId.Overlay or ComponentId.Dynamic ? 1 : 2;
-                if (childCount != expectedCount)
+                var validCount = component switch
+                {
+                    ComponentId.Overlay or ComponentId.Dynamic or ComponentId.DockPanel or ComponentId.DockRegion => childCount == 1,
+                    ComponentId.Tooltip or ComponentId.ContextMenu or ComponentId.PopoverMenu => childCount == 2,
+                    ComponentId.DockArea => childCount is >= 1 and <= 4,
+                    ComponentId.DockSplit or ComponentId.DockTabs => childCount > 0,
+                    _ => false,
+                };
+                if (!validCount)
                 {
                     throw new InvalidOperationException(
-                        $"{component} node {nodeIndex} must have exactly {expectedCount} children."
+                        $"{component} node {nodeIndex} has an invalid child count."
                     );
+                }
+                if (component == ComponentId.DockTabs)
+                {
+                    var activeIndex = 0u;
+                    for (var opIndex = 0; opIndex < arena->OpLength; opIndex++)
+                    {
+                        ref readonly var operation = ref arena->Ops[opIndex];
+                        if (
+                            operation.Node == (uint)nodeIndex
+                            && (OpCode)operation.Code == OpCode.DockActiveIndex
+                        )
+                        {
+                            activeIndex = checked((uint)operation.A);
+                        }
+                    }
+                    if (activeIndex >= childCount)
+                    {
+                        throw new InvalidOperationException(
+                            $"DockTabs node {nodeIndex} has an active index outside its panels."
+                        );
+                    }
+                }
+                if (component == ComponentId.DockArea)
+                {
+                    var centerCount = 0;
+                    var sideMask = 0u;
+                    for (var edgeIndex = 0; edgeIndex < arena->ChildLength; edgeIndex++)
+                    {
+                        ref readonly var edge = ref arena->Children[edgeIndex];
+                        if (edge.Parent != (uint)nodeIndex)
+                        {
+                            continue;
+                        }
+                        if (
+                            (ComponentId)arena->Nodes[edge.Child].Component
+                            != ComponentId.DockRegion
+                        )
+                        {
+                            centerCount++;
+                            continue;
+                        }
+
+                        var side = 0u;
+                        for (var opIndex = 0; opIndex < arena->OpLength; opIndex++)
+                        {
+                            ref readonly var operation = ref arena->Ops[opIndex];
+                            if (
+                                operation.Node == edge.Child
+                                && (OpCode)operation.Code == OpCode.DockRegionSide
+                            )
+                            {
+                                side = checked((uint)operation.A);
+                            }
+                        }
+                        var sideBit = 1u << checked((int)side);
+                        if ((sideMask & sideBit) != 0)
+                        {
+                            throw new InvalidOperationException(
+                                $"DockArea node {nodeIndex} declares the same side more than once."
+                            );
+                        }
+                        sideMask |= sideBit;
+                    }
+                    if (centerCount != 1)
+                    {
+                        throw new InvalidOperationException(
+                            $"DockArea node {nodeIndex} must declare exactly one center layout."
+                        );
+                    }
+                }
+            }
+
+            for (var left = 0; left < arena->NodeLength; left++)
+            {
+                if ((ComponentId)arena->Nodes[left].Component != ComponentId.DockPanel)
+                {
+                    continue;
+                }
+                var leftArea = FindDockAreaAncestor(arena, checked((uint)left));
+                for (var right = left + 1; right < arena->NodeLength; right++)
+                {
+                    if (
+                        (ComponentId)arena->Nodes[right].Component != ComponentId.DockPanel
+                        || FindDockAreaAncestor(arena, checked((uint)right)) != leftArea
+                    )
+                    {
+                        continue;
+                    }
+                    if (DockPanelId(arena, left).SequenceEqual(DockPanelId(arena, right)))
+                    {
+                        throw new InvalidOperationException(
+                            $"DockArea contains duplicate panel ID '{System.Text.Encoding.UTF8.GetString(DockPanelId(arena, left))}'."
+                        );
+                    }
                 }
             }
         }
@@ -262,5 +435,40 @@ internal static unsafe class ManagedValidator
                 arena->Nodes[arena->Children[i].Child].Flags &= unchecked((ushort)~1);
             }
         }
+    }
+
+    private static uint FindDockAreaAncestor(RenderArena* arena, uint node)
+    {
+        while (true)
+        {
+            var parent = uint.MaxValue;
+            for (var index = 0; index < arena->ChildLength; index++)
+            {
+                if (arena->Children[index].Child == node)
+                {
+                    parent = arena->Children[index].Parent;
+                    break;
+                }
+            }
+            if (parent == uint.MaxValue)
+            {
+                return parent;
+            }
+            if ((ComponentId)arena->Nodes[parent].Component == ComponentId.DockArea)
+            {
+                return parent;
+            }
+            node = parent;
+        }
+    }
+
+    private static ReadOnlySpan<byte> DockPanelId(RenderArena* arena, int nodeIndex)
+    {
+        ref readonly var node = ref arena->Nodes[nodeIndex];
+        var payload = new ReadOnlySpan<byte>(
+            arena->Utf8 + node.DataOffset,
+            checked((int)node.DataLength)
+        );
+        return payload[..payload.IndexOf((byte)0)];
     }
 }

@@ -32,7 +32,7 @@ pub(crate) struct ManagedView {
     pub(crate) callbacks: ManagedCallbacks,
     arena: OwnedRenderArena,
     retained_strings: RetainedStrings,
-    snapshot: ValidatedSnapshot,
+    pub(crate) snapshot: ValidatedSnapshot,
     snapshot_scratch: SnapshotScratch,
     has_snapshot: bool,
     pub(crate) snapshot_revision: u64,
@@ -532,80 +532,83 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
     let application_status = Arc::new(AtomicI32::new(0));
     let application_status_in_app = Arc::clone(&application_status);
 
-    gpui_platform::application().run(move |cx: &mut App| {
-        gpui_base::init(cx);
-        crate::input::init(cx);
-        let windows: ManagedWindows = Rc::new(RefCell::new(HashMap::new()));
-        let initial_theme = NativeTheme::default();
-        initial_theme.apply_to_base(cx);
-        let theme: SharedTheme = Rc::new(RefCell::new(initial_theme));
+    gpui_platform::application()
+        .with_assets(gpui_component_assets::Assets)
+        .run(move |cx: &mut App| {
+            gpui_component::init(cx);
+            crate::input::init(cx);
+            let windows: ManagedWindows = Rc::new(RefCell::new(HashMap::new()));
+            let initial_theme = NativeTheme::default();
+            initial_theme.apply_to_components(cx);
+            initial_theme.apply_to_base(cx);
+            let theme: SharedTheme = Rc::new(RefCell::new(initial_theme));
 
-        let menu_status = Arc::clone(&application_status_in_app);
-        cx.on_action(move |action: &ManagedMenuAction, _cx| {
-            let status = unsafe {
-                callbacks
-                    .menu_action
-                    .expect("callbacks were validated before application startup")(
-                    application_id,
-                    action.id,
-                )
-            };
-            record_status(&menu_status, status);
-        });
-
-        let closed_windows = Rc::clone(&windows);
-        let closed_status = Arc::clone(&application_status_in_app);
-        cx.on_window_closed(move |cx, _| {
-            report_closed_windows(
-                cx,
-                application_id,
-                callbacks,
-                &closed_windows,
-                &closed_status,
-            );
-        })
-        .detach();
-
-        while let Ok(command) = receiver.try_recv() {
-            apply_application_command(
-                command,
-                cx,
-                application_id,
-                callbacks,
-                &windows,
-                &theme,
-                &application_status_in_app,
-            );
-        }
-
-        if windows.borrow().is_empty() {
-            record_status(&application_status_in_app, -24);
-            cx.quit();
-            return;
-        }
-
-        let command_windows = Rc::clone(&windows);
-        let command_theme = Rc::clone(&theme);
-        let command_status = Arc::clone(&application_status_in_app);
-        cx.spawn(async move |cx| {
-            while let Ok(command) = receiver.recv().await {
-                cx.update(|cx| {
-                    apply_application_command(
-                        command,
-                        cx,
+            let menu_status = Arc::clone(&application_status_in_app);
+            cx.on_action(move |action: &ManagedMenuAction, _cx| {
+                let status = unsafe {
+                    callbacks
+                        .menu_action
+                        .expect("callbacks were validated before application startup")(
                         application_id,
-                        callbacks,
-                        &command_windows,
-                        &command_theme,
-                        &command_status,
-                    );
-                });
-            }
-        })
-        .detach();
+                        action.id,
+                    )
+                };
+                record_status(&menu_status, status);
+            });
 
-        cx.activate(true);
-    });
+            let closed_windows = Rc::clone(&windows);
+            let closed_status = Arc::clone(&application_status_in_app);
+            cx.on_window_closed(move |cx, _| {
+                report_closed_windows(
+                    cx,
+                    application_id,
+                    callbacks,
+                    &closed_windows,
+                    &closed_status,
+                );
+            })
+            .detach();
+
+            while let Ok(command) = receiver.try_recv() {
+                apply_application_command(
+                    command,
+                    cx,
+                    application_id,
+                    callbacks,
+                    &windows,
+                    &theme,
+                    &application_status_in_app,
+                );
+            }
+
+            if windows.borrow().is_empty() {
+                record_status(&application_status_in_app, -24);
+                cx.quit();
+                return;
+            }
+
+            let command_windows = Rc::clone(&windows);
+            let command_theme = Rc::clone(&theme);
+            let command_status = Arc::clone(&application_status_in_app);
+            cx.spawn(async move |cx| {
+                while let Ok(command) = receiver.recv().await {
+                    cx.update(|cx| {
+                        apply_application_command(
+                            command,
+                            cx,
+                            application_id,
+                            callbacks,
+                            &command_windows,
+                            &command_theme,
+                            &command_status,
+                        );
+                    });
+                }
+            })
+            .detach();
+
+            cx.activate(true);
+        });
 
     application_status.load(Ordering::Acquire)
 }
@@ -624,6 +627,7 @@ fn apply_application_command(
             cx.set_menus(menus.into_iter().map(convert_menu));
         }
         ApplicationCommand::SetTheme(next) => {
+            next.apply_to_components(cx);
             next.apply_to_base(cx);
             *theme.borrow_mut() = next;
             for entry in windows.borrow().values() {

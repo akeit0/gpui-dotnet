@@ -27,6 +27,11 @@ namespace Gpui.Interop
         Drawing = 19,
         Path = 20,
         Dynamic = 21,
+        DockArea = 22,
+        DockSplit = 23,
+        DockTabs = 24,
+        DockPanel = 25,
+        DockRegion = 26,
     }
 
     internal enum OpCode : ushort
@@ -114,6 +119,16 @@ namespace Gpui.Interop
         SliderRangeEnd = 338,
         SliderOnChanged = 339,
         SliderOnReleased = 340,
+        DockAxis = 350,
+        DockActiveIndex = 351,
+        DockInitialSizePx = 352,
+        DockPanelClosable = 353,
+        DockPanelZoomable = 354,
+        DockPanelInnerPadding = 355,
+        DockLocked = 356,
+        DockRegionSide = 357,
+        DockRegionOpen = 358,
+        DockRegionCollapsible = 359,
         DrawingViewBoxOrigin = 700,
         DrawingViewBoxSize = 701,
         DynamicActive = 702,
@@ -151,7 +166,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x374C63DEB997BC8AUL;
+        internal const ulong SchemaHash = 0xB55E495914E16758UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -176,6 +191,11 @@ namespace Gpui.Interop
             ComponentId.Drawing => true,
             ComponentId.Path => true,
             ComponentId.Dynamic => true,
+            ComponentId.DockArea => true,
+            ComponentId.DockSplit => true,
+            ComponentId.DockTabs => true,
+            ComponentId.DockPanel => true,
+            ComponentId.DockRegion => true,
             _ => false,
         };
 
@@ -194,6 +214,8 @@ namespace Gpui.Interop
             ComponentId.PopoverMenu => true,
             ComponentId.Table => true,
             ComponentId.Slider => true,
+            ComponentId.DockArea => true,
+            ComponentId.DockPanel => true,
             _ => false,
         };
 
@@ -282,6 +304,16 @@ namespace Gpui.Interop
             OpCode.SliderRangeEnd => ValueKind.F32,
             OpCode.SliderOnChanged => ValueKind.Callback,
             OpCode.SliderOnReleased => ValueKind.Callback,
+            OpCode.DockAxis => ValueKind.U32,
+            OpCode.DockActiveIndex => ValueKind.U32,
+            OpCode.DockInitialSizePx => ValueKind.F32,
+            OpCode.DockPanelClosable => ValueKind.U32,
+            OpCode.DockPanelZoomable => ValueKind.U32,
+            OpCode.DockPanelInnerPadding => ValueKind.U32,
+            OpCode.DockLocked => ValueKind.U32,
+            OpCode.DockRegionSide => ValueKind.U32,
+            OpCode.DockRegionOpen => ValueKind.U32,
+            OpCode.DockRegionCollapsible => ValueKind.U32,
             OpCode.DrawingViewBoxOrigin => ValueKind.F32x2,
             OpCode.DrawingViewBoxSize => ValueKind.F32x2,
             OpCode.DynamicActive => ValueKind.U32,
@@ -330,6 +362,11 @@ namespace Gpui.Interop
             ComponentId.Drawing => 0x0000000000040003UL,
             ComponentId.Path => 0x0000000000080000UL,
             ComponentId.Dynamic => 0x0000000000100042UL,
+            ComponentId.DockArea => 0x0000000000200047UL,
+            ComponentId.DockSplit => 0x0000000000C00002UL,
+            ComponentId.DockTabs => 0x0000000001400002UL,
+            ComponentId.DockPanel => 0x0000000002000002UL,
+            ComponentId.DockRegion => 0x0000000004400002UL,
             _ => 0,
         };
 
@@ -418,6 +455,16 @@ namespace Gpui.Interop
             OpCode.SliderRangeEnd => 0x0000000000020000UL,
             OpCode.SliderOnChanged => 0x0000000000020000UL,
             OpCode.SliderOnReleased => 0x0000000000020000UL,
+            OpCode.DockAxis => 0x0000000000800000UL,
+            OpCode.DockActiveIndex => 0x0000000001000000UL,
+            OpCode.DockInitialSizePx => 0x0000000000400000UL,
+            OpCode.DockPanelClosable => 0x0000000002000000UL,
+            OpCode.DockPanelZoomable => 0x0000000002000000UL,
+            OpCode.DockPanelInnerPadding => 0x0000000002000000UL,
+            OpCode.DockLocked => 0x0000000000200000UL,
+            OpCode.DockRegionSide => 0x0000000004000000UL,
+            OpCode.DockRegionOpen => 0x0000000004000000UL,
+            OpCode.DockRegionCollapsible => 0x0000000004000000UL,
             OpCode.DrawingViewBoxOrigin => 0x0000000000040000UL,
             OpCode.DrawingViewBoxSize => 0x0000000000040000UL,
             OpCode.DynamicActive => 0x0000000000100000UL,
@@ -492,6 +539,15 @@ namespace Gpui.Interop
             OpCode.SliderAxis when !(a <= 1UL) => -43,
             OpCode.SliderDisabled when !(a <= 1UL) => -21,
             OpCode.SliderScale when !(a <= 1UL) => -43,
+            OpCode.DockAxis when !(a <= 1UL) => -60,
+            OpCode.DockInitialSizePx when !(BitConverter.UInt32BitsToSingle((uint)a) > 0f) => -60,
+            OpCode.DockPanelClosable when !(a <= 1UL) => -21,
+            OpCode.DockPanelZoomable when !(a <= 1UL) => -21,
+            OpCode.DockPanelInnerPadding when !(a <= 1UL) => -21,
+            OpCode.DockLocked when !(a <= 1UL) => -21,
+            OpCode.DockRegionSide when !(a <= 2UL) => -61,
+            OpCode.DockRegionOpen when !(a <= 1UL) => -21,
+            OpCode.DockRegionCollapsible when !(a <= 1UL) => -21,
             OpCode.DynamicActive when !(a <= 1UL) => -21,
             OpCode.PathArcFlags when !(a <= 3UL) => -59,
             OpCode.PathFillRule when !(a <= 1UL) => -59,
@@ -526,6 +582,12 @@ namespace Gpui
     public interface IDrawingElementTag { }
     public interface IPathElementTag { }
     public interface IDynamicElementTag { }
+    public interface IDockAreaElementTag { }
+    public interface IDockContainerElementTag { }
+    public interface IDockSplitElementTag { }
+    public interface IDockTabsElementTag { }
+    public interface IDockPanelElementTag { }
+    public interface IDockRegionElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
@@ -548,6 +610,11 @@ namespace Gpui
     public readonly struct DrawingTag : IStyledElementTag, IParentElementTag, IDrawingElementTag { }
     public readonly struct PathTag : IPathElementTag { }
     public readonly struct DynamicTag : IParentElementTag, INativeStateElementTag, IDynamicElementTag { }
+    public readonly struct DockAreaTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IDockAreaElementTag { }
+    public readonly struct DockSplitTag : IParentElementTag, IDockContainerElementTag, IDockSplitElementTag { }
+    public readonly struct DockTabsTag : IParentElementTag, IDockContainerElementTag, IDockTabsElementTag { }
+    public readonly struct DockPanelTag : IParentElementTag, IDockPanelElementTag { }
+    public readonly struct DockRegionTag : IParentElementTag, IDockContainerElementTag, IDockRegionElementTag { }
 
     public readonly unsafe ref partial struct RenderContext
     {

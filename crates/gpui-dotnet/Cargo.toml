@@ -13,6 +13,8 @@ async-channel = "2"
 # identical to gpui-base's workspace dependency so Cargo resolves one GPUI type universe.
 gpui = { git = "https://github.com/zed-industries/zed" }
 gpui-base = { path = "../../external/gpui-component/crates/base" }
+gpui-component = { path = "../../external/gpui-component/crates/ui" }
+gpui-component-assets = { path = "../../external/gpui-component/crates/assets" }
 gpui_platform = { git = "https://github.com/zed-industries/zed" }
 unicode-segmentation = "1.13.3"
 
@@ -52,6 +54,7 @@ split-debuginfo = "unpacked"
 [profile.dev.package]
 gpui = { opt-level = 3 }
 gpui-base = { opt-level = 3 }
+gpui-component = { opt-level = 3 }
 gpui_platform = { opt-level = 3 }
 gpui_macros = { opt-level = 3 }
 resvg = { opt-level = 3 }

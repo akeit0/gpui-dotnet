@@ -163,10 +163,10 @@ The theme command uses the command record's byte pointer as a private fixed-size
 version 2 is 20 sequential little-endian `u32` values: version, appearance (`0` Light or `1` Dark),
 and 18 resolved RGBA semantic roles. The native entry point requires the exact payload size and
 rejects unsupported versions or appearance values. Resolved roles feed GPUI.NET native rendering
-and the global `gpui-base` theme; application style variants and Rust foundation types do not cross
-the ABI.
+and the global `gpui-component` and `gpui-base` themes; application style variants and Rust
+foundation types do not cross the ABI.
 The managed-code update command clears native List/Table row snapshots and dirties each managed
-window without resetting retained control identity or interaction state.
+window without resetting retained control or Dock identity and interaction state.
 
 ## Application menus
 
@@ -215,6 +215,15 @@ descendant semantic Text nodes.
 ContextMenu and PopoverMenu are keyed two-child semantic components. Their native adapters own
 trigger interception, deferred placement, viewport snapping, focus restoration, and dismissal.
 They are invalid inside virtualized row snapshots because rows have no mounted View lifetime.
+
+DockArea is a keyed retained semantic component with one center tree and up to one DockRegion for
+each left, bottom, and right placement. Center and region trees use DockSplit/DockTabs/DockPanel
+nodes; each panel has a unique string ID across the area, a title, and exactly one ordinary content
+subtree. Initial center/region declarations, placement, open/collapsible state, and panel options
+use generated semantic operations, so these additions change the schema hash but not ABI version 1
+or any C record layout. Native pointer dragging, split and region resizing, region collapse, focus,
+and tab activation require no managed callback. There is no Dock resource-command or retained-
+control-event packet in the current slice.
 
 ## Error handling and teardown
 

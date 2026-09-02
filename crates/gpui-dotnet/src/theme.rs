@@ -89,6 +89,58 @@ impl NativeTheme {
         self.project_to_base(gpui_base::Theme::global_mut(cx));
     }
 
+    pub(crate) fn apply_to_components(self, cx: &mut App) {
+        let theme = gpui_component::Theme::global_mut(cx);
+        theme.mode = match self.appearance {
+            NativeThemeAppearance::Light => gpui_component::ThemeMode::Light,
+            NativeThemeAppearance::Dark => gpui_component::ThemeMode::Dark,
+        };
+
+        let background = color(self.background);
+        let text = color(self.text);
+        let text_muted = color(self.text_muted);
+        let text_on_accent = color(self.text_on_accent);
+        let border = color(self.border);
+        let border_variant = color(self.border_variant);
+        let border_focused = color(self.border_focused);
+        let surface = color(self.surface_background);
+        let element = color(self.element_background);
+        let element_hover = color(self.element_hover);
+        let element_active = color(self.element_active);
+        let accent = color(self.accent);
+
+        let colors = &mut theme.colors;
+        colors.background = background;
+        colors.foreground = text;
+        colors.muted = element;
+        colors.muted_foreground = text_muted;
+        colors.border = border;
+        colors.input = border_variant;
+        colors.ring = border_focused;
+        colors.accent = element_hover;
+        colors.accent_foreground = text;
+        colors.primary = accent;
+        colors.primary_foreground = text_on_accent;
+        colors.primary_hover = element_hover;
+        colors.primary_active = element_active;
+        colors.button = element;
+        colors.button_foreground = text;
+        colors.button_hover = element_hover;
+        colors.button_active = element_active;
+        colors.popover = surface;
+        colors.popover_foreground = text;
+        colors.tab = surface;
+        colors.tab_bar = element;
+        colors.tab_active = surface;
+        colors.tab_foreground = text_muted;
+        colors.tab_active_foreground = text;
+        colors.drag_border = border_focused;
+        colors.drop_target = accent.alpha(0.2);
+        colors.scrollbar = color(self.scrollbar_track_background);
+        colors.scrollbar_thumb = color(self.scrollbar_thumb_background);
+        colors.scrollbar_thumb_hover = border_focused;
+    }
+
     fn project_to_base(self, theme: &mut gpui_base::Theme) {
         theme.appearance = self.appearance.to_base();
 

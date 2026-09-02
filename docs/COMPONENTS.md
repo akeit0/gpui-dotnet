@@ -4,7 +4,8 @@ GPUI.NET exposes semantic components. C# builders write component IDs, typed ope
 records, and UTF-8 data into the render arena. Rust chooses the concrete GPUI implementation through
 the component's `NativeAdapter`.
 
-The native application initializes `gpui-base` as its reusable behavior foundation. Button,
+The native application initializes `gpui-component` and its underlying `gpui-base` behavior
+foundation. Button,
 Checkbox, and Radio use foundation primitives for activation, focus, keyboard, accessibility, and
 disabled behavior. Other adapters remain direct GPUI or GPUI.NET implementations until their
 behavior families meet the migration parity criteria.
@@ -16,7 +17,7 @@ There are three implementation classes:
 1. Snapshot components are rebuilt from the retained snapshot, such as Div, Text, Button, Badge,
    Divider, Image, and deferred-layer declarations.
 2. Retained resources preserve mutable native state across managed renders: Scroll, List, Table,
-   Input, and Slider.
+   Input, Slider, and Dock.
 3. Managed compositions combine existing primitives without adding an ABI component. Dialog,
    Sheet, and the shared title-bar helper use this model.
 
@@ -196,6 +197,29 @@ It supports snapshot-time configuration reconciliation, focus and keyboard inter
 thumb selection, release events for pointer and keyboard input, and controller updates without
 synthetic events. The foundation Slider does not yet cover that contract. The retained root uses
 the same slider role, numeric value, bounds, step, and orientation accessibility metadata.
+
+## Retained Dock
+
+`ui.DockArea(key, center)` declares one retained native Dock. Build its center layout from
+`ui.DockSplit(axis, ...)`, `ui.DockTabs(activeIndex, ...)`, and
+`ui.DockPanel(id, title, content)`. The overload accepting a region span adds at most one
+`ui.DockRegion(side, content, options)` for each of `Left`, `Bottom`, and `Right`; region content is
+a split or tab group. Panel IDs must be unique across the entire area. A direct child of a split or
+a side-region root can use `.InitialSize(pixels)`; the value seeds the native layout and is not a
+continuously controlled size. Region options likewise seed initial open state and declare whether
+the region can collapse.
+
+The component-skinned foundation Dock owns tab activation, reordering and cross-group moves,
+split and side-region resizing, side-region collapse, focus, close/zoom affordances, drop targeting,
+and clean-frame painting. Panel content remains a normal semantic element subtree and may contain a
+framework-owned child View or nested retained resource. Rust materializes that content from the
+last retained managed snapshot; it does not invoke managed rendering during a clean native frame.
+
+The declaration is authoritative when its structure changes. Axes, initial sizes, active indices,
+panel IDs, region placement, or container topology replace the corresponding native layout.
+Changes to panel titles, options, content, or region collapsibility update retained state without
+resetting native tab moves, split sizes, or open state. The current slice does not yet expose
+persistence, tiles, controller commands, or layout/close events.
 
 ## Deferred layers
 

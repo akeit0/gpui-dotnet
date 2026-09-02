@@ -41,7 +41,7 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 | Phase | Status | Current state | Exit condition |
 |---|---|---|---|
 | 0. Forked native baseline | Complete | The fork is pinned to an exact SHA, the compatible GPUI revision is locked, CI/builds use `--locked`, and the graph guard resolves one GPUI package. | The dependency tuple is deterministic and documented. |
-| 1. Initialization and theme bridge | Complete | `gpui_base::init(cx)` runs before queued window creation. The version 2 native theme payload carries explicit appearance, and startup plus every theme update project managed semantic roles into the foundation theme. | Existing and foundation-backed controls use the same managed-authoritative theme source. |
+| 1. Initialization and theme bridge | Complete | `gpui_component::init(cx)` runs before queued window creation and initializes the underlying base foundation. The version 2 native theme payload carries explicit appearance, and startup plus every theme update project managed semantic roles into both component and base themes. | Existing and foundation-backed controls use the same managed-authoritative theme source. |
 | 2. Button, Checkbox, and Radio probe | Complete | Root and virtual-row adapters use foundation primitives with stable identity, derived accessible names, controlled checked state, disabled behavior, native focus traversal, and existing click dispatch. | The family is foundation-backed with pointer, keyboard, focus, accessibility, disabled, and controlled-state parity. |
 | 3. Protocol checkpoint | Complete | The snapshot and click protocols remain; the schema adds a narrow `disableable` capability and Boolean `Disabled` operation. | Findings from the first control family produce an explicit keep/change decision with tests and updated ABI documentation. |
 | 4. Deferred layers | Complete | Tooltip and PopoverMenu use foundation Popup/Positioner, ContextMenu uses Positioner, and PopoverMenu plus ContextMenu use PopoverState. Modal Overlay uses foundation FocusTrapElement, which also covers the managed Dialog and Sheet compositions. GPUI.NET retains its distinct timing, placement, backdrop, priority, topmost, and managed callback semantics. | Foundation behavior replaces duplicated placement, focus, and dismissal infrastructure where semantics match. |
@@ -49,7 +49,7 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 | 6. Input | Complete | GPUI.NET retains its single-line editing engine because it preserves the revisioned contiguous UTF-8 event path without per-event native value materialization. The retained root now exposes the foundation-equivalent text-input role. | IME, Unicode, selection, clipboard, focus, commands, revisions, and events reach parity before old behavior is removed. |
 | 7. Scrolling and scrollbar | Complete | Scroll, List, and Table use foundation Scrollbar interaction and paint. GPUI.NET retains wheel smoothing, controller commands, and gutter geometry while seeding GPUI's native ListState with estimated heights for unmeasured rows. | Foundation scrollbar behavior is adopted selectively without additional managed/native traffic. |
 | 8. List and Table evaluation | Complete | GPUI.NET retains GPUI `ListState`, managed aligned range batches, stable row identity, structural commands, and table column reconciliation. Foundation scrollbar behavior remains shared. | Migration to foundation `VirtualList` is rejected because its integration cost and ownership tradeoffs do not provide a corresponding API or performance benefit. |
-| 9. Advanced retained components | Planned | Dock and rich Editor are the first integration candidates. Their managed contracts and native foundation adapters should be designed together, adopting useful foundation concepts without exposing incidental Rust types. | At least one advanced component proves stable managed identity, coarse events, native high-frequency interaction, lifecycle, and theme integration. |
+| 9. Advanced retained components | In progress | DockArea retains a component-skinned foundation Dock with stable string panel IDs, declarative center tabs/splits and left/bottom/right regions, ordinary element or child-View content, native tab activation/reordering/cross-group moves, split and side-region resizing, region collapse, focus, close/zoom affordances, and theme projection. Ordinary content renders do not reset native layout or region state. Persistence, tiles, commands, and coarse layout events remain open; rich Editor follows separately. | At least one advanced component proves stable managed identity, coarse events, native high-frequency interaction, lifecycle, and theme integration. |
 | 10. Cleanup and protocol freeze candidate | Planned | Compatibility remains preview-level. | Superseded behavior and protocol paths are removed and the new contract is deliberately reviewed for stability. |
 
 No semantic component is considered migrated merely because the dependency and initializer exist.
@@ -58,11 +58,12 @@ Implementation ownership changes only after the component-specific exit criteria
 ## Foundation theme bridge
 
 `GpuiTheme` remains the application-wide source of truth. The native adapter maps resolved
-`NativeTheme` roles into `gpui_base::Theme`; foundation types do not cross the managed API or ABI.
+`NativeTheme` roles into `gpui_component::Theme` and `gpui_base::Theme`; foundation types do not
+cross the managed API or ABI.
 
 The private version 2 theme payload carries explicit `Light` or `Dark` appearance rather than
-inferring it from colors. The projection supplies foundation color tokens, scrollbar paint,
-resizable-handle colors, and selection color. Foundation typography, radius, spacing, shadow,
+inferring it from colors. The projection supplies foundation color tokens, Dock chrome, scrollbar
+paint, resizable-handle colors, and selection color. Foundation typography, radius, spacing, shadow,
 scrollbar mode, and scrollbar motion remain at their defaults because GPUI.NET does not yet expose
 equivalent semantic roles.
 
@@ -204,13 +205,22 @@ GPUI.NET's retained engine, but comparison with `VirtualList` is no longer a mig
 the decision if the foundation implementation later offers a concrete advantage that justifies the
 integration work.
 
-## Next development slice: advanced retained component contract
+## Dock decision and next advanced slice
 
-Begin with Dock as the first advanced component probe. Co-design the managed API and native adapter,
-using the foundation model where it simplifies the result and adapting it where direct exposure
-would create avoidable coupling. Cover stable panel IDs, panel content ownership, declarative
-layout, controller commands, layout-change events, persistence, teardown, and theme behavior.
-Pointer dragging, resizing, drop targeting, focus, and frame-sensitive layout remain native.
+Dock is the first advanced retained component probe. `DockArea(key, center)` establishes native
+identity as `(session, owner View, key)`. Its center and optional left, bottom, and right regions are
+structural declarations built from `DockRegion`, `DockSplit`, `DockTabs`, and stable-ID `DockPanel`
+nodes. Panel content remains an ordinary semantic subtree and may include framework-owned child
+Views and their retained resources. The native adapter updates content and panel presentation on
+every dirty render but rebuilds only the affected foundation layout when axes, initial sizes,
+active indices, panel IDs, region placement, or container structure change. Consequently clean
+frames do not call managed code, and ordinary managed invalidation does not undo native tab moves,
+split sizes, or side-region open state.
+
+The current slice deliberately has no Dock command or event ABI. Persistence, tiles, programmatic
+layout operations, close/layout-change events, and application reconciliation policy must be
+designed together rather than exposing foundation entities piecemeal. Pointer dragging, resizing,
+region collapse, drop targeting, focus, and frame-sensitive layout remain native.
 
 Treat rich Editor as a separate component from the existing single-line Input. Its contract must
 define document revisions, value/delta events, selection, commands, language/highlighting options,

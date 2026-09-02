@@ -7,13 +7,14 @@ use std::{
 
 use gpui::{
     AnyElement, AppContext, Context, Entity, IntoElement, ListAlignment, ListOffset, ListState,
-    ParentElement, Pixels, Point, ScrollHandle, SharedString, Window, div, point, px,
+    ParentElement, Pixels, Point, ScrollHandle, SharedString, WeakEntity, Window, div, point, px,
 };
 
 use crate::{
     abi::{ManagedCallbacks, NativeResourceCommand},
     app_host::ManagedView,
     arena::OwnedRenderArena,
+    dock::{DockConfiguration, ManagedDockResource, dock_configuration},
     input::{InputBindings, InputInitialState, ManagedInput},
     scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics},
     semantic::{
@@ -75,6 +76,7 @@ pub(crate) struct ResourceStore {
     tables: RefCell<HashMap<ResourceKey, Rc<TableSpec>>>,
     inputs: RefCell<HashMap<ResourceKey, Entity<ManagedInput>>>,
     sliders: RefCell<HashMap<ResourceKey, Entity<ManagedSlider>>>,
+    docks: RefCell<HashMap<ResourceKey, Rc<RefCell<ManagedDockResource>>>>,
     pending: RefCell<HashMap<(u16, ResourceKey), Vec<ResourceCommand>>>,
     active_scratch: RefCell<HashSet<(u16, ResourceKey)>>,
 }
@@ -90,6 +92,7 @@ impl ResourceStore {
             tables: RefCell::new(HashMap::new()),
             inputs: RefCell::new(HashMap::new()),
             sliders: RefCell::new(HashMap::new()),
+            docks: RefCell::new(HashMap::new()),
             pending: RefCell::new(HashMap::new()),
             active_scratch: RefCell::new(HashSet::new()),
         }
@@ -266,6 +269,36 @@ impl ResourceStore {
         resource
     }
 
+    pub(crate) fn dock_resource(
+        &self,
+        configuration: &DockConfiguration,
+        owner: WeakEntity<ManagedView>,
+        window: &mut Window,
+        cx: &mut Context<ManagedView>,
+    ) -> Entity<gpui_base::dock::DockArea> {
+        let resource = if let Some(existing) = self.docks.borrow().get(&configuration.key).cloned()
+        {
+            existing
+                .borrow_mut()
+                .configure(configuration, owner, window, cx);
+            existing
+        } else {
+            let created = Rc::new(RefCell::new(ManagedDockResource::new(
+                configuration,
+                owner,
+                window,
+                cx,
+            )));
+            self.docks
+                .borrow_mut()
+                .insert(configuration.key.clone(), created.clone());
+            created
+        };
+
+        let area = resource.borrow().area();
+        area
+    }
+
     pub(crate) fn dispatch(&self, command: ResourceCommand) -> bool {
         let applied = match command.resource_kind {
             1 => self.apply_scroll_command(&command),
@@ -344,6 +377,7 @@ impl ResourceStore {
                     | NativeAdapter::Table
                     | NativeAdapter::Input
                     | NativeAdapter::Slider
+                    | NativeAdapter::DockArea
             ) {
                 continue;
             }
@@ -356,6 +390,8 @@ impl ResourceStore {
                         .map(|configuration| (3, configuration.key)),
                     NativeAdapter::Slider => slider_configuration(snapshot, node)
                         .map(|configuration| (4, configuration.key)),
+                    NativeAdapter::DockArea => dock_configuration(snapshot, node)
+                        .map(|configuration| (5, configuration.key)),
                     _ => None,
                 };
             if let Some(resource) = active_resource {
@@ -377,6 +413,9 @@ impl ResourceStore {
         self.sliders
             .borrow_mut()
             .retain(|key, _| active.contains(&(4, key.clone())));
+        self.docks
+            .borrow_mut()
+            .retain(|key, _| active.contains(&(5, key.clone())));
         self.pending
             .borrow_mut()
             .retain(|(kind, key), _| active.contains(&(*kind, key.clone())));

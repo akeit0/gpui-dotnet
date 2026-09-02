@@ -36,6 +36,11 @@ pub(crate) fn apply_defaults(adapter: NativeAdapter, element: Div, theme: Native
         | NativeAdapter::PopoverMenu
         | NativeAdapter::Drawing
         | NativeAdapter::Dynamic
+        | NativeAdapter::DockArea
+        | NativeAdapter::DockSplit
+        | NativeAdapter::DockTabs
+        | NativeAdapter::DockPanel
+        | NativeAdapter::DockRegion
         | NativeAdapter::Path => element,
     }
 }

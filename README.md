@@ -19,8 +19,8 @@ schema, and the native ABI may change before a stable release.
 
 - Semantic C# layout with stacks, spacing, padding, sizing, alignment, text, buttons, inputs,
   badges, dividers, and application-owned typed styles.
-- Retained `Scroll`, virtual `List`, virtual `Table`, `Input`, and `Slider` controls with native
-  scrolling, selection, focus, IME, measurement, and pointer state.
+- Retained `Scroll`, virtual `List`, virtual `Table`, `Input`, `Slider`, and `Dock` controls with
+  native scrolling, selection, focus, IME, measurement, and pointer state.
 - `Overlay`, `Dialog`, `Sheet`, `Tooltip`, `ContextMenu`, and `PopoverMenu` layers with native
   placement, viewport clamping, focus restoration, stacking, and dismissal.
 - Native image decoding/caching and vector drawing with paths, fills, strokes, curves, arcs, and
@@ -164,7 +164,7 @@ flat RenderArena: nodes, operations, children, UTF-8
 Rust validation and retained snapshot
         │
         ├── semantic adapters ──► GPUI elements and deferred layers
-        └── retained resources ─► scroll, list/table, input, slider
+        └── retained resources ─► scroll, list/table, input, slider, dock
 ```
 
 Clean native repaints do not call managed `Render()`. High-frequency state such as scrolling,
@@ -274,10 +274,17 @@ The following components keep interaction state in Rust across managed renders:
 - `Table`: the list row engine plus declarative native column/header layout
 - `Input`: value, selection, focus, clipboard, IME, caret, and horizontal reveal
 - `Slider`: value/range, pointer drag, keyboard interaction, and release events
+- `Dock`: tab groups, nested splits, panel focus, drag/drop, and splitter geometry
 
 Controllers provide imperative operations without moving ownership back to C#. For example,
 `ScrollController.ScrollToTop`, `ListController.ScrollToItem`, `InputController.Focus`, and
 `SliderController.SetValue` enqueue native resource commands.
+
+Dock uses a structural managed declaration and retained native interaction. `DockPanel` content can
+be an ordinary element tree or a keyed child View; normal managed rerenders update content without
+resetting native tab moves, splitter sizes, or side-region state. The current slice covers center
+tabs and horizontal or vertical splits plus declarative left, bottom, and right regions with native
+collapse and resizing; persistence, tiles, and Dock commands/events remain roadmap work.
 
 Virtual rows are generated in aligned batches:
 

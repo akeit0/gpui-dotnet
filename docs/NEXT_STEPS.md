@@ -28,6 +28,18 @@ Harden the single-line Input before introducing a multiline editor:
 A multiline editor should reuse the native entity, focus, IME, selection, UTF-8 event, and command
 contracts rather than moving edit state into managed renders.
 
+## Dock
+
+Build on the retained center and side-region layout slice with:
+
+- serialized layout import/export and an application reconciliation policy;
+- tile layouts where application requirements justify them;
+- coarse close and layout-change events plus programmatic controller operations;
+- cross-platform interaction, accessibility, and persistence tests.
+
+Keep drag/drop targeting, tab activation, focus, and splitter motion native. Do not stream layout
+deltas across the managed boundary while a pointer is moving.
+
 ## Menus and deferred layers
 
 - keyboard navigation and roving selection for menu items;
