@@ -407,6 +407,7 @@ Do not edit `Semantic.g.cs` or `semantic.g.rs` by hand.
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [gpui-base migration](docs/GPUI_BASE_MIGRATION.md)
 - [Components and retained resources](docs/COMPONENTS.md)
 - [View lifecycle](docs/VIEW_LIFECYCLE.md)
 - [Lifecycle and threading](docs/THREADING.md)
@@ -417,7 +418,9 @@ Do not edit `Semantic.g.cs` or `semantic.g.rs` by hand.
 - [Packaging](docs/PACKAGING.md)
 - [Extensions and custom hosts](docs/EXTENSIONS.md)
 - [Contributing](docs/CONTRIBUTING.md)
+- [Native upstream baseline](docs/UPSTREAM_BASELINE.md)
 - [Roadmap](docs/NEXT_STEPS.md)
 
-GPUI Component and Zed are implementation references, but GPUI.NET keeps its own semantic ABI and
-pinned GPUI dependency. See [NOTICE](NOTICE) for attribution.
+GPUI.NET uses the pinned `gpui-base` foundation recorded in
+[the native upstream baseline](docs/UPSTREAM_BASELINE.md) while retaining its own semantic ABI and
+managed/native runtime. See [NOTICE](NOTICE) for attribution.

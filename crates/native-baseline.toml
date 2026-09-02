@@ -1,0 +1,13 @@
+# This metadata mirrors the exact revisions validated in Cargo.lock. Update it only as part of a
+# native baseline change that also updates docs/UPSTREAM_BASELINE.md and verifies the dependency
+# graph.
+
+[gpui-component]
+fork = "https://github.com/akeit0/gpui-component"
+upstream = "https://github.com/longbridge/gpui-component"
+rev = "d6c10c21a58617b29494f8efeba4895ca384e465"
+upstream_base_rev = "d6c10c21a58617b29494f8efeba4895ca384e465"
+
+[zed]
+upstream = "https://github.com/zed-industries/zed"
+rev = "f66ed399cdde86092af8af3dc7b418abf45f37f8"

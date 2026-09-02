@@ -28,7 +28,10 @@ jobs:
         run: dotnet run --project tools/Gpui.Bindings.Generator -- verify
 
       - name: Test native bridge
-        run: cargo test --manifest-path crates/gpui-dotnet/Cargo.toml
+        run: cargo test --locked --manifest-path crates/gpui-dotnet/Cargo.toml
+
+      - name: Verify one GPUI dependency
+        run: cargo tree --locked --manifest-path crates/gpui-dotnet/Cargo.toml --invert gpui
 
       - name: Build solution
         run: dotnet build Gpui.slnx --no-incremental
@@ -79,7 +82,10 @@ jobs:
         run: dotnet run --project tools/Gpui.Bindings.Generator -- verify
 
       - name: Test native bridge
-        run: cargo test --manifest-path crates/gpui-dotnet/Cargo.toml
+        run: cargo test --locked --manifest-path crates/gpui-dotnet/Cargo.toml
+
+      - name: Verify one GPUI dependency
+        run: cargo tree --locked --manifest-path crates/gpui-dotnet/Cargo.toml --invert gpui
 
       - name: Build solution
         run: dotnet build Gpui.slnx --no-incremental

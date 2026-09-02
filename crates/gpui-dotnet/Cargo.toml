@@ -9,16 +9,18 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 async-channel = "2"
-# crates.io 0.2.2 predates the Windows IME fix in Zed PR #41259.
-# Return to a crates.io version after that fix is included in a release.
-gpui = { git = "https://github.com/zed-industries/zed", rev = "2ead8c42fb6792095d7cb02f7b89e467421dc8a0" }
+# Keep this source identical to gpui-base's workspace dependency so Cargo resolves one GPUI type
+# universe. Cargo.lock and crates/native-baseline.toml record the validated Zed revision.
+gpui = { git = "https://github.com/zed-industries/zed" }
+gpui-base = { git = "https://github.com/akeit0/gpui-component", rev = "d6c10c21a58617b29494f8efeba4895ca384e465" }
+gpui_platform = { git = "https://github.com/zed-industries/zed" }
 unicode-segmentation = "1.13.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Compile Metal shaders through Apple's Metal runtime on macOS. This keeps native builds
 # working with the Command Line Tools SDK, which ships the macOS headers/frameworks but not
 # Xcode's standalone `metal` compiler executable.
-gpui = { git = "https://github.com/zed-industries/zed", rev = "2ead8c42fb6792095d7cb02f7b89e467421dc8a0", features = [
+gpui_platform = { git = "https://github.com/zed-industries/zed", features = [
     "runtime_shaders",
 ] }
 
@@ -34,6 +36,6 @@ windows = { version = "0.61", features = [
 csbindgen = "1.9.8"
 
 [dev-dependencies]
-gpui = { git = "https://github.com/zed-industries/zed", rev = "2ead8c42fb6792095d7cb02f7b89e467421dc8a0", features = [
+gpui = { git = "https://github.com/zed-industries/zed", features = [
     "test-support",
 ] }

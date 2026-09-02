@@ -1228,17 +1228,18 @@ mod tests {
 
     #[test]
     fn retains_string_capacity_and_reuses_consecutive_values() {
+        const VALUE: &str = "a retained payload longer than inline string storage";
         let mut strings = RetainedStrings::default();
         strings.begin_snapshot();
-        let first = strings.intern("abc");
+        let first = strings.intern(VALUE);
         strings.begin_snapshot();
-        let second = strings.intern("abc");
+        let second = strings.intern(VALUE);
         assert_eq!(first.as_str().as_ptr(), second.as_str().as_ptr());
 
         strings.begin_snapshot();
         let _replacement = strings.intern("replacement");
         strings.begin_snapshot();
-        let after_eviction = strings.intern("abc");
+        let after_eviction = strings.intern(VALUE);
         assert_ne!(first.as_str().as_ptr(), after_eviction.as_str().as_ptr());
     }
 }

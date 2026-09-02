@@ -334,7 +334,7 @@ impl ManagedSlider {
         };
         self.active_thumb_is_start = is_start;
         self.keyboard_active = false;
-        self.focus_handle.focus(window);
+        self.focus_handle.focus(window, cx);
         self.update_value_by_position(event.position, is_start, cx);
     }
 
@@ -347,7 +347,7 @@ impl ManagedSlider {
     ) {
         self.active_thumb_is_start = is_start;
         self.keyboard_active = false;
-        self.focus_handle.focus(window);
+        self.focus_handle.focus(window, cx);
         cx.stop_propagation();
     }
 
@@ -747,7 +747,7 @@ mod tests {
         cx.simulate_resize(size(px(240.), px(80.)));
         cx.update(|window, _| window.refresh());
         cx.update(|window, app| {
-            slider.update(app, |slider, _| slider.focus_handle.focus(window));
+            slider.update(app, |slider, cx| slider.focus_handle.focus(window, cx));
         });
 
         cx.simulate_keystrokes("right");

@@ -169,7 +169,7 @@ impl ManagedView {
         let stateful = div()
             .flex()
             .flex_col()
-            .flex_grow()
+            .flex_grow(1.0)
             .min_h_0()
             .min_w_0()
             .child(content)
@@ -253,7 +253,7 @@ impl ManagedView {
                 .borrow_mut()
                 .render_item(index, &resources, &row_scope)
         })
-        .flex_grow()
+        .flex_grow(1.0)
         .min_h_0()
         .min_w_0();
         let smooth = last_op(snapshot, node, OP_SMOOTH_SCROLL).is_none_or(|op| op.a != 0);
@@ -291,7 +291,7 @@ impl ManagedView {
                 div()
                     .flex()
                     .flex_row()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .min_h_0()
                     .min_w_0()
                     .child(list_element)
@@ -349,7 +349,7 @@ impl ManagedView {
                 .borrow_mut()
                 .render_item(index, &resources, &row_scope)
         })
-        .flex_grow()
+        .flex_grow(1.0)
         .min_h_0()
         .min_w_0();
         let smooth = last_op(snapshot, node, OP_SMOOTH_SCROLL).is_none_or(|op| op.a != 0);
@@ -386,7 +386,7 @@ impl ManagedView {
             });
         let show_header = last_op(snapshot, node, OP_TABLE_SHOW_HEADER).is_none_or(|op| op.a != 0);
         if show_header {
-            let header = table_header_strip(&spec, theme).flex_grow();
+            let header = table_header_strip(&spec, theme).flex_grow(1.0);
             if configuration.scrollbar.gutter > px(0.) {
                 // The header excludes the gutter too, so fraction columns align with row cells.
                 host = host.child(
@@ -406,7 +406,7 @@ impl ManagedView {
                 div()
                     .flex()
                     .flex_row()
-                    .flex_grow()
+                    .flex_grow(1.0)
                     .min_h_0()
                     .min_w_0()
                     .child(list_element)
@@ -528,10 +528,10 @@ impl ManagedView {
                 if !deferred_focus_state.is_topmost(&deferred_focus_token) {
                     return;
                 }
-                deferred_focus.focus(window);
-                window.focus_next();
+                deferred_focus.focus(window, cx);
+                window.focus_next(cx);
                 if !deferred_focus.contains_focused(window, cx) {
-                    deferred_focus.focus(window);
+                    deferred_focus.focus(window, cx);
                 }
             });
         }
@@ -799,9 +799,9 @@ fn restore_overlay_focus(
         .as_ref()
         .and_then(WeakFocusHandle::upgrade)
     {
-        previous.focus(window);
+        previous.focus(window, cx);
     } else {
-        window.blur();
+        window.blur(cx);
     }
 }
 
@@ -811,23 +811,26 @@ fn cycle_overlay_focus(
     window: &mut Window,
     cx: &mut gpui::App,
 ) {
-    let state = state.read(cx);
+    let (focus, end_focus) = {
+        let state = state.read(cx);
+        (state.focus.clone(), state.end_focus.clone())
+    };
     if backwards {
-        window.focus_prev();
-        if !state.focus.contains_focused(window, cx) {
-            state.end_focus.focus(window);
-            window.focus_prev();
+        window.focus_prev(cx);
+        if !focus.contains_focused(window, cx) {
+            end_focus.focus(window, cx);
+            window.focus_prev(cx);
         }
     } else {
-        window.focus_next();
-        if !state.focus.contains_focused(window, cx) {
-            state.focus.focus(window);
-            window.focus_next();
+        window.focus_next(cx);
+        if !focus.contains_focused(window, cx) {
+            focus.focus(window, cx);
+            window.focus_next(cx);
         }
     }
 
-    if !state.focus.contains_focused(window, cx) {
-        state.focus.focus(window);
+    if !focus.contains_focused(window, cx) {
+        focus.focus(window, cx);
     }
 }
 
@@ -971,7 +974,7 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
             OP_ITEMS_CENTER => element.items_center(),
             OP_JUSTIFY_CENTER => element.justify_center(),
             OP_JUSTIFY_BETWEEN => element.justify_between(),
-            OP_FLEX_GROW => element.flex_grow(),
+            OP_FLEX_GROW => element.flex_grow(1.0),
             OP_GAP_PX => element.gap(px(value)),
             OP_PADDING_PX => element.p(px(value)),
             OP_WIDTH_PX => element.w(px(value)),

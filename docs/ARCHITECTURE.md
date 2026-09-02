@@ -173,9 +173,16 @@ schema hash, and required entry points.
 
 ## Dependency policy
 
-The native crate pins a specific Zed/GPUI revision. Zed and GPUI Component are design and behavior
-references, not ABI dependencies. Platform-specific implementation remains in Rust; C# APIs should
-express durable application semantics rather than backend details.
+The native crate pins `gpui-base` to an exact revision of the `akeit0/gpui-component` integration
+fork. That fork and its resolved Zed/GPUI revision form one validated compatibility tuple recorded
+in [UPSTREAM_BASELINE.md](UPSTREAM_BASELINE.md). `gpui-base` owns reusable native behavior as
+components migrate; GPUI.NET retains its ABI, semantic decoding, managed callback routing, resource
+identity, and platform integration.
+
+The managed API does not expose `gpui-base` or GPUI implementation types. Platform-specific
+implementation remains in Rust; C# APIs should express durable application semantics rather than
+backend details. Direct GPUI remains appropriate for application/window integration, low-level
+drawing, and behavior not covered by the foundation.
 
 When GPUI lacks a cross-platform capability, keep the absence explicit instead of emulating a
 partial platform contract in managed code. Current examples include runtime window repositioning

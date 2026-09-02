@@ -10,8 +10,8 @@ use std::{
 
 use async_channel::{Receiver, Sender, TrySendError};
 use gpui::{
-    AnyWindowHandle, App, AppContext, Application, Bounds, Context, IntoElement, Menu, MenuItem,
-    Render, TitlebarOptions, Window, WindowBounds, WindowDecorations, WindowOptions, div, point,
+    AnyWindowHandle, App, AppContext, Bounds, Context, IntoElement, Menu, MenuItem, Render,
+    TitlebarOptions, Window, WindowBounds, WindowDecorations, WindowOptions, div, point,
     prelude::*, px, rgba, size,
 };
 
@@ -482,7 +482,8 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
     let application_status = Arc::new(AtomicI32::new(0));
     let application_status_in_app = Arc::clone(&application_status);
 
-    Application::new().run(move |cx: &mut App| {
+    gpui_platform::application().run(move |cx: &mut App| {
+        gpui_base::init(cx);
         crate::input::init(cx);
         let windows: ManagedWindows = Rc::new(RefCell::new(HashMap::new()));
         let theme: SharedTheme = Rc::new(RefCell::new(NativeTheme::default()));
@@ -502,7 +503,7 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
 
         let closed_windows = Rc::clone(&windows);
         let closed_status = Arc::clone(&application_status_in_app);
-        cx.on_window_closed(move |cx| {
+        cx.on_window_closed(move |cx, _| {
             report_closed_windows(
                 cx,
                 application_id,
@@ -536,22 +537,17 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
         let command_status = Arc::clone(&application_status_in_app);
         cx.spawn(async move |cx| {
             while let Ok(command) = receiver.recv().await {
-                if cx
-                    .update(|cx| {
-                        apply_application_command(
-                            command,
-                            cx,
-                            application_id,
-                            callbacks,
-                            &command_windows,
-                            &command_theme,
-                            &command_status,
-                        );
-                    })
-                    .is_err()
-                {
-                    break;
-                }
+                cx.update(|cx| {
+                    apply_application_command(
+                        command,
+                        cx,
+                        application_id,
+                        callbacks,
+                        &command_windows,
+                        &command_theme,
+                        &command_status,
+                    );
+                });
             }
         })
         .detach();
@@ -573,7 +569,7 @@ fn apply_application_command(
 ) {
     match command {
         ApplicationCommand::SetMenuBar(menus) => {
-            cx.set_menus(menus.into_iter().map(|menu| convert_menu(menu)).collect());
+            cx.set_menus(menus.into_iter().map(convert_menu));
         }
         ApplicationCommand::SetTheme(next) => {
             *theme.borrow_mut() = next;
@@ -680,6 +676,7 @@ fn convert_menu(menu: ManagedMenu) -> Menu {
     Menu {
         name: menu.title.into(),
         items: menu.items.into_iter().map(convert_menu_item).collect(),
+        disabled: false,
     }
 }
 
@@ -895,6 +892,16 @@ fn create_managed_view(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[gpui::test]
+    fn gpui_base_foundation_initializes(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_base::init(cx);
+
+            assert!(cx.has_global::<gpui_base::Theme>());
+            assert!(cx.has_global::<gpui_base::GlobalState>());
+        });
+    }
 
     #[test]
     fn dynamic_frame_owners_are_active_and_deduplicated() {

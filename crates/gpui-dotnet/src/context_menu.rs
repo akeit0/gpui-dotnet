@@ -70,7 +70,7 @@ pub(crate) fn context_menu(
                     }
                     cx.notify();
                 });
-                open_focus.focus(window);
+                open_focus.focus(window, cx);
                 window.refresh();
             },
         )
@@ -180,9 +180,9 @@ fn close_context_menu(state: &Entity<ContextMenuState>, window: &mut Window, cx:
         return;
     }
     if let Some(previous_focus) = previous_focus.and_then(|focus| focus.upgrade()) {
-        previous_focus.focus(window);
+        previous_focus.focus(window, cx);
     } else {
-        window.blur();
+        window.blur(cx);
     }
     window.refresh();
 }

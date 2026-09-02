@@ -25,7 +25,7 @@ if ($env:OS -eq 'Windows_NT' -and -not $hasExplicitFxc) {
     $env:GPUI_FXC_PATH = $fxc.FullName
 }
 
-$cargoArguments = @('build', '--manifest-path', $ManifestPath)
+$cargoArguments = @('build', '--locked', '--manifest-path', $ManifestPath)
 if ($Configuration -eq 'release') {
     $cargoArguments += '--release'
 }

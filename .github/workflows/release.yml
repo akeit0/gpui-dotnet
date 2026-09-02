@@ -72,7 +72,10 @@ jobs:
           workspaces: crates/gpui-dotnet
 
       - name: Test native library
-        run: cargo test --manifest-path crates/gpui-dotnet/Cargo.toml
+        run: cargo test --locked --manifest-path crates/gpui-dotnet/Cargo.toml
+
+      - name: Verify one GPUI dependency
+        run: cargo tree --locked --manifest-path crates/gpui-dotnet/Cargo.toml --invert gpui
 
       - name: Build native library
         shell: pwsh

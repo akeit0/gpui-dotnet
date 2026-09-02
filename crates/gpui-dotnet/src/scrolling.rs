@@ -355,8 +355,8 @@ fn apply_scroll_delta(resource: &ManagedScrollResource, delta: Point<Pixels>) {
     let current = resource.handle.offset();
     let max = resource.handle.max_offset();
     resource.handle.set_offset(point(
-        (current.x + delta.x).max(-max.width).min(px(0.)),
-        (current.y + delta.y).max(-max.height).min(px(0.)),
+        (current.x + delta.x).max(-max.x).min(px(0.)),
+        (current.y + delta.y).max(-max.y).min(px(0.)),
     ));
 }
 
@@ -370,10 +370,10 @@ fn scroll_geometry(
     let max = resource.handle.max_offset();
     ScrollbarGeometry {
         vertical: (axis != 1)
-            .then(|| vertical_geometry(bounds, offset.y, max.height, metrics))
+            .then(|| vertical_geometry(bounds, offset.y, max.y, metrics))
             .flatten(),
         horizontal: (axis != 0)
-            .then(|| horizontal_geometry(bounds, offset.x, max.width, metrics))
+            .then(|| horizontal_geometry(bounds, offset.x, max.x, metrics))
             .flatten(),
     }
 }
@@ -581,7 +581,7 @@ fn update_scroll_drag(
             };
             resource
                 .handle
-                .set_offset(point(current.x, -(max.height * progress)));
+                .set_offset(point(current.x, -(max.y * progress)));
         }
         Some(ScrollbarDrag::Horizontal { pointer_offset }) => {
             let Some(axis) = geometry.horizontal else {
@@ -595,7 +595,7 @@ fn update_scroll_drag(
             };
             resource
                 .handle
-                .set_offset(point(-(max.width * progress), current.y));
+                .set_offset(point(-(max.x * progress), current.y));
         }
         None => {}
     }

@@ -4,6 +4,10 @@ GPUI.NET exposes semantic components. C# builders write component IDs, typed ope
 records, and UTF-8 data into the render arena. Rust chooses the concrete GPUI implementation through
 the component's `NativeAdapter`.
 
+The native application initializes `gpui-base` as its reusable behavior foundation. The current
+component adapters remain direct GPUI or GPUI.NET implementations until each behavior family meets
+the migration parity criteria; dependency adoption alone does not change component ownership.
+
 ## Component classes
 
 There are three implementation classes:

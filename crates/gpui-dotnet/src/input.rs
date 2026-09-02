@@ -4,8 +4,8 @@ use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId, ElementInputHandler,
     Entity, EntityInputHandler, FocusHandle, Focusable, GlobalElementId, IntoElement, KeyBinding,
     LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point,
-    Render, ShapedLine, SharedString, Style, Subscription, TextRun, UTF16Selection, UnderlineStyle,
-    Window, actions, div, fill, point, prelude::*, px, relative, rgba, size,
+    Render, ShapedLine, SharedString, Style, Subscription, TextAlign, TextRun, UTF16Selection,
+    UnderlineStyle, Window, actions, div, fill, point, prelude::*, px, relative, rgba, size,
 };
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -168,8 +168,8 @@ impl ManagedInput {
         cx: &mut Context<Self>,
     ) {
         match command.command {
-            20 if !self.disabled => self.focus_handle.focus(window),
-            21 if self.focus_handle.is_focused(window) => window.blur(),
+            20 if !self.disabled => self.focus_handle.focus(window, cx),
+            21 if self.focus_handle.is_focused(window) => window.blur(cx),
             22 => self.set_value(command.data.as_ref(), cx),
             23 if !self.disabled => {
                 self.selected_range = 0..self.content.len();
@@ -312,7 +312,7 @@ impl ManagedInput {
         if self.disabled {
             return;
         }
-        self.focus_handle.focus(window);
+        self.focus_handle.focus(window, cx);
         self.is_selecting = true;
         let offset = self.index_for_mouse_position(event.position);
         if event.modifiers.shift {
@@ -894,6 +894,8 @@ impl Element for TextElement {
         line.paint(
             point(bounds.left() - prepaint.scroll_x, bounds.top()),
             window.line_height(),
+            TextAlign::Left,
+            None,
             window,
             cx,
         )
