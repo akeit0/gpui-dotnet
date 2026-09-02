@@ -5,7 +5,7 @@
 [gpui-component]
 fork = "https://github.com/akeit0/gpui-component"
 upstream = "https://github.com/longbridge/gpui-component"
-rev = "aae8ca87d51dfd1bcbce2ddd02e3cfee25c4a695"
+rev = "d0c6f1e8f081ac23cbd3b9e8cb42c0115b776d60"
 upstream_base_rev = "d6c10c21a58617b29494f8efeba4895ca384e465"
 
 [zed]

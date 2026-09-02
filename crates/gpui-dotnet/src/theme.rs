@@ -109,10 +109,28 @@ impl NativeTheme {
         let element_active = color(self.element_active);
         let accent = color(self.accent);
 
+        theme.highlight_theme = match self.appearance {
+            NativeThemeAppearance::Light => {
+                gpui_component::highlighter::HighlightTheme::default_light()
+            }
+            NativeThemeAppearance::Dark => {
+                gpui_component::highlighter::HighlightTheme::default_dark()
+            }
+        };
+        let highlight = std::sync::Arc::make_mut(&mut theme.highlight_theme);
+        highlight.style.editor_background = Some(surface);
+        highlight.style.editor_foreground = Some(text);
+        highlight.style.editor_active_line = Some(element_hover);
+        highlight.style.editor_line_number = Some(text_muted);
+        highlight.style.editor_active_line_number = Some(text);
+        highlight.style.editor_invisible = Some(text_muted.alpha(0.4));
+        highlight.style.editor_gutter_background = Some(surface);
+
         let colors = &mut theme.colors;
         colors.background = background;
         colors.foreground = text;
         colors.caret = text;
+        colors.selection = accent.alpha(0.3);
         colors.muted = element;
         colors.muted_foreground = text_muted;
         colors.border = border;
@@ -334,6 +352,23 @@ mod tests {
             assert_eq!(projected.mode, gpui_component::ThemeMode::Dark);
             assert_eq!(projected.colors.foreground, color(theme.text));
             assert_eq!(projected.colors.caret, color(theme.text));
+            assert_eq!(projected.colors.selection, color(theme.accent).alpha(0.3));
+            assert_eq!(
+                projected.highlight_theme.appearance,
+                gpui_component::ThemeMode::Dark
+            );
+            assert_eq!(
+                projected.highlight_theme.style.editor_background,
+                Some(color(theme.surface_background))
+            );
+            assert_eq!(
+                projected.highlight_theme.style.editor_foreground,
+                Some(color(theme.text))
+            );
+            assert_eq!(
+                projected.highlight_theme.style.editor_gutter_background,
+                Some(color(theme.surface_background))
+            );
         });
     }
 }

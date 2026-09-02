@@ -488,6 +488,17 @@ mod tests {
     }
 
     #[test]
+    fn custom_host_bundles_rust_highlighting_and_allows_plain_text_fallback() {
+        let registry = gpui_component::highlighter::LanguageRegistry::singleton();
+        assert!(
+            registry
+                .language("rust")
+                .is_some_and(|language| language.has_grammar())
+        );
+        assert!(registry.language("not-bundled").is_none());
+    }
+
+    #[test]
     fn validates_edit_payload_and_utf8_byte_ranges() {
         let mut payload = Vec::new();
         payload.extend_from_slice(&1u64.to_le_bytes());

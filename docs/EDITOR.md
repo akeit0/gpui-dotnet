@@ -12,12 +12,14 @@ host that links the base runtime with a retained `gpui-component` Editor provide
 
 The current probe supports a one-shot UTF-8 document bootstrap, a language identifier,
 disabled/read-only state, line numbers, an optional fixed line-number column width, folding,
-whitespace visibility, and opt-in typed callbacks. Without a fixed width, the native editor sizes
-the number column from the document line count. Rust retains the Rope, selection, undo history,
-scrolling, focus, and IME state. Each native or managed editing transaction increments the document
-revision and reports one minimal contiguous UTF-8 replacement. The controller proves focus,
-revision-checked selection, whole-document replacement, and one contiguous edit; stale revisions
-and invalid UTF-8 byte ranges produce an explicit rejection event.
+whitespace visibility, and opt-in typed callbacks. The optional native host currently bundles the
+Rust Tree-sitter grammar; other language identifiers degrade to plain text. Without a fixed width,
+the native editor sizes the number column from the document line count. Rust retains the Rope,
+incremental parse state, selection, undo history, scrolling, focus, and IME state. Each native or
+managed editing transaction increments the document revision and reports one minimal contiguous
+UTF-8 replacement. The controller proves focus, revision-checked selection, whole-document
+replacement, and one contiguous edit; stale revisions and invalid UTF-8 byte ranges produce an
+explicit rejection event.
 
 The extension ID, protocol version, component kinds, flags, and schema hash come from
 `src/Gpui.Editor/schema.json`. The normal binding generator emits matching C# and Rust constants,

@@ -9,9 +9,9 @@ fork pin; the reviewable copy of the revision tuple is `crates/native-baseline.t
 
 - Fork: <https://github.com/akeit0/gpui-component>
 - Upstream: <https://github.com/longbridge/gpui-component>
-- Validated fork revision: `aae8ca87d51dfd1bcbce2ddd02e3cfee25c4a695`
+- Validated fork revision: `d0c6f1e8f081ac23cbd3b9e8cb42c0115b776d60`
 - Upstream base revision: `d6c10c21a58617b29494f8efeba4895ca384e465`
-- Fork delta: two commits
+- Fork delta: three commits
 - Integration branch: `codex/gpui-dotnet-integration`
 
 The submodule uses `origin` for the fork. Add `upstream` for Longbridge when refreshing the
@@ -34,6 +34,7 @@ guards against incompatible GPUI type universes.
 |---|---|---|
 | Side-aware popup positioning | Anchored tooltips and menus need generic placement, alignment, offset, viewport margin, and deferred priority controls. | PR deferred until the GPUI.NET anchored-layer migration validates the API across the remaining components. |
 | Configurable editor line-number width | Hosts embedding the foundation Editor need a stable optional gutter width instead of layout shifts when the document crosses a decimal digit boundary. | PR deferred until the optional editor probe completes interaction validation. |
+| Rust primitive deprecation cleanup | Enabling Tree-sitter under the current Rust toolchain exposed warnings from importing the deprecated `std::usize` module. | Include with a later editor-related upstream PR. |
 
 Fork-only changes must stay generic, include focused tests when appropriate, and be recorded here
 with their upstream issue or pull-request status. GPUI.NET ABI, FFI, callback, and managed-runtime

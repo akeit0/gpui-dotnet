@@ -10,6 +10,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gpui = { git = "https://github.com/zed-industries/zed" }
-gpui-component = { path = "../../../../external/gpui-component/crates/ui" }
+gpui-component = { path = "../../../../external/gpui-component/crates/ui", features = ["tree-sitter-rust"] }
 gpui-dotnet = { path = "../.." }
 ropey = "=2.0.0-beta.1"
