@@ -1,9 +1,10 @@
 # Native upstream baseline
 
-GPUI.NET consumes `gpui-base`, the full `gpui-component` skin crate, and its bundled asset provider
-from the `external/gpui-component` submodule and locks the complete native dependency graph in
-`crates/gpui-dotnet/Cargo.lock`. The submodule gitlink is the executable
-fork pin; the reviewable copy of the revision tuple is `crates/native-baseline.toml`.
+GPUI.NET consumes `gpui-base` from the `external/gpui-component` submodule and locks the
+complete native dependency graph in `crates/gpui-dotnet/Cargo.lock`. The submodule gitlink is the
+executable fork pin; the reviewable copy of the revision tuple is `crates/native-baseline.toml`.
+Broad `gpui-component` facilities link only into custom hosts that select them, such as the
+optional editor host.
 
 ## GPUI Component
 

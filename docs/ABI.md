@@ -181,7 +181,7 @@ The theme command uses the command record's byte pointer as a private fixed-size
 version 2 is 20 sequential little-endian `u32` values: version, appearance (`0` Light or `1` Dark),
 and 18 resolved RGBA semantic roles. The native entry point requires the exact payload size and
 rejects unsupported versions or appearance values. Resolved roles feed GPUI.NET native rendering
-and the global `gpui-component` and `gpui-base` themes; application style variants and Rust
+and the global `gpui-base` theme; application style variants and Rust
 foundation types do not cross the ABI.
 The managed-code update command clears native List/Table row snapshots and dirties each managed
 window without resetting retained control or Dock identity and interaction state.

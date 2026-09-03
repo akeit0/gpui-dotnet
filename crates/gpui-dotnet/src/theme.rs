@@ -85,79 +85,8 @@ impl NativeTheme {
         })
     }
 
-    pub(crate) fn apply_to_base(self, cx: &mut App) {
+    pub(crate) fn apply(self, cx: &mut App) {
         self.project_to_base(gpui_base::Theme::global_mut(cx));
-    }
-
-    pub(crate) fn apply_to_components(self, cx: &mut App) {
-        let theme = gpui_component::Theme::global_mut(cx);
-        theme.mode = match self.appearance {
-            NativeThemeAppearance::Light => gpui_component::ThemeMode::Light,
-            NativeThemeAppearance::Dark => gpui_component::ThemeMode::Dark,
-        };
-
-        let background = color(self.background);
-        let text = color(self.text);
-        let text_muted = color(self.text_muted);
-        let text_on_accent = color(self.text_on_accent);
-        let border = color(self.border);
-        let border_variant = color(self.border_variant);
-        let border_focused = color(self.border_focused);
-        let surface = color(self.surface_background);
-        let element = color(self.element_background);
-        let element_hover = color(self.element_hover);
-        let element_active = color(self.element_active);
-        let accent = color(self.accent);
-
-        theme.highlight_theme = match self.appearance {
-            NativeThemeAppearance::Light => {
-                gpui_component::highlighter::HighlightTheme::default_light()
-            }
-            NativeThemeAppearance::Dark => {
-                gpui_component::highlighter::HighlightTheme::default_dark()
-            }
-        };
-        let highlight = std::sync::Arc::make_mut(&mut theme.highlight_theme);
-        highlight.style.editor_background = Some(surface);
-        highlight.style.editor_foreground = Some(text);
-        highlight.style.editor_active_line = Some(element_hover);
-        highlight.style.editor_line_number = Some(text_muted);
-        highlight.style.editor_active_line_number = Some(text);
-        highlight.style.editor_invisible = Some(text_muted.alpha(0.4));
-        highlight.style.editor_gutter_background = Some(surface);
-
-        let colors = &mut theme.colors;
-        colors.background = background;
-        colors.foreground = text;
-        colors.caret = text;
-        colors.selection = accent.alpha(0.3);
-        colors.muted = element;
-        colors.muted_foreground = text_muted;
-        colors.border = border;
-        colors.input = border_variant;
-        colors.ring = border_focused;
-        colors.accent = element_hover;
-        colors.accent_foreground = text;
-        colors.primary = accent;
-        colors.primary_foreground = text_on_accent;
-        colors.primary_hover = element_hover;
-        colors.primary_active = element_active;
-        colors.button = element;
-        colors.button_foreground = text;
-        colors.button_hover = element_hover;
-        colors.button_active = element_active;
-        colors.popover = surface;
-        colors.popover_foreground = text;
-        colors.tab = surface;
-        colors.tab_bar = element;
-        colors.tab_active = surface;
-        colors.tab_foreground = text_muted;
-        colors.tab_active_foreground = text;
-        colors.drag_border = border_focused;
-        colors.drop_target = accent.alpha(0.2);
-        colors.scrollbar = color(self.scrollbar_track_background);
-        colors.scrollbar_thumb = color(self.scrollbar_thumb_background);
-        colors.scrollbar_thumb_hover = border_focused;
     }
 
     fn project_to_base(self, theme: &mut gpui_base::Theme) {
@@ -299,7 +228,7 @@ mod tests {
                 scrollbar_thumb_background: 0x8090A0FF,
                 scrollbar_track_background: 0x10182080,
             };
-            theme.apply_to_base(cx);
+            theme.apply(cx);
 
             let projected = gpui_base::Theme::global(cx);
             assert_eq!(projected.appearance, ThemeAppearance::Dark);
@@ -333,42 +262,6 @@ mod tests {
                 .text_color(projected.tokens.colors.primary_foreground)
                 .child("Probe")
                 .into_any_element();
-        });
-    }
-
-    #[gpui::test]
-    fn projects_managed_text_into_the_component_caret(cx: &mut gpui::TestAppContext) {
-        cx.update(|cx| {
-            gpui_component::init(cx);
-            let theme = NativeTheme {
-                appearance: NativeThemeAppearance::Dark,
-                text: 0xF0F4F8FF,
-                ..Default::default()
-            };
-
-            theme.apply_to_components(cx);
-
-            let projected = gpui_component::Theme::global(cx);
-            assert_eq!(projected.mode, gpui_component::ThemeMode::Dark);
-            assert_eq!(projected.colors.foreground, color(theme.text));
-            assert_eq!(projected.colors.caret, color(theme.text));
-            assert_eq!(projected.colors.selection, color(theme.accent).alpha(0.3));
-            assert_eq!(
-                projected.highlight_theme.appearance,
-                gpui_component::ThemeMode::Dark
-            );
-            assert_eq!(
-                projected.highlight_theme.style.editor_background,
-                Some(color(theme.surface_background))
-            );
-            assert_eq!(
-                projected.highlight_theme.style.editor_foreground,
-                Some(color(theme.text))
-            );
-            assert_eq!(
-                projected.highlight_theme.style.editor_gutter_background,
-                Some(color(theme.surface_background))
-            );
         });
     }
 }

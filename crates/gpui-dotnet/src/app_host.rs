@@ -552,14 +552,13 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
     let application_status_in_app = Arc::clone(&application_status);
 
     gpui_platform::application()
-        .with_assets(gpui_component_assets::Assets)
+        .with_assets(())
         .run(move |cx: &mut App| {
-            gpui_component::init(cx);
+            gpui_base::init(cx);
             crate::input::init(cx);
             let windows: ManagedWindows = Rc::new(RefCell::new(HashMap::new()));
             let initial_theme = NativeTheme::default();
-            initial_theme.apply_to_components(cx);
-            initial_theme.apply_to_base(cx);
+            initial_theme.apply(cx);
             let theme: SharedTheme = Rc::new(RefCell::new(initial_theme));
 
             let menu_status = Arc::clone(&application_status_in_app);
@@ -646,8 +645,7 @@ fn apply_application_command(
             cx.set_menus(menus.into_iter().map(convert_menu));
         }
         ApplicationCommand::SetTheme(next) => {
-            next.apply_to_components(cx);
-            next.apply_to_base(cx);
+            next.apply(cx);
             *theme.borrow_mut() = next;
             for entry in windows.borrow().values() {
                 let Some(handle) = entry.handle.downcast::<ManagedView>() else {

@@ -4,11 +4,13 @@ GPUI.NET exposes semantic components. C# builders write component IDs, typed ope
 records, and UTF-8 data into the render arena. Rust chooses the concrete GPUI implementation through
 the component's `NativeAdapter`.
 
-The native application initializes `gpui-component` and its underlying `gpui-base` behavior
-foundation. Button,
+The native application initializes the `gpui-base` behavior foundation. Button,
 Checkbox, and Radio use foundation primitives for activation, focus, keyboard, accessibility, and
-disabled behavior. Other adapters remain direct GPUI or GPUI.NET implementations until their
-behavior families meet the migration parity criteria.
+disabled behavior. Dock wears a small in-repo skin over the foundation layout engine, so the
+default host links no styled component facade. Other adapters remain direct GPUI or GPUI.NET
+implementations until their behavior families meet the migration parity criteria. Broad
+`gpui-component` facilities link only into custom hosts that select them, such as the optional
+editor host.
 
 ## Component classes
 
@@ -214,7 +216,7 @@ a side-region root can use `.InitialSize(pixels)`; the value seeds the native la
 continuously controlled size. Region options likewise seed initial open state and declare whether
 the region can collapse.
 
-The component-skinned foundation Dock owns tab activation, reordering and cross-group moves,
+The locally skinned foundation Dock owns tab activation, reordering and cross-group moves,
 split and side-region resizing, side-region collapse, focus, close/zoom affordances, drop targeting,
 and clean-frame painting. Panel content remains a normal semantic element subtree and may contain a
 framework-owned child View or nested retained resource. Rust materializes that content from the

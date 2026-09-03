@@ -146,8 +146,8 @@ continuations, and the binding's any-thread ingress contract.
 `GpuiTheme` is application-scoped ambient input. Managed views resolve semantic tokens while
 rendering. The private versioned native theme payload supplies explicit appearance and equivalent
 resolved roles to native controls, error surfaces, table chrome, scrollbars, and Dock chrome. After
-`gpui_component::init`, the native host projects those roles into the global component and base
-themes at startup and before refreshing windows for every theme update. Foundation typography,
+`gpui-base` initialization, the native host projects those roles into the global foundation
+theme at startup and before refreshing windows for every theme update. Foundation typography,
 spacing, radii, shadows, scrollbar mode, and scrollbar motion retain their defaults until the managed semantic
 theme deliberately defines corresponding roles.
 
@@ -193,6 +193,8 @@ through ABI negotiation. GPUI/Rust objects are never passed between independentl
 The `external/gpui-component` submodule pins `gpui-base` and `gpui-component` to an exact revision
 of the `akeit0/gpui-component` integration fork. Its gitlink and resolved Zed/GPUI revision form one
 validated compatibility tuple recorded in [UPSTREAM_BASELINE.md](UPSTREAM_BASELINE.md).
+The default native host links `gpui-base` only; the full `gpui-component` facade is reserved for
+custom hosts that select it.
 The foundation crates own reusable native behavior and component skins as components migrate;
 GPUI.NET retains its ABI,
 semantic decoding, managed callback routing, resource identity, and platform integration.

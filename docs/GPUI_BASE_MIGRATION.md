@@ -25,8 +25,8 @@ GPUI.NET semantic IR and native protocol
         ▼
 GPUI.NET native adapters and retained identity
         │
-        ├── gpui-base reusable behavior and retained components
-        ├── selected gpui-component components
+        ├── gpui-base reusable behavior, retained components, and the local Dock skin
+        ├── selected gpui-component components in custom hosts only (for example the editor host)
         ├── direct GPUI primitives
         └── platform-specific integration
 ```
@@ -41,7 +41,7 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 | Phase | Status | Current state | Exit condition |
 |---|---|---|---|
 | 0. Forked native baseline | Complete | The fork is pinned to an exact SHA, the compatible GPUI revision is locked, CI/builds use `--locked`, and the graph guard resolves one GPUI package. | The dependency tuple is deterministic and documented. |
-| 1. Initialization and theme bridge | Complete | `gpui_component::init(cx)` runs before queued window creation and initializes the underlying base foundation. The version 2 native theme payload carries explicit appearance, and startup plus every theme update project managed semantic roles into both component and base themes. | Existing and foundation-backed controls use the same managed-authoritative theme source. |
+| 1. Initialization and theme bridge | Complete | `gpui-base` initialization runs before queued window creation. The version 2 native theme payload carries explicit appearance, and startup plus every theme update project managed semantic roles into the foundation theme. | Existing and foundation-backed controls use the same managed-authoritative theme source. |
 | 2. Button, Checkbox, and Radio probe | Complete | Root and virtual-row adapters use foundation primitives with stable identity, derived accessible names, controlled checked state, disabled behavior, native focus traversal, and existing click dispatch. | The family is foundation-backed with pointer, keyboard, focus, accessibility, disabled, and controlled-state parity. |
 | 3. Protocol checkpoint | Complete | The snapshot and click protocols remain; the schema adds a narrow `disableable` capability and Boolean `Disabled` operation. | Findings from the first control family produce an explicit keep/change decision with tests and updated ABI documentation. |
 | 4. Deferred layers | Complete | Tooltip and PopoverMenu use foundation Popup/Positioner, ContextMenu uses Positioner, and PopoverMenu plus ContextMenu use PopoverState. Modal Overlay uses foundation FocusTrapElement, which also covers the managed Dialog and Sheet compositions. GPUI.NET retains its distinct timing, placement, backdrop, priority, topmost, and managed callback semantics. | Foundation behavior replaces duplicated placement, focus, and dismissal infrastructure where semantics match. |
@@ -49,7 +49,7 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 | 6. Input | Complete | GPUI.NET retains its single-line editing engine because it preserves the revisioned contiguous UTF-8 event path without per-event native value materialization. The retained root now exposes the foundation-equivalent text-input role. | IME, Unicode, selection, clipboard, focus, commands, revisions, and events reach parity before old behavior is removed. |
 | 7. Scrolling and scrollbar | Complete | Scroll, List, and Table use foundation Scrollbar interaction and paint. GPUI.NET retains wheel smoothing, controller commands, and gutter geometry while seeding GPUI's native ListState with estimated heights for unmeasured rows. | Foundation scrollbar behavior is adopted selectively without additional managed/native traffic. |
 | 8. List and Table evaluation | Complete | GPUI.NET retains GPUI `ListState`, managed aligned range batches, stable row identity, structural commands, and table column reconciliation. Foundation scrollbar behavior remains shared. | Migration to foundation `VirtualList` is rejected because its integration cost and ownership tradeoffs do not provide a corresponding API or performance benefit. |
-| 9. Advanced retained components | In progress | DockArea retains a component-skinned foundation Dock with stable string panel IDs, declarative center tabs/splits and left/bottom/right regions, ordinary element or child-View content, and native interaction. The optional Editor probe is split into an independent managed schema and build-time custom host; it now proves one-shot bootstrap, revisioned UTF-8 deltas, typed commands, and explicit stale-command rejection without adding editor contracts to Core. The default Windows host currently retains too much of the monolithic `gpui-component` graph through the Dock skin. Packaging, dependency isolation, and broad behavior tests remain open. | Advanced components prove stable managed identity, coarse events, native high-frequency interaction, lifecycle, theme integration, optional packaging where appropriate, and no unrelated component families in the default native host. |
+| 9. Advanced retained components | In progress | DockArea retains a foundation Dock wearing a small in-repo skin (`crates/gpui-dotnet/src/dock_skin.rs`) with stable string panel IDs, declarative center tabs/splits and left/bottom/right regions, ordinary element or child-View content, tab activation, close/zoom controls, dock collapse affordances, resize handles, and native drag/drop interaction. The default host links `gpui-base` only: no `gpui-component` skin crate and no bundled asset provider. The optional Editor probe is split into an independent managed schema and build-time custom host; it now proves one-shot bootstrap, revisioned UTF-8 deltas, typed commands, and explicit stale-command rejection without adding editor contracts to Core. A reproducible size report, a default-host link-map check, and broad behavior tests remain open. | Advanced components prove stable managed identity, coarse events, native high-frequency interaction, lifecycle, theme integration, optional packaging where appropriate, and no unrelated component families in the default native host. |
 | 10. Cleanup and protocol freeze candidate | Planned | Compatibility remains preview-level. | Superseded behavior and protocol paths are removed and the new contract is deliberately reviewed for stability. |
 
 No semantic component is considered migrated merely because the dependency and initializer exist.
@@ -58,7 +58,7 @@ Implementation ownership changes only after the component-specific exit criteria
 ## Foundation theme bridge
 
 `GpuiTheme` remains the application-wide source of truth. The native adapter maps resolved
-`NativeTheme` roles into `gpui_component::Theme` and `gpui_base::Theme`; foundation types do not
+`NativeTheme` roles into `gpui_base::Theme`; foundation types do not
 cross the managed API or ABI.
 
 The private version 2 theme payload carries explicit `Light` or `Dark` appearance rather than
@@ -247,22 +247,32 @@ An equivalent locked Windows x64 Release build established these reference point
 | Initial `gpui-base` adoption | 13,557,760 bytes |
 | Current semantic surface immediately before styled Dock integration | 14,127,104 bytes |
 | Styled Dock integration through the monolithic `gpui-component` crate | 19,888,640 bytes |
-| Current default host | 19,929,600 bytes |
+| Styled Dock in the current default host | 19,929,600 bytes |
+| Local Dock skin on `gpui-base` only | 14,988,800 bytes |
 
-The large boundary is the styled Dock integration, not the initial `gpui-base` adoption and not the
-optional Editor host. Dock currently makes the default host reference `gpui-component` and its
-asset crate. The resulting reachable graph includes substantially more component, theme,
+The large boundary was the styled Dock integration, not the initial `gpui-base` adoption and not
+the optional Editor host. Dock made the default host reference `gpui-component` and its
+asset crate. The resulting reachable graph included substantially more component, theme,
 Markdown, regular-expression, and parsing code than the Dock contract needs. Bundled component
-assets are a small fraction of the increase. Replacing the full component initializer with minimal
-global initialization also produces only a small reduction, so initialization alone is not the
+assets were a small fraction of the increase. Replacing the full component initializer with minimal
+global initialization also produced only a small reduction, so initialization alone was not the
 solution.
 
-The preferred structural direction is:
+The Dock skin is now a small in-repo renderer over `gpui-base` (`crates/gpui-dotnet/src/dock_skin.rs`).
+The default host resolves one GPUI type universe through `gpui` plus `gpui-base`, ships no
+`gpui-component` skin crate and no bundled asset provider (the application runs with empty asset
+resolution), and projects the managed theme only into the foundation theme. Broad
+`gpui-component` facilities remain available to custom native hosts that require them, such as the
+optional editor host. A Windows x64 Release build of the split host
+(`cargo build -p gpui-dotnet-default-host --release`) measures 14,988,800
+bytes, against 14,127,104 bytes at the pre-Dock reference and 19,929,600 bytes with the styled
+integration: the split recovered most of the roughly 5.8 MB regression, and the remaining roughly
+0.9 MB is the retained Dock engine and the local skin itself. The structural direction below is in
+place; what remains is recorded measurement rather than further isolation:
 
-- keep the retained Dock behavior and layout engine in `gpui-base`;
-- isolate the styled Dock skin behind narrowly feature-gated crates, or provide a small skin that
-  does not depend on the complete `gpui-component` façade;
-- enable broad `gpui-component` facilities only in custom native hosts that require them;
+- retained Dock behavior and layout engine stays in `gpui-base`;
+- the Dock skin is a small renderer that does not depend on the complete `gpui-component` facade;
+- broad `gpui-component` facilities are enabled only in custom native hosts that require them;
 - keep the default host's Cargo feature set explicit and additive, with no accidental provider
   activation through default features;
 - inspect release link maps or equivalent size reports so an optional family cannot silently enter
@@ -273,9 +283,14 @@ same Windows build, Thin LTO with one codegen unit and symbol stripping reduced 
 18,287,616 bytes. Adopt those settings only after build-time and runtime-performance validation;
 they do not remove the roughly 5.8 MB dependency-boundary regression.
 
-The size work is complete when an equivalent Windows x64 Release build keeps the default host near
-the pre-Dock reference without removing Dock behavior, the optional Editor remains available from
-its custom host, and CI records enough artifact information to detect renewed dependency leakage.
+The size work is complete when CI records enough artifact information to detect renewed
+dependency leakage. The binary target is met: an equivalent Windows x64 Release build keeps the
+default host at 14,988,800 bytes, near the 14,127,104-byte pre-Dock reference, with Dock behavior
+retained and the optional Editor available from its custom host. Until CI recording lands, the
+boundary is guarded structurally: the default host must resolve
+no `gpui-component` reverse dependency (`cargo tree --locked --manifest-path
+crates/gpui-dotnet/Cargo.toml -p gpui-dotnet-default-host --invert gpui-component` matches no
+package) while `gpui-base` remains its foundation.
 
 The remaining protocol questions stay open for later families:
 

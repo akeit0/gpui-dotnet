@@ -4,6 +4,8 @@ mod arena;
 mod components;
 mod context_menu;
 mod dock;
+mod dock_icons;
+mod dock_skin;
 pub mod extension;
 mod input;
 mod materializer;

@@ -5,18 +5,22 @@ documents.
 
 ## Default native host size
 
-Prevent the default native host from retaining unrelated component families:
+The Dock skin no longer links the complete `gpui-component` facade: Dock wears a small in-repo
+renderer over `gpui-base`, and the default host resolves `gpui` plus `gpui-base` only. A
+Windows x64 Release build (`cargo build -p gpui-dotnet-default-host --release`) is 14,988,800
+bytes, against the 14,127,104-byte pre-Dock
+reference and 19,929,600 bytes with the styled integration. What remains is recording and
+hardening, not further isolation:
 
-- separate or narrowly feature-gate the styled Dock skin so using `gpui-base::dock` does not link
-  the complete `gpui-component` façade;
+- add a reproducible per-RID release-size report and record it in CI;
+- add a default-host dependency/link-map check so an optional family cannot silently re-enter
+  (structurally guarded today by the `cargo tree --invert gpui-component` boundary);
 - keep editor providers, grammars, and other optional runtime families exclusive to their custom
   hosts;
-- add a reproducible per-RID release-size report and a default-host dependency/link-map check;
 - evaluate Thin LTO and one release codegen unit against build time and frame-sensitive runtime
   performance before enabling them in packaging.
 
-The measured Windows x64 default host is 19,929,600 bytes, compared with 14,127,104 bytes at the
-equivalent pre-Dock boundary. The focused analysis and acceptance criteria are in
+The focused analysis and acceptance criteria are in
 [GPUI_BASE_MIGRATION.md](GPUI_BASE_MIGRATION.md#default-native-host-size-and-dependency-boundary).
 
 ## Accessibility

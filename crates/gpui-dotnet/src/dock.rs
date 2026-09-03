@@ -5,10 +5,10 @@ use gpui::{
     ParentElement, Render, SharedString, Styled, WeakEntity, Window, div, px,
 };
 use gpui_base::dock::{DockArea, DockLayout, DockPlacement, Panel as BasePanel, PanelEvent};
-use gpui_component::dock::{DockSkin, Panel as ComponentPanel, PanelControl, panel_handle};
 
 use crate::{
     app_host::ManagedView,
+    dock_skin::dock_area,
     resources::{ResourceKey, resource_key},
     semantic::{
         COMPONENT_DOCK_PANEL, COMPONENT_DOCK_REGION, COMPONENT_DOCK_SPLIT, COMPONENT_DOCK_TABS,
@@ -162,7 +162,7 @@ impl ManagedDockResource {
         window: &mut Window,
         cx: &mut Context<ManagedView>,
     ) -> Self {
-        let (area, _) = DockSkin::dock_area(configuration.key.key.clone(), None, window, cx);
+        let area = dock_area(configuration.key.key.clone(), None, window, cx);
         let mut resource = Self {
             area,
             panels: HashMap::new(),
@@ -233,7 +233,7 @@ impl ManagedDockResource {
                         region_updates.push(RegionUpdate::Configure {
                             placement,
                             layout: layout_changed
-                                .then(|| build_layout(&current.layout, &self.panels, cx)),
+                                .then(|| build_layout(&current.layout, &self.panels)),
                             initial_size: current.initial_size,
                             initially_open: current.initially_open,
                             collapsible: current.collapsible,
@@ -248,8 +248,7 @@ impl ManagedDockResource {
         let structure_changed = center_changed || region_structure_changed;
 
         if structure_changed || locked_changed || !region_updates.is_empty() {
-            let center =
-                center_changed.then(|| build_layout(&configuration.center, &self.panels, cx));
+            let center = center_changed.then(|| build_layout(&configuration.center, &self.panels));
             self.area.update(cx, |area, cx| {
                 if locked_changed || self.declaration.is_none() {
                     area.set_locked(configuration.locked, window, cx);
@@ -298,7 +297,6 @@ impl ManagedDockResource {
 fn build_layout(
     specification: &DockLayoutSpec,
     panels: &HashMap<SharedString, Entity<ManagedDockPanel>>,
-    cx: &App,
 ) -> DockLayout {
     match specification {
         DockLayoutSpec::Split { axis, children } => {
@@ -308,7 +306,7 @@ fn build_layout(
             };
             for child in children {
                 layout = layout.child(
-                    build_layout(&child.layout, panels, cx),
+                    build_layout(&child.layout, panels),
                     child.initial_size.map(px),
                 );
             }
@@ -324,19 +322,20 @@ fn build_layout(
                     .get(&panel.id)
                     .expect("validated Dock declarations create every panel")
                     .clone();
-                layout = layout.panel_view(panel_handle(entity), cx);
+                layout = layout.panel(entity);
             }
             layout
         }
     }
 }
 
-struct ManagedDockPanel {
+pub(crate) struct ManagedDockPanel {
     owner: WeakEntity<ManagedView>,
     title: SharedString,
     content_node: u32,
     closable: bool,
     zoomable: bool,
+    #[allow(dead_code)]
     inner_padding: bool,
     focus_handle: FocusHandle,
 }
@@ -372,6 +371,13 @@ impl ManagedDockPanel {
         self.inner_padding = specification.inner_padding;
         cx.notify();
     }
+
+    /// The tab title the local dock skin draws. Presentation lives in the
+    /// skin; this accessor keeps the title reachable through the foundation's
+    /// object-safe panel handle.
+    pub(crate) fn tab_title(&self) -> SharedString {
+        self.title.clone()
+    }
 }
 
 impl BasePanel for ManagedDockPanel {
@@ -385,24 +391,6 @@ impl BasePanel for ManagedDockPanel {
 
     fn zoomable(&self, _: &App) -> bool {
         self.zoomable
-    }
-}
-
-impl ComponentPanel for ManagedDockPanel {
-    fn tab_name(&self, _: &App) -> Option<SharedString> {
-        Some(self.title.clone())
-    }
-
-    fn title(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        self.title.clone()
-    }
-
-    fn zoom_control(&self, _: &App) -> Option<PanelControl> {
-        self.zoomable.then_some(PanelControl::Menu)
-    }
-
-    fn inner_padding(&self, _: &App) -> bool {
-        self.inner_padding
     }
 }
 
