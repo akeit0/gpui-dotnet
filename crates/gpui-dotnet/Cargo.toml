@@ -29,7 +29,7 @@ async-channel = "2"
 # The submodule pins the validated foundation revision. Keep this crate's direct GPUI source
 # identical to gpui-base's workspace dependency so Cargo resolves one GPUI type universe.
 gpui = { git = "https://github.com/zed-industries/zed" }
-gpui-base = { path = "../../external/gpui-component/crates/base" }
+gpui-base = { path = "../../external/gpui-kit/crates/base" }
 gpui_platform = { git = "https://github.com/zed-industries/zed" }
 serde_json = "1"
 unicode-segmentation = "1.13.3"
@@ -58,7 +58,7 @@ gpui = { git = "https://github.com/zed-industries/zed", features = [
     "test-support",
 ] }
 
-# Cargo only honors profiles from the workspace root. gpui-component carries equivalent
+# Cargo only honors profiles from the workspace root. gpui-kit carries equivalent
 # settings for its own development workspace, but they do not apply when gpui-base is consumed
 # here as a dependency. Keep frame-sensitive GPUI, layout, text, and component code optimized in
 # Debug builds so native hover/press feedback does not wait on an unoptimized full-frame draw.
