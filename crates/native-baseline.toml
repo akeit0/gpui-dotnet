@@ -1,10 +1,10 @@
-# This metadata mirrors the gpui-component submodule gitlink and the exact Zed revision validated
+# This metadata mirrors the gpui-kit submodule gitlink and the exact Zed revision validated
 # in Cargo.lock. Update it only as part of a native baseline change that also updates
 # docs/UPSTREAM_BASELINE.md and verifies the dependency graph.
 
-[gpui-component]
-fork = "https://github.com/akeit0/gpui-component"
-upstream = "https://github.com/longbridge/gpui-component"
+[gpui-kit]
+fork = "https://github.com/akeit0/gpui-kit"
+upstream = "https://github.com/longbridge/gpui-kit"
 rev = "d0c6f1e8f081ac23cbd3b9e8cb42c0115b776d60"
 upstream_base_rev = "d6c10c21a58617b29494f8efeba4895ca384e465"
 

@@ -1,13 +1,13 @@
 GPUI.NET
 
-This project uses GPUI Component and its gpui-base layer as a design and
+This project uses GPUI Kit and its gpui-base layer as a design and
 implementation reference for native component behavior, retained interaction
 state, input editing, focus/IME behavior, overlay/tooltip geometry and timing, virtualization,
 motion, theming boundaries, accessibility, and component composition:
 
-    https://github.com/longbridge/gpui-component
+    https://github.com/longbridge/gpui-kit
 
-GPUI Component
+GPUI Kit
 Copyright 2024-2026 Longbridge <https://longbridge.com>
 Licensed under the Apache License, Version 2.0:
 

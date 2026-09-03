@@ -190,8 +190,8 @@ through ABI negotiation. GPUI/Rust objects are never passed between independentl
 
 ## Dependency policy
 
-The `external/gpui-component` submodule pins `gpui-base` and `gpui-component` to an exact revision
-of the `akeit0/gpui-component` integration fork. Its gitlink and resolved Zed/GPUI revision form one
+The `external/gpui-kit` submodule pins `gpui-base` and `gpui-component` to an exact revision
+of the `akeit0/gpui-kit` integration fork. Its gitlink and resolved Zed/GPUI revision form one
 validated compatibility tuple recorded in [UPSTREAM_BASELINE.md](UPSTREAM_BASELINE.md).
 The default native host links `gpui-base` only; the full `gpui-component` facade is reserved for
 custom hosts that select it.
