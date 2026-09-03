@@ -559,6 +559,9 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
             let windows: ManagedWindows = Rc::new(RefCell::new(HashMap::new()));
             let initial_theme = NativeTheme::default();
             initial_theme.apply(cx);
+            cx.set_global(initial_theme.resolved());
+            crate::extension::initialize_providers(cx);
+            crate::extension::apply_provider_themes(cx);
             let theme: SharedTheme = Rc::new(RefCell::new(initial_theme));
 
             let menu_status = Arc::clone(&application_status_in_app);
@@ -647,6 +650,8 @@ fn apply_application_command(
         ApplicationCommand::SetTheme(next) => {
             next.apply(cx);
             *theme.borrow_mut() = next;
+            cx.set_global(next.resolved());
+            crate::extension::apply_provider_themes(cx);
             for entry in windows.borrow().values() {
                 let Some(handle) = entry.handle.downcast::<ManagedView>() else {
                     continue;

@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
-use gpui::{AnyElement, App, SharedString, Window};
+use gpui::{AnyElement, App, Global, SharedString, Window};
 
 use crate::{
     abi::{ManagedCallbacks, NativeControlEvent},
@@ -194,6 +194,37 @@ impl NativeExtensionStore {
     }
 }
 
+/// Managed semantic roles resolved for native consumption, published for custom
+/// hosts. The base runtime installs the current value as a global at startup
+/// and replaces it on every theme update, before provider hooks run. Providers
+/// whose implementation crates carry their own theme (such as a
+/// `gpui-component` provider) project these roles there in `apply_theme`;
+/// the default host reads nothing but the foundation theme.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ResolvedTheme {
+    pub dark: bool,
+    pub background: u32,
+    pub text: u32,
+    pub text_muted: u32,
+    pub text_placeholder: u32,
+    pub text_on_accent: u32,
+    pub border: u32,
+    pub border_variant: u32,
+    pub border_focused: u32,
+    pub surface_background: u32,
+    pub element_background: u32,
+    pub element_hover: u32,
+    pub element_active: u32,
+    pub accent: u32,
+    pub info: u32,
+    pub info_background: u32,
+    pub error: u32,
+    pub scrollbar_thumb_background: u32,
+    pub scrollbar_track_background: u32,
+}
+
+impl Global for ResolvedTheme {}
+
 /// Native adapter compiled into a custom GPUI.NET host.
 ///
 /// Rust/GPUI values never cross a dynamic-library boundary: a custom host links the selected
@@ -205,6 +236,19 @@ pub trait NativeExtension: Sync {
     fn validate_command(&self, _command: &NativeExtensionCommand) -> bool {
         false
     }
+
+    /// Installs provider-owned application state once per startup, after base
+    /// initialization and before any materialization. A provider whose
+    /// implementation crate needs its own globals (foundation initialization
+    /// beyond `gpui-base`, theme objects, registries) installs them here; the
+    /// default host installs no providers, so this never runs there.
+    fn initialize(&self, _cx: &mut App) {}
+
+    /// Projects the managed theme into provider-owned state. Runs at startup
+    /// after `initialize` and again on every theme update, with the current
+    /// [`ResolvedTheme`] global already replaced. Providers without their own
+    /// theme keep the default no-op.
+    fn apply_theme(&self, _cx: &mut App) {}
 
     fn materialize(
         &self,
@@ -261,6 +305,27 @@ pub(crate) fn provider(id: &str) -> Option<&'static dyn NativeExtension> {
         .into_iter()
         .flat_map(|extensions| extensions.iter().copied())
         .find(|candidate| candidate.descriptor().id == id)
+}
+
+/// Runs every installed provider's startup initialization. A host without
+/// providers (the default host) performs no work here.
+pub(crate) fn initialize_providers(cx: &mut App) {
+    if let Some(extensions) = EXTENSIONS.get() {
+        for extension in extensions.iter() {
+            extension.initialize(cx);
+        }
+    }
+}
+
+/// Re-projects the managed theme into every installed provider. Called at
+/// startup and on every theme update, after the [`ResolvedTheme`] global is
+/// replaced. A host without providers performs no work here.
+pub(crate) fn apply_provider_themes(cx: &mut App) {
+    if let Some(extensions) = EXTENSIONS.get() {
+        for extension in extensions.iter() {
+            extension.apply_theme(cx);
+        }
+    }
 }
 
 pub(crate) struct NativeExtensionDeclaration {

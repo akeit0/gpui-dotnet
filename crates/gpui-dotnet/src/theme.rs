@@ -89,6 +89,30 @@ impl NativeTheme {
         self.project_to_base(gpui_base::Theme::global_mut(cx));
     }
 
+    pub(crate) fn resolved(self) -> crate::extension::ResolvedTheme {
+        crate::extension::ResolvedTheme {
+            dark: self.appearance == NativeThemeAppearance::Dark,
+            background: self.background,
+            text: self.text,
+            text_muted: self.text_muted,
+            text_placeholder: self.text_placeholder,
+            text_on_accent: self.text_on_accent,
+            border: self.border,
+            border_variant: self.border_variant,
+            border_focused: self.border_focused,
+            surface_background: self.surface_background,
+            element_background: self.element_background,
+            element_hover: self.element_hover,
+            element_active: self.element_active,
+            accent: self.accent,
+            info: self.info,
+            info_background: self.info_background,
+            error: self.error,
+            scrollbar_thumb_background: self.scrollbar_thumb_background,
+            scrollbar_track_background: self.scrollbar_track_background,
+        }
+    }
+
     fn project_to_base(self, theme: &mut gpui_base::Theme) {
         theme.appearance = self.appearance.to_base();
 

@@ -5,15 +5,15 @@ use std::{
 };
 
 use gpui::{
-    AnyElement, App, AppContext as _, Entity, IntoElement as _, SharedString, Styled as _,
-    Subscription, Window, px,
+    AnyElement, App, AppContext as _, Entity, Hsla, IntoElement as _, SharedString, Styled as _,
+    Subscription, Window, px, rgba,
 };
 use gpui_component::input::{Editor, EditorState, InputEvent};
 use gpui_dotnet::{
     abi::GpuiDotnetApiV3,
     extension::{
         NativeExtension, NativeExtensionCommand, NativeExtensionDescriptor,
-        NativeExtensionEventEmitter, NativeExtensionRequest, NativeExtensionStore,
+        NativeExtensionEventEmitter, NativeExtensionRequest, NativeExtensionStore, ResolvedTheme,
         install_native_extensions,
     },
 };
@@ -36,6 +36,83 @@ const EDITOR_REJECTION_STALE_REVISION: u16 = 1;
 const EDITOR_REJECTION_INVALID_RANGE: u16 = 2;
 
 struct EditorExtension;
+
+/// Projects resolved managed roles into the component theme the Editor
+/// reads. Previously owned by the base runtime's startup path; it moved here
+/// with the default-host split so the component Theme global is written only
+/// in hosts that link the component facade.
+fn project_to_components(theme: ResolvedTheme, cx: &mut App) {
+    let target = gpui_component::Theme::global_mut(cx);
+    target.mode = if theme.dark {
+        gpui_component::ThemeMode::Dark
+    } else {
+        gpui_component::ThemeMode::Light
+    };
+
+    let background = color(theme.background);
+    let text = color(theme.text);
+    let text_muted = color(theme.text_muted);
+    let text_on_accent = color(theme.text_on_accent);
+    let border = color(theme.border);
+    let border_variant = color(theme.border_variant);
+    let border_focused = color(theme.border_focused);
+    let surface = color(theme.surface_background);
+    let element = color(theme.element_background);
+    let element_hover = color(theme.element_hover);
+    let element_active = color(theme.element_active);
+    let accent = color(theme.accent);
+
+    target.highlight_theme = if theme.dark {
+        gpui_component::highlighter::HighlightTheme::default_dark()
+    } else {
+        gpui_component::highlighter::HighlightTheme::default_light()
+    };
+    let highlight = std::sync::Arc::make_mut(&mut target.highlight_theme);
+    highlight.style.editor_background = Some(surface);
+    highlight.style.editor_foreground = Some(text);
+    highlight.style.editor_active_line = Some(element_hover);
+    highlight.style.editor_line_number = Some(text_muted);
+    highlight.style.editor_active_line_number = Some(text);
+    highlight.style.editor_invisible = Some(text_muted.alpha(0.4));
+    highlight.style.editor_gutter_background = Some(surface);
+
+    let colors = &mut target.colors;
+    colors.background = background;
+    colors.foreground = text;
+    colors.caret = text;
+    colors.selection = accent.alpha(0.3);
+    colors.muted = element;
+    colors.muted_foreground = text_muted;
+    colors.border = border;
+    colors.input = border_variant;
+    colors.ring = border_focused;
+    colors.accent = element_hover;
+    colors.accent_foreground = text;
+    colors.primary = accent;
+    colors.primary_foreground = text_on_accent;
+    colors.primary_hover = element_hover;
+    colors.primary_active = element_active;
+    colors.button = element;
+    colors.button_foreground = text;
+    colors.button_hover = element_hover;
+    colors.button_active = element_active;
+    colors.popover = surface;
+    colors.popover_foreground = text;
+    colors.tab = surface;
+    colors.tab_bar = element;
+    colors.tab_active = surface;
+    colors.tab_foreground = text_muted;
+    colors.tab_active_foreground = text;
+    colors.drag_border = border_focused;
+    colors.drop_target = accent.alpha(0.2);
+    colors.scrollbar = color(theme.scrollbar_track_background);
+    colors.scrollbar_thumb = color(theme.scrollbar_thumb_background);
+    colors.scrollbar_thumb_hover = border_focused;
+}
+
+fn color(value: u32) -> Hsla {
+    rgba(value).into()
+}
 
 #[derive(Clone)]
 struct RetainedEditor {
@@ -174,6 +251,23 @@ impl NativeExtension for EditorExtension {
             version: SCHEMA_VERSION,
             schema_hash: SCHEMA_HASH,
         }
+    }
+
+    fn initialize(&self, cx: &mut App) {
+        // The editor provider reads the component Theme global. The base
+        // runtime initializes gpui-base only, so this custom host installs
+        // the component foundation itself at startup, before any Editor
+        // materializes.
+        gpui_component::init(cx);
+    }
+
+    fn apply_theme(&self, cx: &mut App) {
+        // The base runtime replaces the ResolvedTheme global before this
+        // runs, at startup and on every theme update.
+        let Some(theme) = cx.try_global::<ResolvedTheme>().cloned() else {
+            return;
+        };
+        project_to_components(theme, cx);
     }
 
     fn validate_command(&self, command: &NativeExtensionCommand) -> bool {
@@ -572,5 +666,43 @@ mod tests {
         assert_eq!(unsafe { dispatch(u64::MAX - 1, &command) }, -30);
         command.command = 99;
         assert_eq!(unsafe { dispatch(u64::MAX - 1, &command) }, -85);
+    }
+
+    /// The regression the default-host split introduced: the shared runtime
+    /// initializes gpui-base only, so the editor provider must install the
+    /// component foundation (including the Theme global its Editor reads)
+    /// itself, and project managed roles into it at startup and on theme
+    /// updates.
+    #[gpui::test]
+    fn provider_installs_component_foundation_and_projects_managed_theme(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        cx.update(|cx| {
+            assert!(!cx.has_global::<gpui_component::Theme>());
+            EDITOR_EXTENSION.initialize(cx);
+            assert!(cx.has_global::<gpui_component::Theme>());
+
+            cx.set_global(ResolvedTheme {
+                dark: true,
+                text: 0xF0F4F8FF,
+                accent: 0x4466EEFF,
+                surface_background: 0x182028FF,
+                ..Default::default()
+            });
+            EDITOR_EXTENSION.apply_theme(cx);
+
+            let projected = gpui_component::Theme::global(cx);
+            assert_eq!(projected.mode, gpui_component::ThemeMode::Dark);
+            assert_eq!(projected.colors.foreground, color(0xF0F4F8FF));
+            assert_eq!(projected.colors.caret, color(0xF0F4F8FF));
+            assert_eq!(
+                projected.colors.selection,
+                color(0x4466EEFF).alpha(0.3)
+            );
+            assert_eq!(
+                projected.highlight_theme.style.editor_background,
+                Some(color(0x182028FF))
+            );
+        });
     }
 }

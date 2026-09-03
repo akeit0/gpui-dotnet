@@ -25,6 +25,16 @@ The extension ID, protocol version, component kinds, flags, and schema hash come
 `src/Gpui.Editor/schema.json`. The normal binding generator emits matching C# and Rust constants,
 so neither side hand-maintains protocol numbers.
 
+## Native startup
+
+The shared runtime initializes `gpui-base` only, so the editor provider owns its component
+foundation through the extension lifecycle seam: at startup the runtime publishes the resolved
+managed roles as the `ResolvedTheme` global, then runs each installed provider's `initialize`
+(the editor installs `gpui-component` globals, including the `Theme` its `Editor` reads) followed
+by `apply_theme` (which projects the resolved roles into the component theme). Every managed
+theme update replaces the global and re-runs `apply_theme`. The default host installs no
+providers, so neither hook runs there and no component globals exist in that binary.
+
 ## Ownership
 
 The native document is authoritative between explicit application commands. Pointer and keyboard
