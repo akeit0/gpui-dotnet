@@ -114,4 +114,58 @@ public static partial class ElementExtensions
         ArenaWriter.AddU32(element.Inner, OpCode.FlexWrap, (uint)wrap);
         return element;
     }
+
+    /// <summary>Declares the opacity of an element, from 0 (transparent) to 1 (opaque).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> Opacity<TTag>(this Element<TTag> element, float opacity)
+        where TTag : unmanaged, IStyledElementTag
+    {
+        ArenaWriter.AddF32(element.Inner, OpCode.Opacity, opacity);
+        return element;
+    }
+
+    /// <summary>Declares the horizontal text alignment within an element.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> TextAlign<TTag>(this Element<TTag> element, TextAlignment align)
+        where TTag : unmanaged, IStyledElementTag
+    {
+        if ((uint)align > (uint)TextAlignment.Right)
+        {
+            throw new ArgumentOutOfRangeException(nameof(align));
+        }
+
+        ArenaWriter.AddU32(element.Inner, OpCode.TextAlign, (uint)align);
+        return element;
+    }
+
+    /// <summary>Truncates text after the given number of lines. Must be at least 1.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> LineClamp<TTag>(this Element<TTag> element, uint lines)
+        where TTag : unmanaged, IStyledElementTag
+    {
+        if (lines == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(lines), "Line clamp must be at least 1.");
+        }
+
+        ArenaWriter.AddU32(element.Inner, OpCode.LineClamp, lines);
+        return element;
+    }
+
+    /// <summary>
+    /// Declares the mouse cursor shown while hovering an element. Interactive elements default
+    /// to the pointing hand; an explicit cursor takes precedence over that default.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> Cursor<TTag>(this Element<TTag> element, MouseCursor cursor)
+        where TTag : unmanaged, IStyledElementTag
+    {
+        if ((uint)cursor > (uint)MouseCursor.ContextualMenu)
+        {
+            throw new ArgumentOutOfRangeException(nameof(cursor));
+        }
+
+        ArenaWriter.AddU32(element.Inner, OpCode.Cursor, (uint)cursor);
+        return element;
+    }
 }

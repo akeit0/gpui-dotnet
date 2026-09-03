@@ -35,9 +35,12 @@ when interaction state must survive independently from managed renders.
 
 Styled elements support the generated fluent operations declared by `bindings/schema.json`,
 including layout, dimensions, uniform and per-side/axis margins, padding, and gaps, min/max
-sizes, flex basis/shrink/wrap, container alignment, backgrounds, borders, text color, and
-typography. Interactive
-elements additionally support native hover and active paint operations.
+sizes, flex basis/shrink/wrap, container and self alignment, relative/absolute positioning with
+offsets, overflow clipping, opacity, cursor, text alignment and clamping, backgrounds, borders,
+text color, and typography. Interactive
+elements additionally support native hover and active paint operations. An explicit `Cursor`
+takes precedence over the pointing-hand default on interactive elements. Stacking stays with
+deferred layers and declaration order: GPUI exposes no z-index knob.
 
 The application theme supplies semantic tokens:
 

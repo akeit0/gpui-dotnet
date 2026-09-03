@@ -75,8 +75,17 @@ public sealed class SemanticRenderTests
             .Wrap(FlexWrap.Wrap)
             .ItemsStart()
             .ItemsEnd()
+            .ItemsBaseline()
+            .ItemsStretch()
             .JustifyStart()
-            .JustifyEnd();
+            .JustifyEnd()
+            .SelfStart()
+            .SelfEnd()
+            .SelfFlexStart()
+            .SelfFlexEnd()
+            .SelfCenter()
+            .SelfBaseline()
+            .SelfStretch();
 
         arena.Validate(root);
 
@@ -105,6 +114,77 @@ public sealed class SemanticRenderTests
             var ui = arena.BeginRender();
             ui.Div().Wrap((FlexWrap)3);
         });
+    }
+
+    [Fact]
+    public void PositioningOverflowOpacityAndTextPassManagedValidation()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var root = ui.Div(ui.Text("overlay"u8))
+            .Relative()
+            .Top(Px(10))
+            .Left(Px(20))
+            .Right(Px(30))
+            .Bottom(Px(40))
+            .Inset(Px(5))
+            .OverflowHidden()
+            .OverflowXHidden()
+            .OverflowYHidden()
+            .Opacity(0.5f)
+            .TextAlign(TextAlignment.Center)
+            .LineClamp(3);
+
+        arena.Validate(root);
+
+        Assert.Equal(10, ReadLastF32Op(arena, OpCode.TopPx));
+        Assert.Equal(20, ReadLastF32Op(arena, OpCode.LeftPx));
+        Assert.Equal(30, ReadLastF32Op(arena, OpCode.RightPx));
+        Assert.Equal(40, ReadLastF32Op(arena, OpCode.BottomPx));
+        Assert.Equal(5, ReadLastF32Op(arena, OpCode.InsetPx));
+        Assert.Equal(0.5f, ReadLastF32Op(arena, OpCode.Opacity));
+        Assert.Equal((uint)TextAlignment.Center, ReadLastU32Op(arena, OpCode.TextAlign));
+        Assert.Equal(3u, ReadLastU32Op(arena, OpCode.LineClamp));
+
+        using var absoluteArena = new RenderArenaOwner();
+        var absoluteUi = absoluteArena.BeginRender();
+        var absoluteRoot = absoluteUi.Div().Absolute();
+        absoluteArena.Validate(absoluteRoot);
+    }
+
+    [Fact]
+    public void TextOptionsRejectInvalidValues()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender();
+            ui.Div().TextAlign((TextAlignment)3);
+        });
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender();
+            ui.Div().LineClamp(0);
+        });
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender();
+            ui.Div().Cursor((MouseCursor)21);
+        });
+    }
+
+    [Fact]
+    public void CursorPassesManagedValidation()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var root = ui.Button("copy", "Copy").Cursor(MouseCursor.IBeam);
+
+        arena.Validate(root);
+
+        Assert.Equal((uint)MouseCursor.IBeam, ReadLastU32Op(arena, OpCode.Cursor));
     }
 
     [Fact]

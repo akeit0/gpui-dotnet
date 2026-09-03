@@ -872,6 +872,194 @@
       "managedApi": "extension"
     },
     {
+      "id": 147,
+      "name": "relative",
+      "csharp": "Relative",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 148,
+      "name": "absolute",
+      "csharp": "Absolute",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 149,
+      "name": "top_px",
+      "csharp": "Top",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 150,
+      "name": "left_px",
+      "csharp": "Left",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 151,
+      "name": "right_px",
+      "csharp": "Right",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 152,
+      "name": "bottom_px",
+      "csharp": "Bottom",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 153,
+      "name": "inset_px",
+      "csharp": "Inset",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 154,
+      "name": "overflow_hidden",
+      "csharp": "OverflowHidden",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 155,
+      "name": "overflow_x_hidden",
+      "csharp": "OverflowXHidden",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 156,
+      "name": "overflow_y_hidden",
+      "csharp": "OverflowYHidden",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 157,
+      "name": "opacity",
+      "csharp": "Opacity",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "f32Range", "min": 0, "max": 1, "status": -47 }
+    },
+    {
+      "id": 158,
+      "name": "text_align",
+      "csharp": "TextAlign",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 2, "status": -48 }
+    },
+    {
+      "id": 159,
+      "name": "line_clamp",
+      "csharp": "LineClamp",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Min", "min": 1, "status": -49 }
+    },
+    {
+      "id": 160,
+      "name": "cursor",
+      "csharp": "Cursor",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 20, "status": -50 }
+    },
+    {
+      "id": 161,
+      "name": "items_baseline",
+      "csharp": "ItemsBaseline",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 162,
+      "name": "items_stretch",
+      "csharp": "ItemsStretch",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 163,
+      "name": "self_start",
+      "csharp": "SelfStart",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 164,
+      "name": "self_end",
+      "csharp": "SelfEnd",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 165,
+      "name": "self_flex_start",
+      "csharp": "SelfFlexStart",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 166,
+      "name": "self_flex_end",
+      "csharp": "SelfFlexEnd",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 167,
+      "name": "self_center",
+      "csharp": "SelfCenter",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 168,
+      "name": "self_baseline",
+      "csharp": "SelfBaseline",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 169,
+      "name": "self_stretch",
+      "csharp": "SelfStretch",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
       "id": 200,
       "name": "on_click",
       "csharp": "OnClick",
