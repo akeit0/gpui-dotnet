@@ -320,10 +320,10 @@ Preserve these invariants through any redesign:
 
 ## Fork and upstream workflow
 
-The `external/gpui-component` submodule uses:
+The `external/gpui-kit` submodule uses:
 
-- `origin`: `akeit0/gpui-component`, the GPUI.NET integration fork;
-- `upstream`: `longbridge/gpui-component`, the authoritative upstream.
+- `origin`: `akeit0/gpui-kit`, the GPUI.NET integration fork;
+- `upstream`: `longbridge/gpui-kit`, the authoritative upstream.
 
 Keep fork `main` synchronized with upstream while the downstream delta is zero. Create an
 integration branch when the first fork-only patch is required. GPUI.NET pins the exact submodule
