@@ -242,7 +242,13 @@ the foundation exposes no node-stable activation handle, so there is no controll
 operation in this slice.
 
 `ExportLayout` delivers the authoritative native layout as JSON through the layout binding; the
-export is dropped when nothing is bound. `ImportLayout` restores structure (splits, sizes, active
+export is dropped when nothing is bound. The document is a GPUI.NET envelope,
+`{"format":1,"layout":{...}}`, whose nested layout is the foundation's opaque persisted state:
+imports accept only the current envelope and reject bare foundation documents or unknown
+formats rather than guessing. Panel leaves inside the nested layout follow the managed
+layout-leaf contract: `panel_name` is `"GpuiDotnetPanel"` and the info value carries the
+declaration panel id as `{"id":...}`; titles, flags, and content always come from the live
+declaration, never from the document. `ImportLayout` restores structure (splits, sizes, active
 tabs, region placement and open state) from such a document while panel content, titles, and
 options always come from the live declaration, joined by panel id. Persisted panels unknown to
 the declaration are pruned; declared panels missing from the document are appended to the center,
