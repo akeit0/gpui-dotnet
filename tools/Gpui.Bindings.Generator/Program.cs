@@ -119,11 +119,19 @@ internal static class BindingGenerator
                 }
             }
 
+            // Generated outputs use explicit LF line endings on every platform:
+            // StringBuilder.AppendLine emits Environment.NewLine, so without this a Windows
+            // checkout would rewrite every generated file with CRLF.
+            foreach (var path in outputs.Keys.ToArray())
+            {
+                outputs[path] = Normalize(outputs[path]);
+            }
+
             var stale = outputs
                 .Where(output =>
                     !File.Exists(Path.Combine(root, output.Key))
-                    || Normalize(File.ReadAllText(Path.Combine(root, output.Key), Encoding.UTF8))
-                        != Normalize(output.Value)
+                    || File.ReadAllText(Path.Combine(root, output.Key), Encoding.UTF8)
+                        != output.Value
                 )
                 .Select(output => output.Key)
                 .ToArray();
