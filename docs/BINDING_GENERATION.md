@@ -33,7 +33,15 @@ The schema defines:
 - native adapter selection;
 - capabilities such as styled, interactive, or checked;
 - operation IDs, value kinds, managed API types, compatibility requirements, and scalar/payload
-  constraints.
+  constraints;
+- retained resource kinds and their command IDs, names, and documentation;
+- control event IDs, family grouping, and documentation.
+
+Resource and control-event IDs generate as `ResourceKind`/`ResourceCommandKind` and per-family
+event-kind enums in C# plus `RESOURCE_*`/`COMMAND_*`/`EVENT_*` constants in Rust. Both sides
+match on generated names only; the schema hash covers these sections, so renumbering either side
+without the schema fails verification. Payload shapes, routing, and queueing stay hand-written:
+the schema owns identities, not behavior.
 
 The generator emits capability-constrained fluent methods and equivalent managed/native validation
 metadata. Put a new rule in the schema when both validators need it; do not duplicate a manual

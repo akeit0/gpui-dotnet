@@ -238,7 +238,10 @@ internal static unsafe class NativeCallbacks
                         )
                     );
                 }
-                else if (nativeEvent->kind is 4 or 5)
+                else if (
+                    nativeEvent->kind is (ushort)SliderEventKind.Changed
+                        or (ushort)SliderEventKind.Released
+                )
                 {
                     if ((nativeEvent->flags & ~2u) != 0)
                     {
@@ -269,7 +272,7 @@ internal static unsafe class NativeCallbacks
                     session.DispatchSlider(
                         eventToken,
                         new SliderEvent(
-                            nativeEvent->kind == 4
+                            nativeEvent->kind == (ushort)SliderEventKind.Changed
                                 ? SliderEventKind.Changed
                                 : SliderEventKind.Released,
                             start,
@@ -279,7 +282,11 @@ internal static unsafe class NativeCallbacks
                         )
                     );
                 }
-                else if (nativeEvent->kind is 6 or 7 or 8)
+                else if (
+                    nativeEvent->kind is (ushort)DockEventKind.LayoutChanged
+                        or (ushort)DockEventKind.LayoutExported
+                        or (ushort)DockEventKind.PanelClosed
+                )
                 {
                     // Dock layout-changed carries no payload; layout-exported carries UTF-8
                     // JSON; panel-closed carries the UTF-8 panel id. Flags are reserved.
@@ -297,9 +304,10 @@ internal static unsafe class NativeCallbacks
                                     nativeEvent->data_length
                                 )
                             );
+                    var changedKind = (ushort)DockEventKind.LayoutChanged;
                     if (
-                        (nativeEvent->kind == 6 && text.Length != 0)
-                        || (nativeEvent->kind != 6 && text.Length == 0)
+                        (nativeEvent->kind == changedKind && text.Length != 0)
+                        || (nativeEvent->kind != changedKind && text.Length == 0)
                     )
                     {
                         return -112;
@@ -309,8 +317,12 @@ internal static unsafe class NativeCallbacks
                         eventToken,
                         new DockEvent(
                             (DockEventKind)nativeEvent->kind,
-                            nativeEvent->kind == 8 ? text : string.Empty,
-                            nativeEvent->kind == 7 ? text : string.Empty,
+                            nativeEvent->kind == (ushort)DockEventKind.PanelClosed
+                                ? text
+                                : string.Empty,
+                            nativeEvent->kind == (ushort)DockEventKind.LayoutExported
+                                ? text
+                                : string.Empty,
                             nativeEvent->revision
                         )
                     );

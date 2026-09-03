@@ -16,11 +16,13 @@ use crate::{
     dock_skin::dock_area,
     resources::{ResourceCommand, ResourceKey, resource_key},
     semantic::{
-        COMPONENT_DOCK_PANEL, COMPONENT_DOCK_REGION, COMPONENT_DOCK_SPLIT, COMPONENT_DOCK_TABS,
-        OP_DOCK_ACTIVE_INDEX, OP_DOCK_AXIS, OP_DOCK_INITIAL_SIZE_PX, OP_DOCK_LOCKED,
-        OP_DOCK_ON_CLOSED, OP_DOCK_ON_LAYOUT, OP_DOCK_PANEL_CLOSABLE, OP_DOCK_PANEL_INNER_PADDING,
-        OP_DOCK_PANEL_ZOOMABLE, OP_DOCK_REGION_COLLAPSIBLE, OP_DOCK_REGION_OPEN,
-        OP_DOCK_REGION_SIDE,
+        COMMAND_DOCK_CLOSE_PANEL, COMMAND_DOCK_EXPORT_LAYOUT, COMMAND_DOCK_IMPORT_LAYOUT,
+        COMMAND_DOCK_SET_REGION_OPEN, COMPONENT_DOCK_PANEL, COMPONENT_DOCK_REGION,
+        COMPONENT_DOCK_SPLIT, COMPONENT_DOCK_TABS, EVENT_DOCK_LAYOUT_CHANGED,
+        EVENT_DOCK_LAYOUT_EXPORTED, EVENT_DOCK_PANEL_CLOSED, OP_DOCK_ACTIVE_INDEX, OP_DOCK_AXIS,
+        OP_DOCK_INITIAL_SIZE_PX, OP_DOCK_LOCKED, OP_DOCK_ON_CLOSED, OP_DOCK_ON_LAYOUT,
+        OP_DOCK_PANEL_CLOSABLE, OP_DOCK_PANEL_INNER_PADDING, OP_DOCK_PANEL_ZOOMABLE,
+        OP_DOCK_REGION_COLLAPSIBLE, OP_DOCK_REGION_OPEN, OP_DOCK_REGION_SIDE, RESOURCE_DOCK,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
 };
@@ -218,9 +220,21 @@ impl DockLayoutSpec {
     }
 }
 
-pub(crate) const DOCK_EVENT_LAYOUT_CHANGED: u16 = 6;
-pub(crate) const DOCK_EVENT_LAYOUT_EXPORTED: u16 = 7;
-pub(crate) const DOCK_EVENT_PANEL_CLOSED: u16 = 8;
+/// Version of the GPUI.NET layout document envelope. The envelope is ours;
+/// the nested layout is the foundation's opaque persisted state. Bumping this
+/// is a protocol change: imports reject anything they do not understand.
+const LAYOUT_ENVELOPE_FORMAT: u64 = 1;
+
+/// Reads a layout document envelope produced by [`ManagedDockResource::export_layout`].
+/// Only the current envelope is accepted: bare foundation documents and
+/// unknown formats are rejected rather than guessed at.
+fn parse_layout_envelope(document: &str) -> Option<DockAreaState> {
+    let envelope: serde_json::Value = serde_json::from_str(document).ok()?;
+    if envelope.get("format")?.as_u64()? != LAYOUT_ENVELOPE_FORMAT {
+        return None;
+    }
+    serde_json::from_value(envelope.get("layout")?.clone()).ok()
+}
 
 /// Native event routing shared by one Dock area and its panels. Panels reach
 /// it from `on_removed`, which fires inside base reconciliation without any
@@ -241,8 +255,8 @@ pub(crate) struct DockEventSink {
 
 pub(crate) fn emit_dock_event(sink: &Rc<DockEventSink>, kind: u16, data: &[u8]) {
     let token = match kind {
-        DOCK_EVENT_LAYOUT_CHANGED | DOCK_EVENT_LAYOUT_EXPORTED => sink.layout_token.get(),
-        DOCK_EVENT_PANEL_CLOSED => sink.closed_token.get(),
+        EVENT_DOCK_LAYOUT_CHANGED | EVENT_DOCK_LAYOUT_EXPORTED => sink.layout_token.get(),
+        EVENT_DOCK_PANEL_CLOSED => sink.closed_token.get(),
         _ => 0,
     };
     if token == 0 {
@@ -490,10 +504,12 @@ impl ManagedDockResource {
     ) {
         let data: &str = command.data.as_ref();
         match command.command {
-            40 => self.close_panel(data, window, cx),
-            41 => self.set_region_open(command.a as u32, command.b != 0, window, cx),
-            42 => self.import_layout(data, window, cx),
-            43 => self.export_layout(cx),
+            COMMAND_DOCK_CLOSE_PANEL => self.close_panel(data, window, cx),
+            COMMAND_DOCK_SET_REGION_OPEN => {
+                self.set_region_open(command.a as u32, command.b != 0, window, cx)
+            }
+            COMMAND_DOCK_IMPORT_LAYOUT => self.import_layout(data, window, cx),
+            COMMAND_DOCK_EXPORT_LAYOUT => self.export_layout(cx),
             _ => {}
         }
     }
@@ -542,7 +558,7 @@ impl ManagedDockResource {
         window: &mut Window,
         cx: &mut Context<ManagedView>,
     ) {
-        let Ok(state) = serde_json::from_str::<DockAreaState>(document) else {
+        let Some(state) = parse_layout_envelope(document) else {
             return;
         };
         let Some(configuration) = self.import_configuration(&state) else {
@@ -575,12 +591,14 @@ impl ManagedDockResource {
 
     fn export_layout(&mut self, cx: &mut Context<ManagedView>) {
         let state = self.area.read(cx).dump(cx);
-        let Ok(document) = serde_json::to_string(&state) else {
-            return;
-        };
+        let document = serde_json::json!({
+            "format": LAYOUT_ENVELOPE_FORMAT,
+            "layout": state,
+        })
+        .to_string();
         emit_dock_event(
             &self.events,
-            DOCK_EVENT_LAYOUT_EXPORTED,
+            EVENT_DOCK_LAYOUT_EXPORTED,
             document.as_bytes(),
         );
     }
@@ -877,7 +895,7 @@ impl BasePanel for ManagedDockPanel {
         }
         emit_dock_event(
             &self.events,
-            DOCK_EVENT_PANEL_CLOSED,
+            EVENT_DOCK_PANEL_CLOSED,
             self.id.as_str().as_bytes(),
         );
     }
@@ -1124,6 +1142,42 @@ mod tests {
         assert!(layout_spec_from_state(&foreign, &specs).is_none());
     }
 
+    fn enveloped(layout: serde_json::Value) -> String {
+        serde_json::json!({ "format": LAYOUT_ENVELOPE_FORMAT, "layout": layout }).to_string()
+    }
+
+    fn empty_layout() -> serde_json::Value {
+        let mut center = PanelState::new("StackPanel");
+        center.info = PanelInfo::stack(vec![], Axis::Horizontal);
+        serde_json::to_value(DockAreaState {
+            center,
+            ..Default::default()
+        })
+        .expect("persisted state serializes")
+    }
+
+    #[test]
+    fn layout_envelope_accepts_only_the_current_format() {
+        let layout = empty_layout();
+        assert!(parse_layout_envelope(&enveloped(layout.clone())).is_some());
+        // Bare foundation documents are rejected rather than guessed at.
+        assert!(parse_layout_envelope(&layout.to_string()).is_none());
+        assert!(parse_layout_envelope("not json").is_none());
+        assert!(
+            parse_layout_envelope(
+                &serde_json::json!({ "format": LAYOUT_ENVELOPE_FORMAT + 1, "layout": layout })
+                    .to_string()
+            )
+            .is_none()
+        );
+        assert!(
+            parse_layout_envelope(
+                &serde_json::json!({ "format": LAYOUT_ENVELOPE_FORMAT }).to_string()
+            )
+            .is_none()
+        );
+    }
+
     #[test]
     fn tombstoned_panels_leave_the_declaration_without_touching_entities() {
         let configuration = DockConfiguration {
@@ -1236,7 +1290,7 @@ mod tests {
     fn dock_command(command: u16, a: u64, b: u64, data: &str) -> ResourceCommand {
         ResourceCommand {
             key: dock_key(),
-            resource_kind: 5,
+            resource_kind: RESOURCE_DOCK,
             command,
             a,
             b,
@@ -1295,30 +1349,41 @@ mod tests {
         let _ = drained();
 
         // Export first: two panels, before anything closes.
-        assert!(!store.dispatch(dock_command(43, 0, 0, "")));
+        assert!(!store.dispatch(dock_command(COMMAND_DOCK_EXPORT_LAYOUT, 0, 0, "")));
         materialize(cx);
         let exported = drained()
             .into_iter()
-            .find(|(token, kind, _, _)| *token == 11 && *kind == DOCK_EVENT_LAYOUT_EXPORTED)
+            .find(|(token, kind, _, _)| *token == 11 && *kind == EVENT_DOCK_LAYOUT_EXPORTED)
             .expect("export emits the layout document");
         let document = String::from_utf8(exported.3).expect("export is UTF-8 JSON");
         assert!(document.contains("\"editor\"") && document.contains("\"preview\""));
+        let envelope: serde_json::Value =
+            serde_json::from_str(&document).expect("export is an envelope");
+        assert_eq!(
+            envelope.get("format").and_then(|format| format.as_u64()),
+            Some(LAYOUT_ENVELOPE_FORMAT)
+        );
+        assert!(
+            envelope
+                .get("layout")
+                .is_some_and(|layout| layout.is_object())
+        );
 
         // Controller close fires the closed event, tombstones the id against
         // resurrection, and reports the coarse layout change.
-        assert!(!store.dispatch(dock_command(40, 0, 0, "preview")));
+        assert!(!store.dispatch(dock_command(COMMAND_DOCK_CLOSE_PANEL, 0, 0, "preview")));
         materialize(cx);
         assert_eq!(cx.read(|cx| center_panel_ids(&area, cx)), vec!["editor"]);
         let events = drained();
         let closed = events
             .iter()
-            .find(|(token, kind, _, _)| *token == 12 && *kind == DOCK_EVENT_PANEL_CLOSED)
+            .find(|(token, kind, _, _)| *token == 12 && *kind == EVENT_DOCK_PANEL_CLOSED)
             .expect("close emits the panel id");
         assert_eq!(closed.3, b"preview");
         assert!(
             events
                 .iter()
-                .any(|(token, kind, _, _)| *token == 11 && *kind == DOCK_EVENT_LAYOUT_CHANGED)
+                .any(|(token, kind, _, _)| *token == 11 && *kind == EVENT_DOCK_LAYOUT_CHANGED)
         );
         // Revisions advance monotonically across kinds on one area.
         let revisions: Vec<u64> = events.iter().map(|(_, _, revision, _)| *revision).collect();
@@ -1331,7 +1396,7 @@ mod tests {
         let _ = drained();
 
         // Importing the pre-close document restores the panel explicitly.
-        assert!(!store.dispatch(dock_command(42, 0, 0, &document)));
+        assert!(!store.dispatch(dock_command(COMMAND_DOCK_IMPORT_LAYOUT, 0, 0, &document)));
         materialize(cx);
         assert_eq!(
             cx.read(|cx| center_panel_ids(&area, cx)),
@@ -1340,18 +1405,18 @@ mod tests {
         let _ = drained();
 
         // Region open state toggles programmatically.
-        assert!(!store.dispatch(dock_command(41, 0, 0, "")));
+        assert!(!store.dispatch(dock_command(COMMAND_DOCK_SET_REGION_OPEN, 0, 0, "")));
         materialize(cx);
         assert!(!cx.read(|cx| area.read(cx).is_dock_open(DockPlacement::Left)));
         let _ = drained();
-        assert!(!store.dispatch(dock_command(41, 0, 1, "")));
+        assert!(!store.dispatch(dock_command(COMMAND_DOCK_SET_REGION_OPEN, 0, 1, "")));
         materialize(cx);
         assert!(cx.read(|cx| area.read(cx).is_dock_open(DockPlacement::Left)));
         let _ = drained();
 
         // Unknown panels and malformed documents are consumed silently.
-        assert!(!store.dispatch(dock_command(40, 0, 0, "ghost")));
-        assert!(!store.dispatch(dock_command(42, 0, 0, "not json")));
+        assert!(!store.dispatch(dock_command(COMMAND_DOCK_CLOSE_PANEL, 0, 0, "ghost")));
+        assert!(!store.dispatch(dock_command(COMMAND_DOCK_IMPORT_LAYOUT, 0, 0, "not json")));
         materialize(cx);
         assert_eq!(
             cx.read(|cx| center_panel_ids(&area, cx)),

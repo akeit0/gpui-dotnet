@@ -1,4 +1,5 @@
 using Gpui;
+using Gpui.Interop;
 
 namespace Gpui.Tests;
 

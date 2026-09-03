@@ -13,6 +13,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::{
     abi::{ManagedCallbacks, NativeControlEvent},
     resources::ResourceCommand,
+    semantic::{EVENT_INPUT_CHANGED, EVENT_INPUT_FOCUS_CHANGED, EVENT_INPUT_SUBMITTED},
     theme::SharedTheme,
 };
 
@@ -34,10 +35,6 @@ actions!(
         Submit,
     ]
 );
-
-const EVENT_CHANGED: u16 = 1;
-const EVENT_SUBMITTED: u16 = 2;
-const EVENT_FOCUS_CHANGED: u16 = 3;
 
 pub(crate) fn init(cx: &mut App) {
     cx.bind_keys([
@@ -169,10 +166,10 @@ impl ManagedInput {
         cx: &mut Context<Self>,
     ) {
         match command.command {
-            20 if !self.disabled => self.focus_handle.focus(window, cx),
-            21 if self.focus_handle.is_focused(window) => window.blur(cx),
-            22 => self.set_value(command.data.as_ref(), cx),
-            23 if !self.disabled => {
+            COMMAND_INPUT_FOCUS if !self.disabled => self.focus_handle.focus(window, cx),
+            COMMAND_INPUT_BLUR if self.focus_handle.is_focused(window) => window.blur(cx),
+            COMMAND_INPUT_SET_VALUE => self.set_value(command.data.as_ref(), cx),
+            COMMAND_INPUT_SELECT_ALL if !self.disabled => {
                 self.selected_range = 0..self.content.len();
                 self.selection_reversed = false;
                 cx.notify();
@@ -300,7 +297,7 @@ impl ManagedInput {
 
     fn submit(&mut self, _: &Submit, _: &mut Window, cx: &mut Context<Self>) {
         if !self.disabled {
-            self.emit(self.bindings.submitted, EVENT_SUBMITTED, false, cx);
+            self.emit(self.bindings.submitted, EVENT_INPUT_SUBMITTED, false, cx);
         }
     }
 
@@ -462,7 +459,7 @@ impl ManagedInput {
         }
         self.last_emitted_content = self.content.clone();
         self.revision = self.revision.wrapping_add(1).max(1);
-        self.emit(self.bindings.changed, EVENT_CHANGED, false, cx);
+        self.emit(self.bindings.changed, EVENT_INPUT_CHANGED, false, cx);
     }
 
     fn emit(&mut self, token: u64, kind: u16, focused: bool, cx: &mut Context<Self>) {
@@ -638,11 +635,21 @@ impl Render for ManagedInput {
         if self.focus_subscriptions.is_empty() {
             let focus = self.focus_handle.clone();
             let focused = cx.on_focus(&focus, window, |this, _, cx| {
-                this.emit(this.bindings.focus_changed, EVENT_FOCUS_CHANGED, true, cx);
+                this.emit(
+                    this.bindings.focus_changed,
+                    EVENT_INPUT_FOCUS_CHANGED,
+                    true,
+                    cx,
+                );
             });
             let blurred = cx.on_blur(&focus, window, |this, _, cx| {
                 this.is_selecting = false;
-                this.emit(this.bindings.focus_changed, EVENT_FOCUS_CHANGED, false, cx);
+                this.emit(
+                    this.bindings.focus_changed,
+                    EVENT_INPUT_FOCUS_CHANGED,
+                    false,
+                    cx,
+                );
             });
             self.focus_subscriptions.extend([focused, blurred]);
         }

@@ -1424,5 +1424,68 @@
       "managedApi": null,
       "validation": { "kind": "f32Min", "min": 0, "minExclusive": true, "status": -59 }
     }
+  ],
+  "resources": [
+    {
+      "id": 1,
+      "name": "scroll",
+      "csharp": "Scroll",
+      "commands": [
+        { "id": 1, "name": "to_offset", "csharp": "ScrollToOffset", "doc": "Scrolls to a content-space offset." },
+        { "id": 2, "name": "to_top", "csharp": "ScrollToTop", "doc": "Scrolls to the top." },
+        { "id": 3, "name": "to_bottom", "csharp": "ScrollToBottom", "doc": "Scrolls to the bottom." }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "list",
+      "csharp": "List",
+      "commands": [
+        { "id": 10, "name": "scroll_to_item", "csharp": "ListScrollToItem", "doc": "Scrolls to a stable item index." },
+        { "id": 11, "name": "splice", "csharp": "ListSplice", "doc": "Preserves measurements across an insertion and removal." },
+        { "id": 12, "name": "reset", "csharp": "ListReset", "doc": "Rebuilds native state at a new item count." },
+        { "id": 13, "name": "refresh", "csharp": "ListRefresh", "doc": "Invalidates measurements for an item range." }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "input",
+      "csharp": "Input",
+      "commands": [
+        { "id": 20, "name": "focus", "csharp": "InputFocus", "doc": "Moves native keyboard focus to the input." },
+        { "id": 21, "name": "blur", "csharp": "InputBlur", "doc": "Releases native keyboard focus from the input." },
+        { "id": 22, "name": "set_value", "csharp": "InputSetValue", "doc": "Replaces the input value without emitting events." },
+        { "id": 23, "name": "select_all", "csharp": "InputSelectAll", "doc": "Selects the whole input value." }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "slider",
+      "csharp": "Slider",
+      "commands": [
+        { "id": 30, "name": "set_value", "csharp": "SliderSetValue", "doc": "Sets the slider value without emitting events." }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "dock",
+      "csharp": "Dock",
+      "commands": [
+        { "id": 40, "name": "close_panel", "csharp": "DockClosePanel", "doc": "Removes a panel natively and fires the closed event." },
+        { "id": 41, "name": "set_region_open", "csharp": "DockSetRegionOpen", "doc": "Opens or collapses a side region." },
+        { "id": 42, "name": "import_layout", "csharp": "DockImportLayout", "doc": "Restores native structure from a layout document." },
+        { "id": 43, "name": "export_layout", "csharp": "DockExportLayout", "doc": "Emits the authoritative layout document." }
+      ]
+    }
+  ],
+  "controlEvents": [
+    { "id": 1, "name": "input_changed", "csharp": "Changed", "group": "input", "doc": "The input value changed." },
+    { "id": 2, "name": "input_submitted", "csharp": "Submitted", "group": "input", "doc": "The input value was submitted." },
+    { "id": 3, "name": "input_focus_changed", "csharp": "FocusChanged", "group": "input", "doc": "Input focus changed." },
+    { "id": 4, "name": "slider_changed", "csharp": "Changed", "group": "slider", "doc": "The slider value changed during interaction." },
+    { "id": 5, "name": "slider_released", "csharp": "Released", "group": "slider", "doc": "The slider interaction released." },
+    { "id": 6, "name": "dock_layout_changed", "csharp": "LayoutChanged", "group": "dock", "doc": "Coarse structural signal. Fires for native interaction and for declarative or controller-driven structural changes. Carries no payload; debounce with the event revision." },
+    { "id": 7, "name": "dock_layout_exported", "csharp": "LayoutExported", "group": "dock", "doc": "Carries the exported layout document requested through the controller." },
+    { "id": 8, "name": "dock_panel_closed", "csharp": "PanelClosed", "group": "dock", "doc": "A panel left the Dock natively or through the controller. Carries the panel id. Panels removed by declaration or pruned by layout import do not fire this event." }
   ]
 }

@@ -149,6 +149,14 @@ and Released events carry one little-endian `f32`, or two ordered values when th
 Dock LayoutChanged carries no payload; Dock LayoutExported carries the UTF-8 layout JSON requested
 through the controller; Dock PanelClosed carries the UTF-8 panel id.
 
+Control-event kinds are global: Input uses 1-3, Slider uses 4-5, and Dock uses 6
+(LayoutChanged), 7 (LayoutExported), and 8 (PanelClosed). Resource kinds are Scroll 1,
+List 2, Input 3, Slider 4, and Dock 5, with the command IDs listed below. These numbers
+generate from `bindings/schema.json` into both managed enums and native constants; the schema
+hash covers them, so either side renumbering without the schema fails verification. Command and
+event payload shapes, routing, and queueing stay hand-written: the schema owns identities,
+not behavior. Describing payload layouts as separate compatibility units is open phase-10 work.
+
 Event kinds with bit `0x8000` set belong to the generic native-extension namespace. The lower 15
 bits contain the non-zero event ID generated from the extension schema; flags, revision, and byte
 payload retain their schema-defined meanings. Core validates and copies the envelope, then routes

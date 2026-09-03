@@ -226,6 +226,49 @@ internal static class BindingGenerator
         EnsureUnique(schema.Components.Select(component => component.CSharp), "component C# name");
         EnsureUnique(schema.Operations.Select(operation => operation.Id), "operation ID");
         EnsureUnique(schema.Operations.Select(operation => operation.Name), "operation name");
+        EnsureUnique(schema.Resources.Select(resource => resource.Id), "resource ID");
+        EnsureUnique(schema.Resources.Select(resource => resource.Name), "resource name");
+        EnsureUnique(
+            schema.Resources.Select(resource => resource.CSharp),
+            "resource C# name"
+        );
+        EnsureUnique(
+            schema.Resources.SelectMany(resource => resource.Commands).Select(command => command.CSharp),
+            "resource command C# name"
+        );
+        EnsureUnique(schema.ControlEvents.Select(controlEvent => controlEvent.Id), "control event ID");
+        EnsureUnique(schema.ControlEvents.Select(controlEvent => controlEvent.Name), "control event name");
+        EnsureUnique(
+            schema.ControlEvents.Select(controlEvent => (controlEvent.Group, controlEvent.CSharp)),
+            "control event C# member"
+        );
+        foreach (var resource in schema.Resources)
+        {
+            ValidateId(resource.Id, $"resource {resource.Name}");
+            ValidateName(resource.Name, "resource");
+            ValidateCSharpIdentifier(resource.CSharp, "resource");
+            EnsureUnique(
+                resource.Commands.Select(command => command.Id),
+                $"command ID on resource {resource.Name}"
+            );
+            EnsureUnique(
+                resource.Commands.Select(command => command.Name),
+                $"command name on resource {resource.Name}"
+            );
+            foreach (var command in resource.Commands)
+            {
+                ValidateId(command.Id, $"command {resource.Name}.{command.Name}");
+                ValidateName(command.Name, "resource command");
+                ValidateCSharpIdentifier(command.CSharp, "resource command");
+            }
+        }
+        foreach (var controlEvent in schema.ControlEvents)
+        {
+            ValidateId(controlEvent.Id, $"control event {controlEvent.Name}");
+            ValidateName(controlEvent.Name, "control event");
+            ValidateName(controlEvent.Group, "control event group");
+            ValidateCSharpIdentifier(controlEvent.CSharp, "control event");
+        }
 
         if (schema.Components.Count == 0 || schema.Operations.Count == 0)
         {
@@ -835,6 +878,29 @@ internal static class BindingGenerator
         builder.AppendLine("        F32x2 = 5,");
         builder.AppendLine("    }");
         builder.AppendLine();
+        builder.AppendLine("    internal enum ResourceKind : ushort");
+        builder.AppendLine("    {");
+        foreach (var resource in schema.Resources)
+        {
+            builder.AppendLine($"        {resource.CSharp} = {resource.Id},");
+        }
+        builder.AppendLine("    }");
+        builder.AppendLine();
+        builder.AppendLine("    internal enum ResourceCommandKind : ushort");
+        builder.AppendLine("    {");
+        foreach (var resource in schema.Resources)
+        {
+            foreach (var command in resource.Commands)
+            {
+                if (command.Doc is { } commandDoc)
+                {
+                    builder.AppendLine($"        /// <summary>{XmlDoc(commandDoc)}</summary>");
+                }
+                builder.AppendLine($"        {command.CSharp} = {command.Id},");
+            }
+        }
+        builder.AppendLine("    }");
+        builder.AppendLine();
         builder.AppendLine("    internal static class SemanticRegistry");
         builder.AppendLine("    {");
         builder.AppendLine($"        internal const uint SchemaVersion = {schema.SchemaVersion};");
@@ -956,6 +1022,21 @@ internal static class BindingGenerator
             );
         }
         builder.AppendLine();
+        foreach (var group in schema.ControlEvents.Select(controlEvent => controlEvent.Group).Distinct())
+        {
+            builder.AppendLine($"    public enum {Pascal(group)}EventKind : ushort");
+            builder.AppendLine("    {");
+            foreach (var controlEvent in schema.ControlEvents.Where(controlEvent => controlEvent.Group == group))
+            {
+                if (controlEvent.Doc is { } eventDoc)
+                {
+                    builder.AppendLine($"        /// <summary>{XmlDoc(eventDoc)}</summary>");
+                }
+                builder.AppendLine($"        {controlEvent.CSharp} = {controlEvent.Id},");
+            }
+            builder.AppendLine("    }");
+            builder.AppendLine();
+        }
         builder.AppendLine("    public readonly unsafe ref partial struct RenderContext");
         builder.AppendLine("    {");
         foreach (
@@ -1233,6 +1314,26 @@ internal static class BindingGenerator
             builder.AppendLine($"pub const OP_{UpperSnake(operation.Name)}: u16 = {operation.Id};");
         }
         builder.AppendLine();
+        foreach (var resource in schema.Resources)
+        {
+            builder.AppendLine(
+                $"pub const RESOURCE_{UpperSnake(resource.Name)}: u16 = {resource.Id};"
+            );
+            foreach (var command in resource.Commands)
+            {
+                builder.AppendLine(
+                    $"pub const COMMAND_{UpperSnake(resource.Name)}_{UpperSnake(command.Name)}: u16 = {command.Id};"
+                );
+            }
+        }
+        builder.AppendLine();
+        foreach (var controlEvent in schema.ControlEvents)
+        {
+            builder.AppendLine(
+                $"pub const EVENT_{UpperSnake(controlEvent.Name)}: u16 = {controlEvent.Id};"
+            );
+        }
+        builder.AppendLine();
         builder.AppendLine("#[repr(u16)]");
         builder.AppendLine("#[derive(Clone, Copy, Debug, Eq, PartialEq)]");
         builder.AppendLine("pub enum ValueKind {");
@@ -1506,6 +1607,9 @@ internal static class BindingGenerator
 
     private static string UpperSnake(string value) => value.ToUpperInvariant();
 
+    private static string XmlDoc(string value) =>
+        value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+
     private static string CSharpValidationExpression(Validation validation) =>
         validation.Kind switch
         {
@@ -1560,7 +1664,9 @@ internal sealed record BindingSchema(
     int SchemaVersion,
     List<string> Capabilities,
     List<Component> Components,
-    List<Operation> Operations
+    List<Operation> Operations,
+    List<ResourceSchema> Resources,
+    List<ControlEventSchema> ControlEvents
 );
 
 internal sealed record ExtensionManifest(List<ExtensionGeneration> Schemas);
@@ -1620,4 +1726,26 @@ internal sealed record Validation(
     double? Max,
     bool MinExclusive,
     int Status
+);
+
+internal sealed record ResourceSchema(
+    int Id,
+    string Name,
+    [property: JsonPropertyName("csharp")] string CSharp,
+    List<ResourceCommandSchema> Commands
+);
+
+internal sealed record ResourceCommandSchema(
+    int Id,
+    string Name,
+    [property: JsonPropertyName("csharp")] string CSharp,
+    string? Doc
+);
+
+internal sealed record ControlEventSchema(
+    int Id,
+    string Name,
+    string Group,
+    [property: JsonPropertyName("csharp")] string CSharp,
+    string? Doc
 );

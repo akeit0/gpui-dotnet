@@ -1,4 +1,5 @@
 using System.Text;
+using Gpui.Interop;
 
 namespace Gpui;
 

@@ -78,26 +78,6 @@ public readonly struct DockRegionOptions
     internal bool EffectiveCollapsible => !_initialized || Collapsible;
 }
 
-/// <summary>Kind of event emitted by a retained native Dock area.</summary>
-public enum DockEventKind : ushort
-{
-    /// <summary>
-    /// Coarse structural signal. Fires for native interaction (tab moves, splits, closes,
-    /// region toggles) and for declarative or controller-driven structural changes. Carries
-    /// no payload; use the revision to debounce and <see cref="DockController.ExportLayout"/>
-    /// to read the authoritative layout.
-    /// </summary>
-    LayoutChanged = 6,
-    /// <summary>Carries the exported layout JSON requested by <see cref="DockController.ExportLayout"/>.</summary>
-    LayoutExported = 7,
-    /// <summary>
-    /// A panel left the Dock natively (close control) or through
-    /// <see cref="DockController.ClosePanel"/>. Carries the panel id. Panels removed by
-    /// declaration or pruned by layout import do not fire this event.
-    /// </summary>
-    PanelClosed = 8,
-}
-
 /// <summary>One coarse event from a retained native Dock area.</summary>
 public readonly struct DockEvent
 {
@@ -212,7 +192,9 @@ public readonly struct DockController
     /// (splits, sizes, active tabs, region placement and open state) comes from the document;
     /// panel content, titles, and options come from the live declaration. Persisted panels
     /// unknown to the declaration are pruned; declared panels missing from the document are
-    /// appended to the center. Lock state always comes from the declaration.
+    /// appended to the center. Lock state always comes from the declaration. Only documents
+    /// produced by <see cref="ExportLayout"/> (the versioned GPUI.NET envelope) are accepted;
+    /// anything else is consumed without effect.
     /// </summary>
     public void ImportLayout(string layoutJson)
     {
@@ -238,7 +220,9 @@ public readonly struct DockController
     /// <summary>
     /// Requests the authoritative native layout as JSON through the area's
     /// <c>OnDockLayoutChanged</c> binding as a <see cref="DockEventKind.LayoutExported"/>
-    /// event. Without that binding the export has nowhere to go and is dropped.
+    /// event. The document is a versioned GPUI.NET envelope wrapping the native layout;
+    /// only such documents are accepted back by <see cref="ImportLayout"/>. Without that
+    /// binding the export has nowhere to go and is dropped.
     /// </summary>
     public void ExportLayout()
     {

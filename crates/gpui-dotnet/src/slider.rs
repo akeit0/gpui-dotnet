@@ -9,11 +9,9 @@ use gpui::{
 use crate::{
     abi::{ManagedCallbacks, NativeControlEvent},
     resources::{ResourceCommand, SliderBindings, SliderConfiguration},
+    semantic::{COMMAND_SLIDER_SET_VALUE, EVENT_SLIDER_CHANGED, EVENT_SLIDER_RELEASED},
     theme::SharedTheme,
 };
-
-pub(crate) const EVENT_CHANGED: u16 = 4;
-pub(crate) const EVENT_RELEASED: u16 = 5;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum SliderValue {
@@ -166,7 +164,7 @@ impl ManagedSlider {
     }
 
     pub(crate) fn apply_command(&mut self, command: &ResourceCommand, cx: &mut Context<Self>) {
-        if command.command != 30 || self.disabled {
+        if command.command != COMMAND_SLIDER_SET_VALUE || self.disabled {
             return;
         }
         let start = f32::from_bits(command.a as u32);
@@ -257,7 +255,7 @@ impl ManagedSlider {
         }
         if self.value != previous {
             self.revision = self.revision.wrapping_add(1).max(1);
-            self.emit(self.bindings.changed, EVENT_CHANGED, cx);
+            self.emit(self.bindings.changed, EVENT_SLIDER_CHANGED, cx);
             cx.notify();
         }
     }
@@ -267,7 +265,7 @@ impl ManagedSlider {
             return;
         }
         self.dragging = false;
-        self.emit(self.bindings.released, EVENT_RELEASED, cx);
+        self.emit(self.bindings.released, EVENT_SLIDER_RELEASED, cx);
     }
 
     fn on_key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
@@ -304,7 +302,7 @@ impl ManagedSlider {
             return;
         }
         self.keyboard_active = false;
-        self.emit(self.bindings.released, EVENT_RELEASED, cx);
+        self.emit(self.bindings.released, EVENT_SLIDER_RELEASED, cx);
         cx.stop_propagation();
     }
 
@@ -644,13 +642,13 @@ mod tests {
 
         let recorded = events();
         assert_eq!(recorded.len(), 1);
-        assert_eq!(recorded[0].0, EVENT_CHANGED);
+        assert_eq!(recorded[0].0, EVENT_SLIDER_CHANGED);
         assert_eq!(recorded[0].2, SliderValue::Single(75.));
 
         cx.simulate_mouse_up(position, MouseButton::Left, Modifiers::none());
         let recorded = events();
         assert_eq!(recorded.len(), 2);
-        assert_eq!(recorded[1].0, EVENT_RELEASED);
+        assert_eq!(recorded[1].0, EVENT_SLIDER_RELEASED);
         assert_eq!(recorded[1].1, 1);
         assert_eq!(recorded[1].2, SliderValue::Single(75.));
     }
@@ -677,7 +675,7 @@ mod tests {
         let events = events();
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].2, SliderValue::Range(10., 75.));
-        assert_eq!(events[1].0, EVENT_RELEASED);
+        assert_eq!(events[1].0, EVENT_SLIDER_RELEASED);
         assert_eq!(events[1].2, SliderValue::Range(10., 75.));
     }
 
@@ -705,7 +703,7 @@ mod tests {
 
         let recorded = events();
         assert_eq!(recorded[0].2, SliderValue::Single(10.));
-        assert_eq!(recorded[1].0, EVENT_RELEASED);
+        assert_eq!(recorded[1].0, EVENT_SLIDER_RELEASED);
     }
 
     #[gpui::test]
@@ -766,7 +764,10 @@ mod tests {
         });
 
         cx.simulate_keystrokes("right");
-        assert_eq!(events(), vec![(EVENT_CHANGED, 1, SliderValue::Single(55.))]);
+        assert_eq!(
+            events(),
+            vec![(EVENT_SLIDER_CHANGED, 1, SliderValue::Single(55.))]
+        );
 
         cx.simulate_event(KeyUpEvent {
             keystroke: Keystroke::parse("right").unwrap(),
@@ -774,8 +775,8 @@ mod tests {
         assert_eq!(
             events(),
             vec![
-                (EVENT_CHANGED, 1, SliderValue::Single(55.)),
-                (EVENT_RELEASED, 1, SliderValue::Single(55.)),
+                (EVENT_SLIDER_CHANGED, 1, SliderValue::Single(55.)),
+                (EVENT_SLIDER_RELEASED, 1, SliderValue::Single(55.)),
             ]
         );
     }
@@ -806,12 +807,12 @@ mod tests {
         let recorded = events();
         assert_eq!(
             recorded.last().copied(),
-            Some((EVENT_RELEASED, 1, SliderValue::Single(75.)))
+            Some((EVENT_SLIDER_RELEASED, 1, SliderValue::Single(75.)))
         );
         assert!(
             recorded
                 .iter()
-                .any(|event| event.0 == EVENT_CHANGED && event.2 == SliderValue::Single(75.))
+                .any(|event| event.0 == EVENT_SLIDER_CHANGED && event.2 == SliderValue::Single(75.))
         );
     }
 

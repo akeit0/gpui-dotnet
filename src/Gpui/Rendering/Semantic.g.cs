@@ -166,10 +166,55 @@ namespace Gpui.Interop
         F32x2 = 5,
     }
 
+    internal enum ResourceKind : ushort
+    {
+        Scroll = 1,
+        List = 2,
+        Input = 3,
+        Slider = 4,
+        Dock = 5,
+    }
+
+    internal enum ResourceCommandKind : ushort
+    {
+        /// <summary>Scrolls to a content-space offset.</summary>
+        ScrollToOffset = 1,
+        /// <summary>Scrolls to the top.</summary>
+        ScrollToTop = 2,
+        /// <summary>Scrolls to the bottom.</summary>
+        ScrollToBottom = 3,
+        /// <summary>Scrolls to a stable item index.</summary>
+        ListScrollToItem = 10,
+        /// <summary>Preserves measurements across an insertion and removal.</summary>
+        ListSplice = 11,
+        /// <summary>Rebuilds native state at a new item count.</summary>
+        ListReset = 12,
+        /// <summary>Invalidates measurements for an item range.</summary>
+        ListRefresh = 13,
+        /// <summary>Moves native keyboard focus to the input.</summary>
+        InputFocus = 20,
+        /// <summary>Releases native keyboard focus from the input.</summary>
+        InputBlur = 21,
+        /// <summary>Replaces the input value without emitting events.</summary>
+        InputSetValue = 22,
+        /// <summary>Selects the whole input value.</summary>
+        InputSelectAll = 23,
+        /// <summary>Sets the slider value without emitting events.</summary>
+        SliderSetValue = 30,
+        /// <summary>Removes a panel natively and fires the closed event.</summary>
+        DockClosePanel = 40,
+        /// <summary>Opens or collapses a side region.</summary>
+        DockSetRegionOpen = 41,
+        /// <summary>Restores native structure from a layout document.</summary>
+        DockImportLayout = 42,
+        /// <summary>Emits the authoritative layout document.</summary>
+        DockExportLayout = 43,
+    }
+
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x93A7288DF9C5C8B7UL;
+        internal const ulong SchemaHash = 0x431B3988C7860E06UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -627,6 +672,34 @@ namespace Gpui
     public readonly struct DockPanelTag : IParentElementTag, IDockPanelElementTag { }
     public readonly struct DockRegionTag : IParentElementTag, IDockContainerElementTag, IDockRegionElementTag { }
     public readonly struct NativeExtensionTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IExtensionElementTag { }
+
+    public enum InputEventKind : ushort
+    {
+        /// <summary>The input value changed.</summary>
+        Changed = 1,
+        /// <summary>The input value was submitted.</summary>
+        Submitted = 2,
+        /// <summary>Input focus changed.</summary>
+        FocusChanged = 3,
+    }
+
+    public enum SliderEventKind : ushort
+    {
+        /// <summary>The slider value changed during interaction.</summary>
+        Changed = 4,
+        /// <summary>The slider interaction released.</summary>
+        Released = 5,
+    }
+
+    public enum DockEventKind : ushort
+    {
+        /// <summary>Coarse structural signal. Fires for native interaction and for declarative or controller-driven structural changes. Carries no payload; debounce with the event revision.</summary>
+        LayoutChanged = 6,
+        /// <summary>Carries the exported layout document requested through the controller.</summary>
+        LayoutExported = 7,
+        /// <summary>A panel left the Dock natively or through the controller. Carries the panel id. Panels removed by declaration or pruned by layout import do not fire this event.</summary>
+        PanelClosed = 8,
+    }
 
     public readonly unsafe ref partial struct RenderContext
     {

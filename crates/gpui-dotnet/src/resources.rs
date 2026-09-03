@@ -22,6 +22,7 @@ use crate::{
     input::{InputBindings, InputInitialState, ManagedInput},
     scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics},
     semantic::{
+        COMMAND_LIST_REFRESH, COMMAND_LIST_RESET, COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_LIST_SPLICE,
         NativeAdapter, OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED,
         OP_INPUT_ON_SUBMITTED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT,
         OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
@@ -29,7 +30,8 @@ use crate::{
         OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SLIDER_AXIS,
         OP_SLIDER_DISABLED, OP_SLIDER_MAX, OP_SLIDER_MIN, OP_SLIDER_ON_CHANGED,
         OP_SLIDER_ON_RELEASED, OP_SLIDER_RANGE_END, OP_SLIDER_RANGE_START, OP_SLIDER_SCALE,
-        OP_SLIDER_STEP, OP_SLIDER_VALUE, OP_TABLE_COLUMN, component_metadata,
+        OP_SLIDER_STEP, OP_SLIDER_VALUE, OP_TABLE_COLUMN, RESOURCE_DOCK, RESOURCE_INPUT,
+        RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER, component_metadata,
     },
     slider::{ManagedSlider, SliderValue},
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
@@ -125,7 +127,7 @@ impl ResourceStore {
         self.scrolls
             .borrow_mut()
             .insert(key.clone(), resource.clone());
-        self.apply_pending(1, key);
+        self.apply_pending(RESOURCE_SCROLL, key);
         resource
     }
 
@@ -152,7 +154,7 @@ impl ResourceStore {
         resource
             .borrow_mut()
             .configure(configuration, snapshot_revision);
-        self.apply_pending(2, key);
+        self.apply_pending(RESOURCE_LIST, key);
         resource
     }
 
@@ -239,7 +241,7 @@ impl ResourceStore {
         let pending = self
             .pending
             .borrow_mut()
-            .remove(&(3, configuration.key.clone()))
+            .remove(&(RESOURCE_INPUT, configuration.key.clone()))
             .unwrap_or_default();
         for command in pending {
             resource.update(cx, |input, cx| input.apply_command(&command, window, cx));
@@ -275,7 +277,7 @@ impl ResourceStore {
         let pending = self
             .pending
             .borrow_mut()
-            .remove(&(4, configuration.key.clone()))
+            .remove(&(RESOURCE_SLIDER, configuration.key.clone()))
             .unwrap_or_default();
         for command in pending {
             resource.update(cx, |slider, cx| slider.apply_command(&command, cx));
@@ -324,7 +326,7 @@ impl ResourceStore {
                     if matches!(event, gpui_base::dock::DockEvent::LayoutChanged) {
                         crate::dock::emit_dock_event(
                             &events,
-                            crate::dock::DOCK_EVENT_LAYOUT_CHANGED,
+                            crate::semantic::EVENT_DOCK_LAYOUT_CHANGED,
                             &[],
                         );
                     }
@@ -341,7 +343,7 @@ impl ResourceStore {
         let pending = self
             .pending
             .borrow_mut()
-            .remove(&(5, configuration.key.clone()))
+            .remove(&(RESOURCE_DOCK, configuration.key.clone()))
             .unwrap_or_default();
         for command in pending {
             resource.borrow_mut().apply_command(&command, window, cx);
@@ -353,9 +355,9 @@ impl ResourceStore {
 
     pub(crate) fn dispatch(&self, command: ResourceCommand) -> bool {
         let applied = match command.resource_kind {
-            1 => self.apply_scroll_command(&command),
-            2 => self.apply_list_command(&command),
-            3 | 4 | 5 => false,
+            RESOURCE_SCROLL => self.apply_scroll_command(&command),
+            RESOURCE_LIST => self.apply_list_command(&command),
+            RESOURCE_INPUT | RESOURCE_SLIDER | RESOURCE_DOCK => false,
             _ => true,
         };
         if !applied {
@@ -376,8 +378,8 @@ impl ResourceStore {
         };
         for command in commands {
             let _ = match command.resource_kind {
-                1 => self.apply_scroll_command(&command),
-                2 => self.apply_list_command(&command),
+                RESOURCE_SCROLL => self.apply_scroll_command(&command),
+                RESOURCE_LIST => self.apply_list_command(&command),
                 _ => true,
             };
         }
@@ -390,15 +392,15 @@ impl ResourceStore {
         let handle = &resource.handle;
         resource.interaction.remaining.set(Point::default());
         match command.command {
-            1 => {
+            COMMAND_SCROLL_TO_OFFSET => {
                 let x = f32::from_bits(command.a as u32);
                 let y = f32::from_bits(command.b as u32);
                 if x.is_finite() && y.is_finite() {
                     handle.set_offset(point(px(-x), px(-y)));
                 }
             }
-            2 => handle.set_offset(point(px(0.), px(0.))),
-            3 => handle.scroll_to_bottom(),
+            COMMAND_SCROLL_TO_TOP => handle.set_offset(point(px(0.), px(0.))),
+            COMMAND_SCROLL_TO_BOTTOM => handle.scroll_to_bottom(),
             _ => {}
         }
         true
@@ -409,7 +411,7 @@ impl ResourceStore {
             // Structural commands only preserve measurements. If the resource does not exist yet,
             // there are no measurements to preserve and the next managed snapshot will construct
             // ListState directly at the authoritative item count. Keep only imperative scrolling.
-            return matches!(command.command, 11..=13);
+            return matches!(command.command, COMMAND_LIST_SPLICE..=COMMAND_LIST_REFRESH);
         };
         resource.borrow_mut().apply_command(command);
         true
@@ -436,55 +438,56 @@ impl ResourceStore {
             ) {
                 continue;
             }
-            let active_resource =
-                match metadata.adapter {
-                    NativeAdapter::Scroll => resource_key(snapshot, node).map(|key| (1, key)),
-                    NativeAdapter::List => resource_key(snapshot, node).map(|key| (2, key)),
-                    NativeAdapter::Table => table_key(snapshot, node).map(|key| (2, key)),
-                    NativeAdapter::Input => input_configuration(snapshot, node)
-                        .map(|configuration| (3, configuration.key)),
-                    NativeAdapter::Slider => slider_configuration(snapshot, node)
-                        .map(|configuration| (4, configuration.key)),
-                    NativeAdapter::DockArea => dock_configuration(snapshot, node)
-                        .map(|configuration| (5, configuration.key)),
-                    NativeAdapter::NativeExtension => {
-                        if let (Some(owner), Some(declaration)) = (
-                            last_u32(snapshot, node, OP_RESOURCE_OWNER),
-                            extension_declaration(node),
-                        ) {
-                            if owner != 0 {
-                                extension_active.insert(declaration.resource_key(owner));
-                            }
+            let active_resource = match metadata.adapter {
+                NativeAdapter::Scroll => {
+                    resource_key(snapshot, node).map(|key| (RESOURCE_SCROLL, key))
+                }
+                NativeAdapter::List => resource_key(snapshot, node).map(|key| (RESOURCE_LIST, key)),
+                NativeAdapter::Table => table_key(snapshot, node).map(|key| (RESOURCE_LIST, key)),
+                NativeAdapter::Input => input_configuration(snapshot, node)
+                    .map(|configuration| (RESOURCE_INPUT, configuration.key)),
+                NativeAdapter::Slider => slider_configuration(snapshot, node)
+                    .map(|configuration| (RESOURCE_SLIDER, configuration.key)),
+                NativeAdapter::DockArea => dock_configuration(snapshot, node)
+                    .map(|configuration| (RESOURCE_DOCK, configuration.key)),
+                NativeAdapter::NativeExtension => {
+                    if let (Some(owner), Some(declaration)) = (
+                        last_u32(snapshot, node, OP_RESOURCE_OWNER),
+                        extension_declaration(node),
+                    ) {
+                        if owner != 0 {
+                            extension_active.insert(declaration.resource_key(owner));
                         }
-                        None
                     }
-                    _ => None,
-                };
+                    None
+                }
+                _ => None,
+            };
             if let Some(resource) = active_resource {
                 active.insert(resource);
             }
         }
         self.scrolls
             .borrow_mut()
-            .retain(|key, _| active.contains(&(1, key.clone())));
+            .retain(|key, _| active.contains(&(RESOURCE_SCROLL, key.clone())));
         self.lists
             .borrow_mut()
-            .retain(|key, _| active.contains(&(2, key.clone())));
+            .retain(|key, _| active.contains(&(RESOURCE_LIST, key.clone())));
         self.tables
             .borrow_mut()
-            .retain(|key, _| active.contains(&(2, key.clone())));
+            .retain(|key, _| active.contains(&(RESOURCE_LIST, key.clone())));
         self.inputs
             .borrow_mut()
-            .retain(|key, _| active.contains(&(3, key.clone())));
+            .retain(|key, _| active.contains(&(RESOURCE_INPUT, key.clone())));
         self.sliders
             .borrow_mut()
-            .retain(|key, _| active.contains(&(4, key.clone())));
+            .retain(|key, _| active.contains(&(RESOURCE_SLIDER, key.clone())));
         self.docks
             .borrow_mut()
-            .retain(|key, _| active.contains(&(5, key.clone())));
+            .retain(|key, _| active.contains(&(RESOURCE_DOCK, key.clone())));
         self.dock_subscriptions
             .borrow_mut()
-            .retain(|key, _| active.contains(&(5, key.clone())));
+            .retain(|key, _| active.contains(&(RESOURCE_DOCK, key.clone())));
         self.extensions.retain(&extension_active);
         self.pending
             .borrow_mut()
@@ -722,13 +725,13 @@ impl ManagedListResource {
 
     fn apply_command(&mut self, command: &ResourceCommand) {
         match command.command {
-            10 if self.pending_commands.is_empty() => {
+            COMMAND_LIST_SCROLL_TO_ITEM if self.pending_commands.is_empty() => {
                 let index = command.a as usize;
                 if index < self.item_count {
                     self.scroll_to_item(index);
                 }
             }
-            10..=13 => {
+            COMMAND_LIST_SCROLL_TO_ITEM..=COMMAND_LIST_REFRESH => {
                 // Structural list commands are measurement-preservation hints. Applying them
                 // immediately can race a frame that still materializes the previous managed
                 // snapshot. Queue them until snapshot_revision advances, then commit the whole
@@ -828,14 +831,16 @@ impl ManagedListResource {
         let mut changes = Vec::new();
         for command in &self.pending_commands {
             match command.command {
-                10 => changes.push(ListChange::ScrollTo(command.a as usize)),
-                11 => changes.push(ListChange::Splice {
+                COMMAND_LIST_SCROLL_TO_ITEM => {
+                    changes.push(ListChange::ScrollTo(command.a as usize))
+                }
+                COMMAND_LIST_SPLICE => changes.push(ListChange::Splice {
                     start: command.a as usize,
                     removed: (command.b >> 32) as usize,
                     inserted: command.b as u32 as usize,
                 }),
-                12 => changes.push(ListChange::Reset(command.a as usize)),
-                13 => changes.push(ListChange::Refresh {
+                COMMAND_LIST_RESET => changes.push(ListChange::Reset(command.a as usize)),
+                COMMAND_LIST_REFRESH => changes.push(ListChange::Refresh {
                     start: command.a as usize,
                     count: command.b as usize,
                 }),
@@ -1400,7 +1405,7 @@ mod tests {
     #[test]
     fn structural_insertions_receive_estimated_height_hints() {
         let mut resource = ManagedListResource::new(1, callbacks(), &configuration(Some(1)), 1);
-        resource.apply_command(&command(11, 50, 5, ""));
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 50, 5, ""));
         resource.commit_pending_commands(105);
 
         assert_eq!(resource.state.max_offset_for_scrollbar().y, px(4_200.));
@@ -1443,7 +1448,7 @@ mod tests {
     fn command(command: u16, a: u64, b: u64, data: &str) -> ResourceCommand {
         ResourceCommand {
             key: ResourceKey::new(7, shared("list")),
-            resource_kind: 2,
+            resource_kind: RESOURCE_LIST,
             command,
             a,
             b,
@@ -1468,7 +1473,7 @@ mod tests {
     #[test]
     fn refresh_invalidates_only_intersecting_batches() {
         let mut resource = resource_with_batches(&[0, 48, 96, 144]);
-        resource.apply_command(&command(13, 50, 1, ""));
+        resource.apply_command(&command(COMMAND_LIST_REFRESH, 50, 1, ""));
         resource.commit_pending_commands(100);
 
         assert_eq!(batch_keys(&resource), vec![0, 96, 144]);
@@ -1480,7 +1485,7 @@ mod tests {
     #[test]
     fn refresh_spanning_multiple_batches_invalidates_each_one() {
         let mut resource = resource_with_batches(&[0, 48, 96, 144]);
-        resource.apply_command(&command(13, 40, 20, ""));
+        resource.apply_command(&command(COMMAND_LIST_REFRESH, 40, 20, ""));
         resource.commit_pending_commands(100);
 
         // [40, 60) touches batch 0 ([0, 48)) and batch 48 ([48, 96)).
@@ -1491,7 +1496,7 @@ mod tests {
     #[test]
     fn splice_preserves_batches_entirely_before_start() {
         let mut resource = resource_with_batches(&[0, 48, 96, 144]);
-        resource.apply_command(&command(11, 90, (10_u64 << 32) | 10, ""));
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 90, (10_u64 << 32) | 10, ""));
         resource.commit_pending_commands(100);
 
         // The suffix at or after batch 48 contains index 90 and shifts; batch 0 is untouched.
@@ -1502,7 +1507,7 @@ mod tests {
     #[test]
     fn splice_at_head_invalidates_every_cached_batch() {
         let mut resource = resource_with_batches(&[0, 48, 96]);
-        resource.apply_command(&command(11, 0, (5_u64 << 32) | 2, ""));
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 0, (5_u64 << 32) | 2, ""));
         resource.commit_pending_commands(97);
 
         assert!(resource.batches.is_empty());
@@ -1512,7 +1517,7 @@ mod tests {
     #[test]
     fn splice_suffix_start_snaps_to_batch_boundary() {
         let mut resource = resource_with_batches(&[0, 48, 96]);
-        resource.apply_command(&command(11, 60, (1_u64 << 32) | 1, ""));
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 60, (1_u64 << 32) | 1, ""));
         resource.commit_pending_commands(100);
 
         // Batch 48 covers [48, 96), which contains index 60, so it is stale; batch 0 survives.
@@ -1536,8 +1541,8 @@ mod tests {
     fn multi_range_refresh_invalidates_exactly_the_intersecting_batches() {
         let mut resource = resource_with_batches(&[0, 48, 96, 144]);
         resource.item_count = 200;
-        resource.apply_command(&command(13, 50, 1, ""));
-        resource.apply_command(&command(13, 150, 3, ""));
+        resource.apply_command(&command(COMMAND_LIST_REFRESH, 50, 1, ""));
+        resource.apply_command(&command(COMMAND_LIST_REFRESH, 150, 3, ""));
         resource.commit_pending_commands(200);
 
         assert_eq!(batch_keys(&resource), vec![0, 96]);
@@ -1547,8 +1552,8 @@ mod tests {
     #[test]
     fn multi_range_refresh_after_splice_uses_post_splice_indices() {
         let mut resource = resource_with_batches(&[0, 48, 96, 144]);
-        resource.apply_command(&command(11, 40, (2_u64 << 32) | 2, ""));
-        resource.apply_command(&command(13, 38, 1, ""));
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 40, (2_u64 << 32) | 2, ""));
+        resource.apply_command(&command(COMMAND_LIST_REFRESH, 38, 1, ""));
         resource.commit_pending_commands(100);
 
         // The splice at 40 has batch boundary 0, so every cached batch is already stale; the
@@ -1560,7 +1565,7 @@ mod tests {
     #[test]
     fn hints_disagreeing_with_declared_count_fall_back_to_full_reset() {
         let mut resource = resource_with_batches(&[0, 48, 96]);
-        resource.apply_command(&command(13, 10, 5, ""));
+        resource.apply_command(&command(COMMAND_LIST_REFRESH, 10, 5, ""));
         resource.commit_pending_commands(101);
 
         assert!(resource.batches.is_empty());
@@ -1583,7 +1588,7 @@ mod tests {
     #[test]
     fn refresh_zero_count_after_real_range_preserves_earlier_invalidation() {
         let mut resource = resource_with_batches(&[0, 48, 96]);
-        resource.apply_command(&command(13, 50, 1, ""));
+        resource.apply_command(&command(COMMAND_LIST_REFRESH, 50, 1, ""));
         resource.apply_command(&command(13, 10, 0, ""));
         resource.commit_pending_commands(100);
 

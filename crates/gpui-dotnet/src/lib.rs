@@ -28,7 +28,14 @@ use abi::{
     NativeExtensionCommand as NativeExtensionCommandAbi, NativeMenuCommand, NativeMenuRecord,
     NativeResourceCommand, NativeThemePayload, RenderArena,
 };
-use semantic::SCHEMA_HASH;
+use semantic::{
+    COMMAND_DOCK_CLOSE_PANEL, COMMAND_DOCK_EXPORT_LAYOUT, COMMAND_DOCK_IMPORT_LAYOUT,
+    COMMAND_DOCK_SET_REGION_OPEN, COMMAND_INPUT_BLUR, COMMAND_INPUT_FOCUS,
+    COMMAND_INPUT_SELECT_ALL, COMMAND_INPUT_SET_VALUE, COMMAND_LIST_REFRESH, COMMAND_LIST_RESET,
+    COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_LIST_SPLICE, COMMAND_SCROLL_TO_BOTTOM,
+    COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP, COMMAND_SLIDER_SET_VALUE, RESOURCE_DOCK,
+    RESOURCE_INPUT, RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER, SCHEMA_HASH,
+};
 
 static API_V3: GpuiDotnetApiV3 = GpuiDotnetApiV3 {
     struct_size: GpuiDotnetApiV3::struct_size(),
@@ -208,18 +215,33 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         return -51;
     }
     let valid_command = match command.resource_kind {
-        1 => matches!(command.command, 1..=3),
-        2 => matches!(command.command, 10..=13),
-        3 => matches!(command.command, 20..=23),
-        4 => command.command == 30,
-        5 => matches!(command.command, 40 | 41 | 42 | 43),
+        RESOURCE_SCROLL => matches!(
+            command.command,
+            COMMAND_SCROLL_TO_OFFSET..=COMMAND_SCROLL_TO_BOTTOM
+        ),
+        RESOURCE_LIST => matches!(
+            command.command,
+            COMMAND_LIST_SCROLL_TO_ITEM..=COMMAND_LIST_REFRESH
+        ),
+        RESOURCE_INPUT => matches!(
+            command.command,
+            COMMAND_INPUT_FOCUS..=COMMAND_INPUT_SELECT_ALL
+        ),
+        RESOURCE_SLIDER => command.command == COMMAND_SLIDER_SET_VALUE,
+        RESOURCE_DOCK => matches!(
+            command.command,
+            COMMAND_DOCK_CLOSE_PANEL
+                | COMMAND_DOCK_SET_REGION_OPEN
+                | COMMAND_DOCK_IMPORT_LAYOUT
+                | COMMAND_DOCK_EXPORT_LAYOUT
+        ),
         _ => false,
     };
     if !valid_command {
         return -53;
     }
     let payload_valid = match (command.resource_kind, command.command) {
-        (1, 1) if command.data_length == 0 => {
+        (RESOURCE_SCROLL, COMMAND_SCROLL_TO_OFFSET) if command.data_length == 0 => {
             if command.a >> 32 != 0 || command.b >> 32 != 0 {
                 false
             } else {
@@ -228,36 +250,50 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
                 x.is_finite() && y.is_finite() && x >= 0.0 && y >= 0.0
             }
         }
-        (1, 2 | 3) => command.data_length == 0 && command.a == 0 && command.b == 0,
-        (2, 10) => command.data_length == 0 && command.a >> 32 == 0 && command.b == 0,
-        (2, 11) => command.data_length == 0 && command.a >> 32 == 0,
-        (2, 12) => command.data_length == 0 && command.a >> 32 == 0 && command.b == 0,
-        (2, 13) => command.data_length == 0 && command.a >> 32 == 0 && command.b >> 32 == 0,
-        (3, 20 | 21 | 23) => command.data_length == 0 && command.a == 0 && command.b == 0,
-        (3, 22) => command.a == 0 && command.b == 0,
-        (4, 30) => {
+        (RESOURCE_SCROLL, COMMAND_SCROLL_TO_TOP | COMMAND_SCROLL_TO_BOTTOM) => {
+            command.data_length == 0 && command.a == 0 && command.b == 0
+        }
+        (RESOURCE_LIST, COMMAND_LIST_SCROLL_TO_ITEM) => {
+            command.data_length == 0 && command.a >> 32 == 0 && command.b == 0
+        }
+        (RESOURCE_LIST, COMMAND_LIST_SPLICE) => command.data_length == 0 && command.a >> 32 == 0,
+        (RESOURCE_LIST, COMMAND_LIST_RESET) => {
+            command.data_length == 0 && command.a >> 32 == 0 && command.b == 0
+        }
+        (RESOURCE_LIST, COMMAND_LIST_REFRESH) => {
+            command.data_length == 0 && command.a >> 32 == 0 && command.b >> 32 == 0
+        }
+        (RESOURCE_INPUT, COMMAND_INPUT_FOCUS | COMMAND_INPUT_BLUR | COMMAND_INPUT_SELECT_ALL) => {
+            command.data_length == 0 && command.a == 0 && command.b == 0
+        }
+        (RESOURCE_INPUT, COMMAND_INPUT_SET_VALUE) => command.a == 0 && command.b == 0,
+        (RESOURCE_SLIDER, COMMAND_SLIDER_SET_VALUE) => {
             let start = f32::from_bits(command.a as u32);
             let end = f32::from_bits((command.a >> 32) as u32);
             command.data_length == 0 && command.b <= 1 && start.is_finite() && end.is_finite()
         }
         // Dock panel commands carry the UTF-8 panel id as data: non-empty,
         // NUL-free, and bounded like resource keys.
-        (5, 40) => {
+        (RESOURCE_DOCK, COMMAND_DOCK_CLOSE_PANEL) => {
             command.a == 0
                 && command.b == 0
                 && command.data_length > 0
                 && command.data_length <= 4096
         }
-        (5, 41) => command.data_length == 0 && command.a <= 2 && command.b <= 1,
+        (RESOURCE_DOCK, COMMAND_DOCK_SET_REGION_OPEN) => {
+            command.data_length == 0 && command.a <= 2 && command.b <= 1
+        }
         // Dock layout import carries the JSON document as data, bounded so a
         // corrupt sender cannot queue an unbounded retained payload.
-        (5, 42) => {
+        (RESOURCE_DOCK, COMMAND_DOCK_IMPORT_LAYOUT) => {
             command.a == 0
                 && command.b == 0
                 && command.data_length > 0
                 && command.data_length <= (1 << 20)
         }
-        (5, 43) => command.data_length == 0 && command.a == 0 && command.b == 0,
+        (RESOURCE_DOCK, COMMAND_DOCK_EXPORT_LAYOUT) => {
+            command.data_length == 0 && command.a == 0 && command.b == 0
+        }
         _ => false,
     };
     if !payload_valid {
@@ -277,7 +313,7 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         };
         data
     };
-    if command.resource_kind == 5
+    if command.resource_kind == RESOURCE_DOCK
         && command.data_length != 0
         && (data.is_empty() || data.bytes().any(|byte| byte == 0))
     {
@@ -649,44 +685,91 @@ mod tests {
         // -30 is the unknown-view status: validation passed, routing failed.
         let panel = b"editor";
         assert_eq!(
-            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 40, 0, 0, panel)) },
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_CLOSE_PANEL, 0, 0, panel),
+                )
+            },
             -30
         );
         assert_eq!(
-            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 41, 1, 1, &[])) },
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_SET_REGION_OPEN, 1, 1, &[]),
+                )
+            },
             -30
         );
         assert_eq!(
-            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 42, 0, 0, b"{}")) },
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_IMPORT_LAYOUT, 0, 0, b"{}"),
+                )
+            },
             -30
         );
         assert_eq!(
-            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 43, 0, 0, &[])) },
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_EXPORT_LAYOUT, 0, 0, &[]),
+                )
+            },
             -30
         );
 
         assert_eq!(
-            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 44, 0, 0, &[])) },
+            unsafe {
+                dispatch_command_inner(u64::MAX - 1, &dock_command(RESOURCE_DOCK, 44, 0, 0, &[]))
+            },
             -53
         );
         assert_eq!(
-            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 40, 0, 0, &[])) },
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_CLOSE_PANEL, 0, 0, &[]),
+                )
+            },
             -54
         );
         assert_eq!(
-            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 40, 1, 0, panel)) },
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_CLOSE_PANEL, 1, 0, panel),
+                )
+            },
             -54
         );
         assert_eq!(
-            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 41, 3, 0, &[])) },
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_SET_REGION_OPEN, 3, 0, &[]),
+                )
+            },
             -54
         );
         assert_eq!(
-            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 41, 0, 2, &[])) },
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_SET_REGION_OPEN, 0, 2, &[]),
+                )
+            },
             -54
         );
         assert_eq!(
-            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 40, 0, 0, b"a\0b")) },
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_CLOSE_PANEL, 0, 0, b"a\0b"),
+                )
+            },
             -55
         );
     }
