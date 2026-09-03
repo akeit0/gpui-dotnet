@@ -32,6 +32,8 @@ public abstract partial class ViewBase
         Click,
         Input,
         Slider,
+        Dock,
+        NativeExtension,
     }
 
     private readonly struct EventDispatch
@@ -42,6 +44,8 @@ public abstract partial class ViewBase
             Click = click;
             Input = null;
             Slider = default;
+            Dock = default;
+            NativeExtension = null;
         }
 
         internal EventDispatch(InputEvent input)
@@ -50,6 +54,8 @@ public abstract partial class ViewBase
             Click = default;
             Input = input;
             Slider = default;
+            Dock = default;
+            NativeExtension = null;
         }
 
         internal EventDispatch(SliderEvent slider)
@@ -58,12 +64,36 @@ public abstract partial class ViewBase
             Click = default;
             Input = null;
             Slider = slider;
+            Dock = default;
+            NativeExtension = null;
+        }
+
+        internal EventDispatch(DockEvent dock)
+        {
+            Kind = EventDispatchKind.Dock;
+            Click = default;
+            Input = null;
+            Slider = default;
+            Dock = dock;
+            NativeExtension = null;
+        }
+
+        internal EventDispatch(NativeExtensionEvent nativeExtension)
+        {
+            Kind = EventDispatchKind.NativeExtension;
+            Click = default;
+            Input = null;
+            Slider = default;
+            Dock = default;
+            NativeExtension = nativeExtension;
         }
 
         internal EventDispatchKind Kind { get; }
         internal ClickEvent Click { get; }
         internal InputEvent? Input { get; }
         internal SliderEvent Slider { get; }
+        internal DockEvent Dock { get; }
+        internal NativeExtensionEvent? NativeExtension { get; }
     }
 
     private struct EventEntry
@@ -107,6 +137,33 @@ public abstract partial class ViewBase
 
     internal ulong BindSlider<TView>(Func<TView, SliderEvent, Task> callback)
         where TView : ViewBase => BindDynamicEvent(this, callback, SliderTaskBinder<TView>.Index);
+
+    /// <summary>Registers a typed Dock area callback on this mounted View.</summary>
+    internal ulong BindDock<TView>(Action<TView, DockEvent> callback)
+        where TView : ViewBase => BindDynamicEvent(this, callback, DockBinder<TView>.Index);
+
+    internal ulong BindDock<TView>(Func<TView, DockEvent, ValueTask> callback)
+        where TView : ViewBase => BindDynamicEvent(this, callback, DockAsyncBinder<TView>.Index);
+
+    internal ulong BindDock<TView>(Func<TView, DockEvent, Task> callback)
+        where TView : ViewBase => BindDynamicEvent(this, callback, DockTaskBinder<TView>.Index);
+
+    internal ulong BindNativeExtensionEvent<TView, TEvent>(Action<TView, TEvent> callback)
+        where TView : ViewBase
+        where TEvent : INativeExtensionEvent<TEvent> =>
+        BindDynamicEvent(this, callback, NativeExtensionBinder<TView, TEvent>.Index);
+
+    internal ulong BindNativeExtensionEvent<TView, TEvent>(
+        Func<TView, TEvent, ValueTask> callback
+    )
+        where TView : ViewBase
+        where TEvent : INativeExtensionEvent<TEvent> =>
+        BindDynamicEvent(this, callback, NativeExtensionAsyncBinder<TView, TEvent>.Index);
+
+    internal ulong BindNativeExtensionEvent<TView, TEvent>(Func<TView, TEvent, Task> callback)
+        where TView : ViewBase
+        where TEvent : INativeExtensionEvent<TEvent> =>
+        BindDynamicEvent(this, callback, NativeExtensionTaskBinder<TView, TEvent>.Index);
 
     private ulong BindDynamicEvent(ViewBase target, Delegate callback, int binderIndex)
     {
@@ -267,6 +324,21 @@ public abstract partial class ViewBase
         );
     }
 
+    private ValueTask DispatchDynamicDockAsync(uint eventId, DockEvent dockEvent)
+    {
+        if (!TryGetDynamicEvent(eventId, out var entry))
+        {
+            return MissingDynamicEvent(eventId, "dock");
+        }
+
+        var dispatch = new EventDispatch(dockEvent);
+        return EventBinderRegistry.Get(entry.BinderIndex)(
+            entry.Target!,
+            entry.Callback!,
+            in dispatch
+        );
+    }
+
     private bool TryGetDynamicEvent(uint eventId, out EventEntry entry)
     {
         if ((eventId & DynamicEventBit) == 0)
@@ -331,6 +403,27 @@ public abstract partial class ViewBase
 
     internal ValueTask DispatchSliderCore(uint eventId, SliderEvent sliderEvent) =>
         DispatchDynamicSliderAsync(eventId, sliderEvent);
+
+    internal ValueTask DispatchDockCore(uint eventId, DockEvent dockEvent) =>
+        DispatchDynamicDockAsync(eventId, dockEvent);
+
+    internal ValueTask DispatchNativeExtensionCore(
+        uint eventId,
+        NativeExtensionEvent nativeExtensionEvent
+    )
+    {
+        if (!TryGetDynamicEvent(eventId, out var entry))
+        {
+            return MissingDynamicEvent(eventId, "native extension");
+        }
+
+        var dispatch = new EventDispatch(nativeExtensionEvent);
+        return EventBinderRegistry.Get(entry.BinderIndex)(
+            entry.Target!,
+            entry.Callback!,
+            in dispatch
+        );
+    }
 
     private static class EventBinderRegistry
     {
@@ -599,6 +692,170 @@ public abstract partial class ViewBase
             }
 
             return new ValueTask(typedCallback(typedTarget, dispatch.Slider));
+        }
+    }
+
+    private static class DockBinder<TView>
+        where TView : ViewBase
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.Dock)
+            {
+                return WrongDispatchKind("dock");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "dock");
+            }
+            if (callback is not Action<TView, DockEvent> typedCallback)
+            {
+                return WrongCallback("Action<TView, DockEvent>", "dock");
+            }
+
+            typedCallback(typedTarget, dispatch.Dock);
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private static class DockAsyncBinder<TView>
+        where TView : ViewBase
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.Dock)
+            {
+                return WrongDispatchKind("dock");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "dock");
+            }
+            if (callback is not Func<TView, DockEvent, ValueTask> typedCallback)
+            {
+                return WrongCallback("Func<TView, DockEvent, ValueTask>", "dock");
+            }
+
+            return typedCallback(typedTarget, dispatch.Dock);
+        }
+    }
+
+    private static class DockTaskBinder<TView>
+        where TView : ViewBase
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.Dock)
+            {
+                return WrongDispatchKind("dock");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "dock");
+            }
+            if (callback is not Func<TView, DockEvent, Task> typedCallback)
+            {
+                return WrongCallback("Func<TView, DockEvent, Task>", "dock");
+            }
+
+            return new ValueTask(typedCallback(typedTarget, dispatch.Dock));
+        }
+    }
+
+    private static class NativeExtensionBinder<TView, TEvent>
+        where TView : ViewBase
+        where TEvent : INativeExtensionEvent<TEvent>
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (
+                dispatch.Kind != EventDispatchKind.NativeExtension
+                || dispatch.NativeExtension is not { } nativeExtensionEvent
+            )
+            {
+                return WrongDispatchKind("native extension");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "native extension");
+            }
+            if (callback is not Action<TView, TEvent> typedCallback)
+            {
+                return WrongCallback($"Action<TView, {typeof(TEvent).Name}>", "native extension");
+            }
+
+            typedCallback(typedTarget, TEvent.Decode(nativeExtensionEvent));
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private static class NativeExtensionAsyncBinder<TView, TEvent>
+        where TView : ViewBase
+        where TEvent : INativeExtensionEvent<TEvent>
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (
+                dispatch.Kind != EventDispatchKind.NativeExtension
+                || dispatch.NativeExtension is not { } nativeExtensionEvent
+            )
+            {
+                return WrongDispatchKind("native extension");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "native extension");
+            }
+            if (callback is not Func<TView, TEvent, ValueTask> typedCallback)
+            {
+                return WrongCallback(
+                    $"Func<TView, {typeof(TEvent).Name}, ValueTask>",
+                    "native extension"
+                );
+            }
+
+            return typedCallback(typedTarget, TEvent.Decode(nativeExtensionEvent));
+        }
+    }
+
+    private static class NativeExtensionTaskBinder<TView, TEvent>
+        where TView : ViewBase
+        where TEvent : INativeExtensionEvent<TEvent>
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (
+                dispatch.Kind != EventDispatchKind.NativeExtension
+                || dispatch.NativeExtension is not { } nativeExtensionEvent
+            )
+            {
+                return WrongDispatchKind("native extension");
+            }
+            if (target is not TView typedTarget)
+            {
+                return WrongTarget<TView>(target, "native extension");
+            }
+            if (callback is not Func<TView, TEvent, Task> typedCallback)
+            {
+                return WrongCallback(
+                    $"Func<TView, {typeof(TEvent).Name}, Task>",
+                    "native extension"
+                );
+            }
+
+            return new ValueTask(typedCallback(typedTarget, TEvent.Decode(nativeExtensionEvent)));
         }
     }
 

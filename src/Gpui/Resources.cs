@@ -1,7 +1,10 @@
+using Gpui.Interop;
+
 namespace Gpui;
 
 // Shared resource-command wire types. The per-resource controllers and option structs live in
-// Scrolling.cs, Lists.cs, Inputs.cs, and Tables.cs.
+// Scrolling.cs, Lists.cs, Inputs.cs, and Tables.cs. Resource and command IDs generate from
+// bindings/schema.json into Semantic.g.cs; the surface here is routing only.
 
 /// <summary>
 /// Auto resource-key encoding for ref-bound controllers. The key is the 0x01 namespace byte
@@ -89,30 +92,6 @@ internal static class ResourceKeys
             }
         }
     }
-}
-
-internal enum ResourceKind : ushort
-{
-    Scroll = 1,
-    List = 2,
-    Input = 3,
-    Slider = 4,
-}
-
-internal enum ResourceCommandKind : ushort
-{
-    ScrollToOffset = 1,
-    ScrollToTop = 2,
-    ScrollToBottom = 3,
-    ListScrollToItem = 10,
-    ListSplice = 11,
-    ListReset = 12,
-    ListRefresh = 13,
-    InputFocus = 20,
-    InputBlur = 21,
-    InputSetValue = 22,
-    InputSelectAll = 23,
-    SliderSetValue = 30,
 }
 
 internal readonly record struct ResourceCommand(

@@ -10,14 +10,15 @@ use std::{
 
 use async_channel::{Receiver, Sender, TrySendError};
 use gpui::{
-    AnyWindowHandle, App, AppContext, Application, Bounds, Context, IntoElement, Menu, MenuItem,
-    Render, TitlebarOptions, Window, WindowBounds, WindowDecorations, WindowOptions, div, point,
+    AnyWindowHandle, App, AppContext, Bounds, Context, IntoElement, Menu, MenuItem, Render,
+    TitlebarOptions, Window, WindowBounds, WindowDecorations, WindowOptions, div, point,
     prelude::*, px, rgba, size,
 };
 
 use crate::{
     abi::ManagedCallbacks,
     arena::OwnedRenderArena,
+    extension::NativeExtensionCommand,
     overlay::OverlayStack,
     popover_menu::PopoverMenuGroup,
     resources::{ResourceCommand, ResourceStore},
@@ -32,7 +33,7 @@ pub(crate) struct ManagedView {
     pub(crate) callbacks: ManagedCallbacks,
     arena: OwnedRenderArena,
     retained_strings: RetainedStrings,
-    snapshot: ValidatedSnapshot,
+    pub(crate) snapshot: ValidatedSnapshot,
     snapshot_scratch: SnapshotScratch,
     has_snapshot: bool,
     pub(crate) snapshot_revision: u64,
@@ -47,6 +48,7 @@ pub(crate) struct ManagedView {
 enum ViewMessage {
     Invalidate,
     ResourceCommand(ResourceCommand),
+    ExtensionCommand(NativeExtensionCommand),
 }
 
 #[derive(Clone)]
@@ -226,6 +228,23 @@ pub(crate) fn dispatch_command(view_id: u64, command: ResourceCommand) -> i32 {
     }
 }
 
+pub(crate) fn dispatch_extension_command(view_id: u64, command: NativeExtensionCommand) -> i32 {
+    let sender = {
+        let Ok(notifiers) = view_notifiers().lock() else {
+            return -32;
+        };
+        let Some(notifier) = notifiers.get(&view_id) else {
+            return -30;
+        };
+        notifier.sender.clone()
+    };
+    match sender.try_send(ViewMessage::ExtensionCommand(command)) {
+        Ok(()) => 0,
+        Err(TrySendError::Full(_)) => -33,
+        Err(TrySendError::Closed(_)) => -31,
+    }
+}
+
 pub(crate) fn dispatch_application_command(
     application_id: u64,
     command: ApplicationCommand,
@@ -247,7 +266,7 @@ pub(crate) fn dispatch_application_command(
 }
 
 impl ManagedView {
-    fn new(view_id: u64, callbacks: ManagedCallbacks, theme: SharedTheme) -> Self {
+    pub(crate) fn new(view_id: u64, callbacks: ManagedCallbacks, theme: SharedTheme) -> Self {
         Self {
             view_id,
             callbacks,
@@ -427,10 +446,60 @@ impl Render for ManagedView {
         self.schedule_dynamic_frame(dynamic_owners, window, cx);
 
         div()
+            .tab_group()
+            .on_key_down(|event, window, cx| {
+                let modifiers = event.keystroke.modifiers;
+                if event.keystroke.key != "tab"
+                    || modifiers.control
+                    || modifiers.alt
+                    || modifiers.platform
+                    || modifiers.function
+                {
+                    return;
+                }
+                if modifiers.shift {
+                    cycle_focus(false, window, cx);
+                } else {
+                    cycle_focus(true, window, cx);
+                }
+                cx.stop_propagation();
+            })
             .size_full()
             .bg(rgba(theme.background))
             .text_color(rgba(theme.text))
             .child(content)
+    }
+}
+
+fn cycle_focus(forward: bool, window: &mut Window, cx: &mut App) {
+    let step = |window: &mut Window, cx: &mut App| {
+        if forward {
+            window.focus_next(cx);
+        } else {
+            window.focus_prev(cx);
+        }
+    };
+
+    let Some(trap) = gpui_base::active_focus_trap(window, cx) else {
+        step(window, cx);
+        return;
+    };
+
+    let before = window.focused(cx);
+    step(window, cx);
+
+    const MAX_STEPS: usize = 100;
+    let mut steps = 0;
+    while !trap.contains_focused(window, cx) && steps < MAX_STEPS {
+        step(window, cx);
+        steps += 1;
+        if window.focused(cx) == before {
+            break;
+        }
+    }
+
+    if !trap.contains_focused(window, cx) {
+        trap.focus(window, cx);
     }
 }
 
@@ -482,62 +551,69 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
     let application_status = Arc::new(AtomicI32::new(0));
     let application_status_in_app = Arc::clone(&application_status);
 
-    Application::new().run(move |cx: &mut App| {
-        crate::input::init(cx);
-        let windows: ManagedWindows = Rc::new(RefCell::new(HashMap::new()));
-        let theme: SharedTheme = Rc::new(RefCell::new(NativeTheme::default()));
+    gpui_platform::application()
+        .with_assets(())
+        .run(move |cx: &mut App| {
+            gpui_base::init(cx);
+            crate::input::init(cx);
+            let windows: ManagedWindows = Rc::new(RefCell::new(HashMap::new()));
+            let initial_theme = NativeTheme::default();
+            initial_theme.apply(cx);
+            cx.set_global(initial_theme.resolved());
+            crate::extension::initialize_providers(cx);
+            crate::extension::apply_provider_themes(cx);
+            let theme: SharedTheme = Rc::new(RefCell::new(initial_theme));
 
-        let menu_status = Arc::clone(&application_status_in_app);
-        cx.on_action(move |action: &ManagedMenuAction, _cx| {
-            let status = unsafe {
-                callbacks
-                    .menu_action
-                    .expect("callbacks were validated before application startup")(
+            let menu_status = Arc::clone(&application_status_in_app);
+            cx.on_action(move |action: &ManagedMenuAction, _cx| {
+                let status = unsafe {
+                    callbacks
+                        .menu_action
+                        .expect("callbacks were validated before application startup")(
+                        application_id,
+                        action.id,
+                    )
+                };
+                record_status(&menu_status, status);
+            });
+
+            let closed_windows = Rc::clone(&windows);
+            let closed_status = Arc::clone(&application_status_in_app);
+            cx.on_window_closed(move |cx, _| {
+                report_closed_windows(
+                    cx,
                     application_id,
-                    action.id,
-                )
-            };
-            record_status(&menu_status, status);
-        });
+                    callbacks,
+                    &closed_windows,
+                    &closed_status,
+                );
+            })
+            .detach();
 
-        let closed_windows = Rc::clone(&windows);
-        let closed_status = Arc::clone(&application_status_in_app);
-        cx.on_window_closed(move |cx| {
-            report_closed_windows(
-                cx,
-                application_id,
-                callbacks,
-                &closed_windows,
-                &closed_status,
-            );
-        })
-        .detach();
+            while let Ok(command) = receiver.try_recv() {
+                apply_application_command(
+                    command,
+                    cx,
+                    application_id,
+                    callbacks,
+                    &windows,
+                    &theme,
+                    &application_status_in_app,
+                );
+            }
 
-        while let Ok(command) = receiver.try_recv() {
-            apply_application_command(
-                command,
-                cx,
-                application_id,
-                callbacks,
-                &windows,
-                &theme,
-                &application_status_in_app,
-            );
-        }
+            if windows.borrow().is_empty() {
+                record_status(&application_status_in_app, -24);
+                cx.quit();
+                return;
+            }
 
-        if windows.borrow().is_empty() {
-            record_status(&application_status_in_app, -24);
-            cx.quit();
-            return;
-        }
-
-        let command_windows = Rc::clone(&windows);
-        let command_theme = Rc::clone(&theme);
-        let command_status = Arc::clone(&application_status_in_app);
-        cx.spawn(async move |cx| {
-            while let Ok(command) = receiver.recv().await {
-                if cx
-                    .update(|cx| {
+            let command_windows = Rc::clone(&windows);
+            let command_theme = Rc::clone(&theme);
+            let command_status = Arc::clone(&application_status_in_app);
+            cx.spawn(async move |cx| {
+                while let Ok(command) = receiver.recv().await {
+                    cx.update(|cx| {
                         apply_application_command(
                             command,
                             cx,
@@ -547,17 +623,13 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
                             &command_theme,
                             &command_status,
                         );
-                    })
-                    .is_err()
-                {
-                    break;
+                    });
                 }
-            }
-        })
-        .detach();
+            })
+            .detach();
 
-        cx.activate(true);
-    });
+            cx.activate(true);
+        });
 
     application_status.load(Ordering::Acquire)
 }
@@ -573,10 +645,13 @@ fn apply_application_command(
 ) {
     match command {
         ApplicationCommand::SetMenuBar(menus) => {
-            cx.set_menus(menus.into_iter().map(|menu| convert_menu(menu)).collect());
+            cx.set_menus(menus.into_iter().map(convert_menu));
         }
         ApplicationCommand::SetTheme(next) => {
+            next.apply(cx);
             *theme.borrow_mut() = next;
+            cx.set_global(next.resolved());
+            crate::extension::apply_provider_themes(cx);
             for entry in windows.borrow().values() {
                 let Some(handle) = entry.handle.downcast::<ManagedView>() else {
                     continue;
@@ -680,6 +755,7 @@ fn convert_menu(menu: ManagedMenu) -> Menu {
     Menu {
         name: menu.title.into(),
         items: menu.items.into_iter().map(convert_menu_item).collect(),
+        disabled: false,
     }
 }
 
@@ -880,6 +956,10 @@ fn create_managed_view(
                             cx.notify();
                         }
                     }
+                    ViewMessage::ExtensionCommand(command) => {
+                        view.resources.extensions().enqueue_command(command);
+                        cx.notify();
+                    }
                 })
                 .is_err()
             {
@@ -895,6 +975,61 @@ fn create_managed_view(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use gpui::FocusHandle;
+    use gpui_base::FocusTrapElement as _;
+
+    struct FocusTrapHarness {
+        trap: FocusHandle,
+        first: FocusHandle,
+        last: FocusHandle,
+        outside: FocusHandle,
+    }
+
+    impl Render for FocusTrapHarness {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+                .child(
+                    div()
+                        .track_focus(&self.trap)
+                        .child(div().track_focus(&self.first))
+                        .child(div().track_focus(&self.last))
+                        .focus_trap("managed-overlay-test", &self.trap),
+                )
+                .child(div().track_focus(&self.outside))
+        }
+    }
+
+    #[gpui::test]
+    fn gpui_base_foundation_initializes(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_base::init(cx);
+
+            assert!(cx.has_global::<gpui_base::Theme>());
+            assert!(cx.has_global::<gpui_base::GlobalState>());
+        });
+    }
+
+    #[gpui::test]
+    fn root_focus_navigation_wraps_inside_foundation_trap(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_base::init);
+        let (view, cx) = cx.add_window_view(|_, cx| FocusTrapHarness {
+            trap: cx.focus_handle().tab_stop(false),
+            first: cx.focus_handle().tab_stop(true),
+            last: cx.focus_handle().tab_stop(true),
+            outside: cx.focus_handle().tab_stop(true),
+        });
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+
+        cx.update(|window, cx| {
+            let last = view.read(cx).last.clone();
+            last.focus(window, cx);
+            cycle_focus(true, window, cx);
+            assert!(view.read(cx).first.contains_focused(window, cx));
+
+            cycle_focus(false, window, cx);
+            assert!(view.read(cx).last.contains_focused(window, cx));
+        });
+    }
 
     #[test]
     fn dynamic_frame_owners_are_active_and_deduplicated() {

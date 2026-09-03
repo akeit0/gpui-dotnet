@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using Gpui.Interop;
 
 namespace Gpui;
 
@@ -15,13 +16,6 @@ public enum SliderScale : uint
 {
     Linear = 0,
     Logarithmic = 1,
-}
-
-/// <summary>Kind of event emitted by a native slider.</summary>
-public enum SliderEventKind : ushort
-{
-    Changed = 1,
-    Released = 2,
 }
 
 /// <summary>A single slider value or an ordered range of two values.</summary>

@@ -82,6 +82,29 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void FoundationControlFamilyCarriesControlledAndDisabledState()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+
+        var button = ui.Button("button", "Button").Disabled(true);
+        arena.Validate(button);
+        Assert.Equal(1u, ReadLastU32Op(arena, OpCode.Disabled));
+
+        ui = arena.BeginRender();
+        var checkbox = ui.Checkbox("checkbox", "Checkbox").Checked(true).Disabled(true);
+        arena.Validate(checkbox);
+        Assert.Equal(1u, ReadLastU32Op(arena, OpCode.Checked));
+        Assert.Equal(1u, ReadLastU32Op(arena, OpCode.Disabled));
+
+        ui = arena.BeginRender();
+        var radio = ui.Radio("radio", "Radio").Checked(true).Disabled(false);
+        arena.Validate(radio);
+        Assert.Equal(1u, ReadLastU32Op(arena, OpCode.Checked));
+        Assert.Equal(0u, ReadLastU32Op(arena, OpCode.Disabled));
+    }
+
+    [Fact]
     public void ElementOnlyInteractiveElementDoesNotRequireAMountedView()
     {
         using var arena = new RenderArenaOwner();
@@ -1186,9 +1209,265 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void DockAreaWritesRetainedStructuralLayout()
+    {
+        var view = new ProbeView();
+        Attach(view, 17);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var explorer = ui.DockTabs(
+                panels: ui.DockPanel(
+                    "explorer",
+                    "Explorer",
+                    ui.Text("Files"),
+                    new DockPanelOptions(closable: false)
+                )
+            );
+            var editors = ui
+                .DockTabs(
+                    activeIndex: 1,
+                    panels:
+                    [
+                        ui.DockPanel("first", "First.cs", ui.Text("first")),
+                        ui.DockPanel(
+                            "second",
+                            "Second.cs",
+                            ui.Text("second"),
+                            new DockPanelOptions(innerPadding: true)
+                        ),
+                    ]
+                )
+                .InitialSize(640);
+            var inspector = ui
+                .DockRegion(
+                    DockSide.Right,
+                    ui.DockTabs(
+                        panels: ui.DockPanel("inspector", "Inspector", ui.Text("details"))
+                    ),
+                    new DockRegionOptions(initiallyOpen: false, collapsible: false)
+                )
+                .InitialSize(280);
+            var dock = ui.DockArea(
+                "workspace",
+                ui.DockSplit(DockAxis.Horizontal, explorer, editors),
+                [inspector],
+                new DockOptions(locked: true)
+            );
+
+            arena.Validate(dock);
+
+            Assert.Equal(14, arena.GetStats().Nodes);
+            Assert.Equal(13, arena.GetStats().Children);
+            Assert.Equal(17u, ReadLastU32Op(arena, OpCode.ResourceOwner));
+            Assert.Equal(1u, ReadLastU32Op(arena, OpCode.DockActiveIndex));
+            Assert.Equal(280f, ReadLastF32Op(arena, OpCode.DockInitialSizePx));
+            Assert.Equal(1u, ReadLastU32Op(arena, OpCode.DockPanelInnerPadding));
+            Assert.Equal(1u, ReadLastU32Op(arena, OpCode.DockLocked));
+            Assert.Equal(2u, ReadLastU32Op(arena, OpCode.DockRegionSide));
+            Assert.Equal(0u, ReadLastU32Op(arena, OpCode.DockRegionOpen));
+            Assert.Equal(0u, ReadLastU32Op(arena, OpCode.DockRegionCollapsible));
+        }
+        finally
+        {
+            view.UnmountRuntime();
+        }
+    }
+
+    [Fact]
+    public void DockAreaRejectsDuplicatePanelIds()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var dock = ui.DockArea(
+                "workspace",
+                ui.DockTabs(panels: ui.DockPanel("same", "First", ui.Div())),
+                [
+                    ui.DockRegion(
+                        DockSide.Left,
+                        ui.DockTabs(panels: ui.DockPanel("same", "Second", ui.Div()))
+                    ),
+                ]
+            );
+
+            Assert.Throws<InvalidOperationException>(() => arena.Validate(dock));
+        }
+        finally
+        {
+            view.UnmountRuntime();
+        }
+    }
+
+    [Fact]
+    public void DockAreaRejectsDuplicateRegions()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var first = ui.DockRegion(
+                DockSide.Left,
+                ui.DockTabs(panels: ui.DockPanel("first", "First", ui.Div()))
+            );
+            var second = ui.DockRegion(
+                DockSide.Left,
+                ui.DockTabs(panels: ui.DockPanel("second", "Second", ui.Div()))
+            );
+            var dock = ui.DockArea(
+                "workspace",
+                ui.DockTabs(panels: ui.DockPanel("center", "Center", ui.Div())),
+                [first, second]
+            );
+
+            Assert.Throws<InvalidOperationException>(() => arena.Validate(dock));
+        }
+        finally
+        {
+            view.UnmountRuntime();
+        }
+    }
+
+    [Fact]
+    public void DockBuildersRejectInvalidDeclarations()
+    {
+        Assert.Throws<ArgumentException>(RenderDockPanelWithoutId);
+        Assert.Throws<ArgumentOutOfRangeException>(RenderDockSplitWithInvalidAxis);
+        Assert.Throws<ArgumentOutOfRangeException>(RenderDockTabsWithInvalidIndex);
+        Assert.Throws<ArgumentOutOfRangeException>(RenderDockTabsWithOutOfRangeIndex);
+        Assert.Throws<ArgumentOutOfRangeException>(RenderDockContainerWithInvalidSize);
+        Assert.Throws<ArgumentOutOfRangeException>(RenderDockRegionWithInvalidSide);
+        Assert.Throws<InvalidOperationException>(ValidateUncontainedDockStructure);
+    }
+
+    [Fact]
     public void DynamicRequiresAMountedOwningView()
     {
         Assert.Throws<InvalidOperationException>(RenderDynamicWithoutOwner);
+    }
+
+    [Fact]
+    public void DockControllerValidatesArguments()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            DockController unbound = default;
+            Assert.False(unbound.IsBound);
+            Assert.True(unbound.IsDefault);
+            Assert.Throws<InvalidOperationException>(() => unbound.ClosePanel("editor"));
+            Assert.Throws<InvalidOperationException>(() => unbound.SetRegionOpen(DockSide.Left, true));
+            Assert.Throws<InvalidOperationException>(() => unbound.ImportLayout("{}"));
+            Assert.Throws<InvalidOperationException>(() => unbound.ExportLayout());
+
+            var controller = new DockController(view, "workspace");
+            Assert.True(controller.IsBound);
+            Assert.Throws<ArgumentNullException>(() => controller.ClosePanel(null!));
+            Assert.Throws<ArgumentException>(() => controller.ClosePanel(""));
+            Assert.Throws<ArgumentException>(() => controller.ClosePanel("a\0b"));
+            Assert.Throws<ArgumentOutOfRangeException>(
+                () => controller.SetRegionOpen((DockSide)3, true)
+            );
+            Assert.Throws<ArgumentNullException>(() => controller.ImportLayout(null!));
+            Assert.Throws<ArgumentException>(() => controller.ImportLayout(""));
+        }
+        finally
+        {
+            view.UnmountRuntime();
+        }
+    }
+
+    [Fact]
+    public unsafe void DockAreaBindsControllerToAreaKey()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            DockController controller = default;
+            var dock = ui.DockArea(
+                ref controller,
+                "workspace",
+                ui.DockTabs(panels: ui.DockPanel("editor", "Editor", ui.Div()))
+            );
+            arena.Validate(dock);
+
+            Assert.True(controller.IsBound);
+            var key = ReadComponentKey(arena, ComponentId.DockArea);
+            Assert.True(controller.Utf8KeySpan.SequenceEqual(key));
+
+            var other = new DockController(view, "other");
+            try
+            {
+                ui.DockArea(
+                    ref other,
+                    "workspace",
+                    ui.DockTabs(panels: ui.DockPanel("editor", "Editor", ui.Div()))
+                );
+                Assert.Fail("Expected a key-mismatch ArgumentException.");
+            }
+            catch (ArgumentException)
+            {
+            }
+        }
+        finally
+        {
+            view.UnmountRuntime();
+        }
+    }
+
+    [Fact]
+    public async Task DockEventsBindAndDispatch()
+    {
+        var view = new ProbeView();
+        Attach(view, 17);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var dock = ui.DockArea(
+                    "workspace",
+                    ui.DockTabs(panels: ui.DockPanel("editor", "Editor", ui.Div()))
+                )
+                .OnDockLayoutChanged(view, (owner, dockEvent) => owner.DockEvents.Add(dockEvent))
+                .OnDockPanelClosed(view, (owner, dockEvent) => owner.DockEvents.Add(dockEvent));
+
+            arena.Validate(dock);
+
+            var layout = ReadCallbackEventId(arena, OpCode.DockOnLayout);
+            var closed = ReadCallbackEventId(arena, OpCode.DockOnClosed);
+            await view.DispatchDockCore(
+                layout,
+                new DockEvent(DockEventKind.LayoutChanged, string.Empty, string.Empty, 1)
+            );
+            await view.DispatchDockCore(
+                closed,
+                new DockEvent(DockEventKind.PanelClosed, "editor", string.Empty, 2)
+            );
+            await view.DispatchDockCore(
+                layout,
+                new DockEvent(DockEventKind.LayoutExported, string.Empty, """{"v":1}""", 3)
+            );
+
+            Assert.Equal(3, view.DockEvents.Count);
+            Assert.Equal(DockEventKind.LayoutChanged, view.DockEvents[0].Kind);
+            Assert.Equal(1u, view.DockEvents[0].Revision);
+            Assert.Equal("editor", view.DockEvents[1].PanelId);
+            Assert.Equal("""{"v":1}""", view.DockEvents[2].LayoutJson);
+        }
+        finally
+        {
+            view.UnmountRuntime();
+        }
     }
 
     private static void Attach(View view, uint handle = 1) =>
@@ -1197,7 +1476,8 @@ public sealed class SemanticRenderTests
             static callback => callback(),
             static _ => { },
             static (_, _) => { },
-            static (_, _, _) => { }
+            static (_, _, _) => { },
+            static (_, _, _, _, _, _, _, _, _, _) => { }
         );
 
     private static void RenderInvalidMove()
@@ -1212,6 +1492,58 @@ public sealed class SemanticRenderTests
         using var arena = new RenderArenaOwner();
         var ui = arena.BeginRender();
         ui.Dynamic(ui.Div());
+    }
+
+    private static void RenderDockPanelWithoutId()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        ui.DockPanel("", "Title", ui.Div());
+    }
+
+    private static void RenderDockSplitWithInvalidAxis()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var tabs = ui.DockTabs(panels: ui.DockPanel("id", "Title", ui.Div()));
+        ui.DockSplit((DockAxis)2, tabs);
+    }
+
+    private static void RenderDockTabsWithInvalidIndex()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        ui.DockTabs(-1, ui.Div());
+    }
+
+    private static void RenderDockTabsWithOutOfRangeIndex()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        ui.DockTabs(1, ui.DockPanel("only", "Only", ui.Div()));
+    }
+
+    private static void RenderDockContainerWithInvalidSize()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        ui.DockTabs(panels: ui.DockPanel("sized", "Sized", ui.Div())).InitialSize(0);
+    }
+
+    private static void RenderDockRegionWithInvalidSide()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var tabs = ui.DockTabs(panels: ui.DockPanel("side", "Side", ui.Div()));
+        ui.DockRegion((DockSide)3, tabs);
+    }
+
+    private static void ValidateUncontainedDockStructure()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var tabs = ui.DockTabs(panels: ui.DockPanel("orphan", "Orphan", ui.Div()));
+        arena.Validate(tabs);
     }
 
     private static void RenderInvalidCircle()
@@ -1264,6 +1596,33 @@ public sealed class SemanticRenderTests
         return payload[..keyLength].ToArray();
     }
 
+    /// <summary>
+    /// Reads the data payload of the first node with the given component. Children are
+    /// created before their parents, so the root declaration is never node zero.
+    /// </summary>
+    private static unsafe byte[] ReadComponentKey(RenderArenaOwner arena, ComponentId component)
+    {
+        var native = arena.NativeArena;
+        for (var i = 0; i < native->NodeLength; i++)
+        {
+            var node = native->Nodes[i];
+            if (node.Component != (uint)component)
+            {
+                continue;
+            }
+            var payload = new ReadOnlySpan<byte>(
+                native->Utf8 + node.DataOffset,
+                checked((int)node.DataLength)
+            );
+            var separator = payload.IndexOf((byte)0);
+            var keyLength = separator < 0 ? payload.Length : separator;
+            Assert.True(keyLength > 0);
+            return payload[..keyLength].ToArray();
+        }
+
+        throw new Xunit.Sdk.XunitException($"The render did not contain a {component} node.");
+    }
+
     private static unsafe uint ReadLastU32Op(RenderArenaOwner arena, OpCode code)
     {
         for (var index = arena.NativeArena->OpLength - 1; index >= 0; index--)
@@ -1276,6 +1635,9 @@ public sealed class SemanticRenderTests
 
         throw new Xunit.Sdk.XunitException($"The render did not contain {code}.");
     }
+
+    private static unsafe float ReadLastF32Op(RenderArenaOwner arena, OpCode code) =>
+        BitConverter.UInt32BitsToSingle(ReadLastU32Op(arena, code));
 
     private static unsafe bool ContainsOp(RenderArenaOwner arena, OpCode code)
     {
@@ -1322,6 +1684,7 @@ public sealed class SemanticRenderTests
     {
         internal float SliderEvents;
         internal float SliderReleases;
+        internal List<DockEvent> DockEvents = new();
 
         internal ListItemRenderer Row => BindListRenderer(1);
 

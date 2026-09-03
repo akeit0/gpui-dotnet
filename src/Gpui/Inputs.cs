@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using Gpui.Interop;
 
 namespace Gpui;
 
@@ -62,14 +63,6 @@ public readonly ref struct Utf8InputOptions
     public bool Disabled { get; }
     public bool ReadOnly { get; }
     public bool Password { get; }
-}
-
-/// <summary>Kind of event emitted by a retained native input.</summary>
-public enum InputEventKind : ushort
-{
-    Changed = 1,
-    Submitted = 2,
-    FocusChanged = 3,
 }
 
 /// <summary>

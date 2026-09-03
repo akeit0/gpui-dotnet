@@ -22,7 +22,7 @@ Rust owns:
 - render-arena allocation, validation, and retained snapshots;
 - semantic component materialization;
 - scrolling, list/table viewport state, measurements, and row caches;
-- retained Input and Slider entities;
+- retained Input, Slider, and Dock entities;
 - deferred-layer geometry, focus, stacking, and dismissal;
 - native title-bar hit testing and platform window commands;
 - painting and clean repaints.
@@ -90,19 +90,22 @@ candidates are also unmounted during reconciliation. Unmount proceeds child-firs
 
 ## Retained resource path
 
-Scroll, List, Table, Input, and Slider are declarations plus stable resource identities. Identity
-is `(window session, owner View handle, UTF-8 key)`. Rust stores the mutable resource object and
+Scroll, List, Table, Input, Slider, and Dock are declarations plus stable resource identities.
+Identity is `(window session, owner View handle, UTF-8 key)`. Rust stores the mutable resource object and
 reconfigures it from later snapshots instead of recreating it.
 
-Controllers send small commands through the application UI channel:
+Controllers send small commands through the application UI channel. Optional component families
+use the same View route with an extension-neutral envelope and schema-owned payload:
 
 ```text
-managed controller ──► NativeResourceCommand ──► retained GPUI resource
+managed controller ──► native resource/extension command ──► retained GPUI resource
 ```
 
 Resource commands execute on the GPUI thread. Declarative snapshots remain authoritative. List
 measurement hints such as `Splice` and `Refresh` are committed with the next compatible snapshot;
 a mismatch falls back to a safe reset.
+Extension payloads are copied before returning through FFI and may wait for the first matching
+resource materialization.
 
 ## Virtual datasource path
 
@@ -141,12 +144,21 @@ continuations, and the binding's any-thread ingress contract.
 ## Themes and styles
 
 `GpuiTheme` is application-scoped ambient input. Managed views resolve semantic tokens while
-rendering. A fixed native palette payload supplies equivalent roles to native controls, error
-surfaces, table chrome, and scrollbars.
+rendering. The private versioned native theme payload supplies explicit appearance and equivalent
+resolved roles to native controls, error surfaces, table chrome, scrollbars, and Dock chrome. After
+`gpui-base` initialization, the native host projects those roles into the global foundation
+theme at startup and before refreshing windows for every theme update. Foundation typography,
+spacing, radii, shadows, scrollbar mode, and scrollbar motion retain their defaults until the managed semantic
+theme deliberately defines corresponding roles.
 
 The native ABI does not carry product variant names or component style objects. Applications define
 variants with `IGpuiElementStyle<TTag>` and flatten them to ordinary semantic operations. Native
 hover and active operations are transient paint states, not application variant identifiers.
+
+The managed window root is one native tab group. Button, Checkbox, and Radio delegate focus,
+Enter/Space activation, accessibility roles/state, and disabled behavior to `gpui-base`; their
+foundation callbacks are translated into the existing semantic click packet. Checkbox and Radio
+remain controlled by the next managed snapshot.
 
 ## Title bars and menus
 
@@ -171,11 +183,26 @@ The package boundary permits a compatible custom native host selected through
 `NativeRuntimeOptions.LibraryPath`. Every host must satisfy the same ABI version, API-table size,
 schema hash, and required entry points.
 
+Optional native component families use the generic NativeExtension envelope. Their typed managed
+schema remains in a separate assembly, with its own extension ID, version, and hash. A custom host
+links the selected Rust providers with the base runtime at build time and advertises those schemas
+through ABI negotiation. GPUI/Rust objects are never passed between independently built libraries.
+
 ## Dependency policy
 
-The native crate pins a specific Zed/GPUI revision. Zed and GPUI Component are design and behavior
-references, not ABI dependencies. Platform-specific implementation remains in Rust; C# APIs should
-express durable application semantics rather than backend details.
+The `external/gpui-component` submodule pins `gpui-base` and `gpui-component` to an exact revision
+of the `akeit0/gpui-component` integration fork. Its gitlink and resolved Zed/GPUI revision form one
+validated compatibility tuple recorded in [UPSTREAM_BASELINE.md](UPSTREAM_BASELINE.md).
+The default native host links `gpui-base` only; the full `gpui-component` facade is reserved for
+custom hosts that select it.
+The foundation crates own reusable native behavior and component skins as components migrate;
+GPUI.NET retains its ABI,
+semantic decoding, managed callback routing, resource identity, and platform integration.
+
+The managed API does not expose `gpui-base` or GPUI implementation types. Platform-specific
+implementation remains in Rust; C# APIs should express durable application semantics rather than
+backend details. Direct GPUI remains appropriate for application/window integration, low-level
+drawing, and behavior not covered by the foundation.
 
 When GPUI lacks a cross-platform capability, keep the absence explicit instead of emulating a
 partial platform contract in managed code. Current examples include runtime window repositioning

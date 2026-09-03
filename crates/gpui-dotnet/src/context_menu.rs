@@ -1,10 +1,11 @@
 use std::rc::Rc;
 
 use gpui::{
-    AnyElement, App, Context, ElementId, Entity, FocusHandle, InteractiveElement, IntoElement,
-    KeyDownEvent, MouseButton, MouseDownEvent, ParentElement, Point, Styled, WeakFocusHandle,
-    Window, anchored, deferred, div, point, px,
+    Anchor, AnyElement, App, Context, ElementId, Entity, Focusable, InteractiveElement,
+    IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, ParentElement, Point, Styled, Window,
+    anchored, deferred, div, point, px,
 };
+use gpui_base::{PopoverState, Positioner};
 
 use crate::{
     app_host::ManagedView,
@@ -16,13 +17,6 @@ use crate::{
 pub(crate) struct ContextMenuConfiguration {
     pub(crate) priority: u32,
     pub(crate) margin: f32,
-}
-
-struct ContextMenuState {
-    visible: bool,
-    position: Point<gpui::Pixels>,
-    focus: FocusHandle,
-    previous_focus: Option<WeakFocusHandle>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -42,15 +36,14 @@ pub(crate) fn context_menu(
         key.owner_view, key.key
     ))
     .into();
-    let state = window.use_keyed_state(menu_id.clone(), cx, |_, cx| ContextMenuState {
-        visible: false,
-        position: Point::default(),
-        focus: cx.focus_handle().tab_stop(false),
-        previous_focus: None,
+    let state = window.use_keyed_state((menu_id.clone(), "popover"), cx, |_, cx| {
+        PopoverState::new(false, cx)
     });
+    let position =
+        window.use_keyed_state((menu_id.clone(), "position"), cx, |_, _| Point::default());
 
     let open_state = state.clone();
-    let open_focus = state.read(cx).focus.clone();
+    let open_position = position.clone();
     let mut host = host
         .id((menu_id.clone(), "trigger"))
         .on_mouse_down(
@@ -59,29 +52,21 @@ pub(crate) fn context_menu(
                 cx.stop_propagation();
                 window.prevent_default();
 
-                let previous_focus = (!open_state.read(cx).visible)
-                    .then(|| window.focused(cx).map(|focus| focus.downgrade()))
-                    .flatten();
-                open_state.update(cx, |state, cx| {
-                    state.visible = true;
-                    state.position = event.position;
-                    if previous_focus.is_some() {
-                        state.previous_focus = previous_focus;
-                    }
-                    cx.notify();
+                open_position.update(cx, |position, _| {
+                    *position = event.position;
                 });
-                open_focus.focus(window);
+                open_state.update(cx, |state, cx| state.show(window, cx));
                 window.refresh();
             },
         )
         .child(trigger);
 
-    if !state.read(cx).visible {
+    if !state.read(cx).is_open() {
         return host.into_any_element();
     }
 
-    let focus = state.read(cx).focus.clone();
-    let position = state.read(cx).position;
+    let focus = state.read(cx).focus_handle(cx);
+    let position = *position.read(cx);
     overlay_stack.set_captures_input(&overlay_token, true);
 
     let selected_state = state.clone();
@@ -108,9 +93,9 @@ pub(crate) fn context_menu(
             close_context_menu(&right_pressed_state, window, cx);
         })
         .child(content);
-    let menu = anchored()
-        .position(position)
-        .snap_to_window_with_margin(px(configuration.margin))
+    let menu = Positioner::corner(Anchor::TopLeft, position)
+        .margin(px(configuration.margin))
+        .occlude()
         .child(content);
 
     let left_backdrop_state = state.clone();
@@ -167,22 +152,10 @@ pub(crate) fn context_menu(
     host.into_any_element()
 }
 
-fn close_context_menu(state: &Entity<ContextMenuState>, window: &mut Window, cx: &mut App) {
-    let (changed, previous_focus) = state.update(cx, |state, cx| {
-        if !state.visible {
-            return (false, None);
-        }
-        state.visible = false;
-        cx.notify();
-        (true, state.previous_focus.take())
-    });
-    if !changed {
+fn close_context_menu(state: &Entity<PopoverState>, window: &mut Window, cx: &mut App) {
+    if !state.read(cx).is_open() {
         return;
     }
-    if let Some(previous_focus) = previous_focus.and_then(|focus| focus.upgrade()) {
-        previous_focus.focus(window);
-    } else {
-        window.blur();
-    }
+    state.update(cx, |state, cx| state.dismiss(window, cx));
     window.refresh();
 }

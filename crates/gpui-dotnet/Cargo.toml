@@ -4,21 +4,41 @@ version = "0.1.0-preview.1"
 edition = "2024"
 publish = false
 
+[workspace]
+members = ["hosts/default", "extensions/editor-host"]
+default-members = [".", "hosts/default"]
+resolver = "3"
+
+# Deny the lint groups that silently change behavior when missed: an unresolved
+# constant in pattern position becomes a catch-all binding, and dead code hides
+# untested paths. Scoped to groups rather than `warnings` so toolchain upgrades
+# that add new default-warn lints cannot break the build; upstream crates keep
+# their own lint policy. Each member opts in with `[lints] workspace = true`.
+[workspace.lints.rust]
+unused = "deny"
+nonstandard_style = "deny"
+
+[lints]
+workspace = true
+
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [dependencies]
 async-channel = "2"
-# crates.io 0.2.2 predates the Windows IME fix in Zed PR #41259.
-# Return to a crates.io version after that fix is included in a release.
-gpui = { git = "https://github.com/zed-industries/zed", rev = "2ead8c42fb6792095d7cb02f7b89e467421dc8a0" }
+# The submodule pins the validated foundation revision. Keep this crate's direct GPUI source
+# identical to gpui-base's workspace dependency so Cargo resolves one GPUI type universe.
+gpui = { git = "https://github.com/zed-industries/zed" }
+gpui-base = { path = "../../external/gpui-component/crates/base" }
+gpui_platform = { git = "https://github.com/zed-industries/zed" }
+serde_json = "1"
 unicode-segmentation = "1.13.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Compile Metal shaders through Apple's Metal runtime on macOS. This keeps native builds
 # working with the Command Line Tools SDK, which ships the macOS headers/frameworks but not
 # Xcode's standalone `metal` compiler executable.
-gpui = { git = "https://github.com/zed-industries/zed", rev = "2ead8c42fb6792095d7cb02f7b89e467421dc8a0", features = [
+gpui_platform = { git = "https://github.com/zed-industries/zed", features = [
     "runtime_shaders",
 ] }
 
@@ -34,6 +54,26 @@ windows = { version = "0.61", features = [
 csbindgen = "1.9.8"
 
 [dev-dependencies]
-gpui = { git = "https://github.com/zed-industries/zed", rev = "2ead8c42fb6792095d7cb02f7b89e467421dc8a0", features = [
+gpui = { git = "https://github.com/zed-industries/zed", features = [
     "test-support",
 ] }
+
+# Cargo only honors profiles from the workspace root. gpui-component carries equivalent
+# settings for its own development workspace, but they do not apply when gpui-base is consumed
+# here as a dependency. Keep frame-sensitive GPUI, layout, text, and component code optimized in
+# Debug builds so native hover/press feedback does not wait on an unoptimized full-frame draw.
+[profile.dev]
+codegen-units = 16
+debug = "limited"
+split-debuginfo = "unpacked"
+
+[profile.dev.package]
+gpui = { opt-level = 3 }
+gpui-base = { opt-level = 3 }
+gpui_platform = { opt-level = 3 }
+gpui_macros = { opt-level = 3 }
+resvg = { opt-level = 3 }
+rustybuzz = { opt-level = 3 }
+smol = { opt-level = 3 }
+taffy = { opt-level = 3 }
+ttf-parser = { opt-level = 3 }

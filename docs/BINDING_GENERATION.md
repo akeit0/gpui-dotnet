@@ -11,6 +11,11 @@ The repository has two generators with separate responsibilities.
 - matching component IDs, operation IDs, capabilities, adapters, value constraints, and schema
   hash on both sides.
 
+It also reads `bindings/extensions.json`. Each registered optional schema produces a C# constants
+file in its managed schema assembly and a matching Rust constants file in its native provider.
+Extension IDs, versions, component kinds, flags, commands, and hashes therefore have one source of
+truth.
+
 Run:
 
 ```sh
@@ -18,8 +23,8 @@ dotnet run --project tools/Gpui.Bindings.Generator -- generate
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
 ```
 
-`verify` fails when committed outputs do not match the schema. Never edit either generated semantic
-file by hand.
+`verify` fails when any committed base or extension output does not match its schema. Never edit a
+generated semantic or extension file by hand.
 
 The schema defines:
 
@@ -28,7 +33,15 @@ The schema defines:
 - native adapter selection;
 - capabilities such as styled, interactive, or checked;
 - operation IDs, value kinds, managed API types, compatibility requirements, and scalar/payload
-  constraints.
+  constraints;
+- retained resource kinds and their command IDs, names, and documentation;
+- control event IDs, family grouping, and documentation.
+
+Resource and control-event IDs generate as `ResourceKind`/`ResourceCommandKind` and per-family
+event-kind enums in C# plus `RESOURCE_*`/`COMMAND_*`/`EVENT_*` constants in Rust. Both sides
+match on generated names only; the schema hash covers these sections, so renumbering either side
+without the schema fails verification. Payload shapes, routing, and queueing stay hand-written:
+the schema owns identities, not behavior.
 
 The generator emits capability-constrained fluent methods and equivalent managed/native validation
 metadata. Put a new rule in the schema when both validators need it; do not duplicate a manual

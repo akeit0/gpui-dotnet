@@ -1,6 +1,6 @@
 # Native ABI
 
-GPUI.NET currently uses ABI version 1. Managed startup requires an exact ABI version, a compatible
+GPUI.NET currently uses ABI version 3. Managed startup requires an exact ABI version, a compatible
 API-table prefix, all required function entries, and the semantic schema hash generated from
 `bindings/schema.json`.
 
@@ -10,7 +10,7 @@ not manipulate pointers or wire records directly.
 ## Discovery
 
 ```c
-const gpui_dotnet_api_v1* gpui_dotnet_get_api(uint32_t requested_version);
+const gpui_dotnet_api_v3* gpui_dotnet_get_api(uint32_t requested_version);
 ```
 
 The API table contains:
@@ -21,11 +21,23 @@ The API table contains:
 - `notify_view`;
 - `dispatch_command` for retained resources;
 - `dispatch_application_command` for windows and themes;
-- `dispatch_application_menu`.
+- `dispatch_application_menu`;
+- `supports_extension` for independently versioned build-time extension schemas.
+- `dispatch_extension_command` for schema-owned commands to retained extension resources.
 
-The generated schema hash is deliberately separate from the ABI version. Component IDs,
+The generated base schema hash is deliberately separate from the ABI version. Component IDs,
 operation IDs, capabilities, or payload constraints can change without altering C record layouts;
 the hash rejects a managed/native pair built from different schemas.
+
+An optional extension has its own ID, protocol version, and schema hash. `supports_extension`
+checks that tuple before application startup. Extension-specific definitions never enter the base
+schema; the generic NativeExtension node carries the tuple, component kind, retained key, and an
+opaque UTF-8 configuration owned by the extension schema.
+
+ABI version 3 adds extension commands without putting extension-specific IDs or payload layouts in
+Core. A command contains its extension ID, component kind, version, schema hash, owner View, key,
+numeric command and flags, expected revision, and opaque byte payload. Native code validates the
+envelope and provider compatibility and copies the payload before the FFI call returns.
 
 ## Application and callbacks
 
@@ -134,6 +146,22 @@ FFI, so asynchronous event handlers never retain native borrowed memory.
 
 Input events carry UTF-8 data for Changed, Submitted, and FocusChanged transitions. Slider Changed
 and Released events carry one little-endian `f32`, or two ordered values when the range flag is set.
+Dock LayoutChanged carries no payload; Dock LayoutExported carries the UTF-8 layout JSON requested
+through the controller; Dock PanelClosed carries the UTF-8 panel id.
+
+Control-event kinds are global: Input uses 1-3, Slider uses 4-5, and Dock uses 6
+(LayoutChanged), 7 (LayoutExported), and 8 (PanelClosed). Resource kinds are Scroll 1,
+List 2, Input 3, Slider 4, and Dock 5, with the command IDs listed below. These numbers
+generate from `bindings/schema.json` into both managed enums and native constants; the schema
+hash covers them, so either side renumbering without the schema fails verification. Command and
+event payload shapes, routing, and queueing stay hand-written: the schema owns identities,
+not behavior. Describing payload layouts as separate compatibility units is open phase-10 work.
+
+Event kinds with bit `0x8000` set belong to the generic native-extension namespace. The lower 15
+bits contain the non-zero event ID generated from the extension schema; flags, revision, and byte
+payload retain their schema-defined meanings. Core validates and copies the envelope, then routes
+it through the render-bound event token to the typed extension decoder. This reserves no
+extension-specific IDs or payload layouts in the base ABI.
 
 ## Application commands
 
@@ -152,17 +180,21 @@ Current commands are:
 | ToggleMaximize | existing window ID |
 | SetTitle | non-empty UTF-8 title |
 | Resize | positive finite width and height |
-| SetTheme | versioned resolved semantic palette, application-scoped |
+| SetTheme | versioned appearance and resolved semantic palette, application-scoped |
 | ManagedCodeUpdated | empty application-scoped Hot Reload invalidation |
 
 Open flags encode optional position, activation, and `System`, `Custom`, or `Hidden` title-bar
 style. Runtime reposition is not exposed because the pinned GPUI revision has no durable
 cross-platform operation for it.
 
-The theme command uses the command record's byte pointer as a private fixed-size payload. It sends
-resolved semantic roles used by native components; application style variants do not cross the ABI.
+The theme command uses the command record's byte pointer as a private fixed-size payload. Payload
+version 2 is 20 sequential little-endian `u32` values: version, appearance (`0` Light or `1` Dark),
+and 18 resolved RGBA semantic roles. The native entry point requires the exact payload size and
+rejects unsupported versions or appearance values. Resolved roles feed GPUI.NET native rendering
+and the global `gpui-base` theme; application style variants and Rust
+foundation types do not cross the ABI.
 The managed-code update command clears native List/Table row snapshots and dirties each managed
-window without resetting retained control identity or interaction state.
+window without resetting retained control or Dock identity and interaction state.
 
 ## Application menus
 
@@ -185,6 +217,13 @@ The call validates and copies borrowed key/data bytes before queueing work on th
 | List/Table row engine | ScrollToItem, Splice, Reset, Refresh |
 | Input | Focus, Blur, SetValue, SelectAll |
 | Slider | SetValue |
+| Dock | ClosePanel, SetRegionOpen, ImportLayout, ExportLayout |
+
+Scroll and focus/value commands apply to the retained resource directly. List structural commands
+are measurement hints and are reconciled with the next managed snapshot. A hint that disagrees with
+the declared datasource count falls back to a full reset. Dock commands queue until the next
+committed snapshot materializes the area and apply after the declaration, so imperative intent
+wins ties; unknown panels and malformed documents are consumed without effect.
 
 Scroll and focus/value commands apply to the retained resource directly. List structural commands
 are measurement hints and are reconciled with the next managed snapshot. A hint that disagrees with
@@ -194,6 +233,46 @@ All payloads are canonical: no-payload commands require zero words and empty dat
 must fit their documented words, offsets must be finite and non-negative, and Input data must be
 valid UTF-8.
 
+## Native extension commands
+
+`NativeExtensionCommand` is the generic command envelope for build-time extensions. Extension
+schemas own command IDs, flags, revision policies, and payload formats; the base ABI owns only safe
+routing. Extension and component identifiers are ASCII, the retained key is non-empty UTF-8 without
+control characters, and the payload is an arbitrary owned byte sequence limited to 256 MiB.
+
+```c
+typedef struct gpui_native_extension_command {
+    uint32_t owner_view;
+    uint16_t command;
+    uint16_t flags;
+    uint32_t schema_version;
+    uint32_t reserved;
+    uint64_t schema_hash;
+    uint64_t expected_revision;
+    const uint8_t* extension_id;
+    int32_t extension_id_length;
+    const uint8_t* component_kind;
+    int32_t component_kind_length;
+    const uint8_t* key;
+    int32_t key_length;
+    const uint8_t* payload;
+    int32_t payload_length;
+} gpui_native_extension_command;
+```
+
+Commands may arrive before the matching extension node is materialized. They are queued by the
+complete extension resource identity and delivered on the GPUI thread during materialization. A
+committed snapshot that omits that identity discards both its retained native state and pending
+commands. Providers validate schema-specific commands before they enter the View queue.
+
+The editor schema defines one-shot UTF-8 bootstrap, revision-independent focus, and
+revision-checked selection, whole-document replacement, and contiguous-edit commands. Editor event
+`1` reports a native or command-originated document transaction with its base revision and one or
+more UTF-8 replacement records; the envelope revision is the resulting document revision. Event
+`2` reports a rejected state-dependent command, including its expected revision while the envelope
+revision carries the current native document revision. Invalid UTF-8 byte ranges and stale
+revisions are rejected without changing native state.
+
 ## Semantic window and interaction operations
 
 `WindowControlArea` marks Div or Button nodes as native Drag, Minimize, Maximize, or Close hit-test
@@ -202,9 +281,24 @@ regions. These operations stay in the render snapshot and do not create managed 
 Hover and active background/text/border operations carry resolved RGBA values and apply only to
 interactive components. They express transient native paint state, not durable application state.
 
+Button, Checkbox, and Radio advertise the generated `disableable` capability. Their `Disabled`
+operation is a canonical Boolean `U32`; Checkbox and Radio continue to carry controlled state in
+`Checked`. Foundation activation and change requests reuse the existing click callback token and
+payload, so no Rust event object crosses the ABI. Accessible names are derived natively from
+descendant semantic Text nodes.
+
 ContextMenu and PopoverMenu are keyed two-child semantic components. Their native adapters own
 trigger interception, deferred placement, viewport snapping, focus restoration, and dismissal.
 They are invalid inside virtualized row snapshots because rows have no mounted View lifetime.
+
+DockArea is a keyed retained semantic component with one center tree and up to one DockRegion for
+each left, bottom, and right placement. Center and region trees use DockSplit/DockTabs/DockPanel
+nodes; each panel has a unique string ID across the area, a title, and exactly one ordinary content
+subtree. Initial center/region declarations, placement, open/collapsible state, and panel options
+use generated semantic operations; they change the base schema hash without changing any C record
+layout. Native pointer dragging, split and region resizing, region collapse, focus,
+and tab activation require no managed callback. There is no Dock resource-command or retained-
+control-event packet in the current slice.
 
 ## Error handling and teardown
 
@@ -220,7 +314,7 @@ panics from crossing the C boundary.
 
 When changing C layouts or entry points:
 
-1. update Rust records and `GpuiDotnetApiV1` (or introduce the next table version);
+1. update Rust records and `GpuiDotnetApiV3` (or introduce the next table version);
 2. regenerate `src/Gpui/Interop/NativeMethods.g.cs` through the native build/csbindgen path;
 3. update managed size/version checks and tests;
 4. update this document;

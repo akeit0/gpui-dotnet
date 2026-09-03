@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-pub const ABI_VERSION: u32 = 1;
+pub const ABI_VERSION: u32 = 3;
 pub const ARENA_FLAG_NATIVE_OWNED: u32 = 1;
 pub const RENDER_GROW_REQUIRED: i32 = 1;
 
@@ -78,6 +78,26 @@ pub struct NativeResourceCommand {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
+pub struct NativeExtensionCommand {
+    pub owner_view: u32,
+    pub command: u16,
+    pub flags: u16,
+    pub schema_version: u32,
+    pub reserved: u32,
+    pub schema_hash: u64,
+    pub expected_revision: u64,
+    pub extension_id: *const u8,
+    pub extension_id_length: i32,
+    pub component_kind: *const u8,
+    pub component_kind_length: i32,
+    pub key: *const u8,
+    pub key_length: i32,
+    pub payload: *const u8,
+    pub payload_length: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
 pub struct NativeControlEvent {
     pub kind: u16,
     pub flags: u16,
@@ -108,6 +128,7 @@ pub struct NativeApplicationCommand {
 #[derive(Clone, Copy, Default)]
 pub struct NativeThemePayload {
     pub version: u32,
+    pub appearance: u32,
     pub background: u32,
     pub text: u32,
     pub text_muted: u32,
@@ -177,12 +198,15 @@ pub type ValidateRenderFn = unsafe extern "C" fn(*const RenderArena, u32) -> i32
 pub type RunApplicationFn = unsafe extern "C" fn(u64, *const ManagedCallbacks) -> i32;
 pub type NotifyViewFn = unsafe extern "C" fn(u64) -> i32;
 pub type DispatchCommandFn = unsafe extern "C" fn(u64, *const NativeResourceCommand) -> i32;
+pub type DispatchExtensionCommandFn =
+    unsafe extern "C" fn(u64, *const NativeExtensionCommand) -> i32;
 pub type DispatchApplicationCommandFn =
     unsafe extern "C" fn(u64, *const NativeApplicationCommand) -> i32;
 pub type DispatchApplicationMenuFn = unsafe extern "C" fn(u64, *const NativeMenuCommand) -> i32;
+pub type SupportsExtensionFn = unsafe extern "C" fn(*const u8, i32, u32, u64) -> i32;
 
 #[repr(C)]
-pub struct GpuiDotnetApiV1 {
+pub struct GpuiDotnetApiV3 {
     pub struct_size: u32,
     pub abi_version: u32,
     pub schema_hash: u64,
@@ -192,9 +216,11 @@ pub struct GpuiDotnetApiV1 {
     pub dispatch_command: Option<DispatchCommandFn>,
     pub dispatch_application_command: Option<DispatchApplicationCommandFn>,
     pub dispatch_application_menu: Option<DispatchApplicationMenuFn>,
+    pub supports_extension: Option<SupportsExtensionFn>,
+    pub dispatch_extension_command: Option<DispatchExtensionCommandFn>,
 }
 
-impl GpuiDotnetApiV1 {
+impl GpuiDotnetApiV3 {
     pub const fn struct_size() -> u32 {
         size_of::<Self>() as u32
     }

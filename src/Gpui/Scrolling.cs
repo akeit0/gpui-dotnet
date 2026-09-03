@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using Gpui.Interop;
 
 namespace Gpui;
 

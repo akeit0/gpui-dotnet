@@ -22,7 +22,7 @@ case "$configuration" in
 esac
 
 if [ "$configuration" = release ]; then
-    cargo build --manifest-path "$manifest_path" --release
+    cargo build --locked --manifest-path "$manifest_path" --release
 else
-    cargo build --manifest-path "$manifest_path"
+    cargo build --locked --manifest-path "$manifest_path"
 fi

@@ -1,0 +1,11 @@
+{
+  "schemas": [
+    {
+      "schema": "src/Gpui.Editor/schema.json",
+      "csharpOutput": "src/Gpui.Editor/EditorSchema.g.cs",
+      "rustOutput": "crates/gpui-dotnet/extensions/editor-host/src/editor_schema.g.rs",
+      "csharpNamespace": "Gpui.Editor",
+      "csharpClass": "EditorSchema"
+    }
+  ]
+}

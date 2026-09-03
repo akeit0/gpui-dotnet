@@ -5,6 +5,61 @@ namespace Gpui.Interop.Internal.Session;
 
 internal sealed unsafe partial class ManagedSession
 {
+    internal void DispatchNativeExtensionCommand(
+        uint ownerView,
+        uint schemaVersion,
+        ulong schemaHash,
+        ReadOnlySpan<byte> extensionId,
+        ReadOnlySpan<byte> componentKind,
+        ReadOnlySpan<byte> utf8Key,
+        ushort command,
+        ushort flags,
+        ulong expectedRevision,
+        ReadOnlySpan<byte> payload
+    )
+    {
+        if (Volatile.Read(ref _stopped) != 0 || ownerView == 0)
+        {
+            return;
+        }
+
+        fixed (byte* extensionIdPointer = extensionId)
+        fixed (byte* componentKindPointer = componentKind)
+        fixed (byte* keyPointer = utf8Key)
+        fixed (byte* payloadPointer = payload)
+        {
+            var native = new NativeExtensionCommand
+            {
+                owner_view = ownerView,
+                command = command,
+                flags = flags,
+                schema_version = schemaVersion,
+                reserved = 0,
+                schema_hash = schemaHash,
+                expected_revision = expectedRevision,
+                extension_id = extensionIdPointer,
+                extension_id_length = extensionId.Length,
+                component_kind = componentKindPointer,
+                component_kind_length = componentKind.Length,
+                key = keyPointer,
+                key_length = utf8Key.Length,
+                payload = payloadPointer,
+                payload_length = payload.Length,
+            };
+            var status = _runtime.Api->dispatch_extension_command(_sessionId, &native);
+            if (status is -30 or -31)
+            {
+                return;
+            }
+            if (status != 0)
+            {
+                throw new InvalidOperationException(
+                    $"Native extension command failed with status {status}."
+                );
+            }
+        }
+    }
+
     internal void DispatchResourceCommand(uint ownerView, ResourceCommand command)
     {
         if (Volatile.Read(ref _stopped) != 0 || ownerView == 0)
@@ -193,6 +248,53 @@ internal sealed unsafe partial class ManagedSession
         }
 
         var pending = owner.DispatchSliderCore(handlerId, sliderEvent);
+        if (!pending.IsCompletedSuccessfully)
+        {
+            ObserveEventTask(pending);
+        }
+    }
+
+    internal void DispatchDock(ulong eventToken, DockEvent dockEvent)
+    {
+        var viewHandle = (uint)(eventToken >> 32);
+        var handlerId = (uint)eventToken;
+        if (viewHandle == 0 || handlerId == 0)
+        {
+            throw new InvalidOperationException("Malformed dock event token.");
+        }
+        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
+        {
+            throw new InvalidOperationException(
+                $"Dock event references unmounted or unknown view handle {viewHandle}."
+            );
+        }
+
+        var pending = owner.DispatchDockCore(handlerId, dockEvent);
+        if (!pending.IsCompletedSuccessfully)
+        {
+            ObserveEventTask(pending);
+        }
+    }
+
+    internal void DispatchNativeExtension(
+        ulong eventToken,
+        NativeExtensionEvent nativeExtensionEvent
+    )
+    {
+        var viewHandle = (uint)(eventToken >> 32);
+        var handlerId = (uint)eventToken;
+        if (viewHandle == 0 || handlerId == 0)
+        {
+            throw new InvalidOperationException("Malformed native extension event token.");
+        }
+        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
+        {
+            throw new InvalidOperationException(
+                $"Native extension event references unmounted or unknown view handle {viewHandle}."
+            );
+        }
+
+        var pending = owner.DispatchNativeExtensionCore(handlerId, nativeExtensionEvent);
         if (!pending.IsCompletedSuccessfully)
         {
             ObserveEventTask(pending);

@@ -6,6 +6,7 @@
     "layout",
     "interactive",
     "checkable",
+    "disableable",
     "native_state",
     "scrollable",
     "virtualized",
@@ -20,7 +21,14 @@
     "slider",
     "drawing",
     "path",
-    "dynamic"
+    "dynamic",
+    "dock_area",
+    "dock_container",
+    "dock_split",
+    "dock_tabs",
+    "dock_panel",
+    "dock_region",
+    "extension"
   ],
   "components": [
     {
@@ -64,6 +72,7 @@
         "styled",
         "parent",
         "interactive",
+        "disableable",
         "window_control"
       ],
       "nativeAdapter": "button"
@@ -80,7 +89,8 @@
         "styled",
         "parent",
         "interactive",
-        "checkable"
+        "checkable",
+        "disableable"
       ],
       "nativeAdapter": "checkbox"
     },
@@ -96,7 +106,8 @@
         "styled",
         "parent",
         "interactive",
-        "checkable"
+        "checkable",
+        "disableable"
       ],
       "nativeAdapter": "radio"
     },
@@ -336,6 +347,99 @@
         "dynamic"
       ],
       "nativeAdapter": "dynamic"
+    },
+    {
+      "id": 22,
+      "name": "dock_area",
+      "csharp": "DockArea",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "parent",
+        "layout",
+        "native_state",
+        "dock_area"
+      ],
+      "nativeAdapter": "dock_area"
+    },
+    {
+      "id": 23,
+      "name": "dock_split",
+      "csharp": "DockSplit",
+      "data": "none",
+      "dataRequired": false,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "parent",
+        "dock_container",
+        "dock_split"
+      ],
+      "nativeAdapter": "dock_split"
+    },
+    {
+      "id": 24,
+      "name": "dock_tabs",
+      "csharp": "DockTabs",
+      "data": "none",
+      "dataRequired": false,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "parent",
+        "dock_container",
+        "dock_tabs"
+      ],
+      "nativeAdapter": "dock_tabs"
+    },
+    {
+      "id": 25,
+      "name": "dock_panel",
+      "csharp": "DockPanel",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "parent",
+        "dock_panel"
+      ],
+      "nativeAdapter": "dock_panel"
+    },
+    {
+      "id": 26,
+      "name": "dock_region",
+      "csharp": "DockRegion",
+      "data": "none",
+      "dataRequired": false,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "parent",
+        "dock_container",
+        "dock_region"
+      ],
+      "nativeAdapter": "dock_region"
+    },
+    {
+      "id": 27,
+      "name": "native_extension",
+      "csharp": "NativeExtension",
+      "data": "utf8",
+      "dataRequired": true,
+      "children": true,
+      "managedFactory": "manual",
+      "capabilities": [
+        "styled",
+        "parent",
+        "layout",
+        "native_state",
+        "extension"
+      ],
+      "nativeAdapter": "native_extension"
     }
   ],
   "operations": [
@@ -533,6 +637,15 @@
       "value": "u32",
       "requires": "interactive",
       "managedApi": "color"
+    },
+    {
+      "id": 119,
+      "name": "disabled",
+      "csharp": "Disabled",
+      "value": "u32",
+      "requires": "disableable",
+      "managedApi": "bool",
+      "validation": { "kind": "bool", "status": -21 }
     },
     {
       "id": 200,
@@ -1025,6 +1138,111 @@
       "managedApi": null
     },
     {
+      "id": 350,
+      "name": "dock_axis",
+      "csharp": "DockAxis",
+      "value": "u32",
+      "requires": "dock_split",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 1, "status": -60 }
+    },
+    {
+      "id": 351,
+      "name": "dock_active_index",
+      "csharp": "DockActiveIndex",
+      "value": "u32",
+      "requires": "dock_tabs",
+      "managedApi": null
+    },
+    {
+      "id": 352,
+      "name": "dock_initial_size_px",
+      "csharp": "DockInitialSizePx",
+      "value": "f32",
+      "requires": "dock_container",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "minExclusive": true, "status": -60 }
+    },
+    {
+      "id": 353,
+      "name": "dock_panel_closable",
+      "csharp": "DockPanelClosable",
+      "value": "u32",
+      "requires": "dock_panel",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 354,
+      "name": "dock_panel_zoomable",
+      "csharp": "DockPanelZoomable",
+      "value": "u32",
+      "requires": "dock_panel",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 355,
+      "name": "dock_panel_inner_padding",
+      "csharp": "DockPanelInnerPadding",
+      "value": "u32",
+      "requires": "dock_panel",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 356,
+      "name": "dock_locked",
+      "csharp": "DockLocked",
+      "value": "u32",
+      "requires": "dock_area",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 357,
+      "name": "dock_region_side",
+      "csharp": "DockRegionSide",
+      "value": "u32",
+      "requires": "dock_region",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 2, "status": -61 }
+    },
+    {
+      "id": 358,
+      "name": "dock_region_open",
+      "csharp": "DockRegionOpen",
+      "value": "u32",
+      "requires": "dock_region",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 359,
+      "name": "dock_region_collapsible",
+      "csharp": "DockRegionCollapsible",
+      "value": "u32",
+      "requires": "dock_region",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 360,
+      "name": "dock_on_layout",
+      "csharp": "DockOnLayout",
+      "value": "callback",
+      "requires": "dock_area",
+      "managedApi": null
+    },
+    {
+      "id": 361,
+      "name": "dock_on_closed",
+      "csharp": "DockOnClosed",
+      "value": "callback",
+      "requires": "dock_area",
+      "managedApi": null
+    },
+    {
       "id": 700,
       "name": "drawing_view_box_origin",
       "csharp": "DrawingViewBoxOrigin",
@@ -1206,5 +1424,68 @@
       "managedApi": null,
       "validation": { "kind": "f32Min", "min": 0, "minExclusive": true, "status": -59 }
     }
+  ],
+  "resources": [
+    {
+      "id": 1,
+      "name": "scroll",
+      "csharp": "Scroll",
+      "commands": [
+        { "id": 1, "name": "to_offset", "csharp": "ScrollToOffset", "doc": "Scrolls to a content-space offset." },
+        { "id": 2, "name": "to_top", "csharp": "ScrollToTop", "doc": "Scrolls to the top." },
+        { "id": 3, "name": "to_bottom", "csharp": "ScrollToBottom", "doc": "Scrolls to the bottom." }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "list",
+      "csharp": "List",
+      "commands": [
+        { "id": 10, "name": "scroll_to_item", "csharp": "ListScrollToItem", "doc": "Scrolls to a stable item index." },
+        { "id": 11, "name": "splice", "csharp": "ListSplice", "doc": "Preserves measurements across an insertion and removal." },
+        { "id": 12, "name": "reset", "csharp": "ListReset", "doc": "Rebuilds native state at a new item count." },
+        { "id": 13, "name": "refresh", "csharp": "ListRefresh", "doc": "Invalidates measurements for an item range." }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "input",
+      "csharp": "Input",
+      "commands": [
+        { "id": 20, "name": "focus", "csharp": "InputFocus", "doc": "Moves native keyboard focus to the input." },
+        { "id": 21, "name": "blur", "csharp": "InputBlur", "doc": "Releases native keyboard focus from the input." },
+        { "id": 22, "name": "set_value", "csharp": "InputSetValue", "doc": "Replaces the input value without emitting events." },
+        { "id": 23, "name": "select_all", "csharp": "InputSelectAll", "doc": "Selects the whole input value." }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "slider",
+      "csharp": "Slider",
+      "commands": [
+        { "id": 30, "name": "set_value", "csharp": "SliderSetValue", "doc": "Sets the slider value without emitting events." }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "dock",
+      "csharp": "Dock",
+      "commands": [
+        { "id": 40, "name": "close_panel", "csharp": "DockClosePanel", "doc": "Removes a panel natively and fires the closed event." },
+        { "id": 41, "name": "set_region_open", "csharp": "DockSetRegionOpen", "doc": "Opens or collapses a side region." },
+        { "id": 42, "name": "import_layout", "csharp": "DockImportLayout", "doc": "Restores native structure from a layout document." },
+        { "id": 43, "name": "export_layout", "csharp": "DockExportLayout", "doc": "Emits the authoritative layout document." }
+      ]
+    }
+  ],
+  "controlEvents": [
+    { "id": 1, "name": "input_changed", "csharp": "Changed", "group": "input", "doc": "The input value changed." },
+    { "id": 2, "name": "input_submitted", "csharp": "Submitted", "group": "input", "doc": "The input value was submitted." },
+    { "id": 3, "name": "input_focus_changed", "csharp": "FocusChanged", "group": "input", "doc": "Input focus changed." },
+    { "id": 4, "name": "slider_changed", "csharp": "Changed", "group": "slider", "doc": "The slider value changed during interaction." },
+    { "id": 5, "name": "slider_released", "csharp": "Released", "group": "slider", "doc": "The slider interaction released." },
+    { "id": 6, "name": "dock_layout_changed", "csharp": "LayoutChanged", "group": "dock", "doc": "Coarse structural signal. Fires for native interaction and for declarative or controller-driven structural changes. Carries no payload; debounce with the event revision." },
+    { "id": 7, "name": "dock_layout_exported", "csharp": "LayoutExported", "group": "dock", "doc": "Carries the exported layout document requested through the controller." },
+    { "id": 8, "name": "dock_panel_closed", "csharp": "PanelClosed", "group": "dock", "doc": "A panel left the Dock natively or through the controller. Carries the panel id. Panels removed by declaration or pruned by layout import do not fire this event." }
   ]
 }

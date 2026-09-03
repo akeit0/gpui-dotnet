@@ -10,6 +10,7 @@ return BindingGenerator.Run(args);
 internal static class BindingGenerator
 {
     private const string SchemaPath = "bindings/schema.json";
+    private const string ExtensionManifestPath = "bindings/extensions.json";
     private const string CSharpOutputPath = "src/Gpui/Rendering/Semantic.g.cs";
     private const string RustOutputPath = "crates/gpui-dotnet/src/semantic.g.rs";
 
@@ -45,17 +46,92 @@ internal static class BindingGenerator
             var digest = SHA256.HashData(canonical);
             var hash = BinaryPrimitives.ReadUInt64LittleEndian(digest);
 
-            var outputs = new Dictionary<string, string>
+            var outputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 [CSharpOutputPath] = GenerateCSharp(schema, hash),
                 [RustOutputPath] = GenerateRust(schema, hash),
             };
 
+            var extensionManifestSource = File.ReadAllText(
+                Path.Combine(root, ExtensionManifestPath),
+                Encoding.UTF8
+            );
+            var extensionManifest =
+                JsonSerializer.Deserialize<ExtensionManifest>(extensionManifestSource, JsonOptions)
+                ?? throw new InvalidOperationException($"{ExtensionManifestPath} is empty.");
+            if (extensionManifest.Schemas is not { Count: > 0 })
+            {
+                throw new InvalidOperationException(
+                    $"{ExtensionManifestPath} must register at least one extension schema."
+                );
+            }
+            var extensionIds = new HashSet<string>(StringComparer.Ordinal);
+            var extensionSchemaPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var generation in extensionManifest.Schemas)
+            {
+                ValidateExtensionGeneration(root, generation);
+                if (!extensionSchemaPaths.Add(generation.Schema))
+                {
+                    throw new InvalidOperationException(
+                        $"Extension schema '{generation.Schema}' is registered more than once."
+                    );
+                }
+                var extensionSource = File.ReadAllText(
+                    Path.Combine(root, generation.Schema),
+                    Encoding.UTF8
+                );
+                var extensionSchema =
+                    JsonSerializer.Deserialize<ExtensionSchema>(extensionSource, JsonOptions)
+                    ?? throw new InvalidOperationException($"{generation.Schema} is empty.");
+                Validate(extensionSchema, generation.Schema);
+                if (!extensionIds.Add(extensionSchema.ExtensionId))
+                {
+                    throw new InvalidOperationException(
+                        $"Extension ID '{extensionSchema.ExtensionId}' is registered more than once."
+                    );
+                }
+                var extensionCanonical = JsonSerializer.SerializeToUtf8Bytes(
+                    extensionSchema,
+                    JsonOptions
+                );
+                var extensionDigest = SHA256.HashData(extensionCanonical);
+                var extensionHash = BinaryPrimitives.ReadUInt64LittleEndian(extensionDigest);
+                if (extensionHash == 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Extension schema '{generation.Schema}' produced the reserved zero hash."
+                    );
+                }
+                if (
+                    !outputs.TryAdd(
+                        generation.CSharpOutput,
+                        GenerateExtensionCSharp(extensionSchema, extensionHash, generation)
+                    )
+                    || !outputs.TryAdd(
+                        generation.RustOutput,
+                        GenerateExtensionRust(extensionSchema, extensionHash)
+                    )
+                )
+                {
+                    throw new InvalidOperationException(
+                        $"Extension generation for '{generation.Schema}' has a duplicate output path."
+                    );
+                }
+            }
+
+            // Generated outputs use explicit LF line endings on every platform:
+            // StringBuilder.AppendLine emits Environment.NewLine, so without this a Windows
+            // checkout would rewrite every generated file with CRLF.
+            foreach (var path in outputs.Keys.ToArray())
+            {
+                outputs[path] = Normalize(outputs[path]);
+            }
+
             var stale = outputs
                 .Where(output =>
                     !File.Exists(Path.Combine(root, output.Key))
-                    || Normalize(File.ReadAllText(Path.Combine(root, output.Key), Encoding.UTF8))
-                        != Normalize(output.Value)
+                    || File.ReadAllText(Path.Combine(root, output.Key), Encoding.UTF8)
+                        != output.Value
                 )
                 .Select(output => output.Key)
                 .ToArray();
@@ -64,12 +140,12 @@ internal static class BindingGenerator
             {
                 if (stale.Length == 0)
                 {
-                    Console.WriteLine("Semantic bindings are current.");
+                    Console.WriteLine("Semantic and extension bindings are current.");
                     return 0;
                 }
 
                 Console.Error.WriteLine(
-                    $"Generated semantic bindings are stale: {string.Join(", ", stale)}"
+                    $"Generated semantic or extension bindings are stale: {string.Join(", ", stale)}"
                 );
                 Console.Error.WriteLine(
                     "Run: dotnet run --project tools/Gpui.Bindings.Generator -- generate"
@@ -87,7 +163,7 @@ internal static class BindingGenerator
 
             if (stale.Length == 0)
             {
-                Console.WriteLine("Semantic bindings are already current.");
+                Console.WriteLine("Semantic and extension bindings are already current.");
             }
             return 0;
         }
@@ -158,6 +234,49 @@ internal static class BindingGenerator
         EnsureUnique(schema.Components.Select(component => component.CSharp), "component C# name");
         EnsureUnique(schema.Operations.Select(operation => operation.Id), "operation ID");
         EnsureUnique(schema.Operations.Select(operation => operation.Name), "operation name");
+        EnsureUnique(schema.Resources.Select(resource => resource.Id), "resource ID");
+        EnsureUnique(schema.Resources.Select(resource => resource.Name), "resource name");
+        EnsureUnique(
+            schema.Resources.Select(resource => resource.CSharp),
+            "resource C# name"
+        );
+        EnsureUnique(
+            schema.Resources.SelectMany(resource => resource.Commands).Select(command => command.CSharp),
+            "resource command C# name"
+        );
+        EnsureUnique(schema.ControlEvents.Select(controlEvent => controlEvent.Id), "control event ID");
+        EnsureUnique(schema.ControlEvents.Select(controlEvent => controlEvent.Name), "control event name");
+        EnsureUnique(
+            schema.ControlEvents.Select(controlEvent => (controlEvent.Group, controlEvent.CSharp)),
+            "control event C# member"
+        );
+        foreach (var resource in schema.Resources)
+        {
+            ValidateId(resource.Id, $"resource {resource.Name}");
+            ValidateName(resource.Name, "resource");
+            ValidateCSharpIdentifier(resource.CSharp, "resource");
+            EnsureUnique(
+                resource.Commands.Select(command => command.Id),
+                $"command ID on resource {resource.Name}"
+            );
+            EnsureUnique(
+                resource.Commands.Select(command => command.Name),
+                $"command name on resource {resource.Name}"
+            );
+            foreach (var command in resource.Commands)
+            {
+                ValidateId(command.Id, $"command {resource.Name}.{command.Name}");
+                ValidateName(command.Name, "resource command");
+                ValidateCSharpIdentifier(command.CSharp, "resource command");
+            }
+        }
+        foreach (var controlEvent in schema.ControlEvents)
+        {
+            ValidateId(controlEvent.Id, $"control event {controlEvent.Name}");
+            ValidateName(controlEvent.Name, "control event");
+            ValidateName(controlEvent.Group, "control event group");
+            ValidateCSharpIdentifier(controlEvent.CSharp, "control event");
+        }
 
         if (schema.Components.Count == 0 || schema.Operations.Count == 0)
         {
@@ -422,6 +541,316 @@ internal static class BindingGenerator
         }
     }
 
+    private static void ValidateExtensionGeneration(
+        string root,
+        ExtensionGeneration generation
+    )
+    {
+        ValidateRepositoryPath(root, generation.Schema, "extension schema");
+        ValidateRepositoryPath(root, generation.CSharpOutput, "extension C# output");
+        ValidateRepositoryPath(root, generation.RustOutput, "extension Rust output");
+        if (!generation.Schema.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("An extension schema path must end in '.json'.");
+        }
+        if (!generation.CSharpOutput.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("An extension C# output path must end in '.cs'.");
+        }
+        if (!generation.RustOutput.EndsWith(".rs", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("An extension Rust output path must end in '.rs'.");
+        }
+        if (!File.Exists(Path.Combine(root, generation.Schema)))
+        {
+            throw new InvalidOperationException(
+                $"Extension schema '{generation.Schema}' does not exist."
+            );
+        }
+        if (string.IsNullOrWhiteSpace(generation.CSharpNamespace))
+        {
+            throw new InvalidOperationException("An extension C# namespace is required.");
+        }
+        foreach (var segment in generation.CSharpNamespace.Split('.'))
+        {
+            ValidateCSharpIdentifier(segment, "extension C# namespace segment");
+        }
+        ValidateCSharpIdentifier(generation.CSharpClass, "extension C# class");
+    }
+
+    private static void ValidateRepositoryPath(string root, string path, string description)
+    {
+        if (string.IsNullOrWhiteSpace(path) || Path.IsPathRooted(path))
+        {
+            throw new InvalidOperationException($"The {description} path must be repository-relative.");
+        }
+        var relative = Path.GetRelativePath(root, Path.GetFullPath(Path.Combine(root, path)));
+        if (
+            relative == ".."
+            || relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+            || Path.IsPathRooted(relative)
+        )
+        {
+            throw new InvalidOperationException($"The {description} path escapes the repository.");
+        }
+    }
+
+    private static void Validate(ExtensionSchema schema, string path)
+    {
+        ValidateExtensionIdentifier(schema.ExtensionId, $"extension ID in {path}");
+        if (schema.SchemaVersion == 0)
+        {
+            throw new InvalidOperationException($"Extension schema '{path}' needs a non-zero version.");
+        }
+        if (schema.Components is not { Count: > 0 })
+        {
+            throw new InvalidOperationException(
+                $"Extension schema '{path}' must declare at least one component."
+            );
+        }
+        EnsureUnique(schema.Components.Select(component => component.Kind), "extension component kind");
+        EnsureUnique(
+            schema.Components.Select(component => Pascal(component.Kind)),
+            "generated extension component C# name"
+        );
+        foreach (var component in schema.Components)
+        {
+            ValidateName(component.Kind, "extension component kind");
+            if (string.IsNullOrWhiteSpace(component.Configuration))
+            {
+                throw new InvalidOperationException(
+                    $"Extension component '{component.Kind}' needs a configuration description."
+                );
+            }
+            if (component.Flags is null)
+            {
+                throw new InvalidOperationException(
+                    $"Extension component '{component.Kind}' needs a flags object."
+                );
+            }
+            if (component.Commands is null)
+            {
+                throw new InvalidOperationException(
+                    $"Extension component '{component.Kind}' needs a commands object."
+                );
+            }
+            if (component.Events is null)
+            {
+                throw new InvalidOperationException(
+                    $"Extension component '{component.Kind}' needs an events object."
+                );
+            }
+            EnsureUnique(component.Flags.Values, $"flag bit on extension component {component.Kind}");
+            EnsureUnique(
+                component.Flags.Keys.Select(Pascal),
+                $"generated flag C# name on extension component {component.Kind}"
+            );
+            foreach (var (name, bit) in component.Flags)
+            {
+                ValidateName(name, $"flag on extension component {component.Kind}");
+                if (bit is < 0 or > 31)
+                {
+                    throw new InvalidOperationException(
+                        $"Extension flag '{name}' must use a bit between 0 and 31."
+                    );
+                }
+            }
+            EnsureUnique(
+                component.Commands.Values.Select(command => command.Id),
+                $"command ID on extension component {component.Kind}"
+            );
+            EnsureUnique(
+                component.Commands.Keys.Select(Pascal),
+                $"generated command C# name on extension component {component.Kind}"
+            );
+            foreach (var (name, command) in component.Commands)
+            {
+                ValidateName(name, $"command on extension component {component.Kind}");
+                if (command.Id == 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Extension command '{name}' needs a non-zero ID."
+                    );
+                }
+                if (string.IsNullOrWhiteSpace(command.Payload))
+                {
+                    throw new InvalidOperationException(
+                        $"Extension command '{name}' needs a payload description."
+                    );
+                }
+                if (string.IsNullOrWhiteSpace(command.Revision))
+                {
+                    throw new InvalidOperationException(
+                        $"Extension command '{name}' needs a revision policy."
+                    );
+                }
+            }
+            EnsureUnique(
+                component.Events.Values.Select(extensionEvent => extensionEvent.Id),
+                $"event ID on extension component {component.Kind}"
+            );
+            EnsureUnique(
+                component.Events.Keys.Select(Pascal),
+                $"generated event C# name on extension component {component.Kind}"
+            );
+            foreach (var (name, extensionEvent) in component.Events)
+            {
+                ValidateName(name, $"event on extension component {component.Kind}");
+                if (extensionEvent.Id == 0 || extensionEvent.Id >= 0x8000)
+                {
+                    throw new InvalidOperationException(
+                        $"Extension event '{name}' needs an ID between 1 and 32767."
+                    );
+                }
+                if (string.IsNullOrWhiteSpace(extensionEvent.Flags))
+                {
+                    throw new InvalidOperationException(
+                        $"Extension event '{name}' needs a flags description."
+                    );
+                }
+                if (string.IsNullOrWhiteSpace(extensionEvent.Payload))
+                {
+                    throw new InvalidOperationException(
+                        $"Extension event '{name}' needs a payload description."
+                    );
+                }
+                if (string.IsNullOrWhiteSpace(extensionEvent.Revision))
+                {
+                    throw new InvalidOperationException(
+                        $"Extension event '{name}' needs a revision policy."
+                    );
+                }
+            }
+        }
+    }
+
+    private static void ValidateExtensionIdentifier(string value, string description)
+    {
+        if (
+            string.IsNullOrWhiteSpace(value)
+            || value.Length > 127
+            || value.Any(character =>
+                !(
+                    char.IsAsciiLetterOrDigit(character)
+                    || character is '.' or '-' or '_'
+                )
+            )
+        )
+        {
+            throw new InvalidOperationException(
+                $"The {description} must contain only ASCII letters, digits, '.', '-', and '_'."
+            );
+        }
+    }
+
+    private static string GenerateExtensionCSharp(
+        ExtensionSchema schema,
+        ulong hash,
+        ExtensionGeneration generation
+    )
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("// @generated by Gpui.Bindings.Generator. Do not edit.");
+        builder.AppendLine();
+        builder.AppendLine($"namespace {generation.CSharpNamespace};");
+        builder.AppendLine();
+        builder.AppendLine($"internal static class {generation.CSharpClass}");
+        builder.AppendLine("{");
+        builder.AppendLine($"    internal const string ExtensionId = \"{schema.ExtensionId}\";");
+        builder.AppendLine($"    internal const uint SchemaVersion = {schema.SchemaVersion}u;");
+        builder.AppendLine($"    internal const ulong SchemaHash = 0x{hash:X16}UL;");
+        foreach (var component in schema.Components)
+        {
+            builder.AppendLine();
+            builder.AppendLine($"    internal static class {Pascal(component.Kind)}");
+            builder.AppendLine("    {");
+            builder.AppendLine($"        internal const string Kind = \"{component.Kind}\";");
+            foreach (var (name, bit) in component.Flags)
+            {
+                builder.AppendLine(
+                    $"        internal const uint Flag{Pascal(name)} = 1u << {bit};"
+                );
+            }
+            foreach (var (name, command) in component.Commands)
+            {
+                builder.AppendLine(
+                    $"        internal const ushort Command{Pascal(name)} = {command.Id};"
+                );
+            }
+            foreach (var (name, extensionEvent) in component.Events)
+            {
+                builder.AppendLine(
+                    $"        internal const ushort Event{Pascal(name)} = {extensionEvent.Id};"
+                );
+            }
+            if (component.Flags.Count > 0)
+            {
+                builder.AppendLine("        internal const uint KnownFlags =");
+                var flags = component.Flags.Keys.ToArray();
+                for (var index = 0; index < flags.Length; index++)
+                {
+                    var suffix = index == flags.Length - 1 ? ";" : string.Empty;
+                    var prefix = index == 0 ? "            " : "            | ";
+                    builder.AppendLine($"{prefix}Flag{Pascal(flags[index])}{suffix}");
+                }
+            }
+            builder.AppendLine("    }");
+        }
+        builder.AppendLine("}");
+        return builder.ToString();
+    }
+
+    private static string GenerateExtensionRust(ExtensionSchema schema, ulong hash)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("// @generated by Gpui.Bindings.Generator. Do not edit.");
+        builder.AppendLine($"pub const EXTENSION_ID: &str = \"{schema.ExtensionId}\";");
+        builder.AppendLine($"pub const SCHEMA_VERSION: u32 = {schema.SchemaVersion};");
+        builder.AppendLine($"pub const SCHEMA_HASH: u64 = 0x{hash:X16};");
+        foreach (var component in schema.Components)
+        {
+            var componentName = UpperSnake(component.Kind);
+            builder.AppendLine();
+            builder.AppendLine(
+                $"pub const COMPONENT_{componentName}: &str = \"{component.Kind}\";"
+            );
+            foreach (var (name, bit) in component.Flags)
+            {
+                builder.AppendLine(
+                    $"pub const {componentName}_FLAG_{UpperSnake(name)}: u32 = 1 << {bit};"
+                );
+            }
+            foreach (var (name, command) in component.Commands)
+            {
+                builder.AppendLine(
+                    $"pub const {componentName}_COMMAND_{UpperSnake(name)}: u16 = {command.Id};"
+                );
+            }
+            foreach (var (name, extensionEvent) in component.Events)
+            {
+                builder.AppendLine(
+                    $"pub const {componentName}_EVENT_{UpperSnake(name)}: u16 = {extensionEvent.Id};"
+                );
+            }
+            if (component.Flags.Count > 0)
+            {
+                var flags = component.Flags.Keys.ToArray();
+                var firstSuffix = flags.Length == 1 ? ";" : string.Empty;
+                builder.AppendLine(
+                    $"pub const {componentName}_KNOWN_FLAGS: u32 = {componentName}_FLAG_{UpperSnake(flags[0])}{firstSuffix}"
+                );
+                for (var index = 1; index < flags.Length; index++)
+                {
+                    var suffix = index == flags.Length - 1 ? ";" : string.Empty;
+                    builder.AppendLine(
+                        $"    | {componentName}_FLAG_{UpperSnake(flags[index])}{suffix}"
+                    );
+                }
+            }
+        }
+        return builder.ToString();
+    }
+
     private static string GenerateCSharp(BindingSchema schema, ulong hash)
     {
         var builder = new StringBuilder();
@@ -455,6 +884,29 @@ internal static class BindingGenerator
         builder.AppendLine("        Callback = 3,");
         builder.AppendLine("        U64 = 4,");
         builder.AppendLine("        F32x2 = 5,");
+        builder.AppendLine("    }");
+        builder.AppendLine();
+        builder.AppendLine("    internal enum ResourceKind : ushort");
+        builder.AppendLine("    {");
+        foreach (var resource in schema.Resources)
+        {
+            builder.AppendLine($"        {resource.CSharp} = {resource.Id},");
+        }
+        builder.AppendLine("    }");
+        builder.AppendLine();
+        builder.AppendLine("    internal enum ResourceCommandKind : ushort");
+        builder.AppendLine("    {");
+        foreach (var resource in schema.Resources)
+        {
+            foreach (var command in resource.Commands)
+            {
+                if (command.Doc is { } commandDoc)
+                {
+                    builder.AppendLine($"        /// <summary>{XmlDoc(commandDoc)}</summary>");
+                }
+                builder.AppendLine($"        {command.CSharp} = {command.Id},");
+            }
+        }
         builder.AppendLine("    }");
         builder.AppendLine();
         builder.AppendLine("    internal static class SemanticRegistry");
@@ -578,6 +1030,21 @@ internal static class BindingGenerator
             );
         }
         builder.AppendLine();
+        foreach (var group in schema.ControlEvents.Select(controlEvent => controlEvent.Group).Distinct())
+        {
+            builder.AppendLine($"    public enum {Pascal(group)}EventKind : ushort");
+            builder.AppendLine("    {");
+            foreach (var controlEvent in schema.ControlEvents.Where(controlEvent => controlEvent.Group == group))
+            {
+                if (controlEvent.Doc is { } eventDoc)
+                {
+                    builder.AppendLine($"        /// <summary>{XmlDoc(eventDoc)}</summary>");
+                }
+                builder.AppendLine($"        {controlEvent.CSharp} = {controlEvent.Id},");
+            }
+            builder.AppendLine("    }");
+            builder.AppendLine();
+        }
         builder.AppendLine("    public readonly unsafe ref partial struct RenderContext");
         builder.AppendLine("    {");
         foreach (
@@ -626,90 +1093,90 @@ internal static class BindingGenerator
                 builder.AppendLine("        }");
                 break;
             case "idContainer":
-            {
-                // dataRequired components reject empty ids before the FFI boundary; the
-                // native validator would otherwise fail the whole snapshot at decode time.
-                var guard = component.DataRequired;
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, params ReadOnlySpan<Element> children)"
-                );
-                builder.AppendLine("        {");
-                if (guard)
                 {
-                    builder.AppendLine("            if (id.IsEmpty)");
-                    builder.AppendLine("            {");
+                    // dataRequired components reject empty ids before the FFI boundary; the
+                    // native validator would otherwise fail the whole snapshot at decode time.
+                    var guard = component.DataRequired;
                     builder.AppendLine(
-                        "                throw new ArgumentException(\"A non-empty element id is required.\", nameof(id));"
+                        $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, params ReadOnlySpan<Element> children)"
                     );
-                    builder.AppendLine("            }");
-                }
-                builder.AppendLine(
-                    $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, id);"
-                );
-                AppendInteractiveOwner(builder, component);
-                builder.AppendLine("            ArenaWriter.AddChildren(element.Inner, children);");
-                builder.AppendLine("            return element;");
-                builder.AppendLine("        }");
-                builder.AppendLine();
-                builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, params ReadOnlySpan<Element> children)"
-                );
-                builder.AppendLine("        {");
-                if (guard)
-                {
-                    builder.AppendLine("            if (utf8Id.IsEmpty)");
-                    builder.AppendLine("            {");
+                    builder.AppendLine("        {");
+                    if (guard)
+                    {
+                        builder.AppendLine("            if (id.IsEmpty)");
+                        builder.AppendLine("            {");
+                        builder.AppendLine(
+                            "                throw new ArgumentException(\"A non-empty element id is required.\", nameof(id));"
+                        );
+                        builder.AppendLine("            }");
+                    }
                     builder.AppendLine(
-                        "                throw new ArgumentException(\"A non-empty element id is required.\", nameof(utf8Id));"
+                        $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, id);"
                     );
-                    builder.AppendLine("            }");
+                    AppendInteractiveOwner(builder, component);
+                    builder.AppendLine("            ArenaWriter.AddChildren(element.Inner, children);");
+                    builder.AppendLine("            return element;");
+                    builder.AppendLine("        }");
+                    builder.AppendLine();
+                    builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                    builder.AppendLine(
+                        $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, params ReadOnlySpan<Element> children)"
+                    );
+                    builder.AppendLine("        {");
+                    if (guard)
+                    {
+                        builder.AppendLine("            if (utf8Id.IsEmpty)");
+                        builder.AppendLine("            {");
+                        builder.AppendLine(
+                            "                throw new ArgumentException(\"A non-empty element id is required.\", nameof(utf8Id));"
+                        );
+                        builder.AppendLine("            }");
+                    }
+                    builder.AppendLine(
+                        $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, utf8Id);"
+                    );
+                    AppendInteractiveOwner(builder, component);
+                    builder.AppendLine("            ArenaWriter.AddChildren(element.Inner, children);");
+                    builder.AppendLine("            return element;");
+                    builder.AppendLine("        }");
+                    builder.AppendLine();
+                    builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                    builder.AppendLine(
+                        $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, ReadOnlySpan<char> label)"
+                    );
+                    builder.AppendLine("        {");
+                    builder.AppendLine("            var child = Text(label);");
+                    builder.AppendLine($"            return {component.CSharp}(id, child);");
+                    builder.AppendLine("        }");
+                    builder.AppendLine();
+                    builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                    builder.AppendLine(
+                        $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, ReadOnlySpan<byte> utf8Label)"
+                    );
+                    builder.AppendLine("        {");
+                    builder.AppendLine("            var child = Text(utf8Label);");
+                    builder.AppendLine($"            return {component.CSharp}(id, child);");
+                    builder.AppendLine("        }");
+                    builder.AppendLine();
+                    builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                    builder.AppendLine(
+                        $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, ReadOnlySpan<char> label)"
+                    );
+                    builder.AppendLine("        {");
+                    builder.AppendLine("            var child = Text(label);");
+                    builder.AppendLine($"            return {component.CSharp}(utf8Id, child);");
+                    builder.AppendLine("        }");
+                    builder.AppendLine();
+                    builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+                    builder.AppendLine(
+                        $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, ReadOnlySpan<byte> utf8Label)"
+                    );
+                    builder.AppendLine("        {");
+                    builder.AppendLine("            var child = Text(utf8Label);");
+                    builder.AppendLine($"            return {component.CSharp}(utf8Id, child);");
+                    builder.AppendLine("        }");
+                    break;
                 }
-                builder.AppendLine(
-                    $"            var element = ArenaWriter.AddNode<{component.CSharp}Tag>(_arena, {componentId}, utf8Id);"
-                );
-                AppendInteractiveOwner(builder, component);
-                builder.AppendLine("            ArenaWriter.AddChildren(element.Inner, children);");
-                builder.AppendLine("            return element;");
-                builder.AppendLine("        }");
-                builder.AppendLine();
-                builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, ReadOnlySpan<char> label)"
-                );
-                builder.AppendLine("        {");
-                builder.AppendLine("            var child = Text(label);");
-                builder.AppendLine($"            return {component.CSharp}(id, child);");
-                builder.AppendLine("        }");
-                builder.AppendLine();
-                builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<char> id, ReadOnlySpan<byte> utf8Label)"
-                );
-                builder.AppendLine("        {");
-                builder.AppendLine("            var child = Text(utf8Label);");
-                builder.AppendLine($"            return {component.CSharp}(id, child);");
-                builder.AppendLine("        }");
-                builder.AppendLine();
-                builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, ReadOnlySpan<char> label)"
-                );
-                builder.AppendLine("        {");
-                builder.AppendLine("            var child = Text(label);");
-                builder.AppendLine($"            return {component.CSharp}(utf8Id, child);");
-                builder.AppendLine("        }");
-                builder.AppendLine();
-                builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
-                builder.AppendLine(
-                    $"        public {elementType} {component.CSharp}(ReadOnlySpan<byte> utf8Id, ReadOnlySpan<byte> utf8Label)"
-                );
-                builder.AppendLine("        {");
-                builder.AppendLine("            var child = Text(utf8Label);");
-                builder.AppendLine($"            return {component.CSharp}(utf8Id, child);");
-                builder.AppendLine("        }");
-                break;
-            }
             case "leaf":
                 builder.AppendLine($"        public {elementType} {component.CSharp}() =>");
                 builder.AppendLine(
@@ -853,6 +1320,26 @@ internal static class BindingGenerator
         foreach (var operation in schema.Operations)
         {
             builder.AppendLine($"pub const OP_{UpperSnake(operation.Name)}: u16 = {operation.Id};");
+        }
+        builder.AppendLine();
+        foreach (var resource in schema.Resources)
+        {
+            builder.AppendLine(
+                $"pub const RESOURCE_{UpperSnake(resource.Name)}: u16 = {resource.Id};"
+            );
+            foreach (var command in resource.Commands)
+            {
+                builder.AppendLine(
+                    $"pub const COMMAND_{UpperSnake(resource.Name)}_{UpperSnake(command.Name)}: u16 = {command.Id};"
+                );
+            }
+        }
+        builder.AppendLine();
+        foreach (var controlEvent in schema.ControlEvents)
+        {
+            builder.AppendLine(
+                $"pub const EVENT_{UpperSnake(controlEvent.Name)}: u16 = {controlEvent.Id};"
+            );
         }
         builder.AppendLine();
         builder.AppendLine("#[repr(u16)]");
@@ -1128,6 +1615,9 @@ internal static class BindingGenerator
 
     private static string UpperSnake(string value) => value.ToUpperInvariant();
 
+    private static string XmlDoc(string value) =>
+        value.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
+
     private static string CSharpValidationExpression(Validation validation) =>
         validation.Kind switch
         {
@@ -1182,8 +1672,38 @@ internal sealed record BindingSchema(
     int SchemaVersion,
     List<string> Capabilities,
     List<Component> Components,
-    List<Operation> Operations
+    List<Operation> Operations,
+    List<ResourceSchema> Resources,
+    List<ControlEventSchema> ControlEvents
 );
+
+internal sealed record ExtensionManifest(List<ExtensionGeneration> Schemas);
+
+internal sealed record ExtensionGeneration(
+    string Schema,
+    [property: JsonPropertyName("csharpOutput")] string CSharpOutput,
+    string RustOutput,
+    [property: JsonPropertyName("csharpNamespace")] string CSharpNamespace,
+    [property: JsonPropertyName("csharpClass")] string CSharpClass
+);
+
+internal sealed record ExtensionSchema(
+    string ExtensionId,
+    uint SchemaVersion,
+    List<ExtensionComponent> Components
+);
+
+internal sealed record ExtensionComponent(
+    string Kind,
+    string Configuration,
+    Dictionary<string, int> Flags,
+    Dictionary<string, ExtensionCommand> Commands,
+    Dictionary<string, ExtensionEvent> Events
+);
+
+internal sealed record ExtensionCommand(ushort Id, string Payload, string Revision);
+
+internal sealed record ExtensionEvent(ushort Id, string Flags, string Payload, string Revision);
 
 internal sealed record Component(
     int Id,
@@ -1214,4 +1734,26 @@ internal sealed record Validation(
     double? Max,
     bool MinExclusive,
     int Status
+);
+
+internal sealed record ResourceSchema(
+    int Id,
+    string Name,
+    [property: JsonPropertyName("csharp")] string CSharp,
+    List<ResourceCommandSchema> Commands
+);
+
+internal sealed record ResourceCommandSchema(
+    int Id,
+    string Name,
+    [property: JsonPropertyName("csharp")] string CSharp,
+    string? Doc
+);
+
+internal sealed record ControlEventSchema(
+    int Id,
+    string Name,
+    string Group,
+    [property: JsonPropertyName("csharp")] string CSharp,
+    string? Doc
 );

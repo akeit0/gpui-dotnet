@@ -19,13 +19,15 @@ schema, and the native ABI may change before a stable release.
 
 - Semantic C# layout with stacks, spacing, padding, sizing, alignment, text, buttons, inputs,
   badges, dividers, and application-owned typed styles.
-- Retained `Scroll`, virtual `List`, virtual `Table`, `Input`, and `Slider` controls with native
-  scrolling, selection, focus, IME, measurement, and pointer state.
+- Retained `Scroll`, virtual `List`, virtual `Table`, `Input`, `Slider`, and `Dock` controls with
+  native scrolling, selection, focus, IME, measurement, and pointer state.
 - `Overlay`, `Dialog`, `Sheet`, `Tooltip`, `ContextMenu`, and `PopoverMenu` layers with native
   placement, viewport clamping, focus restoration, stacking, and dismissal.
 - Native image decoding/caching and vector drawing with paths, fills, strokes, curves, arcs, and
   view boxes.
 - Multiple windows, application menus, system or custom title bars, and native window controls.
+- Build-time native extension hosts with independently versioned managed schemas; the optional
+  editor probe retains Rope, selection, highlighting, undo, scrolling, focus, and IME in Rust.
 
 ### Platform support
 
@@ -75,7 +77,11 @@ growth. On Windows, the sample embeds
 
 ## Build and run
 
-From the repository root:
+Clone with submodules, then build from the repository root:
+
+```sh
+git clone --recurse-submodules https://github.com/akeit0/gpui-dotnet
+```
 
 ```sh
 dotnet build Gpui.slnx
@@ -155,12 +161,12 @@ C# application and View state
         │ dirty render
         ▼
 flat RenderArena: nodes, operations, children, UTF-8
-        │ ABI v1 + semantic schema hash
+        │ ABI v2 + base/extension schema negotiation
         ▼
 Rust validation and retained snapshot
         │
         ├── semantic adapters ──► GPUI elements and deferred layers
-        └── retained resources ─► scroll, list/table, input, slider
+        └── retained resources ─► scroll, list/table, input, slider, dock, extensions
 ```
 
 Clean native repaints do not call managed `Render()`. High-frequency state such as scrolling,
@@ -270,10 +276,17 @@ The following components keep interaction state in Rust across managed renders:
 - `Table`: the list row engine plus declarative native column/header layout
 - `Input`: value, selection, focus, clipboard, IME, caret, and horizontal reveal
 - `Slider`: value/range, pointer drag, keyboard interaction, and release events
+- `Dock`: tab groups, nested splits, panel focus, drag/drop, and splitter geometry
 
 Controllers provide imperative operations without moving ownership back to C#. For example,
 `ScrollController.ScrollToTop`, `ListController.ScrollToItem`, `InputController.Focus`, and
 `SliderController.SetValue` enqueue native resource commands.
+
+Dock uses a structural managed declaration and retained native interaction. `DockPanel` content can
+be an ordinary element tree or a keyed child View; normal managed rerenders update content without
+resetting native tab moves, splitter sizes, or side-region state. The current slice covers center
+tabs and horizontal or vertical splits plus declarative left, bottom, and right regions with native
+collapse and resizing; persistence, tiles, and Dock commands/events remain roadmap work.
 
 Virtual rows are generated in aligned batches:
 
@@ -370,15 +383,16 @@ back to `dotnet watch`, which restarts the application when required.
 ## Repository layout
 
 ```text
-bindings/                 semantic component and operation schema
+bindings/                 base schema and optional-extension registry
 crates/gpui-dotnet/       Rust native host
 src/Gpui/                 managed public API and runtime sources
 src/Gpui.Core/            platform-neutral package project
+src/Gpui.Editor/          optional editor schema assembly
 src/Gpui.Native/          RID-specific native package projects
 src/Gpui.Generators/      Roslyn generators for views and list rows
 samples/Gpui.Sample/      interactive component gallery
 tests/Gpui.Tests/         managed contract and generator tests
-tools/                    semantic binding generator and UI driver
+tools/                    base/extension binding generator and UI driver
 eng/                      native build, staging, and packaging scripts
 docs/                     design and contributor documentation
 ```
@@ -395,19 +409,22 @@ dotnet test Gpui.slnx --no-restore
 dotnet build samples/Gpui.Sample/Gpui.Sample.csproj --no-restore
 ```
 
-When `bindings/schema.json` changes, regenerate both managed and Rust bindings:
+When the base schema or a schema registered by `bindings/extensions.json` changes, regenerate the
+managed and Rust bindings:
 
 ```sh
 dotnet run --project tools/Gpui.Bindings.Generator -- generate
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
 ```
 
-Do not edit `Semantic.g.cs` or `semantic.g.rs` by hand.
+Do not edit generated semantic or extension schema files by hand.
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [gpui-base migration](docs/GPUI_BASE_MIGRATION.md)
 - [Components and retained resources](docs/COMPONENTS.md)
+- [Optional editor extension](docs/EDITOR.md)
 - [View lifecycle](docs/VIEW_LIFECYCLE.md)
 - [Lifecycle and threading](docs/THREADING.md)
 - [Managed renderer Hot Reload](docs/HOT_RELOAD.md)
@@ -417,7 +434,9 @@ Do not edit `Semantic.g.cs` or `semantic.g.rs` by hand.
 - [Packaging](docs/PACKAGING.md)
 - [Extensions and custom hosts](docs/EXTENSIONS.md)
 - [Contributing](docs/CONTRIBUTING.md)
+- [Native upstream baseline](docs/UPSTREAM_BASELINE.md)
 - [Roadmap](docs/NEXT_STEPS.md)
 
-GPUI Component and Zed are implementation references, but GPUI.NET keeps its own semantic ABI and
-pinned GPUI dependency. See [NOTICE](NOTICE) for attribution.
+GPUI.NET uses the pinned `gpui-base` foundation recorded in
+[the native upstream baseline](docs/UPSTREAM_BASELINE.md) while retaining its own semantic ABI and
+managed/native runtime. See [NOTICE](NOTICE) for attribution.

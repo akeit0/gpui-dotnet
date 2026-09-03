@@ -1,11 +1,10 @@
-use std::{cell::Cell, rc::Rc, time::Duration};
+use std::time::Duration;
 
 use gpui::{
-    AnyElement, App, Bounds, Context, Display, Element, ElementId, GlobalElementId,
-    InspectorElementId, InteractiveElement, IntoElement, LayoutId, MouseButton, ParentElement,
-    Pixels, Point, Position, Size, StatefulInteractiveElement, Style, Styled, Window, canvas,
-    deferred, div, point, px,
+    AnyElement, App, Context, ElementId, InteractiveElement, IntoElement, MouseButton,
+    ParentElement, StatefulInteractiveElement, Styled, Window, div, px,
 };
+use gpui_base::{Align, Placement, Popup};
 
 use crate::{app_host::ManagedView, resources::ResourceKey};
 
@@ -52,20 +51,11 @@ pub(crate) fn tooltip(
     let tooltip_id: ElementId =
         gpui::SharedString::from(format!("managed-tooltip-{}-{}", key.owner_view, key.key)).into();
     let state = window.use_keyed_state(tooltip_id.clone(), cx, |_, _| TooltipState::default());
-    let trigger_bounds = Rc::new(Cell::new(Bounds::default()));
-
-    let measured_bounds = trigger_bounds.clone();
-    let measurement = canvas(
-        move |bounds, _, _| measured_bounds.set(bounds),
-        |_, _, _, _| {},
-    )
-    .absolute()
-    .inset_0();
 
     let trigger_state = state.clone();
     let trigger_config = configuration;
     let pressed_state = state.clone();
-    let mut host = div()
+    let trigger = div()
         .relative()
         .flex()
         .flex_none()
@@ -83,8 +73,13 @@ pub(crate) fn tooltip(
         .on_mouse_down(MouseButton::Left, move |_, window, cx| {
             hide_immediately(&pressed_state, window, cx);
         })
-        .child(trigger)
-        .child(measurement);
+        .child(trigger);
+    let mut popup = Popup::new(tooltip_id.clone(), trigger)
+        .placement(foundation_placement(configuration.placement))
+        .align(foundation_alignment(configuration.alignment))
+        .offset(px(configuration.gap))
+        .margin(px(configuration.margin))
+        .priority(TOOLTIP_PRIORITY);
 
     if state.read(cx).visible {
         let content_state = state.clone();
@@ -108,17 +103,10 @@ pub(crate) fn tooltip(
             })
             .child(content)
             .into_any_element();
-        host = host.child(
-            deferred(TooltipPositioner::new(
-                content,
-                trigger_bounds,
-                configuration,
-            ))
-            .with_priority(TOOLTIP_PRIORITY),
-        );
+        popup = popup.content(content);
     }
 
-    host.into_any_element()
+    popup.into_any_element()
 }
 
 fn update_hover(
@@ -222,255 +210,36 @@ fn hide_immediately(state: &gpui::Entity<TooltipState>, window: &mut Window, cx:
     }
 }
 
-struct TooltipPositioner {
-    child: AnyElement,
-    trigger_bounds: Rc<Cell<Bounds<Pixels>>>,
-    configuration: TooltipConfiguration,
-}
-
-impl TooltipPositioner {
-    fn new(
-        child: AnyElement,
-        trigger_bounds: Rc<Cell<Bounds<Pixels>>>,
-        configuration: TooltipConfiguration,
-    ) -> Self {
-        Self {
-            child,
-            trigger_bounds,
-            configuration,
-        }
-    }
-}
-
-impl Element for TooltipPositioner {
-    type RequestLayoutState = LayoutId;
-    type PrepaintState = ();
-
-    fn id(&self) -> Option<ElementId> {
-        None
-    }
-
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
-        None
-    }
-
-    fn request_layout(
-        &mut self,
-        _id: Option<&GlobalElementId>,
-        _inspector_id: Option<&InspectorElementId>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> (LayoutId, Self::RequestLayoutState) {
-        let child_layout = self.child.request_layout(window, cx);
-        let layout = window.request_layout(
-            Style {
-                position: Position::Absolute,
-                display: Display::Flex,
-                ..Style::default()
-            },
-            [child_layout],
-            cx,
-        );
-        (layout, child_layout)
-    }
-
-    fn prepaint(
-        &mut self,
-        _id: Option<&GlobalElementId>,
-        _inspector_id: Option<&InspectorElementId>,
-        bounds: Bounds<Pixels>,
-        child_layout: &mut Self::RequestLayoutState,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        let child_size = window.layout_bounds(*child_layout).size;
-        let desired = tooltip_origin(
-            self.trigger_bounds.get(),
-            child_size,
-            window.viewport_size(),
-            self.configuration,
-        );
-        let offset = point(
-            (desired.x - bounds.origin.x).round(),
-            (desired.y - bounds.origin.y).round(),
-        );
-        window.with_element_offset(offset, |window| self.child.prepaint(window, cx));
-    }
-
-    fn paint(
-        &mut self,
-        _id: Option<&GlobalElementId>,
-        _inspector_id: Option<&InspectorElementId>,
-        _bounds: Bounds<Pixels>,
-        _request_layout: &mut Self::RequestLayoutState,
-        _prepaint: &mut Self::PrepaintState,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        self.child.paint(window, cx);
-    }
-}
-
-impl IntoElement for TooltipPositioner {
-    type Element = Self;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
-}
-
-fn tooltip_origin(
-    trigger: Bounds<Pixels>,
-    content: Size<Pixels>,
-    viewport: Size<Pixels>,
-    configuration: TooltipConfiguration,
-) -> Point<Pixels> {
-    let gap = px(configuration.gap);
-    let margin = px(configuration.margin);
-    let placements: &[u32] = match configuration.placement {
-        1 => &[1, 3, 2, 4],
-        2 => &[2, 4, 3, 1],
-        3 => &[3, 1, 2, 4],
-        4 => &[4, 2, 3, 1],
-        _ => &[3, 1, 2, 4],
-    };
-
-    for placement in placements {
-        let mut origin = origin_for(trigger, content, *placement, configuration.alignment, gap);
-        clamp_cross_axis(&mut origin, content, viewport, *placement, margin);
-        if fits_primary_axis(origin, content, viewport, *placement, margin) {
-            return origin;
-        }
-    }
-
-    let mut origin = origin_for(
-        trigger,
-        content,
-        placements[0],
-        configuration.alignment,
-        gap,
-    );
-    origin.x = clamp_coordinate(origin.x, content.width, viewport.width, margin);
-    origin.y = clamp_coordinate(origin.y, content.height, viewport.height, margin);
-    origin
-}
-
-fn origin_for(
-    trigger: Bounds<Pixels>,
-    content: Size<Pixels>,
-    placement: u32,
-    alignment: u32,
-    gap: Pixels,
-) -> Point<Pixels> {
-    let horizontal = || match alignment {
-        0 => trigger.left(),
-        2 => trigger.right() - content.width,
-        _ => trigger.left() + (trigger.size.width - content.width) / 2.,
-    };
-    let vertical = || match alignment {
-        0 => trigger.top(),
-        2 => trigger.bottom() - content.height,
-        _ => trigger.top() + (trigger.size.height - content.height) / 2.,
-    };
+fn foundation_placement(placement: u32) -> Placement {
     match placement {
-        1 => point(horizontal(), trigger.top() - gap - content.height),
-        2 => point(trigger.right() + gap, vertical()),
-        4 => point(trigger.left() - gap - content.width, vertical()),
-        _ => point(horizontal(), trigger.bottom() + gap),
+        1 => Placement::Top,
+        2 => Placement::Right,
+        4 => Placement::Left,
+        _ => Placement::Bottom,
     }
 }
 
-fn clamp_cross_axis(
-    origin: &mut Point<Pixels>,
-    content: Size<Pixels>,
-    viewport: Size<Pixels>,
-    placement: u32,
-    margin: Pixels,
-) {
-    if matches!(placement, 1 | 3) {
-        origin.x = clamp_coordinate(origin.x, content.width, viewport.width, margin);
-    } else {
-        origin.y = clamp_coordinate(origin.y, content.height, viewport.height, margin);
-    }
-}
-
-fn fits_primary_axis(
-    origin: Point<Pixels>,
-    content: Size<Pixels>,
-    viewport: Size<Pixels>,
-    placement: u32,
-    margin: Pixels,
-) -> bool {
-    if matches!(placement, 1 | 3) {
-        origin.y >= margin && origin.y + content.height <= viewport.height - margin
-    } else {
-        origin.x >= margin && origin.x + content.width <= viewport.width - margin
-    }
-}
-
-fn clamp_coordinate(
-    coordinate: Pixels,
-    extent: Pixels,
-    viewport_extent: Pixels,
-    margin: Pixels,
-) -> Pixels {
-    let maximum = viewport_extent - margin - extent;
-    if maximum < margin {
-        margin
-    } else {
-        coordinate.max(margin).min(maximum)
+fn foundation_alignment(alignment: u32) -> Align {
+    match alignment {
+        0 => Align::Start,
+        2 => Align::End,
+        _ => Align::Center,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::size;
-
-    fn configuration(placement: u32) -> TooltipConfiguration {
-        TooltipConfiguration {
-            placement,
-            alignment: 1,
-            show_delay_ms: 500,
-            hide_delay_ms: 300,
-            gap: 8.,
-            margin: 8.,
-        }
-    }
 
     #[test]
-    fn auto_prefers_bottom_and_centers_on_trigger() {
-        let origin = tooltip_origin(
-            Bounds::new(point(px(100.), px(100.)), size(px(40.), px(20.))),
-            size(px(80.), px(30.)),
-            size(px(400.), px(300.)),
-            configuration(0),
-        );
-
-        assert_eq!(origin, point(px(80.), px(128.)));
-    }
-
-    #[test]
-    fn requested_bottom_flips_above_near_viewport_edge() {
-        let origin = tooltip_origin(
-            Bounds::new(point(px(100.), px(270.)), size(px(40.), px(20.))),
-            size(px(80.), px(30.)),
-            size(px(400.), px(300.)),
-            configuration(3),
-        );
-
-        assert_eq!(origin, point(px(80.), px(232.)));
-    }
-
-    #[test]
-    fn cross_axis_is_clamped_to_viewport_margin() {
-        let origin = tooltip_origin(
-            Bounds::new(point(px(2.), px(100.)), size(px(20.), px(20.))),
-            size(px(100.), px(30.)),
-            size(px(400.), px(300.)),
-            configuration(3),
-        );
-
-        assert_eq!(origin.x, px(8.));
+    fn semantic_placement_and_alignment_map_to_foundation_values() {
+        assert_eq!(foundation_placement(0), Placement::Bottom);
+        assert_eq!(foundation_placement(1), Placement::Top);
+        assert_eq!(foundation_placement(2), Placement::Right);
+        assert_eq!(foundation_placement(3), Placement::Bottom);
+        assert_eq!(foundation_placement(4), Placement::Left);
+        assert_eq!(foundation_alignment(0), Align::Start);
+        assert_eq!(foundation_alignment(1), Align::Center);
+        assert_eq!(foundation_alignment(2), Align::End);
     }
 }

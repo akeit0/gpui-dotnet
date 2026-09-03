@@ -120,6 +120,12 @@ public sealed class NativeRuntimeOptions
     /// absolute or relative to the process working directory.
     /// </summary>
     public string? LibraryPath { get; init; }
+
+    /// <summary>
+    /// Extension schemas that the selected host must implement. Compatibility is checked before
+    /// the native application event loop starts.
+    /// </summary>
+    public IReadOnlyList<NativeExtensionRequirement> Extensions { get; init; } = [];
 }
 
 /// <summary>

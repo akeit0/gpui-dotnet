@@ -1,8 +1,12 @@
-mod abi;
+pub mod abi;
 mod app_host;
 mod arena;
 mod components;
 mod context_menu;
+mod dock;
+mod dock_icons;
+mod dock_skin;
+pub mod extension;
 mod input;
 mod materializer;
 mod overlay;
@@ -20,13 +24,21 @@ mod trace;
 use std::{mem::size_of, panic::AssertUnwindSafe, ptr};
 
 use abi::{
-    ABI_VERSION, GpuiDotnetApiV1, ManagedCallbacks, NativeApplicationCommand, NativeMenuCommand,
-    NativeMenuRecord, NativeResourceCommand, NativeThemePayload, RenderArena,
+    ABI_VERSION, GpuiDotnetApiV3, ManagedCallbacks, NativeApplicationCommand,
+    NativeExtensionCommand as NativeExtensionCommandAbi, NativeMenuCommand, NativeMenuRecord,
+    NativeResourceCommand, NativeThemePayload, RenderArena,
 };
-use semantic::SCHEMA_HASH;
+use semantic::{
+    COMMAND_DOCK_CLOSE_PANEL, COMMAND_DOCK_EXPORT_LAYOUT, COMMAND_DOCK_IMPORT_LAYOUT,
+    COMMAND_DOCK_SET_REGION_OPEN, COMMAND_INPUT_BLUR, COMMAND_INPUT_FOCUS,
+    COMMAND_INPUT_SELECT_ALL, COMMAND_INPUT_SET_VALUE, COMMAND_LIST_REFRESH, COMMAND_LIST_RESET,
+    COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_LIST_SPLICE, COMMAND_SCROLL_TO_BOTTOM,
+    COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP, COMMAND_SLIDER_SET_VALUE, RESOURCE_DOCK,
+    RESOURCE_INPUT, RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER, SCHEMA_HASH,
+};
 
-static API_V1: GpuiDotnetApiV1 = GpuiDotnetApiV1 {
-    struct_size: GpuiDotnetApiV1::struct_size(),
+static API_V3: GpuiDotnetApiV3 = GpuiDotnetApiV3 {
+    struct_size: GpuiDotnetApiV3::struct_size(),
     abi_version: ABI_VERSION,
     schema_hash: SCHEMA_HASH,
     validate_render: Some(validate_render),
@@ -35,14 +47,134 @@ static API_V1: GpuiDotnetApiV1 = GpuiDotnetApiV1 {
     dispatch_command: Some(dispatch_command),
     dispatch_application_command: Some(dispatch_application_command),
     dispatch_application_menu: Some(dispatch_application_menu),
+    supports_extension: Some(supports_extension),
+    dispatch_extension_command: Some(dispatch_extension_command),
 };
 
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_dotnet_get_api(requested_version: u32) -> *const GpuiDotnetApiV1 {
+pub fn api(requested_version: u32) -> *const GpuiDotnetApiV3 {
     if requested_version != ABI_VERSION {
         return ptr::null();
     }
-    &API_V1
+    &API_V3
+}
+
+unsafe extern "C" fn dispatch_extension_command(
+    view_id: u64,
+    command: *const NativeExtensionCommandAbi,
+) -> i32 {
+    std::panic::catch_unwind(AssertUnwindSafe(|| unsafe {
+        dispatch_extension_command_inner(view_id, command)
+    }))
+    .unwrap_or(-99)
+}
+
+unsafe fn dispatch_extension_command_inner(
+    view_id: u64,
+    command: *const NativeExtensionCommandAbi,
+) -> i32 {
+    const MAX_KEY_LENGTH: i32 = 4096;
+    const MAX_PAYLOAD_LENGTH: i32 = 256 * 1024 * 1024;
+
+    let Some(command) = (unsafe { command.as_ref() }) else {
+        return -83;
+    };
+    if view_id == 0
+        || command.owner_view == 0
+        || command.command == 0
+        || command.schema_version == 0
+        || command.schema_hash == 0
+        || command.reserved != 0
+        || command.extension_id_length <= 0
+        || command.extension_id_length > 127
+        || command.extension_id.is_null()
+        || command.component_kind_length <= 0
+        || command.component_kind_length > 127
+        || command.component_kind.is_null()
+        || command.key_length <= 0
+        || command.key_length > MAX_KEY_LENGTH
+        || command.key.is_null()
+        || command.payload_length < 0
+        || command.payload_length > MAX_PAYLOAD_LENGTH
+        || (command.payload_length != 0 && command.payload.is_null())
+    {
+        return -83;
+    }
+
+    let extension_id_bytes = unsafe {
+        std::slice::from_raw_parts(command.extension_id, command.extension_id_length as usize)
+    };
+    let component_kind_bytes = unsafe {
+        std::slice::from_raw_parts(
+            command.component_kind,
+            command.component_kind_length as usize,
+        )
+    };
+    let key_bytes = unsafe { std::slice::from_raw_parts(command.key, command.key_length as usize) };
+    let (Ok(extension_id), Ok(component_kind), Ok(key)) = (
+        std::str::from_utf8(extension_id_bytes),
+        std::str::from_utf8(component_kind_bytes),
+        std::str::from_utf8(key_bytes),
+    ) else {
+        return -84;
+    };
+    if !extension::valid_identifier(extension_id)
+        || !extension::valid_identifier(component_kind)
+        || key.bytes().any(|byte| byte < 0x20)
+    {
+        return -84;
+    }
+    if let Err(status) =
+        extension::supports(extension_id, command.schema_version, command.schema_hash)
+    {
+        return status;
+    }
+
+    let payload = if command.payload_length == 0 {
+        std::sync::Arc::<[u8]>::from([])
+    } else {
+        let bytes =
+            unsafe { std::slice::from_raw_parts(command.payload, command.payload_length as usize) };
+        std::sync::Arc::<[u8]>::from(bytes)
+    };
+    let command = extension::NativeExtensionCommand {
+        resource_key: extension::resource_key(
+            command.owner_view,
+            extension_id,
+            component_kind,
+            key,
+            command.schema_version,
+            command.schema_hash,
+        ),
+        command: command.command,
+        flags: command.flags,
+        expected_revision: command.expected_revision,
+        payload,
+    };
+    let provider = extension::provider(extension_id)
+        .expect("supports_extension succeeded without an installed provider");
+    if !provider.validate_command(&command) {
+        return -85;
+    }
+    app_host::dispatch_extension_command(view_id, command)
+}
+
+unsafe extern "C" fn supports_extension(
+    id: *const u8,
+    id_length: i32,
+    version: u32,
+    schema_hash: u64,
+) -> i32 {
+    std::panic::catch_unwind(AssertUnwindSafe(|| {
+        if id_length <= 0 || id_length > 127 || id.is_null() || version == 0 || schema_hash == 0 {
+            return -80;
+        }
+        let bytes = unsafe { std::slice::from_raw_parts(id, id_length as usize) };
+        let Ok(id) = std::str::from_utf8(bytes) else {
+            return -80;
+        };
+        extension::supports(id, version, schema_hash).map_or_else(|status| status, |()| 0)
+    }))
+    .unwrap_or(-99)
 }
 
 unsafe extern "C" fn validate_render(arena: *const RenderArena, root: u32) -> i32 {
@@ -83,17 +215,33 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         return -51;
     }
     let valid_command = match command.resource_kind {
-        1 => matches!(command.command, 1..=3),
-        2 => matches!(command.command, 10..=13),
-        3 => matches!(command.command, 20..=23),
-        4 => command.command == 30,
+        RESOURCE_SCROLL => matches!(
+            command.command,
+            COMMAND_SCROLL_TO_OFFSET..=COMMAND_SCROLL_TO_BOTTOM
+        ),
+        RESOURCE_LIST => matches!(
+            command.command,
+            COMMAND_LIST_SCROLL_TO_ITEM..=COMMAND_LIST_REFRESH
+        ),
+        RESOURCE_INPUT => matches!(
+            command.command,
+            COMMAND_INPUT_FOCUS..=COMMAND_INPUT_SELECT_ALL
+        ),
+        RESOURCE_SLIDER => command.command == COMMAND_SLIDER_SET_VALUE,
+        RESOURCE_DOCK => matches!(
+            command.command,
+            COMMAND_DOCK_CLOSE_PANEL
+                | COMMAND_DOCK_SET_REGION_OPEN
+                | COMMAND_DOCK_IMPORT_LAYOUT
+                | COMMAND_DOCK_EXPORT_LAYOUT
+        ),
         _ => false,
     };
     if !valid_command {
         return -53;
     }
     let payload_valid = match (command.resource_kind, command.command) {
-        (1, 1) if command.data_length == 0 => {
+        (RESOURCE_SCROLL, COMMAND_SCROLL_TO_OFFSET) if command.data_length == 0 => {
             if command.a >> 32 != 0 || command.b >> 32 != 0 {
                 false
             } else {
@@ -102,17 +250,49 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
                 x.is_finite() && y.is_finite() && x >= 0.0 && y >= 0.0
             }
         }
-        (1, 2 | 3) => command.data_length == 0 && command.a == 0 && command.b == 0,
-        (2, 10) => command.data_length == 0 && command.a >> 32 == 0 && command.b == 0,
-        (2, 11) => command.data_length == 0 && command.a >> 32 == 0,
-        (2, 12) => command.data_length == 0 && command.a >> 32 == 0 && command.b == 0,
-        (2, 13) => command.data_length == 0 && command.a >> 32 == 0 && command.b >> 32 == 0,
-        (3, 20 | 21 | 23) => command.data_length == 0 && command.a == 0 && command.b == 0,
-        (3, 22) => command.a == 0 && command.b == 0,
-        (4, 30) => {
+        (RESOURCE_SCROLL, COMMAND_SCROLL_TO_TOP | COMMAND_SCROLL_TO_BOTTOM) => {
+            command.data_length == 0 && command.a == 0 && command.b == 0
+        }
+        (RESOURCE_LIST, COMMAND_LIST_SCROLL_TO_ITEM) => {
+            command.data_length == 0 && command.a >> 32 == 0 && command.b == 0
+        }
+        (RESOURCE_LIST, COMMAND_LIST_SPLICE) => command.data_length == 0 && command.a >> 32 == 0,
+        (RESOURCE_LIST, COMMAND_LIST_RESET) => {
+            command.data_length == 0 && command.a >> 32 == 0 && command.b == 0
+        }
+        (RESOURCE_LIST, COMMAND_LIST_REFRESH) => {
+            command.data_length == 0 && command.a >> 32 == 0 && command.b >> 32 == 0
+        }
+        (RESOURCE_INPUT, COMMAND_INPUT_FOCUS | COMMAND_INPUT_BLUR | COMMAND_INPUT_SELECT_ALL) => {
+            command.data_length == 0 && command.a == 0 && command.b == 0
+        }
+        (RESOURCE_INPUT, COMMAND_INPUT_SET_VALUE) => command.a == 0 && command.b == 0,
+        (RESOURCE_SLIDER, COMMAND_SLIDER_SET_VALUE) => {
             let start = f32::from_bits(command.a as u32);
             let end = f32::from_bits((command.a >> 32) as u32);
             command.data_length == 0 && command.b <= 1 && start.is_finite() && end.is_finite()
+        }
+        // Dock panel commands carry the UTF-8 panel id as data: non-empty,
+        // NUL-free, and bounded like resource keys.
+        (RESOURCE_DOCK, COMMAND_DOCK_CLOSE_PANEL) => {
+            command.a == 0
+                && command.b == 0
+                && command.data_length > 0
+                && command.data_length <= 4096
+        }
+        (RESOURCE_DOCK, COMMAND_DOCK_SET_REGION_OPEN) => {
+            command.data_length == 0 && command.a <= 2 && command.b <= 1
+        }
+        // Dock layout import carries the JSON document as data, bounded so a
+        // corrupt sender cannot queue an unbounded retained payload.
+        (RESOURCE_DOCK, COMMAND_DOCK_IMPORT_LAYOUT) => {
+            command.a == 0
+                && command.b == 0
+                && command.data_length > 0
+                && command.data_length <= (1 << 20)
+        }
+        (RESOURCE_DOCK, COMMAND_DOCK_EXPORT_LAYOUT) => {
+            command.data_length == 0 && command.a == 0 && command.b == 0
         }
         _ => false,
     };
@@ -133,6 +313,12 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         };
         data
     };
+    if command.resource_kind == RESOURCE_DOCK
+        && command.data_length != 0
+        && (data.is_empty() || data.bytes().any(|byte| byte == 0))
+    {
+        return -55;
+    }
     app_host::dispatch_command(
         view_id,
         resources::ResourceCommand::from_abi(command, key, data),
@@ -463,6 +649,128 @@ mod tests {
         assert_eq!(
             unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
             -62
+        );
+    }
+
+    #[test]
+    fn default_host_does_not_advertise_optional_extensions() {
+        let id = b"gpui.net.editor";
+        assert_eq!(
+            unsafe { supports_extension(id.as_ptr(), id.len() as i32, 1, 1) },
+            -81
+        );
+        assert_eq!(unsafe { supports_extension(id.as_ptr(), 128, 1, 1) }, -80);
+    }
+
+    fn dock_command(kind: u16, command: u16, a: u64, b: u64, data: &[u8]) -> NativeResourceCommand {
+        // Well-formed key routing is covered elsewhere; an unknown view id
+        // proves validation passed by reaching the view lookup (-30).
+        static KEY: &[u8] = b"dock";
+        NativeResourceCommand {
+            owner_view: 1,
+            resource_kind: kind,
+            command,
+            key: KEY.as_ptr(),
+            key_length: KEY.len() as i32,
+            data: data.as_ptr(),
+            data_length: data.len() as i32,
+            reserved: 0,
+            a,
+            b,
+        }
+    }
+
+    #[test]
+    fn dock_controller_commands_validate_shape_before_routing() {
+        // -30 is the unknown-view status: validation passed, routing failed.
+        let panel = b"editor";
+        assert_eq!(
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_CLOSE_PANEL, 0, 0, panel),
+                )
+            },
+            -30
+        );
+        assert_eq!(
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_SET_REGION_OPEN, 1, 1, &[]),
+                )
+            },
+            -30
+        );
+        assert_eq!(
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_IMPORT_LAYOUT, 0, 0, b"{}"),
+                )
+            },
+            -30
+        );
+        assert_eq!(
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_EXPORT_LAYOUT, 0, 0, &[]),
+                )
+            },
+            -30
+        );
+
+        assert_eq!(
+            unsafe {
+                dispatch_command_inner(u64::MAX - 1, &dock_command(RESOURCE_DOCK, 44, 0, 0, &[]))
+            },
+            -53
+        );
+        assert_eq!(
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_CLOSE_PANEL, 0, 0, &[]),
+                )
+            },
+            -54
+        );
+        assert_eq!(
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_CLOSE_PANEL, 1, 0, panel),
+                )
+            },
+            -54
+        );
+        assert_eq!(
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_SET_REGION_OPEN, 3, 0, &[]),
+                )
+            },
+            -54
+        );
+        assert_eq!(
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_SET_REGION_OPEN, 0, 2, &[]),
+                )
+            },
+            -54
+        );
+        assert_eq!(
+            unsafe {
+                dispatch_command_inner(
+                    u64::MAX - 1,
+                    &dock_command(RESOURCE_DOCK, COMMAND_DOCK_CLOSE_PANEL, 0, 0, b"a\0b"),
+                )
+            },
+            -55
         );
     }
 }

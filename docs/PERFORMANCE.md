@@ -28,11 +28,17 @@ Keep continuous interaction in Rust:
 - Scroll wheel/trackpad and scrollbar drag update `ScrollHandle` natively.
 - Input editing, selection, caret movement, IME, and horizontal reveal stay native.
 - Slider pointer drag and keyboard stepping stay native.
+- Dock tab dragging, drop targeting, split resizing, activation, and focus stay native.
 - title-bar drag and caption hit testing stay native.
 - overlay positioning and dismissal stay native.
 
 Managed callbacks should represent application state transitions: clicks, opted-in control events,
 menu actions, and dirty rendering.
+
+Dock panel content is materialized from the retained root snapshot during native frames. A dirty
+managed render updates panel content proxies, but an unchanged structural declaration does not
+rebuild the native Dock layout. This preserves user tab placement and splitter sizes without a
+layout event crossing on each pointer delta.
 
 `ui.Dynamic(active, child)` is the explicit exception for app-defined visual animation. Native
 GPUI synchronizes requests to display frames and deduplicates active wrappers by owning View, but

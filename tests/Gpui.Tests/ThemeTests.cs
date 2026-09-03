@@ -123,7 +123,8 @@ public sealed class ThemeTests
         var payload = NativeThemePayload.From(theme);
 
         Assert.Equal(NativeThemePayload.CurrentVersion, payload.Version);
-        Assert.Equal(19 * sizeof(uint), Marshal.SizeOf<NativeThemePayload>());
+        Assert.Equal((uint)theme.Appearance, payload.Appearance);
+        Assert.Equal(20 * sizeof(uint), Marshal.SizeOf<NativeThemePayload>());
         Assert.Equal(theme.Colors.Background.Rgba, payload.Background);
         Assert.Equal(theme.Colors.TextOnAccent.Rgba, payload.TextOnAccent);
         Assert.Equal(theme.Colors.Accent.Rgba, payload.Accent);

@@ -185,7 +185,32 @@ internal static unsafe class NativeCallbacks
             SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
             try
             {
-                if (
+                if ((nativeEvent->kind & 0x8000) != 0)
+                {
+                    var kind = checked((ushort)(nativeEvent->kind & 0x7FFF));
+                    if (kind == 0)
+                    {
+                        return -112;
+                    }
+
+                    var payload =
+                        nativeEvent->data_length == 0
+                            ? Array.Empty<byte>()
+                            : new ReadOnlySpan<byte>(
+                                nativeEvent->data,
+                                nativeEvent->data_length
+                            ).ToArray();
+                    session.DispatchNativeExtension(
+                        eventToken,
+                        new NativeExtensionEvent(
+                            kind,
+                            nativeEvent->flags,
+                            nativeEvent->revision,
+                            payload
+                        )
+                    );
+                }
+                else if (
                     nativeEvent->kind
                     is >= (ushort)InputEventKind.Changed
                         and <= (ushort)InputEventKind.FocusChanged
@@ -213,7 +238,10 @@ internal static unsafe class NativeCallbacks
                         )
                     );
                 }
-                else if (nativeEvent->kind is 4 or 5)
+                else if (
+                    nativeEvent->kind is (ushort)SliderEventKind.Changed
+                        or (ushort)SliderEventKind.Released
+                )
                 {
                     if ((nativeEvent->flags & ~2u) != 0)
                     {
@@ -244,12 +272,57 @@ internal static unsafe class NativeCallbacks
                     session.DispatchSlider(
                         eventToken,
                         new SliderEvent(
-                            nativeEvent->kind == 4
+                            nativeEvent->kind == (ushort)SliderEventKind.Changed
                                 ? SliderEventKind.Changed
                                 : SliderEventKind.Released,
                             start,
                             end,
                             isRange,
+                            nativeEvent->revision
+                        )
+                    );
+                }
+                else if (
+                    nativeEvent->kind is (ushort)DockEventKind.LayoutChanged
+                        or (ushort)DockEventKind.LayoutExported
+                        or (ushort)DockEventKind.PanelClosed
+                )
+                {
+                    // Dock layout-changed carries no payload; layout-exported carries UTF-8
+                    // JSON; panel-closed carries the UTF-8 panel id. Flags are reserved.
+                    if (nativeEvent->flags != 0)
+                    {
+                        return -112;
+                    }
+
+                    var text =
+                        nativeEvent->data_length == 0
+                            ? string.Empty
+                            : System.Text.Encoding.UTF8.GetString(
+                                new ReadOnlySpan<byte>(
+                                    nativeEvent->data,
+                                    nativeEvent->data_length
+                                )
+                            );
+                    var changedKind = (ushort)DockEventKind.LayoutChanged;
+                    if (
+                        (nativeEvent->kind == changedKind && text.Length != 0)
+                        || (nativeEvent->kind != changedKind && text.Length == 0)
+                    )
+                    {
+                        return -112;
+                    }
+
+                    session.DispatchDock(
+                        eventToken,
+                        new DockEvent(
+                            (DockEventKind)nativeEvent->kind,
+                            nativeEvent->kind == (ushort)DockEventKind.PanelClosed
+                                ? text
+                                : string.Empty,
+                            nativeEvent->kind == (ushort)DockEventKind.LayoutExported
+                                ? text
+                                : string.Empty,
                             nativeEvent->revision
                         )
                     );

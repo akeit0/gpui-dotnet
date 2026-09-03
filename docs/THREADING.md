@@ -51,7 +51,8 @@ Mounted Views keep two different runtime objects:
 
 - `ViewCommandRoute` is stable for that mount, safe to acquire from any managed thread, and never
   pooled. It contains only the immutable owner handle and thread-safe session/native command
-  entry points. Unmount deactivates it before lifecycle cleanup.
+  entry points, including generic extension commands. Unmount deactivates it before lifecycle
+  cleanup.
 - `MountedViewAttachment` contains the native owner handle, event-binding passes and entries, and
   resource-key sequence. It is accessible only on the GPUI application thread. Unmount removes,
   completely resets, and then pools it for another View.

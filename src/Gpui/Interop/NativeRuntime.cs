@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 using Gpui;
 using Gpui.Interop.Internal;
 
@@ -12,16 +13,16 @@ public sealed unsafe class NativeRuntime
 {
     private const string ApiExportName = "gpui_dotnet_get_api";
 
-    private readonly GpuiDotnetApiV1* _api;
+    private readonly GpuiDotnetApiV3* _api;
     private readonly NativeLibraryHandle? _libraryHandle;
 
-    private NativeRuntime(GpuiDotnetApiV1* api, NativeLibraryHandle? libraryHandle)
+    private NativeRuntime(GpuiDotnetApiV3* api, NativeLibraryHandle? libraryHandle)
     {
         _api = api;
         _libraryHandle = libraryHandle;
     }
 
-    internal GpuiDotnetApiV1* Api
+    internal GpuiDotnetApiV3* Api
     {
         get
         {
@@ -38,7 +39,10 @@ public sealed unsafe class NativeRuntime
     {
         if (options is null || options.LibraryPath is null)
         {
-            return CreateValidated(NativeMethods.gpui_dotnet_get_api(NativeConstants.AbiVersion));
+            return CreateValidated(
+                NativeMethods.gpui_dotnet_get_api(NativeConstants.AbiVersion),
+                requirements: options?.Extensions
+            );
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(options.LibraryPath);
@@ -48,8 +52,12 @@ public sealed unsafe class NativeRuntime
         {
             libraryHandle = NativeLibraryHandle.Load(options.LibraryPath);
             var export = NativeLibrary.GetExport(libraryHandle.DangerousGetHandle(), ApiExportName);
-            var getApi = (delegate* unmanaged[Cdecl]<uint, GpuiDotnetApiV1*>)export;
-            return CreateValidated(getApi(NativeConstants.AbiVersion), libraryHandle);
+            var getApi = (delegate* unmanaged[Cdecl]<uint, GpuiDotnetApiV3*>)export;
+            return CreateValidated(
+                getApi(NativeConstants.AbiVersion),
+                libraryHandle,
+                options.Extensions
+            );
         }
         catch
         {
@@ -59,8 +67,9 @@ public sealed unsafe class NativeRuntime
     }
 
     private static NativeRuntime CreateValidated(
-        GpuiDotnetApiV1* api,
-        NativeLibraryHandle? libraryHandle = null
+        GpuiDotnetApiV3* api,
+        NativeLibraryHandle? libraryHandle = null,
+        IReadOnlyList<NativeExtensionRequirement>? requirements = null
     )
     {
         if (api == null)
@@ -70,10 +79,10 @@ public sealed unsafe class NativeRuntime
             );
         }
 
-        if (api->struct_size < (uint)sizeof(GpuiDotnetApiV1))
+        if (api->struct_size < (uint)sizeof(GpuiDotnetApiV3))
         {
             throw new InvalidOperationException(
-                $"Native API table is too small. Managed={sizeof(GpuiDotnetApiV1)}, native={api->struct_size}."
+                $"Native API table is too small. Managed={sizeof(GpuiDotnetApiV3)}, native={api->struct_size}."
             );
         }
 
@@ -95,9 +104,11 @@ public sealed unsafe class NativeRuntime
             api->validate_render == null
             || api->run_application == null
             || api->notify_view == null
-            || api->dispatch_command == null
-            || api->dispatch_application_command == null
-            || api->dispatch_application_menu == null
+                || api->dispatch_command == null
+                || api->dispatch_application_command == null
+                || api->dispatch_application_menu == null
+                || api->supports_extension == null
+                || api->dispatch_extension_command == null
         )
         {
             throw new InvalidOperationException(
@@ -105,7 +116,60 @@ public sealed unsafe class NativeRuntime
             );
         }
 
+        ValidateExtensions(api, requirements);
         return new NativeRuntime(api, libraryHandle);
+    }
+
+    private static void ValidateExtensions(
+        GpuiDotnetApiV3* api,
+        IReadOnlyList<NativeExtensionRequirement>? requirements
+    )
+    {
+        if (requirements is null)
+        {
+            return;
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var requirement in requirements)
+        {
+            requirement.Validate(nameof(NativeRuntimeOptions.Extensions));
+            if (!seen.Add(requirement.Id))
+            {
+                throw new InvalidOperationException(
+                    $"Native extension '{requirement.Id}' was requested more than once."
+                );
+            }
+
+            var id = Encoding.UTF8.GetBytes(requirement.Id);
+            fixed (byte* idPointer = id)
+            {
+                var status = api->supports_extension(
+                    idPointer,
+                    id.Length,
+                    requirement.Version,
+                    requirement.SchemaHash
+                );
+                if (status == -81)
+                {
+                    throw new InvalidOperationException(
+                        $"Native host does not provide required extension '{requirement.Id}'."
+                    );
+                }
+                if (status == -82)
+                {
+                    throw new InvalidOperationException(
+                        $"Native host extension '{requirement.Id}' has an incompatible version or schema hash."
+                    );
+                }
+                if (status != 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Native host rejected extension '{requirement.Id}' with status {status}."
+                    );
+                }
+            }
+        }
     }
 
     public void Validate(RenderArenaOwner owner, Element root)

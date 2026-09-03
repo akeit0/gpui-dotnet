@@ -4,14 +4,19 @@ use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId, ElementInputHandler,
     Entity, EntityInputHandler, FocusHandle, Focusable, GlobalElementId, IntoElement, KeyBinding,
     LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point,
-    Render, ShapedLine, SharedString, Style, Subscription, TextRun, UTF16Selection, UnderlineStyle,
-    Window, actions, div, fill, point, prelude::*, px, relative, rgba, size,
+    Render, Role, ShapedLine, SharedString, Style, Subscription, TextAlign, TextRun,
+    UTF16Selection, UnderlineStyle, Window, actions, div, fill, point, prelude::*, px, relative,
+    rgba, size,
 };
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     abi::{ManagedCallbacks, NativeControlEvent},
     resources::ResourceCommand,
+    semantic::{
+        COMMAND_INPUT_BLUR, COMMAND_INPUT_FOCUS, COMMAND_INPUT_SELECT_ALL, COMMAND_INPUT_SET_VALUE,
+        EVENT_INPUT_CHANGED, EVENT_INPUT_FOCUS_CHANGED, EVENT_INPUT_SUBMITTED,
+    },
     theme::SharedTheme,
 };
 
@@ -33,10 +38,6 @@ actions!(
         Submit,
     ]
 );
-
-const EVENT_CHANGED: u16 = 1;
-const EVENT_SUBMITTED: u16 = 2;
-const EVENT_FOCUS_CHANGED: u16 = 3;
 
 pub(crate) fn init(cx: &mut App) {
     cx.bind_keys([
@@ -168,10 +169,10 @@ impl ManagedInput {
         cx: &mut Context<Self>,
     ) {
         match command.command {
-            20 if !self.disabled => self.focus_handle.focus(window),
-            21 if self.focus_handle.is_focused(window) => window.blur(),
-            22 => self.set_value(command.data.as_ref(), cx),
-            23 if !self.disabled => {
+            COMMAND_INPUT_FOCUS if !self.disabled => self.focus_handle.focus(window, cx),
+            COMMAND_INPUT_BLUR if self.focus_handle.is_focused(window) => window.blur(cx),
+            COMMAND_INPUT_SET_VALUE => self.set_value(command.data.as_ref(), cx),
+            COMMAND_INPUT_SELECT_ALL if !self.disabled => {
                 self.selected_range = 0..self.content.len();
                 self.selection_reversed = false;
                 cx.notify();
@@ -299,7 +300,7 @@ impl ManagedInput {
 
     fn submit(&mut self, _: &Submit, _: &mut Window, cx: &mut Context<Self>) {
         if !self.disabled {
-            self.emit(self.bindings.submitted, EVENT_SUBMITTED, false, cx);
+            self.emit(self.bindings.submitted, EVENT_INPUT_SUBMITTED, false, cx);
         }
     }
 
@@ -312,7 +313,7 @@ impl ManagedInput {
         if self.disabled {
             return;
         }
-        self.focus_handle.focus(window);
+        self.focus_handle.focus(window, cx);
         self.is_selecting = true;
         let offset = self.index_for_mouse_position(event.position);
         if event.modifiers.shift {
@@ -461,7 +462,7 @@ impl ManagedInput {
         }
         self.last_emitted_content = self.content.clone();
         self.revision = self.revision.wrapping_add(1).max(1);
-        self.emit(self.bindings.changed, EVENT_CHANGED, false, cx);
+        self.emit(self.bindings.changed, EVENT_INPUT_CHANGED, false, cx);
     }
 
     fn emit(&mut self, token: u64, kind: u16, focused: bool, cx: &mut Context<Self>) {
@@ -637,11 +638,21 @@ impl Render for ManagedInput {
         if self.focus_subscriptions.is_empty() {
             let focus = self.focus_handle.clone();
             let focused = cx.on_focus(&focus, window, |this, _, cx| {
-                this.emit(this.bindings.focus_changed, EVENT_FOCUS_CHANGED, true, cx);
+                this.emit(
+                    this.bindings.focus_changed,
+                    EVENT_INPUT_FOCUS_CHANGED,
+                    true,
+                    cx,
+                );
             });
             let blurred = cx.on_blur(&focus, window, |this, _, cx| {
                 this.is_selecting = false;
-                this.emit(this.bindings.focus_changed, EVENT_FOCUS_CHANGED, false, cx);
+                this.emit(
+                    this.bindings.focus_changed,
+                    EVENT_INPUT_FOCUS_CHANGED,
+                    false,
+                    cx,
+                );
             });
             self.focus_subscriptions.extend([focused, blurred]);
         }
@@ -658,6 +669,7 @@ impl Render for ManagedInput {
 
         div()
             .id(&self.focus_handle)
+            .role(Role::TextInput)
             .size_full()
             .min_w_0()
             .flex()
@@ -894,6 +906,8 @@ impl Element for TextElement {
         line.paint(
             point(bounds.left() - prepaint.scroll_x, bounds.top()),
             window.line_height(),
+            TextAlign::Left,
+            None,
             window,
             cx,
         )
@@ -920,5 +934,84 @@ fn single_line(value: &str) -> SharedString {
         shared(&value.replace(['\r', '\n'], " "))
     } else {
         shared(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{cell::RefCell, rc::Rc};
+
+    use super::*;
+    use crate::{
+        abi::ManagedCallbacks,
+        resources::{ResourceCommand, ResourceKey},
+        theme::NativeTheme,
+    };
+
+    fn callbacks() -> ManagedCallbacks {
+        ManagedCallbacks {
+            struct_size: 0,
+            render: None,
+            click: None,
+            list_render_range: None,
+            dynamic_frame: None,
+            control_event: None,
+            application_started: None,
+            window_closed: None,
+            menu_action: None,
+        }
+    }
+
+    fn theme() -> SharedTheme {
+        Rc::new(RefCell::new(NativeTheme::default()))
+    }
+
+    fn input_entity(cx: &mut App) -> Entity<ManagedInput> {
+        cx.new(|cx| {
+            ManagedInput::new(
+                1,
+                callbacks(),
+                InputInitialState {
+                    value: "",
+                    placeholder: "",
+                    disabled: false,
+                    read_only: false,
+                    password: false,
+                    bindings: InputBindings {
+                        changed: 0,
+                        submitted: 0,
+                        focus_changed: 0,
+                    },
+                },
+                theme(),
+                cx,
+            )
+        })
+    }
+
+    fn set_value_command(data: &str) -> ResourceCommand {
+        ResourceCommand {
+            key: ResourceKey::new(7, "input".into()),
+            resource_kind: crate::semantic::RESOURCE_INPUT,
+            command: crate::semantic::COMMAND_INPUT_SET_VALUE,
+            a: 0,
+            b: 0,
+            data: data.into(),
+        }
+    }
+
+    /// A set-value command must replace content, not fall through to the
+    /// focus arm: pattern arms that fail to resolve to constants silently
+    /// become catch-all bindings and misroute every later command.
+    #[gpui::test]
+    fn set_value_command_replaces_content(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.apply_command(&set_value_command("hi"), window, cx)
+            });
+        });
+        cx.read(|cx| assert_eq!(input.read(cx).content.as_str(), "hi"));
     }
 }

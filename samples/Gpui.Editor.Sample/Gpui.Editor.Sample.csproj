@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+        <EditorHostProfile Condition="'$(Configuration)' == 'Release'">release</EditorHostProfile>
+        <EditorHostProfile Condition="'$(EditorHostProfile)' == ''">debug</EditorHostProfile>
+        <EditorHostCargoArgument Condition="'$(Configuration)' == 'Release'">--release</EditorHostCargoArgument>
+        <EditorHostName Condition="$([MSBuild]::IsOSPlatform('Windows'))">gpui_dotnet_editor.dll</EditorHostName>
+        <EditorHostName Condition="$([MSBuild]::IsOSPlatform('Linux'))">libgpui_dotnet_editor.so</EditorHostName>
+        <EditorHostName Condition="$([MSBuild]::IsOSPlatform('OSX'))">libgpui_dotnet_editor.dylib</EditorHostName>
+        <EditorHostManifest>$(MSBuildThisFileDirectory)../../crates/gpui-dotnet/Cargo.toml</EditorHostManifest>
+        <EditorHostPath>$(MSBuildThisFileDirectory)../../crates/gpui-dotnet/target/$(EditorHostProfile)/$(EditorHostName)</EditorHostPath>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../src/Gpui.Core/Gpui.Core.csproj" AdditionalProperties="BuildGpuiNative=false" />
+        <ProjectReference Include="../../src/Gpui.Editor/Gpui.Editor.csproj" />
+        <ProjectReference
+            Include="../../src/Gpui.Generators/Gpui.Generators.csproj"
+            OutputItemType="Analyzer"
+            ReferenceOutputAssembly="false"
+        />
+    </ItemGroup>
+
+    <Target Name="BuildEditorNativeHost" BeforeTargets="CoreCompile">
+        <Exec Command="cargo build --manifest-path &quot;$(EditorHostManifest)&quot; --package gpui-dotnet-editor-host $(EditorHostCargoArgument)" />
+        <Copy SourceFiles="$(EditorHostPath)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    </Target>
+</Project>

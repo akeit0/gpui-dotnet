@@ -60,11 +60,47 @@ public readonly ref struct ViewContext
         return new SliderController(_view, key);
     }
 
+    /// <summary>
+    /// Creates an optional imperative controller for a ui.DockArea() resource owned by this View.
+    /// Pass it by reference to ui.DockArea() or use the area key it was created with. The same
+    /// queued-command lifecycle as <see cref="CreateScrollController"/> applies.
+    /// </summary>
+    public DockController CreateDockController(string key)
+    {
+        ValidateResourceKey(key);
+        return new DockController(_view, key);
+    }
+
     /// <summary>Creates a slider controller whose retained resource key is already UTF-8.</summary>
     public SliderController CreateSliderController(ReadOnlySpan<byte> utf8Key)
     {
         ValidateResourceKey(utf8Key);
         return new SliderController(_view, utf8Key);
+    }
+
+    /// <summary>
+    /// Creates an extension-neutral controller for a retained resource. Extension packages should
+    /// wrap this in a typed factory and expose only their schema-defined commands.
+    /// </summary>
+    public NativeExtensionController CreateNativeExtensionController(
+        NativeExtensionComponent component,
+        string key
+    )
+    {
+        component.Validate(nameof(component));
+        ValidateResourceKey(key);
+        return new NativeExtensionController(_view, component, key);
+    }
+
+    /// <summary>Creates an extension controller whose retained resource key is already UTF-8.</summary>
+    public NativeExtensionController CreateNativeExtensionController(
+        NativeExtensionComponent component,
+        ReadOnlySpan<byte> utf8Key
+    )
+    {
+        component.Validate(nameof(component));
+        ValidateResourceKey(utf8Key);
+        return new NativeExtensionController(_view, component, utf8Key);
     }
 
     private static void ValidateResourceKey(string key)

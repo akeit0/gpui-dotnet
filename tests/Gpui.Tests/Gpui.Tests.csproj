@@ -13,6 +13,7 @@
         <ProjectReference Include="../../src/Gpui/Gpui.csproj" />
         <ProjectReference Include="../../src/Gpui.Core/Gpui.Core.csproj" />
         <ProjectReference Include="../../src/Gpui.Generators/Gpui.Generators.csproj" />
+        <ProjectReference Include="../../src/Gpui.Editor/Gpui.Editor.csproj" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     </ItemGroup>
 </Project>

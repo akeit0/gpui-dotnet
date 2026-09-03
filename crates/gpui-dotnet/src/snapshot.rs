@@ -5,11 +5,13 @@ use gpui::SharedString;
 use crate::{
     abi::{NodeRecord, OpRecord, RenderArena},
     semantic::{
-        COMPONENT_CONTEXT_MENU, COMPONENT_DRAWING, COMPONENT_DYNAMIC, COMPONENT_INPUT,
-        COMPONENT_LIST, COMPONENT_OVERLAY, COMPONENT_PATH, COMPONENT_POPOVER_MENU,
-        COMPONENT_SLIDER, COMPONENT_TABLE, COMPONENT_TOOLTIP, DataKind, OP_DRAWING_VIEW_BOX_SIZE,
-        OP_PATH_ARC_RADII, OP_RESOURCE_OWNER, ValueKind, allows_payload, component_metadata,
-        operation_metadata, payload_error,
+        COMPONENT_CONTEXT_MENU, COMPONENT_DOCK_AREA, COMPONENT_DOCK_PANEL, COMPONENT_DOCK_REGION,
+        COMPONENT_DOCK_SPLIT, COMPONENT_DOCK_TABS, COMPONENT_DRAWING, COMPONENT_DYNAMIC,
+        COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_NATIVE_EXTENSION, COMPONENT_OVERLAY,
+        COMPONENT_PATH, COMPONENT_POPOVER_MENU, COMPONENT_SLIDER, COMPONENT_TABLE,
+        COMPONENT_TOOLTIP, DataKind, OP_DOCK_ACTIVE_INDEX, OP_DOCK_REGION_SIDE,
+        OP_DRAWING_VIEW_BOX_SIZE, OP_PATH_ARC_RADII, OP_RESOURCE_OWNER, ValueKind, allows_payload,
+        component_metadata, operation_metadata, payload_error,
     },
 };
 
@@ -211,6 +213,7 @@ fn validate_resource_key_uniqueness(
                     .map_or(node.data_length, |position| position as u32),
             ),
             COMPONENT_SLIDER => (4, node.data_length),
+            COMPONENT_DOCK_AREA => (5, node.data_length),
             _ => continue,
         };
         let owner = owners[index].0;
@@ -268,6 +271,13 @@ fn validate_with_scratch(
     let children = unsafe { slice_or_empty(arena.children, child_len) };
     let utf8 = unsafe { slice_or_empty(arena.utf8, utf8_len) };
 
+    if matches!(
+        nodes[root as usize].component,
+        COMPONENT_DOCK_SPLIT | COMPONENT_DOCK_TABS | COMPONENT_DOCK_PANEL | COMPONENT_DOCK_REGION
+    ) {
+        return Err(-61);
+    }
+
     for node in nodes {
         if node.flags != 0 {
             return Err(-22);
@@ -299,6 +309,23 @@ fn validate_with_scratch(
         }
         if node.component == COMPONENT_SLIDER && payload.contains(&0) {
             return Err(-43);
+        }
+        if node.component == COMPONENT_DOCK_AREA && payload.contains(&0) {
+            return Err(-61);
+        }
+        if node.component == COMPONENT_DOCK_PANEL {
+            let mut fields = payload.split(|byte| *byte == 0);
+            if fields.next().is_none_or(<[u8]>::is_empty)
+                || fields.next().is_none()
+                || fields.next().is_none_or(|field| !field.is_empty())
+                || fields.next().is_some()
+            {
+                return Err(-61);
+            }
+        }
+        if node.component == COMPONENT_NATIVE_EXTENSION && !crate::extension::valid_payload(payload)
+        {
+            return Err(-62);
         }
     }
 
@@ -361,6 +388,26 @@ fn validate_with_scratch(
         if (parent_component == COMPONENT_DRAWING) != (child_component == COMPONENT_PATH) {
             return Err(-58);
         }
+        let valid_dock_edge = match parent_component {
+            COMPONENT_DOCK_AREA => matches!(
+                child_component,
+                COMPONENT_DOCK_SPLIT | COMPONENT_DOCK_TABS | COMPONENT_DOCK_REGION
+            ),
+            COMPONENT_DOCK_SPLIT | COMPONENT_DOCK_REGION => {
+                matches!(child_component, COMPONENT_DOCK_SPLIT | COMPONENT_DOCK_TABS)
+            }
+            COMPONENT_DOCK_TABS => child_component == COMPONENT_DOCK_PANEL,
+            _ => !matches!(
+                child_component,
+                COMPONENT_DOCK_SPLIT
+                    | COMPONENT_DOCK_TABS
+                    | COMPONENT_DOCK_PANEL
+                    | COMPONENT_DOCK_REGION
+            ),
+        };
+        if !valid_dock_edge {
+            return Err(-61);
+        }
         if !component_metadata(parent_component)
             .expect("node components were validated above")
             .allows_children
@@ -395,6 +442,59 @@ fn validate_with_scratch(
     }) {
         return Err(-60);
     }
+    if nodes.iter().enumerate().any(|(index, node)| {
+        (matches!(node.component, COMPONENT_DOCK_PANEL | COMPONENT_DOCK_REGION)
+            && scratch.child_counts[index] != 1)
+            || (node.component == COMPONENT_DOCK_AREA
+                && !(1..=4).contains(&scratch.child_counts[index]))
+            || (matches!(node.component, COMPONENT_DOCK_SPLIT | COMPONENT_DOCK_TABS)
+                && scratch.child_counts[index] == 0)
+    }) {
+        return Err(-61);
+    }
+    for (index, node) in nodes.iter().enumerate() {
+        if node.component != COMPONENT_DOCK_TABS {
+            continue;
+        }
+        let active_index = ops
+            .iter()
+            .rev()
+            .find(|operation| {
+                operation.node as usize == index && operation.code == OP_DOCK_ACTIVE_INDEX
+            })
+            .map_or(0, |operation| operation.a as usize);
+        if active_index >= scratch.child_counts[index] {
+            return Err(-61);
+        }
+    }
+    for (index, node) in nodes.iter().enumerate() {
+        if node.component != COMPONENT_DOCK_AREA {
+            continue;
+        }
+        let mut center_count = 0usize;
+        let mut side_mask = 0u32;
+        for edge in children.iter().filter(|edge| edge.parent as usize == index) {
+            if nodes[edge.child as usize].component != COMPONENT_DOCK_REGION {
+                center_count += 1;
+                continue;
+            }
+            let side = ops
+                .iter()
+                .rev()
+                .find(|operation| {
+                    operation.node == edge.child && operation.code == OP_DOCK_REGION_SIDE
+                })
+                .map_or(0, |operation| operation.a as u32);
+            let bit = 1u32 << side;
+            if side_mask & bit != 0 {
+                return Err(-61);
+            }
+            side_mask |= bit;
+        }
+        if center_count != 1 {
+            return Err(-61);
+        }
+    }
     if nodes
         .iter()
         .enumerate()
@@ -405,6 +505,22 @@ fn validate_with_scratch(
 
     if scratch.parents[root as usize] != u32::MAX {
         return Err(-11);
+    }
+
+    for left in 0..nodes.len() {
+        if nodes[left].component != COMPONENT_DOCK_PANEL {
+            continue;
+        }
+        let left_area = dock_area_ancestor(left, nodes, &scratch.parents);
+        let left_id = dock_panel_id(&nodes[left], utf8);
+        for right in left + 1..nodes.len() {
+            if nodes[right].component == COMPONENT_DOCK_PANEL
+                && dock_area_ancestor(right, nodes, &scratch.parents) == left_area
+                && dock_panel_id(&nodes[right], utf8) == left_id
+            {
+                return Err(-61);
+            }
+        }
     }
 
     prefix_offsets(&scratch.child_counts, &mut scratch.child_offsets);
@@ -441,6 +557,26 @@ fn validate_with_scratch(
     Ok(())
 }
 
+fn dock_area_ancestor(index: usize, nodes: &[NodeRecord], parents: &[u32]) -> Option<u32> {
+    let mut current = index;
+    loop {
+        let parent = parents[current];
+        if parent == u32::MAX {
+            return None;
+        }
+        if nodes[parent as usize].component == COMPONENT_DOCK_AREA {
+            return Some(parent);
+        }
+        current = parent as usize;
+    }
+}
+
+fn dock_panel_id<'a>(node: &NodeRecord, utf8: &'a [u8]) -> &'a [u8] {
+    let payload =
+        &utf8[node.data_offset as usize..node.data_offset as usize + node.data_length as usize];
+    &payload[..payload.iter().position(|byte| *byte == 0).unwrap_or(0)]
+}
+
 fn prefix_offsets(counts: &[usize], offsets: &mut [usize]) {
     debug_assert_eq!(offsets.len(), counts.len() + 1);
     offsets[0] = 0;
@@ -472,12 +608,13 @@ mod tests {
     use crate::{
         abi::{ChildRecord, NodeRecord, OpRecord},
         semantic::{
-            COMPONENT_CHECKBOX, COMPONENT_CONTEXT_MENU, COMPONENT_DIV, COMPONENT_DRAWING,
-            COMPONENT_IMAGE, COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_OVERLAY, COMPONENT_PATH,
-            COMPONENT_POPOVER_MENU, COMPONENT_TEXT, COMPONENT_TOOLTIP, OP_CHECKED,
-            OP_DRAWING_VIEW_BOX_SIZE, OP_GAP_PX, OP_IMAGE_OBJECT_FIT, OP_INPUT_DISABLED,
-            OP_LIST_ITEM_ID, OP_ON_CLICK, OP_OVERLAY_PLACEMENT, OP_PADDING_PX, OP_SCROLLBAR_GUTTER,
-            OP_SCROLLBAR_WIDTH, OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA,
+            COMPONENT_CHECKBOX, COMPONENT_CONTEXT_MENU, COMPONENT_DIV, COMPONENT_DOCK_AREA,
+            COMPONENT_DOCK_PANEL, COMPONENT_DOCK_TABS, COMPONENT_DRAWING, COMPONENT_IMAGE,
+            COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_OVERLAY, COMPONENT_PATH,
+            COMPONENT_POPOVER_MENU, COMPONENT_TEXT, COMPONENT_TOOLTIP, OP_CHECKED, OP_DISABLED,
+            OP_DOCK_ACTIVE_INDEX, OP_DRAWING_VIEW_BOX_SIZE, OP_GAP_PX, OP_IMAGE_OBJECT_FIT,
+            OP_INPUT_DISABLED, OP_LIST_ITEM_ID, OP_ON_CLICK, OP_OVERLAY_PLACEMENT, OP_PADDING_PX,
+            OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_TOOLTIP_PLACEMENT, OP_WINDOW_CONTROL_AREA,
         },
     };
 
@@ -734,6 +871,13 @@ mod tests {
             a: 2,
             ..Default::default()
         };
+        let mut arena = arena_with(&mut node, Some(&mut operation));
+        arena.utf8 = &mut identifier;
+        arena.utf8_length = 1;
+        arena.utf8_capacity = 1;
+        assert_eq!(validate(&arena, 0), Err(-21));
+
+        operation.code = OP_DISABLED;
         let mut arena = arena_with(&mut node, Some(&mut operation));
         arena.utf8 = &mut identifier;
         arena.utf8_length = 1;
@@ -1013,6 +1157,165 @@ mod tests {
         assert_eq!(validate(&arena, 0), Err(-60));
     }
 
+    #[test]
+    fn validates_dock_structure_and_rejects_duplicate_panel_ids() {
+        let mut utf8 = b"dockeditor\0Editor\0editor\0Preview\0third\0Third\0".to_vec();
+        let mut nodes = [
+            NodeRecord {
+                component: COMPONENT_DOCK_AREA,
+                data_length: 4,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DOCK_TABS,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DOCK_PANEL,
+                data_offset: 4,
+                data_length: 14,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DIV,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DOCK_REGION,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DOCK_TABS,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DOCK_PANEL,
+                data_offset: 18,
+                data_length: 15,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DIV,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DOCK_REGION,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DOCK_TABS,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DOCK_PANEL,
+                data_offset: 33,
+                data_length: 12,
+                ..Default::default()
+            },
+            NodeRecord {
+                component: COMPONENT_DIV,
+                ..Default::default()
+            },
+        ];
+        let mut children = [
+            ChildRecord {
+                parent: 0,
+                child: 1,
+            },
+            ChildRecord {
+                parent: 1,
+                child: 2,
+            },
+            ChildRecord {
+                parent: 2,
+                child: 3,
+            },
+            ChildRecord {
+                parent: 0,
+                child: 4,
+            },
+            ChildRecord {
+                parent: 4,
+                child: 5,
+            },
+            ChildRecord {
+                parent: 5,
+                child: 6,
+            },
+            ChildRecord {
+                parent: 6,
+                child: 7,
+            },
+            ChildRecord {
+                parent: 0,
+                child: 8,
+            },
+            ChildRecord {
+                parent: 8,
+                child: 9,
+            },
+            ChildRecord {
+                parent: 9,
+                child: 10,
+            },
+            ChildRecord {
+                parent: 10,
+                child: 11,
+            },
+        ];
+        let mut arena = RenderArena {
+            nodes: nodes.as_mut_ptr(),
+            node_length: nodes.len() as i32,
+            node_capacity: nodes.len() as i32,
+            ops: std::ptr::null_mut(),
+            op_length: 0,
+            op_capacity: 0,
+            children: children.as_mut_ptr(),
+            child_length: children.len() as i32,
+            child_capacity: children.len() as i32,
+            utf8: utf8.as_mut_ptr(),
+            utf8_length: utf8.len() as i32,
+            utf8_capacity: utf8.len() as i32,
+            generation: 1,
+            flags: 0,
+            required_node_capacity: 0,
+            required_op_capacity: 0,
+            required_child_capacity: 0,
+            required_utf8_capacity: 0,
+        };
+
+        assert_eq!(validate(&arena, 1), Err(-61));
+        assert_eq!(validate(&arena, 0), Err(-61));
+
+        utf8[18] = b'p';
+        assert_eq!(validate(&arena, 0), Err(-61));
+
+        let mut operations = [
+            OpRecord {
+                node: 8,
+                code: OP_DOCK_REGION_SIDE,
+                value_kind: ValueKind::U32 as u16,
+                a: 1,
+                ..Default::default()
+            },
+            OpRecord {
+                node: 1,
+                code: OP_DOCK_ACTIVE_INDEX,
+                value_kind: ValueKind::U32 as u16,
+                a: 2,
+                ..Default::default()
+            },
+        ];
+        arena.ops = operations.as_mut_ptr();
+        arena.op_length = 1;
+        arena.op_capacity = 1;
+        assert_eq!(validate(&arena, 0), Ok(()));
+
+        arena.op_length = 2;
+        arena.op_capacity = 2;
+        assert_eq!(validate(&arena, 0), Err(-61));
+    }
+
     /// Builds a DIV root owning the given virtualized-resource nodes; each resource node gets
     /// one OP_RESOURCE_OWNER op addressed to `owner`. `data_length` on each node selects its
     /// key slice from the shared utf8 buffer (a table's key ends at its embedded NUL).
@@ -1228,17 +1531,18 @@ mod tests {
 
     #[test]
     fn retains_string_capacity_and_reuses_consecutive_values() {
+        const VALUE: &str = "a retained payload longer than inline string storage";
         let mut strings = RetainedStrings::default();
         strings.begin_snapshot();
-        let first = strings.intern("abc");
+        let first = strings.intern(VALUE);
         strings.begin_snapshot();
-        let second = strings.intern("abc");
+        let second = strings.intern(VALUE);
         assert_eq!(first.as_str().as_ptr(), second.as_str().as_ptr());
 
         strings.begin_snapshot();
         let _replacement = strings.intern("replacement");
         strings.begin_snapshot();
-        let after_eviction = strings.intern("abc");
+        let after_eviction = strings.intern(VALUE);
         assert_ne!(first.as_str().as_ptr(), after_eviction.as_str().as_ptr());
     }
 }

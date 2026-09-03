@@ -6,9 +6,9 @@ namespace Gpui.Tests;
 public sealed class ApplicationModelTests
 {
     [Fact]
-    public void FirstPreviewStartsWithVersionOneProtocols()
+    public void UsesExpectedProtocolVersions()
     {
-        Assert.Equal(1u, NativeConstants.AbiVersion);
+        Assert.Equal(3u, NativeConstants.AbiVersion);
         Assert.Equal(1u, SemanticRegistry.SchemaVersion);
     }
 
