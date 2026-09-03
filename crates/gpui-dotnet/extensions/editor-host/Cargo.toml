@@ -16,3 +16,6 @@ ropey = "=2.0.0-beta.1"
 
 [dev-dependencies]
 gpui = { git = "https://github.com/zed-industries/zed", features = ["test-support"] }
+
+[lints]
+workspace = true

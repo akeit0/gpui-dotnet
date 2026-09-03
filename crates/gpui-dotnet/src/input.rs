@@ -13,7 +13,10 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::{
     abi::{ManagedCallbacks, NativeControlEvent},
     resources::ResourceCommand,
-    semantic::{EVENT_INPUT_CHANGED, EVENT_INPUT_FOCUS_CHANGED, EVENT_INPUT_SUBMITTED},
+    semantic::{
+        COMMAND_INPUT_BLUR, COMMAND_INPUT_FOCUS, COMMAND_INPUT_SELECT_ALL, COMMAND_INPUT_SET_VALUE,
+        EVENT_INPUT_CHANGED, EVENT_INPUT_FOCUS_CHANGED, EVENT_INPUT_SUBMITTED,
+    },
     theme::SharedTheme,
 };
 
@@ -931,5 +934,84 @@ fn single_line(value: &str) -> SharedString {
         shared(&value.replace(['\r', '\n'], " "))
     } else {
         shared(value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{cell::RefCell, rc::Rc};
+
+    use super::*;
+    use crate::{
+        abi::ManagedCallbacks,
+        resources::{ResourceCommand, ResourceKey},
+        theme::NativeTheme,
+    };
+
+    fn callbacks() -> ManagedCallbacks {
+        ManagedCallbacks {
+            struct_size: 0,
+            render: None,
+            click: None,
+            list_render_range: None,
+            dynamic_frame: None,
+            control_event: None,
+            application_started: None,
+            window_closed: None,
+            menu_action: None,
+        }
+    }
+
+    fn theme() -> SharedTheme {
+        Rc::new(RefCell::new(NativeTheme::default()))
+    }
+
+    fn input_entity(cx: &mut App) -> Entity<ManagedInput> {
+        cx.new(|cx| {
+            ManagedInput::new(
+                1,
+                callbacks(),
+                InputInitialState {
+                    value: "",
+                    placeholder: "",
+                    disabled: false,
+                    read_only: false,
+                    password: false,
+                    bindings: InputBindings {
+                        changed: 0,
+                        submitted: 0,
+                        focus_changed: 0,
+                    },
+                },
+                theme(),
+                cx,
+            )
+        })
+    }
+
+    fn set_value_command(data: &str) -> ResourceCommand {
+        ResourceCommand {
+            key: ResourceKey::new(7, "input".into()),
+            resource_kind: crate::semantic::RESOURCE_INPUT,
+            command: crate::semantic::COMMAND_INPUT_SET_VALUE,
+            a: 0,
+            b: 0,
+            data: data.into(),
+        }
+    }
+
+    /// A set-value command must replace content, not fall through to the
+    /// focus arm: pattern arms that fail to resolve to constants silently
+    /// become catch-all bindings and misroute every later command.
+    #[gpui::test]
+    fn set_value_command_replaces_content(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.apply_command(&set_value_command("hi"), window, cx)
+            });
+        });
+        cx.read(|cx| assert_eq!(input.read(cx).content.as_str(), "hi"));
     }
 }

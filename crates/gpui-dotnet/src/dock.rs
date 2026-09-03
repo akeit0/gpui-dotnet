@@ -22,7 +22,7 @@ use crate::{
         EVENT_DOCK_LAYOUT_EXPORTED, EVENT_DOCK_PANEL_CLOSED, OP_DOCK_ACTIVE_INDEX, OP_DOCK_AXIS,
         OP_DOCK_INITIAL_SIZE_PX, OP_DOCK_LOCKED, OP_DOCK_ON_CLOSED, OP_DOCK_ON_LAYOUT,
         OP_DOCK_PANEL_CLOSABLE, OP_DOCK_PANEL_INNER_PADDING, OP_DOCK_PANEL_ZOOMABLE,
-        OP_DOCK_REGION_COLLAPSIBLE, OP_DOCK_REGION_OPEN, OP_DOCK_REGION_SIDE, RESOURCE_DOCK,
+        OP_DOCK_REGION_COLLAPSIBLE, OP_DOCK_REGION_OPEN, OP_DOCK_REGION_SIDE,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
 };
@@ -1051,6 +1051,7 @@ fn last_callback(snapshot: &ValidatedSnapshot, node: &SnapshotNode, code: u16) -
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::semantic::RESOURCE_DOCK;
 
     fn panel(id: &'static str, title: &'static str, content_node: u32) -> DockPanelSpec {
         DockPanelSpec {

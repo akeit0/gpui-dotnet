@@ -10,3 +10,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gpui-dotnet = { path = "../.." }
+
+[lints]
+workspace = true

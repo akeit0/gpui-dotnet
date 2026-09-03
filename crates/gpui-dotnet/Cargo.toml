@@ -9,6 +9,18 @@ members = ["hosts/default", "extensions/editor-host"]
 default-members = [".", "hosts/default"]
 resolver = "3"
 
+# Deny the lint groups that silently change behavior when missed: an unresolved
+# constant in pattern position becomes a catch-all binding, and dead code hides
+# untested paths. Scoped to groups rather than `warnings` so toolchain upgrades
+# that add new default-warn lints cannot break the build; upstream crates keep
+# their own lint policy. Each member opts in with `[lints] workspace = true`.
+[workspace.lints.rust]
+unused = "deny"
+nonstandard_style = "deny"
+
+[lints]
+workspace = true
+
 [lib]
 crate-type = ["rlib"]
 
