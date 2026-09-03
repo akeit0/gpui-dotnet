@@ -46,6 +46,65 @@ public readonly unsafe ref partial struct RenderContext
         return element;
     }
 
+    /// <summary>
+    /// Declares a retained native Dock area bound to a controller sharing the area key.
+    /// An unbound controller is bound to <paramref name="key"/> on first use.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Element<DockAreaTag> DockArea(
+        ref DockController controller,
+        ReadOnlySpan<char> key,
+        Element center,
+        DockOptions options = default
+    ) => DockArea(ref controller, key, center, ReadOnlySpan<Element>.Empty, options);
+
+    /// <summary>
+    /// Declares a retained native Dock area with optional regions, bound to a controller
+    /// sharing the area key. An unbound controller is bound to <paramref name="key"/> on
+    /// first use.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Element<DockAreaTag> DockArea(
+        ref DockController controller,
+        ReadOnlySpan<char> key,
+        Element center,
+        ReadOnlySpan<Element> regions,
+        DockOptions options = default
+    )
+    {
+        if (controller.IsBound && !KeyEquals(controller.Utf8KeySpan, key))
+        {
+            throw new ArgumentException(
+                "A Dock controller is already bound to a different area key.",
+                nameof(controller)
+            );
+        }
+        if (!controller.IsBound)
+        {
+            var byteCount = System.Text.Encoding.UTF8.GetByteCount(key);
+            var utf8Key = new byte[byteCount];
+            System.Text.Encoding.UTF8.GetBytes(key, utf8Key);
+            controller = new DockController(OwnerView, utf8Key);
+        }
+        return DockArea(key, center, regions, options);
+    }
+
+    private static bool KeyEquals(ReadOnlySpan<byte> utf8Key, ReadOnlySpan<char> key)
+    {
+        if (key.IsEmpty)
+        {
+            return false;
+        }
+        var byteCount = System.Text.Encoding.UTF8.GetByteCount(key);
+        if (byteCount != utf8Key.Length)
+        {
+            return false;
+        }
+        Span<byte> encoded = byteCount <= 512 ? stackalloc byte[byteCount] : new byte[byteCount];
+        System.Text.Encoding.UTF8.GetBytes(key, encoded);
+        return utf8Key.SequenceEqual(encoded);
+    }
+
     /// <summary>Declares a collapsible layout region on one edge of a Dock area.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Element<DockRegionTag> DockRegion(

@@ -146,6 +146,8 @@ FFI, so asynchronous event handlers never retain native borrowed memory.
 
 Input events carry UTF-8 data for Changed, Submitted, and FocusChanged transitions. Slider Changed
 and Released events carry one little-endian `f32`, or two ordered values when the range flag is set.
+Dock LayoutChanged carries no payload; Dock LayoutExported carries the UTF-8 layout JSON requested
+through the controller; Dock PanelClosed carries the UTF-8 panel id.
 
 Event kinds with bit `0x8000` set belong to the generic native-extension namespace. The lower 15
 bits contain the non-zero event ID generated from the extension schema; flags, revision, and byte
@@ -207,6 +209,13 @@ The call validates and copies borrowed key/data bytes before queueing work on th
 | List/Table row engine | ScrollToItem, Splice, Reset, Refresh |
 | Input | Focus, Blur, SetValue, SelectAll |
 | Slider | SetValue |
+| Dock | ClosePanel, SetRegionOpen, ImportLayout, ExportLayout |
+
+Scroll and focus/value commands apply to the retained resource directly. List structural commands
+are measurement hints and are reconciled with the next managed snapshot. A hint that disagrees with
+the declared datasource count falls back to a full reset. Dock commands queue until the next
+committed snapshot materializes the area and apply after the declaration, so imperative intent
+wins ties; unknown panels and malformed documents are consumed without effect.
 
 Scroll and focus/value commands apply to the retained resource directly. List structural commands
 are measurement hints and are reconciled with the next managed snapshot. A hint that disagrees with

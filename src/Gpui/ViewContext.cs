@@ -60,6 +60,17 @@ public readonly ref struct ViewContext
         return new SliderController(_view, key);
     }
 
+    /// <summary>
+    /// Creates an optional imperative controller for a ui.DockArea() resource owned by this View.
+    /// Pass it by reference to ui.DockArea() or use the area key it was created with. The same
+    /// queued-command lifecycle as <see cref="CreateScrollController"/> applies.
+    /// </summary>
+    public DockController CreateDockController(string key)
+    {
+        ValidateResourceKey(key);
+        return new DockController(_view, key);
+    }
+
     /// <summary>Creates a slider controller whose retained resource key is already UTF-8.</summary>
     public SliderController CreateSliderController(ReadOnlySpan<byte> utf8Key)
     {

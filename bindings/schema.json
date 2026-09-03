@@ -1227,6 +1227,22 @@
       "validation": { "kind": "bool", "status": -21 }
     },
     {
+      "id": 360,
+      "name": "dock_on_layout",
+      "csharp": "DockOnLayout",
+      "value": "callback",
+      "requires": "dock_area",
+      "managedApi": null
+    },
+    {
+      "id": 361,
+      "name": "dock_on_closed",
+      "csharp": "DockOnClosed",
+      "value": "callback",
+      "requires": "dock_area",
+      "managedApi": null
+    },
+    {
       "id": 700,
       "name": "drawing_view_box_origin",
       "csharp": "DrawingViewBoxOrigin",

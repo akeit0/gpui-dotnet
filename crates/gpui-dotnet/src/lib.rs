@@ -212,6 +212,7 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         2 => matches!(command.command, 10..=13),
         3 => matches!(command.command, 20..=23),
         4 => command.command == 30,
+        5 => matches!(command.command, 40 | 41 | 42 | 43),
         _ => false,
     };
     if !valid_command {
@@ -239,6 +240,24 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
             let end = f32::from_bits((command.a >> 32) as u32);
             command.data_length == 0 && command.b <= 1 && start.is_finite() && end.is_finite()
         }
+        // Dock panel commands carry the UTF-8 panel id as data: non-empty,
+        // NUL-free, and bounded like resource keys.
+        (5, 40) => {
+            command.a == 0
+                && command.b == 0
+                && command.data_length > 0
+                && command.data_length <= 4096
+        }
+        (5, 41) => command.data_length == 0 && command.a <= 2 && command.b <= 1,
+        // Dock layout import carries the JSON document as data, bounded so a
+        // corrupt sender cannot queue an unbounded retained payload.
+        (5, 42) => {
+            command.a == 0
+                && command.b == 0
+                && command.data_length > 0
+                && command.data_length <= (1 << 20)
+        }
+        (5, 43) => command.data_length == 0 && command.a == 0 && command.b == 0,
         _ => false,
     };
     if !payload_valid {
@@ -258,6 +277,12 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         };
         data
     };
+    if command.resource_kind == 5
+        && command.data_length != 0
+        && (data.is_empty() || data.bytes().any(|byte| byte == 0))
+    {
+        return -55;
+    }
     app_host::dispatch_command(
         view_id,
         resources::ResourceCommand::from_abi(command, key, data),
@@ -599,5 +624,70 @@ mod tests {
             -81
         );
         assert_eq!(unsafe { supports_extension(id.as_ptr(), 128, 1, 1) }, -80);
+    }
+
+    fn dock_command(kind: u16, command: u16, a: u64, b: u64, data: &[u8]) -> NativeResourceCommand {
+        // Well-formed key routing is covered elsewhere; an unknown view id
+        // proves validation passed by reaching the view lookup (-30).
+        static KEY: &[u8] = b"dock";
+        NativeResourceCommand {
+            owner_view: 1,
+            resource_kind: kind,
+            command,
+            key: KEY.as_ptr(),
+            key_length: KEY.len() as i32,
+            data: data.as_ptr(),
+            data_length: data.len() as i32,
+            reserved: 0,
+            a,
+            b,
+        }
+    }
+
+    #[test]
+    fn dock_controller_commands_validate_shape_before_routing() {
+        // -30 is the unknown-view status: validation passed, routing failed.
+        let panel = b"editor";
+        assert_eq!(
+            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 40, 0, 0, panel)) },
+            -30
+        );
+        assert_eq!(
+            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 41, 1, 1, &[])) },
+            -30
+        );
+        assert_eq!(
+            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 42, 0, 0, b"{}")) },
+            -30
+        );
+        assert_eq!(
+            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 43, 0, 0, &[])) },
+            -30
+        );
+
+        assert_eq!(
+            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 44, 0, 0, &[])) },
+            -53
+        );
+        assert_eq!(
+            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 40, 0, 0, &[])) },
+            -54
+        );
+        assert_eq!(
+            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 40, 1, 0, panel)) },
+            -54
+        );
+        assert_eq!(
+            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 41, 3, 0, &[])) },
+            -54
+        );
+        assert_eq!(
+            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 41, 0, 2, &[])) },
+            -54
+        );
+        assert_eq!(
+            unsafe { dispatch_command_inner(u64::MAX - 1, &dock_command(5, 40, 0, 0, b"a\0b")) },
+            -55
+        );
     }
 }

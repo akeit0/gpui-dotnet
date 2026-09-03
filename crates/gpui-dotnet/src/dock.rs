@@ -1,20 +1,26 @@
 use std::collections::{HashMap, HashSet};
+use std::{cell::Cell, cell::RefCell, rc::Rc};
 
 use gpui::{
     App, AppContext as _, Axis, Context, Entity, EventEmitter, FocusHandle, Focusable, IntoElement,
     ParentElement, Render, SharedString, Styled, WeakEntity, Window, div, px,
 };
-use gpui_base::dock::{DockArea, DockLayout, DockPlacement, Panel as BasePanel, PanelEvent};
+use gpui_base::dock::{
+    DockArea, DockAreaState, DockLayout, DockPlacement, Panel as BasePanel, PanelEvent, PanelInfo,
+    PanelState,
+};
 
 use crate::{
+    abi::{ManagedCallbacks, NativeControlEvent},
     app_host::ManagedView,
     dock_skin::dock_area,
-    resources::{ResourceKey, resource_key},
+    resources::{ResourceCommand, ResourceKey, resource_key},
     semantic::{
         COMPONENT_DOCK_PANEL, COMPONENT_DOCK_REGION, COMPONENT_DOCK_SPLIT, COMPONENT_DOCK_TABS,
         OP_DOCK_ACTIVE_INDEX, OP_DOCK_AXIS, OP_DOCK_INITIAL_SIZE_PX, OP_DOCK_LOCKED,
-        OP_DOCK_PANEL_CLOSABLE, OP_DOCK_PANEL_INNER_PADDING, OP_DOCK_PANEL_ZOOMABLE,
-        OP_DOCK_REGION_COLLAPSIBLE, OP_DOCK_REGION_OPEN, OP_DOCK_REGION_SIDE,
+        OP_DOCK_ON_CLOSED, OP_DOCK_ON_LAYOUT, OP_DOCK_PANEL_CLOSABLE, OP_DOCK_PANEL_INNER_PADDING,
+        OP_DOCK_PANEL_ZOOMABLE, OP_DOCK_REGION_COLLAPSIBLE, OP_DOCK_REGION_OPEN,
+        OP_DOCK_REGION_SIDE,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
 };
@@ -25,6 +31,8 @@ pub(crate) struct DockConfiguration {
     pub(crate) locked: bool,
     pub(crate) center: DockLayoutSpec,
     pub(crate) regions: Vec<DockRegionSpec>,
+    pub(crate) layout_token: u64,
+    pub(crate) closed_token: u64,
 }
 
 #[derive(Clone)]
@@ -76,6 +84,38 @@ impl DockConfiguration {
         for region in &self.regions {
             region.layout.collect_panels(panels);
         }
+    }
+
+    /// Removes natively closed panels from the structural declaration without
+    /// touching their entities: a tombstoned panel stays closed until the
+    /// managed declaration drops its id, so the next snapshot cannot resurrect
+    /// it. Returns `None` when nothing declarable remains.
+    fn without_tombstones(&self, tombstones: &HashSet<SharedString>) -> Option<DockConfiguration> {
+        if tombstones.is_empty() {
+            return Some(self.clone());
+        }
+        let center = self.center.without_tombstones(tombstones)?;
+        let mut regions = Vec::with_capacity(self.regions.len());
+        for region in &self.regions {
+            let Some(layout) = region.layout.without_tombstones(tombstones) else {
+                continue;
+            };
+            regions.push(DockRegionSpec {
+                placement: region.placement,
+                layout,
+                initial_size: region.initial_size,
+                initially_open: region.initially_open,
+                collapsible: region.collapsible,
+            });
+        }
+        Some(DockConfiguration {
+            key: self.key.clone(),
+            locked: self.locked,
+            center,
+            regions,
+            layout_token: self.layout_token,
+            closed_token: self.closed_token,
+        })
     }
 }
 
@@ -133,13 +173,107 @@ impl DockLayoutSpec {
             Self::Tabs { panels: group, .. } => panels.extend(group),
         }
     }
+
+    /// Prunes tombstoned panels, dropping groups left empty. Returns `None`
+    /// when no live panel remains in this subtree.
+    fn without_tombstones(&self, tombstones: &HashSet<SharedString>) -> Option<DockLayoutSpec> {
+        match self {
+            Self::Split { axis, children } => {
+                let mut kept = Vec::with_capacity(children.len());
+                for child in children {
+                    let Some(layout) = child.layout.without_tombstones(tombstones) else {
+                        continue;
+                    };
+                    kept.push(DockSplitChildSpec {
+                        layout,
+                        initial_size: child.initial_size,
+                    });
+                }
+                if kept.is_empty() {
+                    return None;
+                }
+                Some(DockLayoutSpec::Split {
+                    axis: *axis,
+                    children: kept,
+                })
+            }
+            Self::Tabs {
+                active_index,
+                panels,
+            } => {
+                let kept: Vec<DockPanelSpec> = panels
+                    .iter()
+                    .filter(|panel| !tombstones.contains(&panel.id))
+                    .cloned()
+                    .collect();
+                if kept.is_empty() {
+                    return None;
+                }
+                Some(DockLayoutSpec::Tabs {
+                    active_index: (*active_index).min(kept.len() - 1),
+                    panels: kept,
+                })
+            }
+        }
+    }
+}
+
+pub(crate) const DOCK_EVENT_LAYOUT_CHANGED: u16 = 6;
+pub(crate) const DOCK_EVENT_LAYOUT_EXPORTED: u16 = 7;
+pub(crate) const DOCK_EVENT_PANEL_CLOSED: u16 = 8;
+
+/// Native event routing shared by one Dock area and its panels. Panels reach
+/// it from `on_removed`, which fires inside base reconciliation without any
+/// handle on the retaining resource.
+pub(crate) struct DockEventSink {
+    session: u64,
+    callbacks: ManagedCallbacks,
+    layout_token: Cell<u64>,
+    closed_token: Cell<u64>,
+    revision: Cell<u64>,
+    /// Panels removed by the live declaration: their `on_removed` is
+    /// application-driven and fires no close event.
+    silent: RefCell<HashSet<SharedString>>,
+    /// Panels closed natively while still declared: kept out of rebuilt
+    /// layouts until the declaration drops their ids.
+    tombstones: RefCell<HashSet<SharedString>>,
+}
+
+pub(crate) fn emit_dock_event(sink: &Rc<DockEventSink>, kind: u16, data: &[u8]) {
+    let token = match kind {
+        DOCK_EVENT_LAYOUT_CHANGED | DOCK_EVENT_LAYOUT_EXPORTED => sink.layout_token.get(),
+        DOCK_EVENT_PANEL_CLOSED => sink.closed_token.get(),
+        _ => 0,
+    };
+    if token == 0 {
+        return;
+    }
+    let Some(callback) = sink.callbacks.control_event else {
+        return;
+    };
+    let revision = sink.revision.get().wrapping_add(1).max(1);
+    sink.revision.set(revision);
+    let event = NativeControlEvent {
+        kind,
+        flags: 0,
+        reserved: 0,
+        revision,
+        data: data.as_ptr(),
+        data_length: data.len() as i32,
+        reserved2: 0,
+    };
+    let _ = unsafe { callback(sink.session, token, &event) };
 }
 
 pub(crate) struct ManagedDockResource {
     area: Entity<DockArea>,
     panels: HashMap<SharedString, Entity<ManagedDockPanel>>,
     declaration: Option<DockConfiguration>,
+    raw_ids: HashSet<SharedString>,
+    raw: Option<DockConfiguration>,
     locked: bool,
+    owner: WeakEntity<ManagedView>,
+    events: Rc<DockEventSink>,
 }
 
 enum RegionUpdate {
@@ -157,6 +291,8 @@ enum RegionUpdate {
 
 impl ManagedDockResource {
     pub(crate) fn new(
+        session: u64,
+        callbacks: ManagedCallbacks,
         configuration: &DockConfiguration,
         owner: WeakEntity<ManagedView>,
         window: &mut Window,
@@ -167,7 +303,19 @@ impl ManagedDockResource {
             area,
             panels: HashMap::new(),
             declaration: None,
+            raw_ids: HashSet::new(),
+            raw: None,
             locked: configuration.locked,
+            owner: owner.clone(),
+            events: Rc::new(DockEventSink {
+                session,
+                callbacks,
+                layout_token: Cell::new(0),
+                closed_token: Cell::new(0),
+                revision: Cell::new(0),
+                silent: RefCell::new(HashSet::new()),
+                tombstones: RefCell::new(HashSet::new()),
+            }),
         };
         resource.configure(configuration, owner, window, cx);
         resource
@@ -177,6 +325,10 @@ impl ManagedDockResource {
         self.area.clone()
     }
 
+    pub(crate) fn events(&self) -> Rc<DockEventSink> {
+        self.events.clone()
+    }
+
     pub(crate) fn configure(
         &mut self,
         configuration: &DockConfiguration,
@@ -184,18 +336,46 @@ impl ManagedDockResource {
         window: &mut Window,
         cx: &mut Context<ManagedView>,
     ) {
+        self.owner = owner.clone();
         let mut declared = Vec::new();
         configuration.collect_panels(&mut declared);
 
-        let mut active_ids = HashSet::with_capacity(declared.len());
+        let mut raw_ids = HashSet::with_capacity(declared.len());
+        for panel in &declared {
+            raw_ids.insert(panel.id.clone());
+        }
+        // Panels the declaration dropped are application-driven: silence
+        // their teardown and release their tombstones, so a later panel with
+        // the same id installs fresh.
+        let removed: Vec<SharedString> = self.raw_ids.difference(&raw_ids).cloned().collect();
+        self.events
+            .silent
+            .borrow_mut()
+            .extend(removed.iter().cloned());
+        self.events
+            .tombstones
+            .borrow_mut()
+            .retain(|id| raw_ids.contains(id));
+        self.events.layout_token.set(configuration.layout_token);
+        self.events.closed_token.set(configuration.closed_token);
+
+        let effective = configuration.without_tombstones(&self.events.tombstones.borrow());
+        let Some(effective) = effective.as_ref() else {
+            // Every declared panel is natively closed: the native tree is
+            // already correct, so there is nothing to reconcile.
+            self.raw_ids = raw_ids;
+            self.events.silent.borrow_mut().clear();
+            return;
+        };
+
         for panel in declared {
-            active_ids.insert(panel.id.clone());
             if let Some(existing) = self.panels.get(&panel.id).cloned() {
                 existing.update(cx, |existing, cx| {
                     existing.configure(panel, owner.clone(), cx)
                 });
             } else {
-                let created = cx.new(|cx| ManagedDockPanel::new(panel, owner.clone(), cx));
+                let events = self.events.clone();
+                let created = cx.new(|cx| ManagedDockPanel::new(panel, owner.clone(), events, cx));
                 self.panels.insert(panel.id.clone(), created);
             }
         }
@@ -203,8 +383,8 @@ impl ManagedDockResource {
         let center_changed = self
             .declaration
             .as_ref()
-            .is_none_or(|previous| !previous.center.same_structure(&configuration.center));
-        let locked_changed = self.locked != configuration.locked;
+            .is_none_or(|previous| !previous.center.same_structure(&effective.center));
+        let locked_changed = self.locked != effective.locked;
         let mut region_updates = Vec::new();
         let mut region_structure_changed = false;
         for placement in [
@@ -212,7 +392,7 @@ impl ManagedDockResource {
             DockPlacement::Bottom,
             DockPlacement::Right,
         ] {
-            let current = configuration.region(placement);
+            let current = effective.region(placement);
             let previous = self
                 .declaration
                 .as_ref()
@@ -248,10 +428,12 @@ impl ManagedDockResource {
         let structure_changed = center_changed || region_structure_changed;
 
         if structure_changed || locked_changed || !region_updates.is_empty() {
-            let center = center_changed.then(|| build_layout(&configuration.center, &self.panels));
+            let center = center_changed.then(|| build_layout(&effective.center, &self.panels));
+            let locked = effective.locked;
+            let declaration_is_none = self.declaration.is_none();
             self.area.update(cx, |area, cx| {
-                if locked_changed || self.declaration.is_none() {
-                    area.set_locked(configuration.locked, window, cx);
+                if locked_changed || declaration_is_none {
+                    area.set_locked(locked, window, cx);
                 }
                 if let Some(center) = center {
                     area.set_center(center, window, cx);
@@ -288,9 +470,282 @@ impl ManagedDockResource {
             });
         }
 
-        self.panels.retain(|id, _| active_ids.contains(id));
-        self.declaration = Some(configuration.clone());
-        self.locked = configuration.locked;
+        self.events.silent.borrow_mut().clear();
+        self.panels.retain(|id, _| raw_ids.contains(id));
+        self.declaration = Some(effective.clone());
+        self.raw = Some(configuration.clone());
+        self.raw_ids = raw_ids;
+        self.locked = effective.locked;
+    }
+
+    /// Applies one queued controller command. All commands consume on first
+    /// materialization; failures (unknown panel, malformed document) are
+    /// no-ops rather than retried, since the snapshot that produced them will
+    /// not change under a retry.
+    pub(crate) fn apply_command(
+        &mut self,
+        command: &ResourceCommand,
+        window: &mut Window,
+        cx: &mut Context<ManagedView>,
+    ) {
+        let data: &str = command.data.as_ref();
+        match command.command {
+            40 => self.close_panel(data, window, cx),
+            41 => self.set_region_open(command.a as u32, command.b != 0, window, cx),
+            42 => self.import_layout(data, window, cx),
+            43 => self.export_layout(cx),
+            _ => {}
+        }
+    }
+
+    fn close_panel(&mut self, id: &str, window: &mut Window, cx: &mut Context<ManagedView>) {
+        let Some(panel) = self.panels.get(id).cloned() else {
+            return;
+        };
+        // Not silenced: a controller close is a native close and fires the
+        // closed event like the chrome control does.
+        self.area.update(cx, |area, cx| {
+            area.remove_panel(panel, window, cx);
+        });
+    }
+
+    fn set_region_open(
+        &mut self,
+        side: u32,
+        open: bool,
+        window: &mut Window,
+        cx: &mut Context<ManagedView>,
+    ) {
+        let placement = match side {
+            0 => DockPlacement::Left,
+            1 => DockPlacement::Bottom,
+            2 => DockPlacement::Right,
+            _ => return,
+        };
+        self.area.update(cx, |area, cx| {
+            if area.is_dock_open(placement) != open {
+                area.toggle_dock(placement, window, cx);
+            }
+        });
+    }
+
+    /// Replaces native structure from an exported layout document. Structure
+    /// (splits, sizes, active tabs, region placement and open state) comes
+    /// from the document; panel content, titles, and options come from the
+    /// live declaration, joined by panel id. Unknown persisted panels are
+    /// pruned; declared panels missing from the document are appended to the
+    /// center, so an import never silently drops live content. Lock state
+    /// always comes from the declaration.
+    fn import_layout(
+        &mut self,
+        document: &str,
+        window: &mut Window,
+        cx: &mut Context<ManagedView>,
+    ) {
+        let Ok(state) = serde_json::from_str::<DockAreaState>(document) else {
+            return;
+        };
+        let Some(configuration) = self.import_configuration(&state) else {
+            return;
+        };
+        // An explicit import restores what it names: tombstones only guard
+        // against snapshot resurrection, not against a deliberate restore.
+        let mut restored = Vec::new();
+        configuration.collect_panels(&mut restored);
+        let restored: HashSet<&SharedString> = restored.iter().map(|spec| &spec.id).collect();
+        self.events
+            .tombstones
+            .borrow_mut()
+            .retain(|id| !restored.contains(id));
+        let owner = self.owner.clone();
+        self.configure(&configuration, owner, window, cx);
+        // `configure` only seeds open state for newly added regions; an
+        // import restores it for existing ones too.
+        self.area.update(cx, |area, cx| {
+            for region in &configuration.regions {
+                if area.is_dock_open(region.placement) != region.initially_open {
+                    area.toggle_dock(region.placement, window, cx);
+                }
+                if let Some(size) = region.initial_size {
+                    area.set_dock_size(region.placement, px(size), window, cx);
+                }
+            }
+        });
+    }
+
+    fn export_layout(&mut self, cx: &mut Context<ManagedView>) {
+        let state = self.area.read(cx).dump(cx);
+        let Ok(document) = serde_json::to_string(&state) else {
+            return;
+        };
+        emit_dock_event(
+            &self.events,
+            DOCK_EVENT_LAYOUT_EXPORTED,
+            document.as_bytes(),
+        );
+    }
+
+    /// Joins an exported document with the live declaration. Structure comes
+    /// from the document; every panel spec (content, title, options) comes
+    /// from the declaration. Returns `None` when the document names no
+    /// usable center.
+    fn import_configuration(&self, state: &DockAreaState) -> Option<DockConfiguration> {
+        // Joined against the raw declaration: tombstoned panels are still
+        // declared, and an explicit import restores the ones it names.
+        let raw = self.raw.as_ref()?;
+        let mut specs = HashMap::new();
+        let mut declared = Vec::new();
+        raw.collect_panels(&mut declared);
+        for spec in declared {
+            specs.insert(spec.id.as_str(), spec);
+        }
+        let mut center = layout_spec_from_state(&state.center, &specs)?;
+        let mut regions = Vec::new();
+        for dock in [&state.left_dock, &state.right_dock, &state.bottom_dock]
+            .into_iter()
+            .flatten()
+        {
+            let Some(layout) = layout_spec_from_state(dock.panel(), &specs) else {
+                continue;
+            };
+            let collapsible = raw
+                .region(dock.placement())
+                .map_or(true, |region| region.collapsible);
+            regions.push(DockRegionSpec {
+                placement: dock.placement(),
+                layout,
+                initial_size: Some(dock.size().as_f32()),
+                initially_open: dock.open(),
+                collapsible,
+            });
+        }
+        // Declared panels missing from the document are appended to the
+        // center, so an import never silently drops live content. Panels the
+        // user closed natively stay closed unless the document names them.
+        let mut placed = HashSet::new();
+        let mut collected = Vec::new();
+        center.collect_panels(&mut collected);
+        for region in &regions {
+            region.layout.collect_panels(&mut collected);
+        }
+        placed.extend(collected.iter().map(|spec| spec.id.clone()));
+        let tombstones = self.events.tombstones.borrow();
+        let mut missing: Vec<DockPanelSpec> = specs
+            .values()
+            .filter(|spec| !placed.contains(&spec.id) && !tombstones.contains(&spec.id))
+            .map(|spec| (*spec).clone())
+            .collect();
+        missing.sort_by(|left, right| left.id.as_str().cmp(right.id.as_str()));
+        if !missing.is_empty() {
+            append_panels(&mut center, missing);
+        }
+        Some(DockConfiguration {
+            key: raw.key.clone(),
+            locked: raw.locked,
+            center,
+            regions,
+            layout_token: raw.layout_token,
+            closed_token: raw.closed_token,
+        })
+    }
+}
+
+/// Converts one persisted layout node into a declarative spec, resolving
+/// leaves against the live declaration by panel id. Unknown leaves are
+/// pruned; tiles subtrees (never declared by the managed schema) are
+/// skipped; malformed nodes resolve to `None`.
+fn layout_spec_from_state(
+    state: &PanelState,
+    specs: &HashMap<&str, &DockPanelSpec>,
+) -> Option<DockLayoutSpec> {
+    match &state.info {
+        PanelInfo::Stack { sizes, .. } => {
+            let axis = state.info.axis()?;
+            let mut children = Vec::with_capacity(state.children.len());
+            for (index, child) in state.children.iter().enumerate() {
+                let Some(layout) = layout_spec_from_state(child, specs) else {
+                    continue;
+                };
+                children.push(DockSplitChildSpec {
+                    layout,
+                    // The writer emits 0.0 for unconstrained slots, which
+                    // reads back as no constraint rather than a zero panel.
+                    initial_size: sizes.get(index).and_then(|size| {
+                        let slots = size.as_f32();
+                        (slots > 0.0).then_some(slots)
+                    }),
+                });
+            }
+            if children.is_empty() {
+                return None;
+            }
+            Some(DockLayoutSpec::Split { axis, children })
+        }
+        PanelInfo::Tabs { active_index } => {
+            let mut panels = Vec::with_capacity(state.children.len());
+            for child in &state.children {
+                let PanelInfo::Panel(value) = &child.info else {
+                    continue;
+                };
+                let Some(id) = value.get("id").and_then(|id| id.as_str()) else {
+                    continue;
+                };
+                let Some(spec) = specs.get(id) else {
+                    continue;
+                };
+                panels.push((*spec).clone());
+            }
+            if panels.is_empty() {
+                return None;
+            }
+            Some(DockLayoutSpec::Tabs {
+                active_index: (*active_index).min(panels.len() - 1),
+                panels,
+            })
+        }
+        // A lone leaf where a container belongs wraps into a tab group; any
+        // other shape (including tiles) has no declarative equivalent.
+        PanelInfo::Panel(value) => {
+            let id = value.get("id")?.as_str()?;
+            let spec = specs.get(id)?;
+            Some(DockLayoutSpec::Tabs {
+                active_index: 0,
+                panels: vec![(*spec).clone()],
+            })
+        }
+        PanelInfo::Tiles { .. } => None,
+    }
+}
+
+/// Appends orphaned declaration panels to the first tab group, depth-first,
+/// so an import preserves content the document does not name.
+fn append_panels(center: &mut DockLayoutSpec, missing: Vec<DockPanelSpec>) {
+    if missing.is_empty() {
+        return;
+    }
+    if let Some(tabs) = first_tabs_mut(center) {
+        tabs.extend(missing);
+        return;
+    }
+    // Unreachable through `layout_spec_from_state` (converted centers always
+    // contain a tab group), but a split without one must still absorb content.
+    if let DockLayoutSpec::Split { children, .. } = center {
+        children.push(DockSplitChildSpec {
+            layout: DockLayoutSpec::Tabs {
+                active_index: 0,
+                panels: missing,
+            },
+            initial_size: None,
+        });
+    }
+}
+
+fn first_tabs_mut(spec: &mut DockLayoutSpec) -> Option<&mut Vec<DockPanelSpec>> {
+    match spec {
+        DockLayoutSpec::Tabs { panels, .. } => Some(panels),
+        DockLayoutSpec::Split { children, .. } => children
+            .iter_mut()
+            .find_map(|child| first_tabs_mut(&mut child.layout)),
     }
 }
 
@@ -330,6 +785,7 @@ fn build_layout(
 }
 
 pub(crate) struct ManagedDockPanel {
+    id: SharedString,
     owner: WeakEntity<ManagedView>,
     title: SharedString,
     content_node: u32,
@@ -338,15 +794,18 @@ pub(crate) struct ManagedDockPanel {
     #[allow(dead_code)]
     inner_padding: bool,
     focus_handle: FocusHandle,
+    events: Rc<DockEventSink>,
 }
 
 impl ManagedDockPanel {
     fn new(
         specification: &DockPanelSpec,
         owner: WeakEntity<ManagedView>,
+        events: Rc<DockEventSink>,
         cx: &mut Context<Self>,
     ) -> Self {
         Self {
+            id: specification.id.clone(),
             owner,
             title: specification.title.clone(),
             content_node: specification.content_node,
@@ -354,6 +813,7 @@ impl ManagedDockPanel {
             zoomable: specification.zoomable,
             inner_padding: specification.inner_padding,
             focus_handle: cx.focus_handle(),
+            events,
         }
     }
 
@@ -391,6 +851,35 @@ impl BasePanel for ManagedDockPanel {
 
     fn zoomable(&self, _: &App) -> bool {
         self.zoomable
+    }
+
+    fn dump(&self, _: &App) -> PanelState {
+        // The panel id rejoins exported structure with the live declaration
+        // on import; titles, flags, and content always come from the
+        // declaration, never from the document.
+        PanelState {
+            panel_name: "GpuiDotnetPanel".to_string(),
+            children: Vec::new(),
+            info: PanelInfo::panel(serde_json::json!({ "id": self.id.as_str() })),
+        }
+    }
+
+    /// A panel leaving the Dock for good. Declaration-driven removals were
+    /// silenced up front; anything else is a native close, which tombstones
+    /// the id (so snapshots cannot resurrect it) and notifies the bound
+    /// closed handler, if any.
+    fn on_removed(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {
+        if self.events.silent.borrow_mut().remove(&self.id) {
+            return;
+        }
+        if !self.events.tombstones.borrow_mut().insert(self.id.clone()) {
+            return;
+        }
+        emit_dock_event(
+            &self.events,
+            DOCK_EVENT_PANEL_CLOSED,
+            self.id.as_str().as_bytes(),
+        );
     }
 }
 
@@ -442,6 +931,8 @@ pub(crate) fn dock_configuration(
         locked: last_u32(snapshot, node, OP_DOCK_LOCKED).unwrap_or(0) != 0,
         center: center?,
         regions,
+        layout_token: last_callback(snapshot, node, OP_DOCK_ON_LAYOUT),
+        closed_token: last_callback(snapshot, node, OP_DOCK_ON_CLOSED),
     })
 }
 
@@ -530,6 +1021,15 @@ fn last_f32(snapshot: &ValidatedSnapshot, node: &SnapshotNode, code: u16) -> Opt
     last_u32(snapshot, node, code).map(f32::from_bits)
 }
 
+fn last_callback(snapshot: &ValidatedSnapshot, node: &SnapshotNode, code: u16) -> u64 {
+    snapshot
+        .ops(node)
+        .iter()
+        .rev()
+        .find(|operation| operation.code == code)
+        .map_or(0, |operation| operation.a)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -550,6 +1050,314 @@ mod tests {
             active_index,
             panels,
         }
+    }
+
+    fn leaf(id: &str) -> PanelState {
+        let mut state = PanelState::new("GpuiDotnetPanel");
+        state.info = PanelInfo::panel(serde_json::json!({ "id": id }));
+        state
+    }
+    fn specs<'a>(panels: &'a [DockPanelSpec]) -> HashMap<&'a str, &'a DockPanelSpec> {
+        panels.iter().map(|spec| (spec.id.as_str(), spec)).collect()
+    }
+
+    #[test]
+    fn persisted_tabs_resolve_live_specs_and_prune_unknown_panels() {
+        let declared = vec![panel("editor", "Editor", 3), panel("preview", "Preview", 4)];
+        let specs = specs(&declared);
+        let mut state = PanelState::new("TabPanel");
+        state.info = PanelInfo::tabs(5);
+        state.children = vec![leaf("editor"), leaf("ghost"), leaf("preview")];
+
+        let converted = layout_spec_from_state(&state, &specs).expect("known panels convert");
+        let DockLayoutSpec::Tabs {
+            active_index,
+            panels,
+        } = converted
+        else {
+            panic!("tabs persist as tabs");
+        };
+        // Out-of-range active index clamps to the pruned group; content and
+        // presentation come from the live declaration, not the document.
+        assert_eq!(active_index, 1);
+        assert_eq!(panels.len(), 2);
+        assert_eq!(panels[0].content_node, 3);
+        assert_eq!(panels[1].title.as_str(), "Preview");
+    }
+
+    #[test]
+    fn persisted_splits_keep_axes_and_slot_sizes() {
+        let declared = vec![panel("a", "A", 1), panel("b", "B", 2)];
+        let specs = specs(&declared);
+        let mut left = PanelState::new("TabPanel");
+        left.info = PanelInfo::tabs(0);
+        left.children = vec![leaf("a")];
+        let mut right = PanelState::new("TabPanel");
+        right.info = PanelInfo::tabs(0);
+        right.children = vec![leaf("b")];
+        let mut state = PanelState::new("StackPanel");
+        state.info = PanelInfo::stack(vec![px(240.), px(0.)], Axis::Vertical);
+        state.children = vec![left, right];
+
+        let converted = layout_spec_from_state(&state, &specs).expect("splits convert");
+        let DockLayoutSpec::Split { axis, children } = converted else {
+            panic!("stacks persist as splits");
+        };
+        assert_eq!(axis, Axis::Vertical);
+        assert_eq!(children.len(), 2);
+        assert_eq!(children[0].initial_size, Some(240.0));
+        // Zero slots persist as unconstrained, matching the tree encoding.
+        assert_eq!(children[1].initial_size, None);
+    }
+
+    #[test]
+    fn tiles_and_foreign_leaves_do_not_convert() {
+        let declared = vec![panel("a", "A", 1)];
+        let specs = specs(&declared);
+        let mut state = PanelState::new("Tiles");
+        state.info = PanelInfo::tiles(vec![]);
+        state.children = vec![leaf("a")];
+        assert!(layout_spec_from_state(&state, &specs).is_none());
+
+        let mut foreign = PanelState::new("SomethingElse");
+        foreign.info = PanelInfo::panel(serde_json::json!({ "other": true }));
+        assert!(layout_spec_from_state(&foreign, &specs).is_none());
+    }
+
+    #[test]
+    fn tombstoned_panels_leave_the_declaration_without_touching_entities() {
+        let configuration = DockConfiguration {
+            key: ResourceKey::new(7, "dock".into()),
+            locked: false,
+            center: tabs(
+                0,
+                vec![panel("editor", "Editor", 3), panel("preview", "Preview", 4)],
+            ),
+            regions: Vec::new(),
+            layout_token: 0,
+            closed_token: 0,
+        };
+        let tombstones: HashSet<SharedString> = ["preview".into()].into_iter().collect();
+        let effective = configuration
+            .without_tombstones(&tombstones)
+            .expect("one live panel remains");
+        let mut collected = Vec::new();
+        effective.collect_panels(&mut collected);
+        assert_eq!(collected.len(), 1);
+        assert_eq!(collected[0].id.as_str(), "editor");
+
+        let all: HashSet<SharedString> = ["editor".into(), "preview".into()].into_iter().collect();
+        assert!(configuration.without_tombstones(&all).is_none());
+    }
+
+    #[test]
+    fn import_appends_orphaned_declaration_panels_to_the_center() {
+        let mut center = tabs(0, vec![panel("editor", "Editor", 3)]);
+        append_panels(&mut center, vec![panel("preview", "Preview", 4)]);
+        let DockLayoutSpec::Tabs { panels, .. } = &center else {
+            panic!("tabs stay tabs");
+        };
+        assert_eq!(panels.len(), 2);
+        assert_eq!(panels[1].id.as_str(), "preview");
+
+        append_panels(&mut center, Vec::new());
+        let DockLayoutSpec::Tabs { panels, .. } = &center else {
+            panic!("tabs stay tabs");
+        };
+        assert_eq!(panels.len(), 2);
+    }
+
+    use std::cell::RefCell as TestRefCell;
+
+    use crate::{
+        abi::NativeControlEvent, app_host::ManagedView, resources::ResourceStore,
+        theme::NativeTheme,
+    };
+
+    thread_local! {
+        static CAPTURED: TestRefCell<Vec<(u64, u16, u64, Vec<u8>)>> =
+            TestRefCell::new(Vec::new());
+    }
+
+    unsafe extern "C" fn capture_event(
+        _: u64,
+        token: u64,
+        event: *const NativeControlEvent,
+    ) -> i32 {
+        let event = unsafe { &*event };
+        let data =
+            unsafe { std::slice::from_raw_parts(event.data, event.data_length as usize) }.to_vec();
+        CAPTURED.with(|captured| {
+            captured
+                .borrow_mut()
+                .push((token, event.kind, event.revision, data))
+        });
+        0
+    }
+
+    fn capture_callbacks() -> ManagedCallbacks {
+        ManagedCallbacks {
+            struct_size: 0,
+            render: None,
+            click: None,
+            list_render_range: None,
+            dynamic_frame: None,
+            control_event: Some(capture_event),
+            application_started: None,
+            window_closed: None,
+            menu_action: None,
+        }
+    }
+
+    fn dock_key() -> ResourceKey {
+        ResourceKey::new(7, "dock".into())
+    }
+
+    fn area_configuration() -> DockConfiguration {
+        DockConfiguration {
+            key: dock_key(),
+            locked: false,
+            center: tabs(
+                0,
+                vec![panel("editor", "Editor", 3), panel("preview", "Preview", 4)],
+            ),
+            regions: vec![DockRegionSpec {
+                placement: DockPlacement::Left,
+                layout: tabs(0, vec![panel("files", "Files", 5)]),
+                initial_size: Some(200.0),
+                initially_open: true,
+                collapsible: true,
+            }],
+            layout_token: 11,
+            closed_token: 12,
+        }
+    }
+
+    fn dock_command(command: u16, a: u64, b: u64, data: &str) -> ResourceCommand {
+        ResourceCommand {
+            key: dock_key(),
+            resource_kind: 5,
+            command,
+            a,
+            b,
+            data: data.into(),
+        }
+    }
+
+    fn center_panel_ids(area: &Entity<DockArea>, cx: &App) -> Vec<String> {
+        let state = area.read(cx).dump(cx);
+        assert_eq!(state.center.children.len(), 1);
+        state.center.children[0]
+            .children
+            .iter()
+            .filter_map(|leaf| match &leaf.info {
+                PanelInfo::Panel(value) => value
+                    .get("id")
+                    .and_then(|id| id.as_str())
+                    .map(str::to_string),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Controller commands travel the real dispatch/pending/materialize path
+    /// into a live area: close tombstones and emits, region open toggles,
+    /// export captures JSON, and import restores from it.
+    #[gpui::test]
+    fn dock_controller_commands_drive_the_retained_area(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            gpui_base::init(cx);
+        });
+        CAPTURED.with(|captured| captured.borrow_mut().clear());
+        let theme = Rc::new(TestRefCell::new(NativeTheme::default()));
+        let view = cx.update(|cx| cx.new(|_| ManagedView::new(1, capture_callbacks(), theme)));
+        let owner = view.downgrade();
+        let store = Rc::new(ResourceStore::new(
+            1,
+            capture_callbacks(),
+            Rc::new(TestRefCell::new(NativeTheme::default())),
+        ));
+        cx.update(|cx| {
+            view.update(cx, |view, _| view.resources = store.clone());
+        });
+        let configuration = area_configuration();
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+
+        let materialize = |cx: &mut gpui::VisualTestContext| {
+            cx.update(|window, cx| {
+                view.update(cx, |_, cx| {
+                    store.dock_resource(&configuration, owner.clone(), window, cx)
+                })
+            })
+        };
+        let area = materialize(cx);
+        let drained = || CAPTURED.with(|captured| std::mem::take(&mut *captured.borrow_mut()));
+        let _ = drained();
+
+        // Export first: two panels, before anything closes.
+        assert!(!store.dispatch(dock_command(43, 0, 0, "")));
+        materialize(cx);
+        let exported = drained()
+            .into_iter()
+            .find(|(token, kind, _, _)| *token == 11 && *kind == DOCK_EVENT_LAYOUT_EXPORTED)
+            .expect("export emits the layout document");
+        let document = String::from_utf8(exported.3).expect("export is UTF-8 JSON");
+        assert!(document.contains("\"editor\"") && document.contains("\"preview\""));
+
+        // Controller close fires the closed event, tombstones the id against
+        // resurrection, and reports the coarse layout change.
+        assert!(!store.dispatch(dock_command(40, 0, 0, "preview")));
+        materialize(cx);
+        assert_eq!(cx.read(|cx| center_panel_ids(&area, cx)), vec!["editor"]);
+        let events = drained();
+        let closed = events
+            .iter()
+            .find(|(token, kind, _, _)| *token == 12 && *kind == DOCK_EVENT_PANEL_CLOSED)
+            .expect("close emits the panel id");
+        assert_eq!(closed.3, b"preview");
+        assert!(
+            events
+                .iter()
+                .any(|(token, kind, _, _)| *token == 11 && *kind == DOCK_EVENT_LAYOUT_CHANGED)
+        );
+        // Revisions advance monotonically across kinds on one area.
+        let revisions: Vec<u64> = events.iter().map(|(_, _, revision, _)| *revision).collect();
+        assert!(revisions.windows(2).all(|pair| pair[0] < pair[1]));
+
+        // The tombstoned panel survives re-materialization of the same
+        // declaration instead of resurrecting.
+        materialize(cx);
+        assert_eq!(cx.read(|cx| center_panel_ids(&area, cx)), vec!["editor"]);
+        let _ = drained();
+
+        // Importing the pre-close document restores the panel explicitly.
+        assert!(!store.dispatch(dock_command(42, 0, 0, &document)));
+        materialize(cx);
+        assert_eq!(
+            cx.read(|cx| center_panel_ids(&area, cx)),
+            vec!["editor", "preview"]
+        );
+        let _ = drained();
+
+        // Region open state toggles programmatically.
+        assert!(!store.dispatch(dock_command(41, 0, 0, "")));
+        materialize(cx);
+        assert!(!cx.read(|cx| area.read(cx).is_dock_open(DockPlacement::Left)));
+        let _ = drained();
+        assert!(!store.dispatch(dock_command(41, 0, 1, "")));
+        materialize(cx);
+        assert!(cx.read(|cx| area.read(cx).is_dock_open(DockPlacement::Left)));
+        let _ = drained();
+
+        // Unknown panels and malformed documents are consumed silently.
+        assert!(!store.dispatch(dock_command(40, 0, 0, "ghost")));
+        assert!(!store.dispatch(dock_command(42, 0, 0, "not json")));
+        materialize(cx);
+        assert_eq!(
+            cx.read(|cx| center_panel_ids(&area, cx)),
+            vec!["editor", "preview"]
+        );
+        assert!(drained().is_empty());
     }
 
     #[test]

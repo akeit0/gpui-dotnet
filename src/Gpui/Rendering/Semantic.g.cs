@@ -130,6 +130,8 @@ namespace Gpui.Interop
         DockRegionSide = 357,
         DockRegionOpen = 358,
         DockRegionCollapsible = 359,
+        DockOnLayout = 360,
+        DockOnClosed = 361,
         DrawingViewBoxOrigin = 700,
         DrawingViewBoxSize = 701,
         DynamicActive = 702,
@@ -167,7 +169,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x7E2AA437C92D7C1DUL;
+        internal const ulong SchemaHash = 0x93A7288DF9C5C8B7UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -317,6 +319,8 @@ namespace Gpui.Interop
             OpCode.DockRegionSide => ValueKind.U32,
             OpCode.DockRegionOpen => ValueKind.U32,
             OpCode.DockRegionCollapsible => ValueKind.U32,
+            OpCode.DockOnLayout => ValueKind.Callback,
+            OpCode.DockOnClosed => ValueKind.Callback,
             OpCode.DrawingViewBoxOrigin => ValueKind.F32x2,
             OpCode.DrawingViewBoxSize => ValueKind.F32x2,
             OpCode.DynamicActive => ValueKind.U32,
@@ -469,6 +473,8 @@ namespace Gpui.Interop
             OpCode.DockRegionSide => 0x0000000004000000UL,
             OpCode.DockRegionOpen => 0x0000000004000000UL,
             OpCode.DockRegionCollapsible => 0x0000000004000000UL,
+            OpCode.DockOnLayout => 0x0000000000200000UL,
+            OpCode.DockOnClosed => 0x0000000000200000UL,
             OpCode.DrawingViewBoxOrigin => 0x0000000000040000UL,
             OpCode.DrawingViewBoxSize => 0x0000000000040000UL,
             OpCode.DynamicActive => 0x0000000000100000UL,

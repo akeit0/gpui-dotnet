@@ -97,6 +97,7 @@ internal enum ResourceKind : ushort
     List = 2,
     Input = 3,
     Slider = 4,
+    Dock = 5,
 }
 
 internal enum ResourceCommandKind : ushort
@@ -113,6 +114,10 @@ internal enum ResourceCommandKind : ushort
     InputSetValue = 22,
     InputSelectAll = 23,
     SliderSetValue = 30,
+    DockClosePanel = 40,
+    DockSetRegionOpen = 41,
+    DockImportLayout = 42,
+    DockExportLayout = 43,
 }
 
 internal readonly record struct ResourceCommand(

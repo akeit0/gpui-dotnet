@@ -254,6 +254,28 @@ internal sealed unsafe partial class ManagedSession
         }
     }
 
+    internal void DispatchDock(ulong eventToken, DockEvent dockEvent)
+    {
+        var viewHandle = (uint)(eventToken >> 32);
+        var handlerId = (uint)eventToken;
+        if (viewHandle == 0 || handlerId == 0)
+        {
+            throw new InvalidOperationException("Malformed dock event token.");
+        }
+        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
+        {
+            throw new InvalidOperationException(
+                $"Dock event references unmounted or unknown view handle {viewHandle}."
+            );
+        }
+
+        var pending = owner.DispatchDockCore(handlerId, dockEvent);
+        if (!pending.IsCompletedSuccessfully)
+        {
+            ObserveEventTask(pending);
+        }
+    }
+
     internal void DispatchNativeExtension(
         ulong eventToken,
         NativeExtensionEvent nativeExtensionEvent

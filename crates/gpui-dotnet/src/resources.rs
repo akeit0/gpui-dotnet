@@ -7,7 +7,8 @@ use std::{
 
 use gpui::{
     AnyElement, AppContext, Context, Entity, IntoElement, ListAlignment, ListOffset, ListState,
-    ParentElement, Pixels, Point, ScrollHandle, SharedString, WeakEntity, Window, div, point, px,
+    ParentElement, Pixels, Point, ScrollHandle, SharedString, Subscription, WeakEntity, Window,
+    div, point, px,
 };
 
 use crate::{
@@ -80,6 +81,7 @@ pub(crate) struct ResourceStore {
     inputs: RefCell<HashMap<ResourceKey, Entity<ManagedInput>>>,
     sliders: RefCell<HashMap<ResourceKey, Entity<ManagedSlider>>>,
     docks: RefCell<HashMap<ResourceKey, Rc<RefCell<ManagedDockResource>>>>,
+    dock_subscriptions: RefCell<HashMap<ResourceKey, Subscription>>,
     extensions: NativeExtensionStore,
     pending: RefCell<HashMap<(u16, ResourceKey), Vec<ResourceCommand>>>,
     active_scratch: RefCell<HashSet<(u16, ResourceKey)>>,
@@ -98,6 +100,7 @@ impl ResourceStore {
             inputs: RefCell::new(HashMap::new()),
             sliders: RefCell::new(HashMap::new()),
             docks: RefCell::new(HashMap::new()),
+            dock_subscriptions: RefCell::new(HashMap::new()),
             extensions: NativeExtensionStore::new(),
             pending: RefCell::new(HashMap::new()),
             active_scratch: RefCell::new(HashSet::new()),
@@ -295,6 +298,8 @@ impl ResourceStore {
             existing
         } else {
             let created = Rc::new(RefCell::new(ManagedDockResource::new(
+                self.session_id,
+                self.callbacks,
                 configuration,
                 owner,
                 window,
@@ -303,8 +308,44 @@ impl ResourceStore {
             self.docks
                 .borrow_mut()
                 .insert(configuration.key.clone(), created.clone());
+            // Layout changes report through the area's event emitter, which
+            // outlives any single render: subscribe once per retained area.
+            // The handler reads the current layout token at fire time, since
+            // render-bound bindings may be re-registered across snapshots.
+            let events = created.borrow().events();
+            let subscription = cx.subscribe_in(
+                &created.borrow().area(),
+                window,
+                move |_: &mut ManagedView,
+                      _: &Entity<gpui_base::dock::DockArea>,
+                      event: &gpui_base::dock::DockEvent,
+                      _: &mut Window,
+                      _: &mut Context<ManagedView>| {
+                    if matches!(event, gpui_base::dock::DockEvent::LayoutChanged) {
+                        crate::dock::emit_dock_event(
+                            &events,
+                            crate::dock::DOCK_EVENT_LAYOUT_CHANGED,
+                            &[],
+                        );
+                    }
+                },
+            );
+            self.dock_subscriptions
+                .borrow_mut()
+                .insert(configuration.key.clone(), subscription);
             created
         };
+
+        // Controller commands queue until the resource exists; the
+        // declaration wins ties by applying first.
+        let pending = self
+            .pending
+            .borrow_mut()
+            .remove(&(5, configuration.key.clone()))
+            .unwrap_or_default();
+        for command in pending {
+            resource.borrow_mut().apply_command(&command, window, cx);
+        }
 
         let area = resource.borrow().area();
         area
@@ -314,7 +355,7 @@ impl ResourceStore {
         let applied = match command.resource_kind {
             1 => self.apply_scroll_command(&command),
             2 => self.apply_list_command(&command),
-            3 | 4 => false,
+            3 | 4 | 5 => false,
             _ => true,
         };
         if !applied {
@@ -439,6 +480,9 @@ impl ResourceStore {
             .borrow_mut()
             .retain(|key, _| active.contains(&(4, key.clone())));
         self.docks
+            .borrow_mut()
+            .retain(|key, _| active.contains(&(5, key.clone())));
+        self.dock_subscriptions
             .borrow_mut()
             .retain(|key, _| active.contains(&(5, key.clone())));
         self.extensions.retain(&extension_active);

@@ -78,6 +78,202 @@ public readonly struct DockRegionOptions
     internal bool EffectiveCollapsible => !_initialized || Collapsible;
 }
 
+/// <summary>Kind of event emitted by a retained native Dock area.</summary>
+public enum DockEventKind : ushort
+{
+    /// <summary>
+    /// Coarse structural signal. Fires for native interaction (tab moves, splits, closes,
+    /// region toggles) and for declarative or controller-driven structural changes. Carries
+    /// no payload; use the revision to debounce and <see cref="DockController.ExportLayout"/>
+    /// to read the authoritative layout.
+    /// </summary>
+    LayoutChanged = 6,
+    /// <summary>Carries the exported layout JSON requested by <see cref="DockController.ExportLayout"/>.</summary>
+    LayoutExported = 7,
+    /// <summary>
+    /// A panel left the Dock natively (close control) or through
+    /// <see cref="DockController.ClosePanel"/>. Carries the panel id. Panels removed by
+    /// declaration or pruned by layout import do not fire this event.
+    /// </summary>
+    PanelClosed = 8,
+}
+
+/// <summary>One coarse event from a retained native Dock area.</summary>
+public readonly struct DockEvent
+{
+    internal DockEvent(DockEventKind kind, string panelId, string layoutJson, ulong revision)
+    {
+        Kind = kind;
+        PanelId = panelId;
+        LayoutJson = layoutJson;
+        Revision = revision;
+    }
+
+    public DockEventKind Kind { get; }
+
+    /// <summary>Closed panel id for <see cref="DockEventKind.PanelClosed"/>; empty otherwise.</summary>
+    public string PanelId { get; }
+
+    /// <summary>Exported layout JSON for <see cref="DockEventKind.LayoutExported"/>; empty otherwise.</summary>
+    public string LayoutJson { get; }
+
+    /// <summary>Per-area monotonic sequence shared by every Dock event kind.</summary>
+    public ulong Revision { get; }
+}
+
+/// <summary>
+/// Optional imperative handle for a Dock area declared by the same View with ui.DockArea().
+/// The controller shares the area key; commands queue until the next committed snapshot
+/// materializes the resource. Tab activation stays declarative via DockTabs activeIndex:
+/// the foundation offers no node-stable activation handle without a fork-side API.
+/// </summary>
+[System.Diagnostics.DebuggerDisplay("{DebuggerView,nq}")]
+public readonly struct DockController
+{
+    private readonly ViewBase? _owner;
+    private readonly byte[]? _utf8Key;
+
+    internal DockController(ViewBase owner, string key)
+    {
+        _owner = owner;
+        _utf8Key = System.Text.Encoding.UTF8.GetBytes(key);
+    }
+
+    /// <summary>Internal constructor that takes ownership of an already-encoded key array.</summary>
+    internal DockController(ViewBase owner, byte[] utf8Key)
+    {
+        _owner = owner;
+        _utf8Key = utf8Key;
+    }
+
+    /// <summary>True once this controller has been bound to a resource.</summary>
+    public bool IsBound => _utf8Key is not null;
+
+    internal ReadOnlySpan<byte> Utf8KeySpan => _utf8Key;
+
+    public bool IsDefault => _owner is null;
+
+    private string DebuggerView
+    {
+        get
+        {
+            if (_utf8Key is null)
+            {
+                return "unbound";
+            }
+            return ResourceKeys.TryDecodeAutoKey(_utf8Key, out var id) ? $"auto:{id}" : "explicit";
+        }
+    }
+
+    /// <summary>
+    /// Removes a panel natively, as if closed through the tab chrome. Fires
+    /// <see cref="DockEventKind.PanelClosed"/>; the panel stays closed until the declaration
+    /// drops its id.
+    /// </summary>
+    public void ClosePanel(string panelId)
+    {
+        ValidatePanelId(panelId);
+        Owner.DispatchResourceCommand(
+            new ResourceCommand(
+                ResourceKind.Dock,
+                ResourceCommandKind.DockClosePanel,
+                null,
+                0,
+                0,
+                Data: panelId,
+                Utf8Key: Utf8KeyArray
+            )
+        );
+        Owner.InvalidateFromController();
+    }
+
+    /// <summary>Opens or collapses a side region natively without changing the declaration.</summary>
+    public void SetRegionOpen(DockSide side, bool open)
+    {
+        if ((uint)side > (uint)DockSide.Right)
+        {
+            throw new ArgumentOutOfRangeException(nameof(side));
+        }
+        Owner.DispatchResourceCommand(
+            new ResourceCommand(
+                ResourceKind.Dock,
+                ResourceCommandKind.DockSetRegionOpen,
+                null,
+                (uint)side,
+                open ? 1u : 0u,
+                Utf8Key: Utf8KeyArray
+            )
+        );
+        Owner.InvalidateFromController();
+    }
+
+    /// <summary>
+    /// Replaces native layout structure from a previously exported layout document. Structure
+    /// (splits, sizes, active tabs, region placement and open state) comes from the document;
+    /// panel content, titles, and options come from the live declaration. Persisted panels
+    /// unknown to the declaration are pruned; declared panels missing from the document are
+    /// appended to the center. Lock state always comes from the declaration.
+    /// </summary>
+    public void ImportLayout(string layoutJson)
+    {
+        ArgumentNullException.ThrowIfNull(layoutJson);
+        if (layoutJson.Length == 0)
+        {
+            throw new ArgumentException("A Dock layout document cannot be empty.", nameof(layoutJson));
+        }
+        Owner.DispatchResourceCommand(
+            new ResourceCommand(
+                ResourceKind.Dock,
+                ResourceCommandKind.DockImportLayout,
+                null,
+                0,
+                0,
+                Data: layoutJson,
+                Utf8Key: Utf8KeyArray
+            )
+        );
+        Owner.InvalidateFromController();
+    }
+
+    /// <summary>
+    /// Requests the authoritative native layout as JSON through the area's
+    /// <c>OnDockLayoutChanged</c> binding as a <see cref="DockEventKind.LayoutExported"/>
+    /// event. Without that binding the export has nowhere to go and is dropped.
+    /// </summary>
+    public void ExportLayout()
+    {
+        Owner.DispatchResourceCommand(
+            new ResourceCommand(
+                ResourceKind.Dock,
+                ResourceCommandKind.DockExportLayout,
+                null,
+                0,
+                0,
+                Utf8Key: Utf8KeyArray
+            )
+        );
+        Owner.InvalidateFromController();
+    }
+
+    private static void ValidatePanelId(string panelId)
+    {
+        ArgumentNullException.ThrowIfNull(panelId);
+        if (panelId.Length == 0)
+        {
+            throw new ArgumentException("A Dock panel id cannot be empty.", nameof(panelId));
+        }
+        if (panelId.Contains('\0'))
+        {
+            throw new ArgumentException("A Dock panel id cannot contain NUL.", nameof(panelId));
+        }
+    }
+
+    private ViewBase Owner =>
+        _owner ?? throw new InvalidOperationException("Default DockController cannot be used.");
+    private byte[] Utf8KeyArray =>
+        _utf8Key ?? throw new InvalidOperationException("Default DockController cannot be used.");
+}
+
 public static partial class ElementExtensions
 {
     /// <summary>

@@ -225,8 +225,30 @@ last retained managed snapshot; it does not invoke managed rendering during a cl
 The declaration is authoritative when its structure changes. Axes, initial sizes, active indices,
 panel IDs, region placement, or container topology replace the corresponding native layout.
 Changes to panel titles, options, content, or region collapsibility update retained state without
-resetting native tab moves, split sizes, or open state. The current slice does not yet expose
-persistence, tiles, controller commands, or layout/close events.
+resetting native tab moves, split sizes, or open state.
+
+Two coarse events cross the boundary through render-bound bindings on the area:
+`OnDockLayoutChanged` fires for native interaction and for declarative or controller-driven
+structural changes (debounce with `DockEvent.Revision`; it carries no payload), and
+`OnDockPanelClosed` fires with the panel id when a panel leaves natively through the chrome or
+`DockController.ClosePanel`. Panels removed by declaration or pruned by layout import do not fire
+close events. A natively closed panel stays closed (tombstoned) until the declaration drops its
+id, so snapshots cannot resurrect it; dropping the id and re-adding it installs fresh.
+
+`DockController`, bound to the area key, offers `ClosePanel`, `SetRegionOpen`, `ImportLayout`,
+and `ExportLayout`. Commands queue until the next committed snapshot materializes the area and
+apply after the declaration. Tab activation stays declarative through `DockTabs` activeIndex:
+the foundation exposes no node-stable activation handle, so there is no controller activate
+operation in this slice.
+
+`ExportLayout` delivers the authoritative native layout as JSON through the layout binding; the
+export is dropped when nothing is bound. `ImportLayout` restores structure (splits, sizes, active
+tabs, region placement and open state) from such a document while panel content, titles, and
+options always come from the live declaration, joined by panel id. Persisted panels unknown to
+the declaration are pruned; declared panels missing from the document are appended to the center,
+so an import never silently drops live content; lock state always comes from the declaration.
+Tiles subtrees have no managed declaration and are skipped on import. Tab chrome carries no
+accessibility roles yet; that belongs to the planned accessibility pass.
 
 ## Deferred layers
 

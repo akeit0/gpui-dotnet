@@ -58,12 +58,14 @@ validates reusable extension behavior:
 
 ## Dock
 
-Build on the retained center and side-region layout slice with:
+Tile layouts stay undeclared: no application requirement justifies them, and the managed schema
+describes only splits and tab groups. Tiles subtrees in imported documents are skipped.
 
-- serialized layout import/export and an application reconciliation policy;
-- tile layouts where application requirements justify them;
-- coarse close and layout-change events plus programmatic controller operations;
-- cross-platform interaction, accessibility, and persistence tests.
+What remains is behavior evidence rather than surface:
+
+- cross-platform interaction, accessibility, and persistence tests;
+- controller tab activation once the foundation offers a node-stable handle (activation today is
+  declarative through `DockTabs` activeIndex).
 
 Keep drag/drop targeting, tab activation, focus, and splitter motion native. Do not stream layout
 deltas across the managed boundary while a pointer is moving.

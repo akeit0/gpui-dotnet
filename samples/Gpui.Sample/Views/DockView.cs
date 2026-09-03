@@ -4,6 +4,8 @@ using static Gpui.Units;
 [GpuiView]
 internal sealed partial class DockView : View
 {
+    private readonly HashSet<string> _closedPanels = new(StringComparer.Ordinal);
+
     protected override Element Render(ref RenderContext ui)
     {
         var theme = ui.Theme;
@@ -24,21 +26,53 @@ internal sealed partial class DockView : View
 
         var alpha = new CounterCardProps("Docked editor A", 1);
         var beta = new CounterCardProps("Docked editor B", 1);
-        var center = ui.DockTabs(
-            panels:
-            [
-                ui.DockPanel(
+        var showA = !_closedPanels.Contains("editor-a");
+        var showB = !_closedPanels.Contains("editor-b");
+        Element center;
+        if (showA && showB)
+        {
+            center = ui.DockTabs(
+                panels:
+                [
+                    ui.DockPanel(
+                        "editor-a",
+                        "Editor A",
+                        ui.Child<CounterCardView, CounterCardProps>("editor-a", in alpha)
+                    ),
+                    ui.DockPanel(
+                        "editor-b",
+                        "Editor B",
+                        ui.Child<CounterCardView, CounterCardProps>("editor-b", in beta)
+                    ),
+                ]
+            );
+        }
+        else if (showA)
+        {
+            center = ui.DockTabs(
+                panels: ui.DockPanel(
                     "editor-a",
                     "Editor A",
                     ui.Child<CounterCardView, CounterCardProps>("editor-a", in alpha)
-                ),
-                ui.DockPanel(
+                )
+            );
+        }
+        else if (showB)
+        {
+            center = ui.DockTabs(
+                panels: ui.DockPanel(
                     "editor-b",
                     "Editor B",
                     ui.Child<CounterCardView, CounterCardProps>("editor-b", in beta)
-                ),
-            ]
-        );
+                )
+            );
+        }
+        else
+        {
+            center = ui.DockTabs(
+                panels: ui.DockPanel("empty", "Empty", ui.Text("All panels closed."u8))
+            );
+        }
         var left = ui
             .DockRegion(
                 DockSide.Left,
@@ -91,10 +125,20 @@ internal sealed partial class DockView : View
 
         return ui
             .DockArea("sample-dock", center, [left, bottom, right])
+            .OnDockPanelClosed(this, (view, dockEvent) => view.OnPanelClosed(dockEvent))
             .Grow()
             .Width(Percent(100))
             .Height(Percent(100))
             .BorderWidth(Px(1))
             .BorderColor(theme.Colors.BorderVariant);
+    }
+
+    private void OnPanelClosed(DockEvent dockEvent)
+    {
+        if (dockEvent.Kind == DockEventKind.PanelClosed && dockEvent.PanelId.Length != 0)
+        {
+            _closedPanels.Add(dockEvent.PanelId);
+            Invalidate();
+        }
     }
 }

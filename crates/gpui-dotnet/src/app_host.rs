@@ -266,7 +266,7 @@ pub(crate) fn dispatch_application_command(
 }
 
 impl ManagedView {
-    fn new(view_id: u64, callbacks: ManagedCallbacks, theme: SharedTheme) -> Self {
+    pub(crate) fn new(view_id: u64, callbacks: ManagedCallbacks, theme: SharedTheme) -> Self {
         Self {
             view_id,
             callbacks,

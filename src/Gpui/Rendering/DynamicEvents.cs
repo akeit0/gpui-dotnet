@@ -242,6 +242,106 @@ public static partial class ElementExtensions
         return element;
     }
 
+    /// <summary>
+    /// Binds coarse Dock layout notifications (structural changes and requested exports) on a
+    /// Dock area. The event is coarse by design: debounce with <see cref="DockEvent.Revision"/>.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> OnDockLayoutChanged<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Action<TView, DockEvent> callback
+    )
+        where TTag : unmanaged, IDockAreaElementTag
+        where TView : ViewBase
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnLayout, view.BindDock(callback));
+        return element;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> OnDockLayoutChanged<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Func<TView, DockEvent, ValueTask> callback
+    )
+        where TTag : unmanaged, IDockAreaElementTag
+        where TView : ViewBase
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnLayout, view.BindDock(callback));
+        return element;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> OnDockLayoutChanged<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Func<TView, DockEvent, Task> callback
+    )
+        where TTag : unmanaged, IDockAreaElementTag
+        where TView : ViewBase
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnLayout, view.BindDock(callback));
+        return element;
+    }
+
+    /// <summary>
+    /// Binds native panel-close notifications on a Dock area. Panels removed by declaration or
+    /// pruned by layout import do not fire this event; only native closes (chrome or
+    /// <see cref="DockController.ClosePanel"/>) do. The closed panel stays closed until the
+    /// declaration drops its id.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> OnDockPanelClosed<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Action<TView, DockEvent> callback
+    )
+        where TTag : unmanaged, IDockAreaElementTag
+        where TView : ViewBase
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnClosed, view.BindDock(callback));
+        return element;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> OnDockPanelClosed<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Func<TView, DockEvent, ValueTask> callback
+    )
+        where TTag : unmanaged, IDockAreaElementTag
+        where TView : ViewBase
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnClosed, view.BindDock(callback));
+        return element;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static Element<TTag> OnDockPanelClosed<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Func<TView, DockEvent, Task> callback
+    )
+        where TTag : unmanaged, IDockAreaElementTag
+        where TView : ViewBase
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnClosed, view.BindDock(callback));
+        return element;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Element<OverlayTag> OnDismiss<TView>(
         this Element<OverlayTag> element,

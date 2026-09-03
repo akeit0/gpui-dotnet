@@ -279,6 +279,42 @@ internal static unsafe class NativeCallbacks
                         )
                     );
                 }
+                else if (nativeEvent->kind is 6 or 7 or 8)
+                {
+                    // Dock layout-changed carries no payload; layout-exported carries UTF-8
+                    // JSON; panel-closed carries the UTF-8 panel id. Flags are reserved.
+                    if (nativeEvent->flags != 0)
+                    {
+                        return -112;
+                    }
+
+                    var text =
+                        nativeEvent->data_length == 0
+                            ? string.Empty
+                            : System.Text.Encoding.UTF8.GetString(
+                                new ReadOnlySpan<byte>(
+                                    nativeEvent->data,
+                                    nativeEvent->data_length
+                                )
+                            );
+                    if (
+                        (nativeEvent->kind == 6 && text.Length != 0)
+                        || (nativeEvent->kind != 6 && text.Length == 0)
+                    )
+                    {
+                        return -112;
+                    }
+
+                    session.DispatchDock(
+                        eventToken,
+                        new DockEvent(
+                            (DockEventKind)nativeEvent->kind,
+                            nativeEvent->kind == 8 ? text : string.Empty,
+                            nativeEvent->kind == 7 ? text : string.Empty,
+                            nativeEvent->revision
+                        )
+                    );
+                }
                 else
                 {
                     return -112;
