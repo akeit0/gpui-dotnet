@@ -63,6 +63,56 @@ namespace Gpui.Interop
         ActiveTextRgba = 117,
         ActiveBorderRgba = 118,
         Disabled = 119,
+        MarginPx = 120,
+        MarginXPx = 121,
+        MarginYPx = 122,
+        MarginTopPx = 123,
+        MarginBottomPx = 124,
+        MarginLeftPx = 125,
+        MarginRightPx = 126,
+        PaddingXPx = 127,
+        PaddingYPx = 128,
+        PaddingTopPx = 129,
+        PaddingBottomPx = 130,
+        PaddingLeftPx = 131,
+        PaddingRightPx = 132,
+        GapXPx = 133,
+        GapYPx = 134,
+        MinWidthPx = 135,
+        MinHeightPx = 136,
+        MaxWidthPx = 137,
+        MaxHeightPx = 138,
+        FlexBasisPx = 139,
+        FlexBasisPercent = 140,
+        FlexShrink = 141,
+        FlexWrap = 142,
+        ItemsStart = 143,
+        ItemsEnd = 144,
+        JustifyStart = 145,
+        JustifyEnd = 146,
+        Relative = 147,
+        Absolute = 148,
+        TopPx = 149,
+        LeftPx = 150,
+        RightPx = 151,
+        BottomPx = 152,
+        InsetPx = 153,
+        OverflowHidden = 154,
+        OverflowXHidden = 155,
+        OverflowYHidden = 156,
+        Opacity = 157,
+        TextAlign = 158,
+        LineClamp = 159,
+        Cursor = 160,
+        ItemsBaseline = 161,
+        ItemsStretch = 162,
+        SelfStart = 163,
+        SelfEnd = 164,
+        SelfFlexStart = 165,
+        SelfFlexEnd = 166,
+        SelfCenter = 167,
+        SelfBaseline = 168,
+        SelfStretch = 169,
         OnClick = 200,
         WindowControlArea = 201,
         ElementOwner = 202,
@@ -225,7 +275,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0xFAECDC9DCB4F261EUL;
+        internal const ulong SchemaHash = 0x0DFB1CD6C24DB53DUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -287,7 +337,7 @@ namespace Gpui.Interop
             OpCode.ItemsCenter => ValueKind.None,
             OpCode.JustifyCenter => ValueKind.None,
             OpCode.JustifyBetween => ValueKind.None,
-            OpCode.FlexGrow => ValueKind.None,
+            OpCode.FlexGrow => ValueKind.F32,
             OpCode.GapPx => ValueKind.F32,
             OpCode.PaddingPx => ValueKind.F32,
             OpCode.WidthPx => ValueKind.F32,
@@ -308,6 +358,56 @@ namespace Gpui.Interop
             OpCode.ActiveTextRgba => ValueKind.U32,
             OpCode.ActiveBorderRgba => ValueKind.U32,
             OpCode.Disabled => ValueKind.U32,
+            OpCode.MarginPx => ValueKind.F32,
+            OpCode.MarginXPx => ValueKind.F32,
+            OpCode.MarginYPx => ValueKind.F32,
+            OpCode.MarginTopPx => ValueKind.F32,
+            OpCode.MarginBottomPx => ValueKind.F32,
+            OpCode.MarginLeftPx => ValueKind.F32,
+            OpCode.MarginRightPx => ValueKind.F32,
+            OpCode.PaddingXPx => ValueKind.F32,
+            OpCode.PaddingYPx => ValueKind.F32,
+            OpCode.PaddingTopPx => ValueKind.F32,
+            OpCode.PaddingBottomPx => ValueKind.F32,
+            OpCode.PaddingLeftPx => ValueKind.F32,
+            OpCode.PaddingRightPx => ValueKind.F32,
+            OpCode.GapXPx => ValueKind.F32,
+            OpCode.GapYPx => ValueKind.F32,
+            OpCode.MinWidthPx => ValueKind.F32,
+            OpCode.MinHeightPx => ValueKind.F32,
+            OpCode.MaxWidthPx => ValueKind.F32,
+            OpCode.MaxHeightPx => ValueKind.F32,
+            OpCode.FlexBasisPx => ValueKind.F32,
+            OpCode.FlexBasisPercent => ValueKind.F32,
+            OpCode.FlexShrink => ValueKind.F32,
+            OpCode.FlexWrap => ValueKind.U32,
+            OpCode.ItemsStart => ValueKind.None,
+            OpCode.ItemsEnd => ValueKind.None,
+            OpCode.JustifyStart => ValueKind.None,
+            OpCode.JustifyEnd => ValueKind.None,
+            OpCode.Relative => ValueKind.None,
+            OpCode.Absolute => ValueKind.None,
+            OpCode.TopPx => ValueKind.F32,
+            OpCode.LeftPx => ValueKind.F32,
+            OpCode.RightPx => ValueKind.F32,
+            OpCode.BottomPx => ValueKind.F32,
+            OpCode.InsetPx => ValueKind.F32,
+            OpCode.OverflowHidden => ValueKind.None,
+            OpCode.OverflowXHidden => ValueKind.None,
+            OpCode.OverflowYHidden => ValueKind.None,
+            OpCode.Opacity => ValueKind.F32,
+            OpCode.TextAlign => ValueKind.U32,
+            OpCode.LineClamp => ValueKind.U32,
+            OpCode.Cursor => ValueKind.U32,
+            OpCode.ItemsBaseline => ValueKind.None,
+            OpCode.ItemsStretch => ValueKind.None,
+            OpCode.SelfStart => ValueKind.None,
+            OpCode.SelfEnd => ValueKind.None,
+            OpCode.SelfFlexStart => ValueKind.None,
+            OpCode.SelfFlexEnd => ValueKind.None,
+            OpCode.SelfCenter => ValueKind.None,
+            OpCode.SelfBaseline => ValueKind.None,
+            OpCode.SelfStretch => ValueKind.None,
             OpCode.OnClick => ValueKind.Callback,
             OpCode.WindowControlArea => ValueKind.U32,
             OpCode.ElementOwner => ValueKind.U32,
@@ -473,6 +573,56 @@ namespace Gpui.Interop
             OpCode.ActiveTextRgba => 0x0000000000000008UL,
             OpCode.ActiveBorderRgba => 0x0000000000000008UL,
             OpCode.Disabled => 0x0000000000000020UL,
+            OpCode.MarginPx => 0x0000000000000001UL,
+            OpCode.MarginXPx => 0x0000000000000001UL,
+            OpCode.MarginYPx => 0x0000000000000001UL,
+            OpCode.MarginTopPx => 0x0000000000000001UL,
+            OpCode.MarginBottomPx => 0x0000000000000001UL,
+            OpCode.MarginLeftPx => 0x0000000000000001UL,
+            OpCode.MarginRightPx => 0x0000000000000001UL,
+            OpCode.PaddingXPx => 0x0000000000000001UL,
+            OpCode.PaddingYPx => 0x0000000000000001UL,
+            OpCode.PaddingTopPx => 0x0000000000000001UL,
+            OpCode.PaddingBottomPx => 0x0000000000000001UL,
+            OpCode.PaddingLeftPx => 0x0000000000000001UL,
+            OpCode.PaddingRightPx => 0x0000000000000001UL,
+            OpCode.GapXPx => 0x0000000000000001UL,
+            OpCode.GapYPx => 0x0000000000000001UL,
+            OpCode.MinWidthPx => 0x0000000000000001UL,
+            OpCode.MinHeightPx => 0x0000000000000001UL,
+            OpCode.MaxWidthPx => 0x0000000000000001UL,
+            OpCode.MaxHeightPx => 0x0000000000000001UL,
+            OpCode.FlexBasisPx => 0x0000000000000001UL,
+            OpCode.FlexBasisPercent => 0x0000000000000001UL,
+            OpCode.FlexShrink => 0x0000000000000001UL,
+            OpCode.FlexWrap => 0x0000000000000001UL,
+            OpCode.ItemsStart => 0x0000000000000001UL,
+            OpCode.ItemsEnd => 0x0000000000000001UL,
+            OpCode.JustifyStart => 0x0000000000000001UL,
+            OpCode.JustifyEnd => 0x0000000000000001UL,
+            OpCode.Relative => 0x0000000000000001UL,
+            OpCode.Absolute => 0x0000000000000001UL,
+            OpCode.TopPx => 0x0000000000000001UL,
+            OpCode.LeftPx => 0x0000000000000001UL,
+            OpCode.RightPx => 0x0000000000000001UL,
+            OpCode.BottomPx => 0x0000000000000001UL,
+            OpCode.InsetPx => 0x0000000000000001UL,
+            OpCode.OverflowHidden => 0x0000000000000001UL,
+            OpCode.OverflowXHidden => 0x0000000000000001UL,
+            OpCode.OverflowYHidden => 0x0000000000000001UL,
+            OpCode.Opacity => 0x0000000000000001UL,
+            OpCode.TextAlign => 0x0000000000000001UL,
+            OpCode.LineClamp => 0x0000000000000001UL,
+            OpCode.Cursor => 0x0000000000000001UL,
+            OpCode.ItemsBaseline => 0x0000000000000001UL,
+            OpCode.ItemsStretch => 0x0000000000000001UL,
+            OpCode.SelfStart => 0x0000000000000001UL,
+            OpCode.SelfEnd => 0x0000000000000001UL,
+            OpCode.SelfFlexStart => 0x0000000000000001UL,
+            OpCode.SelfFlexEnd => 0x0000000000000001UL,
+            OpCode.SelfCenter => 0x0000000000000001UL,
+            OpCode.SelfBaseline => 0x0000000000000001UL,
+            OpCode.SelfStretch => 0x0000000000000001UL,
             OpCode.OnClick => 0x0000000000000008UL,
             OpCode.WindowControlArea => 0x0000000000002000UL,
             OpCode.ElementOwner => 0x0000000000000008UL,
@@ -593,8 +743,15 @@ namespace Gpui.Interop
 
         internal static int PayloadError(OpCode operation, ulong a) => operation switch
         {
+            OpCode.FlexGrow when !(BitConverter.UInt32BitsToSingle((uint)a) >= 0f) => -46,
             OpCode.Checked when !(a <= 1UL) => -21,
             OpCode.Disabled when !(a <= 1UL) => -21,
+            OpCode.FlexShrink when !(BitConverter.UInt32BitsToSingle((uint)a) >= 0f) => -44,
+            OpCode.FlexWrap when !(a <= 2UL) => -45,
+            OpCode.Opacity when !(BitConverter.UInt32BitsToSingle((uint)a) >= 0f && BitConverter.UInt32BitsToSingle((uint)a) <= 1f) => -47,
+            OpCode.TextAlign when !(a <= 2UL) => -48,
+            OpCode.LineClamp when !(a >= 1UL) => -49,
+            OpCode.Cursor when !(a <= 20UL) => -50,
             OpCode.WindowControlArea when !(a <= 3UL) => -39,
             OpCode.ElementOwner when !(a >= 1UL) => -25,
             OpCode.ResourceOwner when !(a >= 1UL) => -25,
@@ -1019,14 +1176,6 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Grow<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.FlexGrow);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Element<TTag> Gap<TTag>(this Element<TTag> element, Pixels value)
             where TTag : unmanaged, IStyledElementTag
         {
@@ -1151,6 +1300,342 @@ namespace Gpui
             where TTag : unmanaged, IDisableableElementTag
         {
             ArenaWriter.AddU32(element.Inner, OpCode.Disabled, value ? 1u : 0u);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Margin<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.MarginPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> MarginX<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.MarginXPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> MarginY<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.MarginYPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> MarginTop<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.MarginTopPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> MarginBottom<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.MarginBottomPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> MarginLeft<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.MarginLeftPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> MarginRight<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.MarginRightPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> PaddingX<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.PaddingXPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> PaddingY<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.PaddingYPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> PaddingTop<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.PaddingTopPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> PaddingBottom<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.PaddingBottomPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> PaddingLeft<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.PaddingLeftPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> PaddingRight<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.PaddingRightPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> GapX<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.GapXPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> GapY<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.GapYPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> MinWidth<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.MinWidthPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> MinHeight<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.MinHeightPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> MaxWidth<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.MaxWidthPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> MaxHeight<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.MaxHeightPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ItemsStart<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.ItemsStart);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ItemsEnd<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.ItemsEnd);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> JustifyStart<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.JustifyStart);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> JustifyEnd<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.JustifyEnd);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Relative<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.Relative);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Absolute<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.Absolute);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Top<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.TopPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Left<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.LeftPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Right<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.RightPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Bottom<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.BottomPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Inset<TTag>(this Element<TTag> element, Pixels value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.InsetPx, value.Value);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> OverflowHidden<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.OverflowHidden);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> OverflowXHidden<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.OverflowXHidden);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> OverflowYHidden<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.OverflowYHidden);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ItemsBaseline<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.ItemsBaseline);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ItemsStretch<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.ItemsStretch);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelfStart<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfStart);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelfEnd<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfEnd);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelfFlexStart<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfFlexStart);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelfFlexEnd<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfFlexEnd);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelfCenter<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfCenter);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelfBaseline<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfBaseline);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelfStretch<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfStretch);
             return element;
         }
 

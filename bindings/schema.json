@@ -490,9 +490,10 @@
       "id": 6,
       "name": "flex_grow",
       "csharp": "Grow",
-      "value": "none",
+      "value": "f32",
       "requires": "styled",
-      "managedApi": "extension"
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "status": -46 }
     },
     {
       "id": 100,
@@ -651,6 +652,412 @@
       "requires": "disableable",
       "managedApi": "bool",
       "validation": { "kind": "bool", "status": -21 }
+    },
+    {
+      "id": 120,
+      "name": "margin_px",
+      "csharp": "Margin",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 121,
+      "name": "margin_x_px",
+      "csharp": "MarginX",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 122,
+      "name": "margin_y_px",
+      "csharp": "MarginY",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 123,
+      "name": "margin_top_px",
+      "csharp": "MarginTop",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 124,
+      "name": "margin_bottom_px",
+      "csharp": "MarginBottom",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 125,
+      "name": "margin_left_px",
+      "csharp": "MarginLeft",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 126,
+      "name": "margin_right_px",
+      "csharp": "MarginRight",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 127,
+      "name": "padding_x_px",
+      "csharp": "PaddingX",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 128,
+      "name": "padding_y_px",
+      "csharp": "PaddingY",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 129,
+      "name": "padding_top_px",
+      "csharp": "PaddingTop",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 130,
+      "name": "padding_bottom_px",
+      "csharp": "PaddingBottom",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 131,
+      "name": "padding_left_px",
+      "csharp": "PaddingLeft",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 132,
+      "name": "padding_right_px",
+      "csharp": "PaddingRight",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 133,
+      "name": "gap_x_px",
+      "csharp": "GapX",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 134,
+      "name": "gap_y_px",
+      "csharp": "GapY",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 135,
+      "name": "min_width_px",
+      "csharp": "MinWidth",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 136,
+      "name": "min_height_px",
+      "csharp": "MinHeight",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 137,
+      "name": "max_width_px",
+      "csharp": "MaxWidth",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 138,
+      "name": "max_height_px",
+      "csharp": "MaxHeight",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 139,
+      "name": "flex_basis_px",
+      "csharp": "BasisPx",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 140,
+      "name": "flex_basis_percent",
+      "csharp": "BasisPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 141,
+      "name": "flex_shrink",
+      "csharp": "Shrink",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "status": -44 }
+    },
+    {
+      "id": 142,
+      "name": "flex_wrap",
+      "csharp": "Wrap",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 2, "status": -45 }
+    },
+    {
+      "id": 143,
+      "name": "items_start",
+      "csharp": "ItemsStart",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 144,
+      "name": "items_end",
+      "csharp": "ItemsEnd",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 145,
+      "name": "justify_start",
+      "csharp": "JustifyStart",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 146,
+      "name": "justify_end",
+      "csharp": "JustifyEnd",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 147,
+      "name": "relative",
+      "csharp": "Relative",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 148,
+      "name": "absolute",
+      "csharp": "Absolute",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 149,
+      "name": "top_px",
+      "csharp": "Top",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 150,
+      "name": "left_px",
+      "csharp": "Left",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 151,
+      "name": "right_px",
+      "csharp": "Right",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 152,
+      "name": "bottom_px",
+      "csharp": "Bottom",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 153,
+      "name": "inset_px",
+      "csharp": "Inset",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": "pixels"
+    },
+    {
+      "id": 154,
+      "name": "overflow_hidden",
+      "csharp": "OverflowHidden",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 155,
+      "name": "overflow_x_hidden",
+      "csharp": "OverflowXHidden",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 156,
+      "name": "overflow_y_hidden",
+      "csharp": "OverflowYHidden",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 157,
+      "name": "opacity",
+      "csharp": "Opacity",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "f32Range", "min": 0, "max": 1, "status": -47 }
+    },
+    {
+      "id": 158,
+      "name": "text_align",
+      "csharp": "TextAlign",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 2, "status": -48 }
+    },
+    {
+      "id": 159,
+      "name": "line_clamp",
+      "csharp": "LineClamp",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Min", "min": 1, "status": -49 }
+    },
+    {
+      "id": 160,
+      "name": "cursor",
+      "csharp": "Cursor",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 20, "status": -50 }
+    },
+    {
+      "id": 161,
+      "name": "items_baseline",
+      "csharp": "ItemsBaseline",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 162,
+      "name": "items_stretch",
+      "csharp": "ItemsStretch",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 163,
+      "name": "self_start",
+      "csharp": "SelfStart",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 164,
+      "name": "self_end",
+      "csharp": "SelfEnd",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 165,
+      "name": "self_flex_start",
+      "csharp": "SelfFlexStart",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 166,
+      "name": "self_flex_end",
+      "csharp": "SelfFlexEnd",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 167,
+      "name": "self_center",
+      "csharp": "SelfCenter",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 168,
+      "name": "self_baseline",
+      "csharp": "SelfBaseline",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 169,
+      "name": "self_stretch",
+      "csharp": "SelfStretch",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
     },
     {
       "id": 200,

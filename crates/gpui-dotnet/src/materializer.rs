@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
 use gpui::{
-    AnyElement, App, ClickEvent, Context, ElementId, Entity, ExternalPaths, FillOptions, FillRule,
-    FocusHandle, InteractiveElement, IntoElement, KeyDownEvent, KeyUpEvent, ListState,
-    ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit,
-    ParentElement, PathBuilder, PathStyle, Pixels, ScrollWheelEvent, SharedString,
-    StatefulInteractiveElement, Styled, StyledImage, WeakFocusHandle, Window, WindowControlArea,
-    anchored, canvas, deferred, div, img, list, point, px, relative, rgba,
+    AnyElement, App, ClickEvent, Context, CursorStyle, ElementId, Entity, ExternalPaths,
+    FillOptions, FillRule, FocusHandle, InteractiveElement, IntoElement, KeyDownEvent, KeyUpEvent,
+    ListState, ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    ObjectFit, ParentElement, PathBuilder, PathStyle, Pixels, ScrollWheelEvent, SharedString,
+    StatefulInteractiveElement, Styled, StyledImage, TextAlign, WeakFocusHandle, Window,
+    WindowControlArea, anchored, canvas, deferred, div, img, list, point, px, relative, rgba,
 };
 use gpui_base::FocusTrapElement as _;
 
@@ -30,31 +30,41 @@ use crate::{
     semantic::{
         CAPABILITY_INTERACTIVE, EVENT_FILE_DROPPED, EVENT_HOVER, EVENT_KEY_DOWN, EVENT_KEY_UP,
         EVENT_MODIFIERS_CHANGED, EVENT_MOUSE_DOWN, EVENT_MOUSE_DOWN_OUT, EVENT_MOUSE_MOVE,
-        EVENT_MOUSE_UP, EVENT_MOUSE_UP_OUT, EVENT_SCROLL_WHEEL, NativeAdapter,
+        EVENT_MOUSE_UP, EVENT_MOUSE_UP_OUT, EVENT_SCROLL_WHEEL, NativeAdapter, OP_ABSOLUTE,
         OP_ACTIVE_BACKGROUND_RGBA, OP_ACTIVE_BORDER_RGBA, OP_ACTIVE_TEXT_RGBA, OP_BACKGROUND_RGBA,
-        OP_BORDER_RGBA, OP_BORDER_WIDTH_PX, OP_CHECKED, OP_CONTEXT_MENU_MARGIN_PX,
-        OP_CONTEXT_MENU_PRIORITY, OP_DISABLED, OP_DRAWING_VIEW_BOX_ORIGIN,
-        OP_DRAWING_VIEW_BOX_SIZE, OP_ELEMENT_OWNER, OP_FLEX, OP_FLEX_GROW, OP_FONT_SIZE_PX,
-        OP_GAP_PX, OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_HOVER_BACKGROUND_RGBA, OP_HOVER_BORDER_RGBA,
-        OP_HOVER_TEXT_RGBA, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_ITEMS_CENTER,
-        OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
+        OP_BORDER_RGBA, OP_BORDER_WIDTH_PX, OP_BOTTOM_PX, OP_CHECKED, OP_CONTEXT_MENU_MARGIN_PX,
+        OP_CONTEXT_MENU_PRIORITY, OP_CURSOR, OP_DISABLED, OP_DRAWING_VIEW_BOX_ORIGIN,
+        OP_DRAWING_VIEW_BOX_SIZE, OP_ELEMENT_OWNER, OP_FLEX, OP_FLEX_BASIS_PERCENT,
+        OP_FLEX_BASIS_PX, OP_FLEX_GROW, OP_FLEX_SHRINK, OP_FLEX_WRAP, OP_FONT_SIZE_PX, OP_GAP_PX,
+        OP_GAP_X_PX, OP_GAP_Y_PX, OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_HOVER_BACKGROUND_RGBA,
+        OP_HOVER_BORDER_RGBA, OP_HOVER_TEXT_RGBA, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT,
+        OP_INSET_PX, OP_ITEMS_BASELINE, OP_ITEMS_CENTER, OP_ITEMS_END, OP_ITEMS_START,
+        OP_ITEMS_STRETCH, OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER, OP_JUSTIFY_END, OP_JUSTIFY_START,
+        OP_LEFT_PX, OP_LINE_CLAMP, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
         OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX,
-        OP_LIST_RENDERER, OP_ON_CLICK, OP_ON_FILE_DROP, OP_ON_HOVER, OP_ON_KEY_DOWN, OP_ON_KEY_UP,
-        OP_ON_MODIFIERS_CHANGED, OP_ON_MOUSE_DOWN, OP_ON_MOUSE_DOWN_OUT, OP_ON_MOUSE_MOVE,
-        OP_ON_MOUSE_UP, OP_ON_MOUSE_UP_OUT, OP_ON_SCROLL_WHEEL, OP_OVERLAY_BACKDROP_RGBA,
-        OP_OVERLAY_DISMISS_ON_BACKDROP, OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX,
-        OP_OVERLAY_MODAL, OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY,
-        OP_PADDING_PX, OP_PATH_ARC_FLAGS, OP_PATH_ARC_RADII, OP_PATH_ARC_ROTATION, OP_PATH_ARC_TO,
-        OP_PATH_CIRCLE_CENTER, OP_PATH_CIRCLE_RADIUS, OP_PATH_CLOSE, OP_PATH_CUBIC_CONTROL_A,
-        OP_PATH_CUBIC_CONTROL_B, OP_PATH_CUBIC_TO, OP_PATH_DASH_PX, OP_PATH_FILL_RGBA,
-        OP_PATH_FILL_RULE, OP_PATH_LINE_TO, OP_PATH_MOVE_TO, OP_PATH_QUADRATIC_CONTROL,
-        OP_PATH_QUADRATIC_TO, OP_PATH_STROKE_RGBA, OP_PATH_STROKE_WIDTH_PX,
-        OP_POPOVER_MENU_MARGIN_PX, OP_POPOVER_MENU_PRIORITY, OP_RADIUS_PX, OP_RESOURCE_OWNER,
-        OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SHOW_SCROLLBAR,
-        OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER, OP_TEXT_RGBA,
+        OP_LIST_RENDERER, OP_MARGIN_BOTTOM_PX, OP_MARGIN_LEFT_PX, OP_MARGIN_PX, OP_MARGIN_RIGHT_PX,
+        OP_MARGIN_TOP_PX, OP_MARGIN_X_PX, OP_MARGIN_Y_PX, OP_MAX_HEIGHT_PX, OP_MAX_WIDTH_PX,
+        OP_MIN_HEIGHT_PX, OP_MIN_WIDTH_PX, OP_ON_CLICK, OP_ON_FILE_DROP, OP_ON_HOVER,
+        OP_ON_KEY_DOWN, OP_ON_KEY_UP, OP_ON_MODIFIERS_CHANGED, OP_ON_MOUSE_DOWN,
+        OP_ON_MOUSE_DOWN_OUT, OP_ON_MOUSE_MOVE, OP_ON_MOUSE_UP, OP_ON_MOUSE_UP_OUT,
+        OP_ON_SCROLL_WHEEL, OP_OPACITY, OP_OVERFLOW_HIDDEN, OP_OVERFLOW_X_HIDDEN,
+        OP_OVERFLOW_Y_HIDDEN, OP_OVERLAY_BACKDROP_RGBA, OP_OVERLAY_DISMISS_ON_BACKDROP,
+        OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
+        OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY, OP_PADDING_BOTTOM_PX,
+        OP_PADDING_LEFT_PX, OP_PADDING_PX, OP_PADDING_RIGHT_PX, OP_PADDING_TOP_PX, OP_PADDING_X_PX,
+        OP_PADDING_Y_PX, OP_PATH_ARC_FLAGS, OP_PATH_ARC_RADII, OP_PATH_ARC_ROTATION,
+        OP_PATH_ARC_TO, OP_PATH_CIRCLE_CENTER, OP_PATH_CIRCLE_RADIUS, OP_PATH_CLOSE,
+        OP_PATH_CUBIC_CONTROL_A, OP_PATH_CUBIC_CONTROL_B, OP_PATH_CUBIC_TO, OP_PATH_DASH_PX,
+        OP_PATH_FILL_RGBA, OP_PATH_FILL_RULE, OP_PATH_LINE_TO, OP_PATH_MOVE_TO,
+        OP_PATH_QUADRATIC_CONTROL, OP_PATH_QUADRATIC_TO, OP_PATH_STROKE_RGBA,
+        OP_PATH_STROKE_WIDTH_PX, OP_POPOVER_MENU_MARGIN_PX, OP_POPOVER_MENU_PRIORITY, OP_RADIUS_PX,
+        OP_RELATIVE, OP_RESOURCE_OWNER, OP_RIGHT_PX, OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER,
+        OP_SCROLLBAR_WIDTH, OP_SELF_BASELINE, OP_SELF_CENTER, OP_SELF_END, OP_SELF_FLEX_END,
+        OP_SELF_FLEX_START, OP_SELF_START, OP_SELF_STRETCH, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL,
+        OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER, OP_TEXT_ALIGN, OP_TEXT_RGBA,
         OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS, OP_TOOLTIP_MARGIN_PX,
-        OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_V_STACK, OP_WIDTH_PERCENT, OP_WIDTH_PX,
-        OP_WINDOW_CONTROL_AREA, component_metadata,
+        OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_TOP_PX, OP_V_STACK, OP_WIDTH_PERCENT,
+        OP_WIDTH_PX, OP_WINDOW_CONTROL_AREA, component_metadata,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
     theme::NativeTheme,
@@ -229,7 +239,12 @@ impl ManagedView {
             let event_token = event_binding.map_or(0, |op| op.a);
             let event_payload = event_binding.map_or(0, |op| op.b);
             let element_id = interactive_element_id(node_id, node, snapshot);
-            let element = element.id(element_id).cursor_pointer();
+            let element = element.id(element_id);
+            let element = if use_default_cursor(node, snapshot) {
+                element.cursor_pointer()
+            } else {
+                element
+            };
             let element = apply_interaction_styles(element, node, snapshot, theme);
             let bindings = key_mouse_bindings(node, snapshot);
             let element = attach_key_mouse(element, &bindings, cx);
@@ -290,7 +305,13 @@ impl ManagedView {
         element = apply_styles(element, node, snapshot);
         element = apply_window_control_area(element, node, snapshot);
         if !disabled {
-            element = apply_interaction_styles(element.cursor_pointer(), node, snapshot, theme);
+            // An explicit Cursor operation takes precedence over the pointing-hand default.
+            element = if use_default_cursor(node, snapshot) {
+                element.cursor_pointer()
+            } else {
+                element
+            };
+            element = apply_interaction_styles(element, node, snapshot, theme);
         }
 
         let bindings = key_mouse_bindings(node, snapshot);
@@ -338,7 +359,13 @@ impl ManagedView {
         }
         element = apply_styles(element, node, snapshot);
         if !disabled {
-            element = apply_interaction_styles(element.cursor_pointer(), node, snapshot, theme);
+            // An explicit Cursor operation takes precedence over the pointing-hand default.
+            element = if use_default_cursor(node, snapshot) {
+                element.cursor_pointer()
+            } else {
+                element
+            };
+            element = apply_interaction_styles(element, node, snapshot, theme);
         }
 
         let bindings = key_mouse_bindings(node, snapshot);
@@ -387,7 +414,13 @@ impl ManagedView {
         }
         element = apply_styles(element, node, snapshot);
         if !disabled {
-            element = apply_interaction_styles(element.cursor_pointer(), node, snapshot, theme);
+            // An explicit Cursor operation takes precedence over the pointing-hand default.
+            element = if use_default_cursor(node, snapshot) {
+                element.cursor_pointer()
+            } else {
+                element
+            };
+            element = apply_interaction_styles(element, node, snapshot, theme);
         }
 
         let bindings = key_mouse_bindings(node, snapshot);
@@ -1166,7 +1199,12 @@ pub(crate) fn materialize_snapshot_node_detached(
             // performs no string formatting or allocation. The stable model ID is preferred so
             // state survives splices; without one, the positional index keeps prior behavior.
             let state_id = row_state_id(list_key, item_index, item_id, node_id, &node.data);
-            let element = element.id(("managed-list-row", state_id)).cursor_pointer();
+            let element = element.id(("managed-list-row", state_id));
+            let element = if use_default_cursor(node, snapshot) {
+                element.cursor_pointer()
+            } else {
+                element
+            };
             let element = apply_interaction_styles(element, node, snapshot, theme);
             return element
                 .on_click(move |event: &ClickEvent, _, _| {
@@ -1231,7 +1269,12 @@ fn materialize_detached_foundation_control(
             element = apply_styles(element, node, snapshot);
             element = apply_window_control_area(element, node, snapshot);
             if !disabled {
-                element = apply_interaction_styles(element.cursor_pointer(), node, snapshot, theme);
+                element = if use_default_cursor(node, snapshot) {
+                    element.cursor_pointer()
+                } else {
+                    element
+                };
+                element = apply_interaction_styles(element, node, snapshot, theme);
             }
             if let Some((event_token, event_payload)) = binding {
                 element = element.on_click(move |event: &ClickEvent, _, _| {
@@ -1249,7 +1292,12 @@ fn materialize_detached_foundation_control(
             element = element.children(children);
             element = apply_styles(element, node, snapshot);
             if !disabled {
-                element = apply_interaction_styles(element.cursor_pointer(), node, snapshot, theme);
+                element = if use_default_cursor(node, snapshot) {
+                    element.cursor_pointer()
+                } else {
+                    element
+                };
+                element = apply_interaction_styles(element, node, snapshot, theme);
             }
             if let Some((event_token, event_payload)) = binding {
                 element = element.on_change(move |_, event, _, _| {
@@ -1267,7 +1315,12 @@ fn materialize_detached_foundation_control(
             element = element.children(children);
             element = apply_styles(element, node, snapshot);
             if !disabled {
-                element = apply_interaction_styles(element.cursor_pointer(), node, snapshot, theme);
+                element = if use_default_cursor(node, snapshot) {
+                    element.cursor_pointer()
+                } else {
+                    element
+                };
+                element = apply_interaction_styles(element, node, snapshot, theme);
             }
             if let Some((event_token, event_payload)) = binding {
                 element = element.on_change(move |_, event, _, _| {
@@ -1311,6 +1364,12 @@ fn invoke_click(
 fn click_binding(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> Option<(u64, u64)> {
     let binding = last_op(snapshot, node, OP_ON_CLICK)?;
     (binding.a != 0).then_some((binding.a, binding.b))
+}
+
+/// Interactive elements default to the pointing-hand cursor; an explicit Cursor
+/// operation takes precedence over that default.
+fn use_default_cursor(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> bool {
+    last_op(snapshot, node, OP_CURSOR).is_none()
 }
 
 fn accessibility_label(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> Option<SharedString> {
@@ -1836,9 +1895,68 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
             OP_ITEMS_CENTER => element.items_center(),
             OP_JUSTIFY_CENTER => element.justify_center(),
             OP_JUSTIFY_BETWEEN => element.justify_between(),
-            OP_FLEX_GROW => element.flex_grow(1.0),
+            OP_FLEX_GROW => element.flex_grow(value),
             OP_GAP_PX => element.gap(px(value)),
             OP_PADDING_PX => element.p(px(value)),
+            OP_MARGIN_PX => element.m(px(value)),
+            OP_MARGIN_X_PX => element.mx(px(value)),
+            OP_MARGIN_Y_PX => element.my(px(value)),
+            OP_MARGIN_TOP_PX => element.mt(px(value)),
+            OP_MARGIN_BOTTOM_PX => element.mb(px(value)),
+            OP_MARGIN_LEFT_PX => element.ml(px(value)),
+            OP_MARGIN_RIGHT_PX => element.mr(px(value)),
+            OP_PADDING_X_PX => element.px(px(value)),
+            OP_PADDING_Y_PX => element.py(px(value)),
+            OP_PADDING_TOP_PX => element.pt(px(value)),
+            OP_PADDING_BOTTOM_PX => element.pb(px(value)),
+            OP_PADDING_LEFT_PX => element.pl(px(value)),
+            OP_PADDING_RIGHT_PX => element.pr(px(value)),
+            OP_GAP_X_PX => element.gap_x(px(value)),
+            OP_GAP_Y_PX => element.gap_y(px(value)),
+            OP_MIN_WIDTH_PX => element.min_w(px(value)),
+            OP_MIN_HEIGHT_PX => element.min_h(px(value)),
+            OP_MAX_WIDTH_PX => element.max_w(px(value)),
+            OP_MAX_HEIGHT_PX => element.max_h(px(value)),
+            OP_FLEX_BASIS_PX => element.flex_basis(px(value)),
+            OP_FLEX_BASIS_PERCENT => element.flex_basis(relative(value / 100.0)),
+            OP_FLEX_SHRINK => element.flex_shrink(value),
+            OP_FLEX_WRAP => match op.a as u32 {
+                0 => element.flex_nowrap(),
+                1 => element.flex_wrap(),
+                2 => element.flex_wrap_reverse(),
+                _ => element,
+            },
+            OP_ITEMS_START => element.items_start(),
+            OP_ITEMS_END => element.items_end(),
+            OP_ITEMS_BASELINE => element.items_baseline(),
+            OP_ITEMS_STRETCH => element.items_stretch(),
+            OP_JUSTIFY_START => element.justify_start(),
+            OP_JUSTIFY_END => element.justify_end(),
+            OP_SELF_START => element.self_start(),
+            OP_SELF_END => element.self_end(),
+            OP_SELF_FLEX_START => element.self_flex_start(),
+            OP_SELF_FLEX_END => element.self_flex_end(),
+            OP_SELF_CENTER => element.self_center(),
+            OP_SELF_BASELINE => element.self_baseline(),
+            OP_SELF_STRETCH => element.self_stretch(),
+            OP_RELATIVE => element.relative(),
+            OP_ABSOLUTE => element.absolute(),
+            OP_TOP_PX => element.top(px(value)),
+            OP_LEFT_PX => element.left(px(value)),
+            OP_RIGHT_PX => element.right(px(value)),
+            OP_BOTTOM_PX => element.bottom(px(value)),
+            OP_INSET_PX => element.inset(px(value)),
+            OP_OVERFLOW_HIDDEN => element.overflow_hidden(),
+            OP_OVERFLOW_X_HIDDEN => element.overflow_x_hidden(),
+            OP_OVERFLOW_Y_HIDDEN => element.overflow_y_hidden(),
+            OP_OPACITY => element.opacity(value),
+            OP_TEXT_ALIGN => match op.a as u32 {
+                0 => element.text_align(TextAlign::Left),
+                1 => element.text_align(TextAlign::Center),
+                2 => element.text_align(TextAlign::Right),
+                _ => element,
+            },
+            OP_LINE_CLAMP => element.line_clamp(op.a as usize),
             OP_WIDTH_PX => element.w(px(value)),
             OP_WIDTH_PERCENT => element.w(relative(value / 100.0)),
             OP_BACKGROUND_RGBA => element.bg(rgba(op.a as u32)),
@@ -1849,6 +1967,30 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
             OP_RADIUS_PX => element.rounded(px(value)),
             OP_TEXT_RGBA => element.text_color(rgba(op.a as u32)),
             OP_FONT_SIZE_PX => element.text_size(px(value)),
+            OP_CURSOR => match op.a as u32 {
+                0 => element.cursor(CursorStyle::Arrow),
+                1 => element.cursor(CursorStyle::IBeam),
+                2 => element.cursor(CursorStyle::Crosshair),
+                3 => element.cursor(CursorStyle::ClosedHand),
+                4 => element.cursor(CursorStyle::OpenHand),
+                5 => element.cursor(CursorStyle::PointingHand),
+                6 => element.cursor(CursorStyle::ResizeLeft),
+                7 => element.cursor(CursorStyle::ResizeRight),
+                8 => element.cursor(CursorStyle::ResizeLeftRight),
+                9 => element.cursor(CursorStyle::ResizeUp),
+                10 => element.cursor(CursorStyle::ResizeDown),
+                11 => element.cursor(CursorStyle::ResizeUpDown),
+                12 => element.cursor(CursorStyle::ResizeUpLeftDownRight),
+                13 => element.cursor(CursorStyle::ResizeUpRightDownLeft),
+                14 => element.cursor(CursorStyle::ResizeColumn),
+                15 => element.cursor(CursorStyle::ResizeRow),
+                16 => element.cursor(CursorStyle::IBeamCursorForVerticalLayout),
+                17 => element.cursor(CursorStyle::OperationNotAllowed),
+                18 => element.cursor(CursorStyle::DragLink),
+                19 => element.cursor(CursorStyle::DragCopy),
+                20 => element.cursor(CursorStyle::ContextualMenu),
+                _ => element,
+            },
             OP_HOVER_BACKGROUND_RGBA
             | OP_HOVER_TEXT_RGBA
             | OP_HOVER_BORDER_RGBA
