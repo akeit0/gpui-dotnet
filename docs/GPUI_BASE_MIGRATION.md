@@ -49,8 +49,8 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 | 6. Input | Complete | GPUI.NET retains its single-line editing engine because it preserves the revisioned contiguous UTF-8 event path without per-event native value materialization. The retained root now exposes the foundation-equivalent text-input role. | IME, Unicode, selection, clipboard, focus, commands, revisions, and events reach parity before old behavior is removed. |
 | 7. Scrolling and scrollbar | Complete | Scroll, List, and Table use foundation Scrollbar interaction and paint. GPUI.NET retains wheel smoothing, controller commands, and gutter geometry while seeding GPUI's native ListState with estimated heights for unmeasured rows. | Foundation scrollbar behavior is adopted selectively without additional managed/native traffic. |
 | 8. List and Table evaluation | Complete | GPUI.NET retains GPUI `ListState`, managed aligned range batches, stable row identity, structural commands, and table column reconciliation. Foundation scrollbar behavior remains shared. | Migration to foundation `VirtualList` is rejected because its integration cost and ownership tradeoffs do not provide a corresponding API or performance benefit. |
-| 9. Advanced retained components | In progress | Done: DockArea retains a foundation Dock wearing a small in-repo skin (`crates/gpui-dotnet/src/dock_skin.rs`) with stable string panel IDs, declarative center tabs/splits and left/bottom/right regions, ordinary element or child-View content, tab activation, close/zoom controls, collapse affordances, resize handles, and native drag/drop interaction; the default host links `gpui-base` only (14,988,800-byte Windows x64 Release host, no `gpui-component` skin crate or asset provider); the optional Editor probe proves one-shot bootstrap, revisioned UTF-8 deltas, typed commands, and stale-command rejection from its custom host through the extension lifecycle seam; Dock exposes coarse close/layout events, controller close/region/import/export operations, and serialized layout export/import with a documented reconciliation policy. Open: cross-platform interaction/accessibility/persistence tests and CI size/link-map recording. | Advanced components prove stable managed identity, coarse events, native high-frequency interaction, lifecycle, theme integration, optional packaging where appropriate, and no unrelated component families in the default native host. |
-| 10. Cleanup and protocol freeze candidate | Planned | Compatibility remains preview-level. | Superseded behavior and protocol paths are removed and the new contract is deliberately reviewed for stability. |
+| 9. Advanced retained components | Complete | DockArea retains a foundation Dock wearing a small in-repo skin (`crates/gpui-dotnet/src/dock_skin.rs`) with stable string panel IDs, declarative center tabs/splits and left/bottom/right regions, ordinary element or child-View content, tab activation, close/zoom controls, collapse affordances, resize handles, and native drag/drop interaction; the default host links `gpui-base` only (14,988,800-byte Windows x64 Release host, no `gpui-component` skin crate or asset provider); the optional Editor probe proves one-shot bootstrap, revisioned UTF-8 deltas, typed commands, and stale-command rejection from its custom host through the extension lifecycle seam; Dock exposes coarse close/layout events, controller close/region/import/export operations, and serialized layout export/import with a documented reconciliation policy. | Advanced components prove stable managed identity, coarse events, native high-frequency interaction, lifecycle, theme integration, optional packaging where appropriate, and no unrelated component families in the default native host. |
+| 10. Cleanup and protocol freeze candidate | Planned | Migration work is complete; the stability review is not yet performed. See [Protocol freeze review](#protocol-freeze-review). | Superseded behavior and protocol paths are removed and the new contract is deliberately reviewed for stability. |
 
 No semantic component is considered migrated merely because the dependency and initializer exist.
 Implementation ownership changes only after the component-specific exit criteria pass.
@@ -292,6 +292,8 @@ no `gpui-component` reverse dependency (`cargo tree --locked --manifest-path
 crates/gpui-dotnet/Cargo.toml -p gpui-dotnet-default-host --invert gpui-component` matches no
 package) while `gpui-base` remains its foundation.
 
+### Remaining protocol questions
+
 The remaining protocol questions stay open for later families:
 
 | Area | Decision to record |
@@ -352,6 +354,35 @@ A behavior family is migrated only when:
 
 Input, deferred layers, scrolling, and virtualization additionally require focused interaction or
 performance validation appropriate to their risk.
+
+## Protocol freeze review
+
+Phase 10 starts from a complete migration, so its work is review and removal rather than new
+behavior. The resulting freeze is a stability point for the current baseline, not a permanence
+claim: this project is not mature, and a `gpui-base` merge that moves the foundation reopens the
+affected decisions. The agenda, in order:
+
+1. **Per-family acceptance re-check.** Walk every migrated family against the criteria above
+   and record the disposition. Two criterion-5 notes are already settled, so the review must
+   not rediscover them: arrow-key tab switching never existed in this Dock lineage (neither
+   the foundation `TabGroup` nor the previous styled skin implements it; Tab-traversal
+   grouping is preserved), and tab accessibility roles belong to the repository-wide
+   accessibility pass tracked in [NEXT_STEPS.md](NEXT_STEPS.md#accessibility), not to the
+   Dock slice.
+2. **Protocol-question decisions.** Resolve each row of [the remaining protocol
+   questions](#remaining-protocol-questions) into a keep/change
+   decision with the same evidence bar as the phase 3 checkpoint (tests plus updated ABI
+   documentation). Each decision stands for the current baseline; a foundation merge that
+   touches its area reopens that row.
+3. **Superseded-path removal.** Enumerate preview-era paths and remove them: at minimum, decide
+   whether full managed render validation remains enabled in Release builds, and graduate or
+   retire the optional editor probe. There is no other known superseded inventory in the tree;
+   the review must confirm that rather than assume it.
+4. **Carried hardening.** Cross-platform interaction/accessibility/persistence tests for Dock,
+   and CI recording of release sizes plus the default-host link-map check, land here if they
+   have not landed earlier.
+
+Compatibility remains preview-level until this review is complete and its removals are merged.
 
 ## Verification
 
