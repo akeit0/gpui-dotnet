@@ -9,12 +9,11 @@ The Dock skin no longer links the complete `gpui-component` facade: Dock wears a
 renderer over `gpui-base`, and the default host resolves `gpui` plus `gpui-base` only. A
 Windows x64 Release build (`cargo build -p gpui-dotnet-default-host --release`) is 14,988,800
 bytes, against the 14,127,104-byte pre-Dock
-reference and 19,929,600 bytes with the styled integration. What remains is recording and
-hardening, not further isolation:
+reference and 19,929,600 bytes with the styled integration. This project is in preview, so
+there is no per-RID size-report or link-map CI job: the boundary holds through the structural
+`cargo tree --invert gpui-component` guard plus manual re-measurement on dependency changes.
+What remains is hardening, not further isolation:
 
-- add a reproducible per-RID release-size report and record it in CI;
-- add a default-host dependency/link-map check so an optional family cannot silently re-enter
-  (structurally guarded today by the `cargo tree --invert gpui-component` boundary);
 - keep editor providers, grammars, and other optional runtime families exclusive to their custom
   hosts;
 - evaluate Thin LTO and one release codegen unit against build time and frame-sensitive runtime
@@ -104,5 +103,4 @@ proven large-dataset behavior.
 - generate and verify a public C header with `sizeof`/`offsetof` assertions per RID;
 - add symbolic native status diagnostics;
 - define coalescing policies for high-frequency window commands;
-- run NativeAOT smoke tests for every supported RID;
-- decide whether full managed render validation remains enabled in Release builds.
+- run NativeAOT smoke tests for every supported RID.

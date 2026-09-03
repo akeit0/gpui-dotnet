@@ -283,28 +283,30 @@ same Windows build, Thin LTO with one codegen unit and symbol stripping reduced 
 18,287,616 bytes. Adopt those settings only after build-time and runtime-performance validation;
 they do not remove the roughly 5.8 MB dependency-boundary regression.
 
-The size work is complete when CI records enough artifact information to detect renewed
-dependency leakage. The binary target is met: an equivalent Windows x64 Release build keeps the
+The size work is complete when the structural boundary holds and the binary stays near the
+reference. The binary target is met: an equivalent Windows x64 Release build keeps the
 default host at 14,988,800 bytes, near the 14,127,104-byte pre-Dock reference, with Dock behavior
-retained and the optional Editor available from its custom host. Until CI recording lands, the
-boundary is guarded structurally: the default host must resolve
+retained and the optional Editor available from its custom host. The project is in preview, so
+there is no CI size/link-map reporting job: the default host must resolve
 no `gpui-component` reverse dependency (`cargo tree --locked --manifest-path
 crates/gpui-dotnet/Cargo.toml -p gpui-dotnet-default-host --invert gpui-component` matches no
-package) while `gpui-base` remains its foundation.
+package) while `gpui-base` remains its foundation, plus manual re-measurement on dependency
+changes, and CI recording waits until post-preview.
 
 ### Remaining protocol questions
 
-The remaining protocol questions stay open for later families:
+Decisions recorded by the phase-10 review. Each stands for the current baseline; a foundation
+merge that touches its area reopens that row.
 
-| Area | Decision to record |
+| Area | Decision |
 |---|---|
-| Semantic IR | Whether operation-oriented records remain appropriate or component families need stronger typed semantic nodes. |
-| Native identity | Whether retained resources should evolve into a broader component-state registry keyed by session, owner View, stable key, and type. |
-| Events | Whether controls should emit a common typed semantic event packet instead of family-specific callback paths. |
-| Commands | Whether retained commands should use family-specific packets or a common validated envelope. |
-| Schema | Whether it should describe nodes, events, commands, and wire constraints as separate compatibility units. |
-| API table | Which operations are host capabilities and which belong in ordinary protocol packets. |
-| Versioning | Whether host API, render IR, events, and commands require independent compatibility versions. |
+| Semantic IR | **Keep operation-oriented records for core.** Dock, the most complex core family, modeled fully as operations, and the editor's stronger typing lives in its own extension schema outside the IR. Typed nodes via the extension seam where justified; no core IR change demonstrated any benefit. |
+| Native identity | **Keep per-family stores plus the generic extension store.** Tombstones, pending queues, and subscriptions differ per family enough that unification would be abstraction without benefit; the extension store already is the generalized registry for new families. Revisit if a third retained family duplicates the machinery. |
+| Events | **Keep family-specific core paths.** Payloads differ by kind (floats, UTF-8, JSON); a common packet would add decode branches everywhere without simplification. The extension envelope remains the common path for new families. |
+| Commands | **Keep the two existing envelopes.** `ResourceCommand` already is the common validated envelope for core (it absorbed resource kind 5 and Dock commands with no API-table change); the extension envelope covers providers. No third shape needed. |
+| Schema | **Partial: identities unified, payloads code-owned.** Resource/command/event IDs now generate from `bindings/schema.json` under the single schema hash; payload layouts, routing, and queueing stay hand-written until a drift incident or a new family requires more. |
+| API table | **Keep the current split.** The Dock slice added no entry points (kind 5 commands and kinds 6-8 events fit `dispatch_command`/`control_event`); extension negotiation fits `supports_extension`. No misplaced operation surfaced during migration. |
+| Versioning | **Keep ABI version + schema hash + per-extension versions.** ABI v3 covers the table, the hash covers render IR plus command/event identities, editor negotiates its own version/hash, and feature formats (e.g. layout envelope 1) version themselves. Split further only on demonstrated need. |
 
 Preserve these invariants through any redesign:
 
@@ -369,6 +371,23 @@ affected decisions. The agenda, in order:
    grouping is preserved), and tab accessibility roles belong to the repository-wide
    accessibility pass tracked in [NEXT_STEPS.md](NEXT_STEPS.md#accessibility), not to the
    Dock slice.
+
+   Dispositions recorded from the current tree (109 native, 7 editor-host, 103 managed tests,
+   all passing; managed tests cover validation, binding, and dispatch, while interaction
+   evidence lives in native tests and the sample):
+
+   | Family | Disposition | Evidence and notes |
+   |---|---|---|
+   | Theme bridge | Holds | Native projection/payload tests plus managed theme tests; single managed-authoritative source on both hosts. |
+   | Button, Checkbox, Radio | Holds with notes | Foundation primitives with stable identity, derived names, controlled/disabled state, and virtual-row parity in code; managed validation coverage. No dedicated native unit tests; pointer/keyboard/focus parity rests on the sample control row (manual evidence). |
+   | Deferred layers | Holds with notes | Foundation placement/focus/dismissal with retained managed semantics; native overlay/tooltip tests plus managed validation for all four layers. Popover/context-menu native paths have no isolated unit tests. |
+   | Slider | Holds | Nine native tests across pointer, keyboard, disabled, and changed/released events plus managed configuration/event tests; retained engine rationale documented. |
+   | Input | Holds with notes | Retained engine with revisioned contiguous UTF-8 events; managed validation and UTF-8 ownership tests. No native unit tests; IME/clipboard cross-platform evidence is sample/manual. |
+   | Scrolling | Holds | Native coalescing, gutter, and metric tests behind the retained wheel path and foundation scrollbar paint. |
+   | List and Table | Holds | Twenty-four native tests across measurements, splices, refreshes, and telemetry plus managed validation/dispatch tests; `VirtualList` rejection rationale documented. |
+   | Dock | Holds | Fourteen native tests including the vertical command/event/persistence integration test plus managed binding/dispatch tests; dependency boundary measured and tree-guarded; keyboard/a11y notes as above. |
+   | Editor probe | Holds at probe scope | Seven native plus fifteen managed tests across bootstrap, revisioned deltas, commands, and rejections; custom-host isolation with provider-owned init/theme. |
+   | Cross-cutting (criteria 7-8) | Holds | No new fork patches from this work (delta remains the three recorded commits); coarse-batch protocol with trace stages and list telemetry, no per-frame managed crossings. |
 2. **Protocol-question decisions.** Resolve each row of [the remaining protocol
    questions](#remaining-protocol-questions) into a keep/change
    decision with the same evidence bar as the phase 3 checkpoint (tests plus updated ABI
@@ -378,11 +397,29 @@ affected decisions. The agenda, in order:
    whether full managed render validation remains enabled in Release builds, and graduate or
    retire the optional editor probe. There is no other known superseded inventory in the tree;
    the review must confirm that rather than assume it.
-4. **Carried hardening.** Cross-platform interaction/accessibility/persistence tests for Dock,
-   and CI recording of release sizes plus the default-host link-map check, land here if they
-   have not landed earlier.
+4. **Carried hardening.** Accessibility and persistence tests for Dock land here if they have
+   not landed earlier. This project is in preview: CI keeps its existing gates (format,
+   tests, binding verification, dependency-graph guard) with no new reporting jobs; release
+   sizes and link maps are re-measured manually on dependency changes, and CI recording
+   waits until post-preview. Platform interaction evidence is recorded under
+   [Verification](#verification).
 
 Compatibility remains preview-level until this review is complete and its removals are merged.
+
+### Recorded outcomes
+
+- **Render validation (agenda item 3). Keep.** Production already runs managed-only
+  validation per render (`ManagedSession.RenderRoot`); the native `validate_render` entry has
+  no production callers and stays opt-in public API for tests and power users. The linear
+  managed walk is the fail-fast net that turns malformed snapshots into managed errors
+  instead of native undefined behavior, and no measurement shows it as a cost problem worth
+  removing. Revisit only with measurements. No code change.
+- **Editor probe (agenda item 3). Retain as the reference probe: neither graduate nor
+  retire.** Its purpose is proving the extension mechanism and custom-host composition,
+  which it does under green suites through the provider lifecycle seam. Graduation to a
+  supported product requires the editor depth work still tracked in
+  [NEXT_STEPS.md](NEXT_STEPS.md#optional-editor-extension); retiring it would remove the
+  only end-to-end proof of the extension seam. No code change.
 
 ## Verification
 
@@ -400,6 +437,16 @@ git diff --check
 
 For UI behavior, launch the sample on the affected platform and exercise initial state plus relevant
 transitions. Record only platforms actually tested; CI configuration is not runtime verification.
+
+Verified platforms:
+
+- macOS Tahoe 26.3.1 (arm64, Apple M4): `cargo test` and `dotnet test` suites pass;
+  `Gpui.Sample` and editor-sample launches cover initial state plus theme switching, resizing,
+  Dock dragging, and menu activation.
+- Windows x64: `cargo test` and `dotnet test` suites pass; `Gpui.Sample` and editor-sample
+  launches cover initial state and Dock interaction, including tab dragging; the release
+  default-host measurement is recorded under
+  [Default native host size and dependency boundary](#default-native-host-size-and-dependency-boundary).
 
 ## Maintaining this document
 
