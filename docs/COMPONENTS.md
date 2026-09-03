@@ -96,6 +96,45 @@ can override a value. Do not add application variant enums or style objects to t
   render per display frame for the wrapper's owning View. Multiple wrappers for one View are
   deduplicated. The application remains responsible for time, interpolation, and stopping.
 
+### Observer key and mouse events (hot keys)
+
+`Div`, `Button`, `Checkbox`, and `Radio` support observer `OnKeyDown`, `OnKeyUp`,
+`OnMouseDown`, `OnMouseUp`, `OnModifiersChanged`, `OnHover`, `OnMouseDownOut`, `OnMouseUpOut`,
+`OnMouseMove`, `OnScrollWheel`, and `OnFileDrop` bindings through the `key_mouse` capability. They reuse the
+existing `control_event` channel (kinds 9-19) and never consume the native event: Rust forwards
+the key name (plus modifiers and held-repeat), the mouse position/button/click-count (plus
+modifiers), the bare modifier state, hover transitions, movement/wheel deltas, or dropped file
+paths without calling
+`stop_propagation`, moving focus, or blocking default handling.
+Focused Input editing, Slider keys, List/Table navigation, Overlay Escape, and menu triggers
+therefore win first; a bound element only observes events that bubble to it. Movement and wheel
+events are only published while bound, so unregistered elements cost nothing; registered
+handlers must stay cheap.
+
+For window-wide hot keys, bind on the root container and match exactly:
+
+```csharp
+protected override Element Render(ref RenderContext ui) =>
+    ui.VStack(ui.Text("Save with Ctrl+S"))
+        .OnKeyDown(this, (view, key) =>
+        {
+            if (key.Matches("s", control: true))
+            {
+                view.Save();
+            }
+        });
+```
+
+`KeyEvent.Matches` compares the key name ordinal-ignore-case and requires exact modifiers, so
+`Ctrl+Shift+S` does not match `Ctrl+S`. Holding a key produces OS key-repeat `Down` events with
+`IsHeld` set, so one-shot hot-key actions should guard with `!key.IsHeld`. Modifier-only presses
+(e.g. holding Ctrl alone) never produce key events in GPUI; track them with `OnModifiersChanged`,
+which reports the current modifiers. Mouse movement never
+crosses the ABI; only discrete
+down/up for opted-in elements do. These bindings are render-pass declarations like `OnClick`
+(pure `Render`, state changes in the handler plus `Invalidate()`), and they are invalid inside
+virtualized List/Table row snapshots, which have no mounted View lifetime.
+
 Image failures materialize a themed fallback. URI loading is not part of the current component
 contract.
 

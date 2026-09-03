@@ -33,7 +33,9 @@ Keep continuous interaction in Rust:
 - overlay positioning and dismissal stay native.
 
 Managed callbacks should represent application state transitions: clicks, opted-in control events,
-menu actions, and dirty rendering.
+menu actions, and dirty rendering. Movement and scroll-wheel observer events are the deliberate
+opt-in exception: they cross per pointer event, but only while a binding is registered, and
+their handlers must record cheaply and return. Unregistered elements pay nothing.
 
 Dock panel content is materialized from the retained root snapshot during native frames. A dirty
 managed render updates panel content proxies, but an unchanged structural declaration does not

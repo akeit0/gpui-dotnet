@@ -66,6 +66,17 @@ namespace Gpui.Interop
         OnClick = 200,
         WindowControlArea = 201,
         ElementOwner = 202,
+        OnKeyDown = 203,
+        OnKeyUp = 204,
+        OnMouseDown = 205,
+        OnMouseUp = 206,
+        OnModifiersChanged = 207,
+        OnHover = 208,
+        OnMouseDownOut = 209,
+        OnMouseUpOut = 210,
+        OnMouseMove = 211,
+        OnScrollWheel = 212,
+        OnFileDrop = 213,
         ResourceOwner = 300,
         ScrollAxis = 301,
         SmoothScroll = 302,
@@ -214,7 +225,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x431B3988C7860E06UL;
+        internal const ulong SchemaHash = 0xFAECDC9DCB4F261EUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -300,6 +311,17 @@ namespace Gpui.Interop
             OpCode.OnClick => ValueKind.Callback,
             OpCode.WindowControlArea => ValueKind.U32,
             OpCode.ElementOwner => ValueKind.U32,
+            OpCode.OnKeyDown => ValueKind.Callback,
+            OpCode.OnKeyUp => ValueKind.Callback,
+            OpCode.OnMouseDown => ValueKind.Callback,
+            OpCode.OnMouseUp => ValueKind.Callback,
+            OpCode.OnModifiersChanged => ValueKind.Callback,
+            OpCode.OnHover => ValueKind.Callback,
+            OpCode.OnMouseDownOut => ValueKind.Callback,
+            OpCode.OnMouseUpOut => ValueKind.Callback,
+            OpCode.OnMouseMove => ValueKind.Callback,
+            OpCode.OnScrollWheel => ValueKind.Callback,
+            OpCode.OnFileDrop => ValueKind.Callback,
             OpCode.ResourceOwner => ValueKind.U32,
             OpCode.ScrollAxis => ValueKind.U32,
             OpCode.SmoothScroll => ValueKind.U32,
@@ -393,11 +415,11 @@ namespace Gpui.Interop
 
         private static ulong Capabilities(ComponentId component) => component switch
         {
-            ComponentId.Div => 0x0000000000002007UL,
+            ComponentId.Div => 0x0000000010002007UL,
             ComponentId.Text => 0x0000000000000001UL,
-            ComponentId.Button => 0x000000000000202BUL,
-            ComponentId.Checkbox => 0x000000000000003BUL,
-            ComponentId.Radio => 0x000000000000003BUL,
+            ComponentId.Button => 0x000000001000202BUL,
+            ComponentId.Checkbox => 0x000000001000003BUL,
+            ComponentId.Radio => 0x000000001000003BUL,
             ComponentId.Badge => 0x0000000000000003UL,
             ComponentId.Divider => 0x0000000000000001UL,
             ComponentId.Spacer => 0x0000000000000001UL,
@@ -454,6 +476,17 @@ namespace Gpui.Interop
             OpCode.OnClick => 0x0000000000000008UL,
             OpCode.WindowControlArea => 0x0000000000002000UL,
             OpCode.ElementOwner => 0x0000000000000008UL,
+            OpCode.OnKeyDown => 0x0000000010000000UL,
+            OpCode.OnKeyUp => 0x0000000010000000UL,
+            OpCode.OnMouseDown => 0x0000000010000000UL,
+            OpCode.OnMouseUp => 0x0000000010000000UL,
+            OpCode.OnModifiersChanged => 0x0000000010000000UL,
+            OpCode.OnHover => 0x0000000010000000UL,
+            OpCode.OnMouseDownOut => 0x0000000010000000UL,
+            OpCode.OnMouseUpOut => 0x0000000010000000UL,
+            OpCode.OnMouseMove => 0x0000000010000000UL,
+            OpCode.OnScrollWheel => 0x0000000010000000UL,
+            OpCode.OnFileDrop => 0x0000000010000000UL,
             OpCode.ResourceOwner => 0x0000000000000040UL,
             OpCode.ScrollAxis => 0x0000000000000080UL,
             OpCode.SmoothScroll => 0x0000000000000040UL,
@@ -644,12 +677,13 @@ namespace Gpui
     public interface IDockPanelElementTag { }
     public interface IDockRegionElementTag { }
     public interface IExtensionElementTag { }
+    public interface IKeyMouseElementTag { }
 
-    public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag { }
+    public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag, IKeyMouseElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
-    public readonly struct ButtonTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, IDisableableElementTag, IWindowControlElementTag { }
-    public readonly struct CheckboxTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag, IDisableableElementTag { }
-    public readonly struct RadioTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag, IDisableableElementTag { }
+    public readonly struct ButtonTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, IDisableableElementTag, IWindowControlElementTag, IKeyMouseElementTag { }
+    public readonly struct CheckboxTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag, IDisableableElementTag, IKeyMouseElementTag { }
+    public readonly struct RadioTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag, IDisableableElementTag, IKeyMouseElementTag { }
     public readonly struct BadgeTag : IStyledElementTag, IParentElementTag { }
     public readonly struct DividerTag : IStyledElementTag { }
     public readonly struct SpacerTag : IStyledElementTag { }
@@ -699,6 +733,52 @@ namespace Gpui
         LayoutExported = 7,
         /// <summary>A panel left the Dock natively or through the controller. Carries the panel id. Panels removed by declaration or pruned by layout import do not fire this event.</summary>
         PanelClosed = 8,
+    }
+
+    public enum KeyEventKind : ushort
+    {
+        /// <summary>A key was pressed while the bound element had focus or the event bubbled to it. Carries the UTF-8 key name; flags hold modifiers and the held-repeat bit. Observers only: never stops propagation.</summary>
+        Down = 9,
+        /// <summary>A key was released while the bound element had focus or the event bubbled to it. Carries the UTF-8 key name; flags hold modifiers. Observers only: never stops propagation.</summary>
+        Up = 10,
+    }
+
+    public enum MouseEventKind : ushort
+    {
+        /// <summary>A mouse button was pressed over the bound element. Carries x, y, button, and click count; flags hold modifiers. Observers only: never stops propagation.</summary>
+        Down = 11,
+        /// <summary>A mouse button was released over the bound element. Carries x, y, button, and click count; flags hold modifiers. Observers only: never stops propagation.</summary>
+        Up = 12,
+        /// <summary>A mouse button was pressed outside the bound element. Same payload as mouse down. Observers only: never stops propagation.</summary>
+        DownOut = 15,
+        /// <summary>A mouse button was released outside the bound element. Same payload as mouse up. Observers only: never stops propagation.</summary>
+        UpOut = 16,
+        /// <summary>The mouse moved over the bound element. Carries x, y, and the pressed button (none when empty); flags hold modifiers. High-frequency: only published while bound, and handlers must stay cheap. Observers only: never stops propagation.</summary>
+        Move = 17,
+    }
+
+    public enum ModifiersEventKind : ushort
+    {
+        /// <summary>Modifier keys changed while the bound element had focus or the event bubbled to it. Carries no payload; flags hold the current modifiers. This is the only event for modifier-only presses, which never produce key events. Observers only: never stops propagation.</summary>
+        Changed = 13,
+    }
+
+    public enum HoverEventKind : ushort
+    {
+        /// <summary>Hover state changed over the bound element. Carries no payload; flags hold modifiers in bits 0-4 and the hovering state in bit 5. Fires on enter/exit transitions only, never per move. Observers only: never stops propagation.</summary>
+        Changed = 14,
+    }
+
+    public enum ScrollEventKind : ushort
+    {
+        /// <summary>The scroll wheel moved over the bound element. Carries x, y, delta x/y, and pixel/line units; flags hold modifiers. High-frequency: only published while bound, and handlers must stay cheap. Does not replace retained Scroll resources. Observers only: never stops propagation.</summary>
+        Wheel = 18,
+    }
+
+    public enum FileEventKind : ushort
+    {
+        /// <summary>OS files were dropped onto the bound element. Carries x, y followed by NUL-separated UTF-8 paths (lossy); flags hold modifiers. Only published while bound. Observers only: never stops propagation.</summary>
+        Dropped = 19,
     }
 
     public readonly unsafe ref partial struct RenderContext
