@@ -6,6 +6,7 @@ internal enum SamplePage
     Dock,
     Images,
     Inputs,
+    Observers,
     Overlays,
     Windows,
 }

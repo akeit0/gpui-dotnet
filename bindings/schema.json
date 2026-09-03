@@ -28,7 +28,8 @@
     "dock_tabs",
     "dock_panel",
     "dock_region",
-    "extension"
+    "extension",
+    "key_mouse"
   ],
   "components": [
     {
@@ -43,7 +44,8 @@
         "styled",
         "parent",
         "layout",
-        "window_control"
+        "window_control",
+        "key_mouse"
       ],
       "nativeAdapter": "div"
     },
@@ -73,7 +75,8 @@
         "parent",
         "interactive",
         "disableable",
-        "window_control"
+        "window_control",
+        "key_mouse"
       ],
       "nativeAdapter": "button"
     },
@@ -90,7 +93,8 @@
         "parent",
         "interactive",
         "checkable",
-        "disableable"
+        "disableable",
+        "key_mouse"
       ],
       "nativeAdapter": "checkbox"
     },
@@ -107,7 +111,8 @@
         "parent",
         "interactive",
         "checkable",
-        "disableable"
+        "disableable",
+        "key_mouse"
       ],
       "nativeAdapter": "radio"
     },
@@ -673,6 +678,94 @@
       "requires": "interactive",
       "managedApi": null,
       "validation": { "kind": "u32Min", "min": 1, "status": -25 }
+    },
+    {
+      "id": 203,
+      "name": "on_key_down",
+      "csharp": "OnKeyDown",
+      "value": "callback",
+      "requires": "key_mouse",
+      "managedApi": null
+    },
+    {
+      "id": 204,
+      "name": "on_key_up",
+      "csharp": "OnKeyUp",
+      "value": "callback",
+      "requires": "key_mouse",
+      "managedApi": null
+    },
+    {
+      "id": 205,
+      "name": "on_mouse_down",
+      "csharp": "OnMouseDown",
+      "value": "callback",
+      "requires": "key_mouse",
+      "managedApi": null
+    },
+    {
+      "id": 206,
+      "name": "on_mouse_up",
+      "csharp": "OnMouseUp",
+      "value": "callback",
+      "requires": "key_mouse",
+      "managedApi": null
+    },
+    {
+      "id": 207,
+      "name": "on_modifiers_changed",
+      "csharp": "OnModifiersChanged",
+      "value": "callback",
+      "requires": "key_mouse",
+      "managedApi": null
+    },
+    {
+      "id": 208,
+      "name": "on_hover",
+      "csharp": "OnHover",
+      "value": "callback",
+      "requires": "key_mouse",
+      "managedApi": null
+    },
+    {
+      "id": 209,
+      "name": "on_mouse_down_out",
+      "csharp": "OnMouseDownOut",
+      "value": "callback",
+      "requires": "key_mouse",
+      "managedApi": null
+    },
+    {
+      "id": 210,
+      "name": "on_mouse_up_out",
+      "csharp": "OnMouseUpOut",
+      "value": "callback",
+      "requires": "key_mouse",
+      "managedApi": null
+    },
+    {
+      "id": 211,
+      "name": "on_mouse_move",
+      "csharp": "OnMouseMove",
+      "value": "callback",
+      "requires": "key_mouse",
+      "managedApi": null
+    },
+    {
+      "id": 212,
+      "name": "on_scroll_wheel",
+      "csharp": "OnScrollWheel",
+      "value": "callback",
+      "requires": "key_mouse",
+      "managedApi": null
+    },
+    {
+      "id": 213,
+      "name": "on_file_drop",
+      "csharp": "OnFileDrop",
+      "value": "callback",
+      "requires": "key_mouse",
+      "managedApi": null
     },
     {
       "id": 300,
@@ -1486,6 +1579,17 @@
     { "id": 5, "name": "slider_released", "csharp": "Released", "group": "slider", "doc": "The slider interaction released." },
     { "id": 6, "name": "dock_layout_changed", "csharp": "LayoutChanged", "group": "dock", "doc": "Coarse structural signal. Fires for native interaction and for declarative or controller-driven structural changes. Carries no payload; debounce with the event revision." },
     { "id": 7, "name": "dock_layout_exported", "csharp": "LayoutExported", "group": "dock", "doc": "Carries the exported layout document requested through the controller." },
-    { "id": 8, "name": "dock_panel_closed", "csharp": "PanelClosed", "group": "dock", "doc": "A panel left the Dock natively or through the controller. Carries the panel id. Panels removed by declaration or pruned by layout import do not fire this event." }
+    { "id": 8, "name": "dock_panel_closed", "csharp": "PanelClosed", "group": "dock", "doc": "A panel left the Dock natively or through the controller. Carries the panel id. Panels removed by declaration or pruned by layout import do not fire this event." },
+    { "id": 9, "name": "key_down", "csharp": "Down", "group": "key", "doc": "A key was pressed while the bound element had focus or the event bubbled to it. Carries the UTF-8 key name; flags hold modifiers and the held-repeat bit. Observers only: never stops propagation." },
+    { "id": 10, "name": "key_up", "csharp": "Up", "group": "key", "doc": "A key was released while the bound element had focus or the event bubbled to it. Carries the UTF-8 key name; flags hold modifiers. Observers only: never stops propagation." },
+    { "id": 11, "name": "mouse_down", "csharp": "Down", "group": "mouse", "doc": "A mouse button was pressed over the bound element. Carries x, y, button, and click count; flags hold modifiers. Observers only: never stops propagation." },
+    { "id": 12, "name": "mouse_up", "csharp": "Up", "group": "mouse", "doc": "A mouse button was released over the bound element. Carries x, y, button, and click count; flags hold modifiers. Observers only: never stops propagation." },
+    { "id": 13, "name": "modifiers_changed", "csharp": "Changed", "group": "modifiers", "doc": "Modifier keys changed while the bound element had focus or the event bubbled to it. Carries no payload; flags hold the current modifiers. This is the only event for modifier-only presses, which never produce key events. Observers only: never stops propagation." },
+    { "id": 14, "name": "hover", "csharp": "Changed", "group": "hover", "doc": "Hover state changed over the bound element. Carries no payload; flags hold modifiers in bits 0-4 and the hovering state in bit 5. Fires on enter/exit transitions only, never per move. Observers only: never stops propagation." },
+    { "id": 15, "name": "mouse_down_out", "csharp": "DownOut", "group": "mouse", "doc": "A mouse button was pressed outside the bound element. Same payload as mouse down. Observers only: never stops propagation." },
+    { "id": 16, "name": "mouse_up_out", "csharp": "UpOut", "group": "mouse", "doc": "A mouse button was released outside the bound element. Same payload as mouse up. Observers only: never stops propagation." },
+    { "id": 17, "name": "mouse_move", "csharp": "Move", "group": "mouse", "doc": "The mouse moved over the bound element. Carries x, y, and the pressed button (none when empty); flags hold modifiers. High-frequency: only published while bound, and handlers must stay cheap. Observers only: never stops propagation." },
+    { "id": 18, "name": "scroll_wheel", "csharp": "Wheel", "group": "scroll", "doc": "The scroll wheel moved over the bound element. Carries x, y, delta x/y, and pixel/line units; flags hold modifiers. High-frequency: only published while bound, and handlers must stay cheap. Does not replace retained Scroll resources. Observers only: never stops propagation." },
+    { "id": 19, "name": "file_dropped", "csharp": "Dropped", "group": "file", "doc": "OS files were dropped onto the bound element. Carries x, y followed by NUL-separated UTF-8 paths (lossy); flags hold modifiers. Only published while bound. Observers only: never stops propagation." }
   ]
 }

@@ -1470,6 +1470,109 @@ public sealed class SemanticRenderTests
         }
     }
 
+    [Fact]
+    public async Task KeyAndMouseObserverBindingsPassValidationAndDispatch()
+    {
+        var view = new ProbeView();
+        Attach(view, 17);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var root = ui.Div(ui.Text("hotkey"))
+                .OnKeyDown(view, (owner, key) => owner.KeyEvents.Add(key))
+                .OnKeyUp(view, (owner, key) => owner.KeyEvents.Add(key))
+                .OnMouseDown(view, (owner, mouse) => owner.MouseEvents.Add(mouse))
+                .OnMouseUp(view, (owner, mouse) => owner.MouseEvents.Add(mouse))
+                .OnModifiersChanged(view, (owner, modifiers) => owner.ModifierEvents.Add(modifiers))
+                .OnHover(view, (owner, hover) => owner.HoverEvents.Add(hover))
+                .OnMouseDownOut(view, (owner, mouse) => owner.MouseEvents.Add(mouse))
+                .OnMouseUpOut(view, (owner, mouse) => owner.MouseEvents.Add(mouse))
+                .OnMouseMove(view, (owner, move) => owner.MouseMoveEvents.Add(move))
+                .OnScrollWheel(view, (owner, wheel) => owner.ScrollWheelEvents.Add(wheel))
+                .OnFileDrop(view, (owner, drop) => owner.FileDropEvents.Add(drop));
+
+            arena.Validate(root);
+
+            var keyDown = ReadCallbackEventId(arena, OpCode.OnKeyDown);
+            var keyUp = ReadCallbackEventId(arena, OpCode.OnKeyUp);
+            var mouseDown = ReadCallbackEventId(arena, OpCode.OnMouseDown);
+            var mouseUp = ReadCallbackEventId(arena, OpCode.OnMouseUp);
+            var modifiersChanged = ReadCallbackEventId(arena, OpCode.OnModifiersChanged);
+            var hover = ReadCallbackEventId(arena, OpCode.OnHover);
+            var mouseDownOut = ReadCallbackEventId(arena, OpCode.OnMouseDownOut);
+            var mouseUpOut = ReadCallbackEventId(arena, OpCode.OnMouseUpOut);
+            var mouseMove = ReadCallbackEventId(arena, OpCode.OnMouseMove);
+            var scrollWheel = ReadCallbackEventId(arena, OpCode.OnScrollWheel);
+            var fileDrop = ReadCallbackEventId(arena, OpCode.OnFileDrop);
+
+            await view.DispatchKeyCore(keyDown, new KeyEvent(KeyEventKind.Down, "s", 1, false));
+            await view.DispatchKeyCore(keyUp, new KeyEvent(KeyEventKind.Up, "s", 1, false));
+            await view.DispatchMouseCore(
+                mouseDown,
+                new MouseEvent(MouseEventKind.Down, 12, 34, MouseButton.Right, 1, 1)
+            );
+            await view.DispatchMouseCore(
+                mouseUp,
+                new MouseEvent(MouseEventKind.Up, 12, 34, MouseButton.Right, 1, 1)
+            );
+            await view.DispatchModifiersCore(modifiersChanged, new ModifiersEvent(1));
+            await view.DispatchHoverCore(hover, new HoverEvent(true));
+            await view.DispatchMouseCore(
+                mouseDownOut,
+                new MouseEvent(MouseEventKind.DownOut, 1, 2, MouseButton.Left, 1, 0)
+            );
+            await view.DispatchMouseCore(
+                mouseUpOut,
+                new MouseEvent(MouseEventKind.UpOut, 1, 2, MouseButton.Left, 1, 0)
+            );
+            await view.DispatchMouseMoveCore(mouseMove, new MouseMoveEvent(3, 4, null, 0));
+            await view.DispatchScrollWheelCore(
+                scrollWheel,
+                new ScrollWheelEvent(5, 6, 0, -3, ScrollDeltaUnits.Lines, 0)
+            );
+            await view.DispatchFileDropCore(
+                fileDrop,
+                new FileDropEvent(7, 8, ["/tmp/a.txt", "/tmp/b.txt"], 0)
+            );
+
+            Assert.Equal(2, view.KeyEvents.Count);
+            Assert.True(view.KeyEvents[0].Matches("s", control: true));
+            Assert.False(view.KeyEvents[0].Matches("s", control: true, shift: true));
+            Assert.Equal(4, view.MouseEvents.Count);
+            Assert.Equal(MouseButton.Right, view.MouseEvents[0].Button);
+            Assert.Equal(12, view.MouseEvents[0].X);
+            Assert.Equal(MouseEventKind.DownOut, view.MouseEvents[2].Kind);
+            Assert.Single(view.ModifierEvents);
+            Assert.True(view.ModifierEvents[0].Control);
+            Assert.False(view.ModifierEvents[0].IsEmpty);
+            Assert.Single(view.HoverEvents);
+            Assert.True(view.HoverEvents[0].IsHovering);
+            Assert.Single(view.MouseMoveEvents);
+            Assert.Null(view.MouseMoveEvents[0].PressedButton);
+            Assert.Single(view.ScrollWheelEvents);
+            Assert.Equal(-3, view.ScrollWheelEvents[0].DeltaY);
+            Assert.Single(view.FileDropEvents);
+            Assert.Equal(2, view.FileDropEvents[0].Paths.Count);
+            Assert.Equal("/tmp/b.txt", view.FileDropEvents[0].Paths[1]);
+        }
+        finally
+        {
+            view.UnmountRuntime();
+        }
+    }
+
+    [Fact]
+    public void KeyEventMatchesComparesNameCaseInsensitivelyWithExactModifiers()
+    {
+        var save = new KeyEvent(KeyEventKind.Down, "s", 1, false);
+
+        Assert.True(save.Matches("S", control: true));
+        Assert.False(save.Matches("s"));
+        Assert.False(save.Matches("t", control: true));
+        Assert.False(save.Matches("s", control: true, shift: true));
+    }
+
     private static void Attach(View view, uint handle = 1) =>
         view.AttachRuntime(
             handle,
@@ -1685,6 +1788,13 @@ public sealed class SemanticRenderTests
         internal float SliderEvents;
         internal float SliderReleases;
         internal List<DockEvent> DockEvents = new();
+        internal List<KeyEvent> KeyEvents = new();
+        internal List<MouseEvent> MouseEvents = new();
+        internal List<ModifiersEvent> ModifierEvents = new();
+        internal List<HoverEvent> HoverEvents = new();
+        internal List<MouseMoveEvent> MouseMoveEvents = new();
+        internal List<ScrollWheelEvent> ScrollWheelEvents = new();
+        internal List<FileDropEvent> FileDropEvents = new();
 
         internal ListItemRenderer Row => BindListRenderer(1);
 

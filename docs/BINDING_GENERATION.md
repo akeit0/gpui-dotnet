@@ -65,7 +65,9 @@ Apply `[GpuiView]` to a `partial` View type. The generator implements the AOT-sa
 reflection is required.
 
 Events are runtime fluent bindings (`OnClick`, `OnChanged`, `OnSubmitted`, `OnFocusChanged`,
-`OnReleased`, and `OnDismiss`); the generator does not inspect ordinary event methods.
+`OnReleased`, `OnDismiss`, `OnKeyDown`, `OnKeyUp`, `OnMouseDown`, `OnMouseUp`,
+`OnModifiersChanged`, `OnHover`, `OnMouseDownOut`, `OnMouseUpOut`, `OnMouseMove`,
+`OnScrollWheel`, and `OnFileDrop`); the generator does not inspect ordinary event methods.
 
 ### `[GpuiListItem]`
 

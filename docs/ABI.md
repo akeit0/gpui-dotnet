@@ -48,7 +48,7 @@ callback table provides:
 - click dispatch;
 - virtual list/table range rendering;
 - owner-view preparation for a requested dynamic frame;
-- retained control events;
+- retained control events (Input, Slider, Dock, and observer key/mouse);
 - application-started notification;
 - window-closed notification;
 - application-menu action dispatch.
@@ -149,13 +149,40 @@ and Released events carry one little-endian `f32`, or two ordered values when th
 Dock LayoutChanged carries no payload; Dock LayoutExported carries the UTF-8 layout JSON requested
 through the controller; Dock PanelClosed carries the UTF-8 panel id.
 
-Control-event kinds are global: Input uses 1-3, Slider uses 4-5, and Dock uses 6
-(LayoutChanged), 7 (LayoutExported), and 8 (PanelClosed). Resource kinds are Scroll 1,
+Control-event kinds are global: Input uses 1-3, Slider uses 4-5, Dock uses 6
+(LayoutChanged), 7 (LayoutExported), and 8 (PanelClosed), observer key events use 9
+(KeyDown) and 10 (KeyUp), observer mouse press events use 11 (MouseDown) and 12 (MouseUp),
+observer modifier events use 13 (ModifiersChanged), hover transitions use 14 (Hover), outside
+press events use 15 (MouseDownOut) and 16 (MouseUpOut), mouse movement uses 17 (Move), and
+scroll-wheel movement uses 18 (Wheel), and OS file drops use 19 (Dropped).
+Resource kinds are Scroll 1,
 List 2, Input 3, Slider 4, and Dock 5, with the command IDs listed below. These numbers
 generate from `bindings/schema.json` into both managed enums and native constants; the schema
 hash covers them, so either side renumbering without the schema fails verification. Command and
 event payload shapes, routing, and queueing stay hand-written: the schema owns identities,
 not behavior. Describing payload layouts as separate compatibility units is open phase-10 work.
+
+Key observer payloads carry the UTF-8 GPUI key name (non-empty, NUL-free, at most 128 bytes)
+as borrowed data. Flags carry modifiers in bits 0-4 (control, alt, shift, platform, function,
+matching the click encoding) plus the held-repeat bit 5 for KeyDown only; revision is reserved
+zero. Mouse observer payloads carry 16 little-endian bytes: `f32` x, `f32` y, `u32` button
+(0 Left, 1 Right, 2 Middle, 3 Back, 4 Forward), and `u32` click count (at most 255). Flags
+carry the same 5 modifier bits; revision is reserved zero. Modifier observer payloads carry
+no data: flags hold the current 5 modifier bits and revision is reserved zero; this is the only
+event for modifier-only presses, which never produce key events in GPUI. Hover payloads carry
+no data: flags hold modifiers in bits 0-4 and the hovering state in bit 5; they fire on
+enter/exit transitions only. Outside press payloads match the 16-byte mouse press shape. Mouse
+movement payloads carry 12 little-endian bytes: `f32` x, `f32` y, and `u32` pressed button
+(0-4, or `0xFFFFFFFF` when none). Scroll-wheel payloads carry 20 little-endian bytes: `f32` x,
+`f32` y, `f32` delta x/y, and `u32` units (0 pixels, 1 lines). Movement and wheel events are
+only published while bound, so unregistered elements cost nothing; registered handlers must
+stay cheap because these fire at pointer frequency. File-drop payloads carry an 8-byte LE
+header (`f32` x, `f32` y) followed by NUL-separated lossy UTF-8 paths, at least one and none
+empty, bounded to 1 MiB and 4096 paths; GPUI translates the platform drop into its internal
+drag system, so the bound element under the cursor receives the drop. All families
+validate strictly and
+are dropped with `-112` on any out-of-range flag, revision, length, non-finite coordinate,
+unknown button, or malformed UTF-8.
 
 Event kinds with bit `0x8000` set belong to the generic native-extension namespace. The lower 15
 bits contain the non-zero event ID generated from the extension schema; flags, revision, and byte
@@ -286,6 +313,30 @@ operation is a canonical Boolean `U32`; Checkbox and Radio continue to carry con
 `Checked`. Foundation activation and change requests reuse the existing click callback token and
 payload, so no Rust event object crosses the ABI. Accessible names are derived natively from
 descendant semantic Text nodes.
+
+`OnKeyDown` (203), `OnKeyUp` (204), `OnMouseDown` (205), `OnMouseUp` (206),
+`OnModifiersChanged` (207), `OnHover` (208), `OnMouseDownOut` (209), `OnMouseUpOut` (210),
+`OnMouseMove` (211), `OnScrollWheel` (212), and `OnFileDrop` (213) are observer
+callback operations requiring the generated `key_mouse` capability (Div, Button, Checkbox,
+Radio). They reuse the existing `control_event` reverse channel with kinds 9-19, so this is a
+semantic-only schema change: ABI version and C layouts are unchanged, only the schema hash
+moves. Native listeners observe via `on_key_down`, `on_key_up`, `on_mouse_down`,
+`on_mouse_up`, `on_modifiers_changed`, `on_hover`, `on_mouse_down_out`, `on_mouse_up_out`,
+`on_mouse_move`, and `on_scroll_wheel`, and never call `stop_propagation`, never move focus,
+and never prevent default
+handling. Focused Input, Slider, List/Table navigation, Overlay Escape, and menu/context-menu
+triggers therefore keep their behavior; a bound element only sees events that bubble to it.
+Attach hot keys to the root container and match with `KeyEvent.Matches`; modifier-only presses
+(e.g. holding Ctrl alone) arrive only as `ModifiersEvent` through `OnModifiersChanged`, since
+GPUI never produces key events for bare modifiers. Hover fires on enter/exit transitions only.
+Mouse movement and scroll-wheel events are only published while bound, so unregistered elements
+cost nothing; registered handlers must stay cheap because these fire at pointer frequency, and
+wheel observation never replaces retained Scroll resources. `OnHover` needs stable element
+state, so plain Divs are wrapped with their deterministic node id for that listener only.
+`OnFileDrop` fires on the bound element under the cursor with the dropped paths; like the
+other observers it never consumes the drop.
+These bindings are invalid inside
+virtualized row snapshots, which have no mounted View lifetime.
 
 ContextMenu and PopoverMenu are keyed two-child semantic components. Their native adapters own
 trigger interception, deferred placement, viewport snapping, focus restoration, and dismissal.

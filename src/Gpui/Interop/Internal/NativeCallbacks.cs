@@ -283,6 +283,324 @@ internal static unsafe class NativeCallbacks
                     );
                 }
                 else if (
+                    nativeEvent->kind is (ushort)KeyEventKind.Down or (ushort)KeyEventKind.Up
+                )
+                {
+                    // Key observer events: data is the UTF-8 GPUI key name (non-empty,
+                    // NUL-free, bounded); flags carry modifiers in bits 0-4 and the
+                    // held-repeat bit 5 for key-down only; revision is reserved zero.
+                    var isDown = nativeEvent->kind == (ushort)KeyEventKind.Down;
+                    var allowedFlags = isDown ? ~0x3Fu : ~0x1Fu;
+                    if (
+                        (nativeEvent->flags & allowedFlags) != 0
+                        || nativeEvent->revision != 0
+                        || nativeEvent->data_length <= 0
+                        || nativeEvent->data_length > 128
+                    )
+                    {
+                        return -112;
+                    }
+
+                    var bytes = new ReadOnlySpan<byte>(nativeEvent->data, nativeEvent->data_length);
+                    if (bytes.Contains((byte)0))
+                    {
+                        return -112;
+                    }
+
+                    string key;
+                    try
+                    {
+                        key = System.Text.Encoding.UTF8.GetString(bytes);
+                    }
+                    catch
+                    {
+                        return -112;
+                    }
+                    if (string.IsNullOrEmpty(key))
+                    {
+                        return -112;
+                    }
+
+                    var modifiers = (uint)(nativeEvent->flags & 0x1F);
+                    var isHeld = isDown && (nativeEvent->flags & 0x20) != 0;
+                    session.DispatchKey(
+                        eventToken,
+                        new KeyEvent(
+                            (KeyEventKind)nativeEvent->kind,
+                            key,
+                            modifiers,
+                            isHeld
+                        )
+                    );
+                }
+                else if (
+                    nativeEvent->kind is (ushort)MouseEventKind.Down or (ushort)MouseEventKind.Up
+                )
+                {
+                    // Mouse observer events: flags carry modifiers in bits 0-4;
+                    // data is 16 bytes LE: f32 x, f32 y, u32 button, u32 click count.
+                    if (
+                        (nativeEvent->flags & ~0x1Fu) != 0
+                        || nativeEvent->revision != 0
+                        || nativeEvent->data_length != 16
+                    )
+                    {
+                        return -112;
+                    }
+
+                    var data = new ReadOnlySpan<byte>(nativeEvent->data, 16);
+                    var x = BitConverter.Int32BitsToSingle(
+                        BinaryPrimitives.ReadInt32LittleEndian(data)
+                    );
+                    var y = BitConverter.Int32BitsToSingle(
+                        BinaryPrimitives.ReadInt32LittleEndian(data[4..])
+                    );
+                    var button = BinaryPrimitives.ReadUInt32LittleEndian(data[8..]);
+                    var clickCount = BinaryPrimitives.ReadUInt32LittleEndian(data[12..]);
+                    if (
+                        !float.IsFinite(x)
+                        || !float.IsFinite(y)
+                        || button > (uint)MouseButton.Forward
+                        || clickCount > 255
+                    )
+                    {
+                        return -112;
+                    }
+
+                    session.DispatchMouse(
+                        eventToken,
+                        new MouseEvent(
+                            (MouseEventKind)nativeEvent->kind,
+                            x,
+                            y,
+                            (MouseButton)button,
+                            clickCount,
+                            nativeEvent->flags
+                        )
+                    );
+                }
+                else if (nativeEvent->kind == (ushort)ModifiersEventKind.Changed)
+                {
+                    // Modifier-only presses never produce key events in GPUI; flags carry
+                    // the current modifiers in bits 0-4 with no payload; revision is zero.
+                    if (
+                        (nativeEvent->flags & ~0x1Fu) != 0
+                        || nativeEvent->revision != 0
+                        || nativeEvent->data_length != 0
+                    )
+                    {
+                        return -112;
+                    }
+
+                    session.DispatchModifiers(
+                        eventToken,
+                        new ModifiersEvent(nativeEvent->flags)
+                    );
+                }
+                else if (nativeEvent->kind == (ushort)HoverEventKind.Changed)
+                {
+                    // Hover transitions only: flags carry modifiers in bits 0-4 and
+                    // the hovering state in bit 5; no payload; revision is zero.
+                    if (
+                        (nativeEvent->flags & ~0x3Fu) != 0
+                        || nativeEvent->revision != 0
+                        || nativeEvent->data_length != 0
+                    )
+                    {
+                        return -112;
+                    }
+
+                    session.DispatchHover(
+                        eventToken,
+                        new HoverEvent((nativeEvent->flags & 0x20) != 0)
+                    );
+                }
+                else if (
+                    nativeEvent->kind is (ushort)MouseEventKind.DownOut or (ushort)MouseEventKind.UpOut
+                )
+                {
+                    // Outside press/release: same 16-byte LE payload as down/up.
+                    if (
+                        (nativeEvent->flags & ~0x1Fu) != 0
+                        || nativeEvent->revision != 0
+                        || nativeEvent->data_length != 16
+                    )
+                    {
+                        return -112;
+                    }
+
+                    var data = new ReadOnlySpan<byte>(nativeEvent->data, 16);
+                    var x = BitConverter.Int32BitsToSingle(
+                        BinaryPrimitives.ReadInt32LittleEndian(data)
+                    );
+                    var y = BitConverter.Int32BitsToSingle(
+                        BinaryPrimitives.ReadInt32LittleEndian(data[4..])
+                    );
+                    var button = BinaryPrimitives.ReadUInt32LittleEndian(data[8..]);
+                    var clickCount = BinaryPrimitives.ReadUInt32LittleEndian(data[12..]);
+                    if (
+                        !float.IsFinite(x)
+                        || !float.IsFinite(y)
+                        || button > (uint)MouseButton.Forward
+                        || clickCount > 255
+                    )
+                    {
+                        return -112;
+                    }
+
+                    session.DispatchMouse(
+                        eventToken,
+                        new MouseEvent(
+                            (MouseEventKind)nativeEvent->kind,
+                            x,
+                            y,
+                            (MouseButton)button,
+                            clickCount,
+                            nativeEvent->flags
+                        )
+                    );
+                }
+                else if (nativeEvent->kind == (ushort)MouseEventKind.Move)
+                {
+                    // Mouse movement: 12 bytes LE (f32 x, f32 y, u32 pressed
+                    // button 0-4 or 0xFFFFFFFF when none); flags hold modifiers.
+                    if (
+                        (nativeEvent->flags & ~0x1Fu) != 0
+                        || nativeEvent->revision != 0
+                        || nativeEvent->data_length != 12
+                    )
+                    {
+                        return -112;
+                    }
+
+                    var data = new ReadOnlySpan<byte>(nativeEvent->data, 12);
+                    var x = BitConverter.Int32BitsToSingle(
+                        BinaryPrimitives.ReadInt32LittleEndian(data)
+                    );
+                    var y = BitConverter.Int32BitsToSingle(
+                        BinaryPrimitives.ReadInt32LittleEndian(data[4..])
+                    );
+                    var pressed = BinaryPrimitives.ReadUInt32LittleEndian(data[8..]);
+                    if (
+                        !float.IsFinite(x)
+                        || !float.IsFinite(y)
+                        || (pressed != 0xFFFFFFFF && pressed > (uint)MouseButton.Forward)
+                    )
+                    {
+                        return -112;
+                    }
+
+                    session.DispatchMouseMove(
+                        eventToken,
+                        new MouseMoveEvent(
+                            x,
+                            y,
+                            pressed == 0xFFFFFFFF ? null : (MouseButton)pressed,
+                            nativeEvent->flags
+                        )
+                    );
+                }
+                else if (nativeEvent->kind == (ushort)ScrollEventKind.Wheel)
+                {
+                    // Scroll wheel: 20 bytes LE (f32 x, f32 y, f32 dx, f32 dy,
+                    // u32 units 0 pixels / 1 lines); flags hold modifiers.
+                    if (
+                        (nativeEvent->flags & ~0x1Fu) != 0
+                        || nativeEvent->revision != 0
+                        || nativeEvent->data_length != 20
+                    )
+                    {
+                        return -112;
+                    }
+
+                    var data = new ReadOnlySpan<byte>(nativeEvent->data, 20);
+                    var x = BitConverter.Int32BitsToSingle(
+                        BinaryPrimitives.ReadInt32LittleEndian(data)
+                    );
+                    var y = BitConverter.Int32BitsToSingle(
+                        BinaryPrimitives.ReadInt32LittleEndian(data[4..])
+                    );
+                    var dx = BitConverter.Int32BitsToSingle(
+                        BinaryPrimitives.ReadInt32LittleEndian(data[8..])
+                    );
+                    var dy = BitConverter.Int32BitsToSingle(
+                        BinaryPrimitives.ReadInt32LittleEndian(data[12..])
+                    );
+                    var units = BinaryPrimitives.ReadUInt32LittleEndian(data[16..]);
+                    if (
+                        !float.IsFinite(x)
+                        || !float.IsFinite(y)
+                        || !float.IsFinite(dx)
+                        || !float.IsFinite(dy)
+                        || units > (uint)ScrollDeltaUnits.Lines
+                    )
+                    {
+                        return -112;
+                    }
+
+                    session.DispatchScrollWheel(
+                        eventToken,
+                        new ScrollWheelEvent(x, y, dx, dy, (ScrollDeltaUnits)units, nativeEvent->flags)
+                    );
+                }
+                else if (nativeEvent->kind == (ushort)FileEventKind.Dropped)
+                {
+                    // File drop: 8-byte LE header (f32 x, f32 y) followed by
+                    // NUL-separated lossy UTF-8 paths, at least one, none empty.
+                    const int MaxFileDropBytes = 1 << 20;
+                    const int MaxFileDropPaths = 4096;
+                    if (
+                        (nativeEvent->flags & ~0x1Fu) != 0
+                        || nativeEvent->revision != 0
+                        || nativeEvent->data_length < 9
+                        || nativeEvent->data_length > MaxFileDropBytes
+                    )
+                    {
+                        return -112;
+                    }
+
+                    var data = new ReadOnlySpan<byte>(nativeEvent->data, nativeEvent->data_length);
+                    var x = BitConverter.Int32BitsToSingle(
+                        BinaryPrimitives.ReadInt32LittleEndian(data)
+                    );
+                    var y = BitConverter.Int32BitsToSingle(
+                        BinaryPrimitives.ReadInt32LittleEndian(data[4..])
+                    );
+                    if (!float.IsFinite(x) || !float.IsFinite(y))
+                    {
+                        return -112;
+                    }
+
+                    var paths = new List<string>();
+                    var segmentStart = 8;
+                    for (var index = 8; index <= data.Length; index++)
+                    {
+                        if (index == data.Length || data[index] == 0)
+                        {
+                            var segment = data[segmentStart..index];
+                            if (segment.IsEmpty)
+                            {
+                                return -112;
+                            }
+                            paths.Add(System.Text.Encoding.UTF8.GetString(segment));
+                            segmentStart = index + 1;
+                            if (paths.Count > MaxFileDropPaths)
+                            {
+                                return -112;
+                            }
+                        }
+                    }
+                    if (paths.Count == 0)
+                    {
+                        return -112;
+                    }
+
+                    session.DispatchFileDrop(
+                        eventToken,
+                        new FileDropEvent(x, y, paths.ToArray(), nativeEvent->flags)
+                    );
+                }
+                else if (
                     nativeEvent->kind is (ushort)DockEventKind.LayoutChanged
                         or (ushort)DockEventKind.LayoutExported
                         or (ushort)DockEventKind.PanelClosed
