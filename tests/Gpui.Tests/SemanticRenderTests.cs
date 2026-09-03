@@ -20,6 +20,94 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void MarginPaddingAndGapAxesPassManagedValidation()
+    {        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var root = ui.VStack(ui.Text("box"u8))
+            .Margin(Px(4))
+            .MarginX(Px(5))
+            .MarginY(Px(6))
+            .MarginTop(Px(7))
+            .MarginBottom(Px(8))
+            .MarginLeft(Px(9))
+            .MarginRight(Px(10))
+            .PaddingX(Px(11))
+            .PaddingY(Px(12))
+            .PaddingTop(Px(13))
+            .PaddingBottom(Px(14))
+            .PaddingLeft(Px(15))
+            .PaddingRight(Px(16))
+            .GapX(Px(17))
+            .GapY(Px(18));
+
+        arena.Validate(root);
+
+        Assert.Equal(4, ReadLastF32Op(arena, OpCode.MarginPx));
+        Assert.Equal(5, ReadLastF32Op(arena, OpCode.MarginXPx));
+        Assert.Equal(6, ReadLastF32Op(arena, OpCode.MarginYPx));
+        Assert.Equal(7, ReadLastF32Op(arena, OpCode.MarginTopPx));
+        Assert.Equal(8, ReadLastF32Op(arena, OpCode.MarginBottomPx));
+        Assert.Equal(9, ReadLastF32Op(arena, OpCode.MarginLeftPx));
+        Assert.Equal(10, ReadLastF32Op(arena, OpCode.MarginRightPx));
+        Assert.Equal(11, ReadLastF32Op(arena, OpCode.PaddingXPx));
+        Assert.Equal(12, ReadLastF32Op(arena, OpCode.PaddingYPx));
+        Assert.Equal(13, ReadLastF32Op(arena, OpCode.PaddingTopPx));
+        Assert.Equal(14, ReadLastF32Op(arena, OpCode.PaddingBottomPx));
+        Assert.Equal(15, ReadLastF32Op(arena, OpCode.PaddingLeftPx));
+        Assert.Equal(16, ReadLastF32Op(arena, OpCode.PaddingRightPx));
+        Assert.Equal(17, ReadLastF32Op(arena, OpCode.GapXPx));
+        Assert.Equal(18, ReadLastF32Op(arena, OpCode.GapYPx));
+    }
+
+    [Fact]
+    public void FlexSizingWrapAndAlignmentPassManagedValidation()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var root = ui.HStack(ui.Text("item"u8))
+            .MinWidth(Px(120))
+            .MinHeight(Px(40))
+            .MaxWidth(Px(480))
+            .MaxHeight(Px(320))
+            .Basis(Percent(50))
+            .Shrink(0)
+            .Grow(2)
+            .Wrap(FlexWrap.Wrap)
+            .ItemsStart()
+            .ItemsEnd()
+            .JustifyStart()
+            .JustifyEnd();
+
+        arena.Validate(root);
+
+        Assert.Equal(120, ReadLastF32Op(arena, OpCode.MinWidthPx));
+        Assert.Equal(40, ReadLastF32Op(arena, OpCode.MinHeightPx));
+        Assert.Equal(480, ReadLastF32Op(arena, OpCode.MaxWidthPx));
+        Assert.Equal(320, ReadLastF32Op(arena, OpCode.MaxHeightPx));
+        Assert.Equal(50, ReadLastF32Op(arena, OpCode.FlexBasisPercent));
+        Assert.Equal(0, ReadLastF32Op(arena, OpCode.FlexShrink));
+        Assert.Equal(2, ReadLastF32Op(arena, OpCode.FlexGrow));
+        Assert.Equal((uint)FlexWrap.Wrap, ReadLastU32Op(arena, OpCode.FlexWrap));
+
+        using var basisArena = new RenderArenaOwner();
+        var basisUi = basisArena.BeginRender();
+        var basisRoot = basisUi.Div().Basis(Px(200));
+        basisArena.Validate(basisRoot);
+        Assert.Equal(200, ReadLastF32Op(basisArena, OpCode.FlexBasisPx));
+    }
+
+    [Fact]
+    public void FlexWrapRejectsUndefinedModes()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender();
+            ui.Div().Wrap((FlexWrap)3);
+        });
+    }
+
+    [Fact]
     public void RepresentativeTreePassesManagedValidation()
     {
         using var arena = new RenderArenaOwner();

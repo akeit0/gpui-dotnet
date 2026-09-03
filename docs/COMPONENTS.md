@@ -34,7 +34,9 @@ when interaction state must survive independently from managed renders.
 ## Styling
 
 Styled elements support the generated fluent operations declared by `bindings/schema.json`,
-including layout, dimensions, backgrounds, borders, text color, and typography. Interactive
+including layout, dimensions, uniform and per-side/axis margins, padding, and gaps, min/max
+sizes, flex basis/shrink/wrap, container alignment, backgrounds, borders, text color, and
+typography. Interactive
 elements additionally support native hover and active paint operations.
 
 The application theme supplies semantic tokens:
