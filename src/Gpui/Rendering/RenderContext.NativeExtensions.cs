@@ -116,4 +116,123 @@ public readonly unsafe ref partial struct RenderContext
         ArenaWriter.AddChildren(element.Inner, children);
         return element;
     }
+
+    /// <summary>
+    /// Declares the retained extension resource bound to a controller, with an already
+    /// UTF-8-encoded configuration. The bytes must not contain NUL, which separates the
+    /// node data fields.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Element<NativeExtensionTag> NativeExtension(
+        NativeExtensionController controller,
+        ReadOnlySpan<byte> utf8Configuration,
+        params ReadOnlySpan<Element> children
+    )
+    {
+        var owner = OwnerView;
+        controller.ValidateOwner(owner);
+        if (utf8Configuration.Contains((byte)0))
+        {
+            throw new ArgumentException(
+                "Extension configuration cannot contain NUL characters.",
+                nameof(utf8Configuration)
+            );
+        }
+
+        var element = ArenaWriter.AddNativeExtensionNode(
+            _arena,
+            controller.Component,
+            controller.Key,
+            utf8Configuration
+        );
+        ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
+        ArenaWriter.AddChildren(element.Inner, children);
+        return element;
+    }
+
+    /// <summary>
+    /// Writes one opaque extension declaration with an already UTF-8-encoded
+    /// configuration. The bytes must not contain NUL, which separates the node
+    /// data fields. Extension packages should wrap this method with a typed
+    /// builder and own the configuration format identified by their schema hash.
+    /// </summary>
+    /// <remarks>
+    /// The default native host has no extension providers. Applications using this element must
+    /// select a host built with a provider matching <paramref name="component"/>.
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Element<NativeExtensionTag> NativeExtension(
+        NativeExtensionComponent component,
+        ReadOnlySpan<char> key,
+        ReadOnlySpan<byte> utf8Configuration,
+        params ReadOnlySpan<Element> children
+    )
+    {
+        component.Validate(nameof(component));
+        if (key.IsEmpty)
+        {
+            throw new ArgumentException("An extension resource key cannot be empty.", nameof(key));
+        }
+        ResourceKeys.ValidateExplicitChars(key, nameof(key));
+        if (utf8Configuration.Contains((byte)0))
+        {
+            throw new ArgumentException(
+                "Extension configuration cannot contain NUL characters.",
+                nameof(utf8Configuration)
+            );
+        }
+
+        var element = ArenaWriter.AddNativeExtensionNode(
+            _arena,
+            component,
+            key,
+            utf8Configuration
+        );
+        ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
+        ArenaWriter.AddChildren(element.Inner, children);
+        return element;
+    }
+
+    /// <summary>
+    /// Writes one opaque extension declaration with an already UTF-8-encoded key and
+    /// configuration. Neither span may contain NUL, which separates the node data fields.
+    /// Extension packages should wrap this method with a typed builder and own the
+    /// configuration format identified by their schema hash.
+    /// </summary>
+    /// <remarks>
+    /// The default native host has no extension providers. Applications using this element must
+    /// select a host built with a provider matching <paramref name="component"/>.
+    /// </remarks>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Element<NativeExtensionTag> NativeExtension(
+        NativeExtensionComponent component,
+        ReadOnlySpan<byte> utf8Key,
+        ReadOnlySpan<byte> utf8Configuration,
+        params ReadOnlySpan<Element> children
+    )
+    {
+        component.Validate(nameof(component));
+        if (utf8Key.IsEmpty)
+        {
+            throw new ArgumentException("An extension resource key cannot be empty.", nameof(utf8Key));
+        }
+        ResourceKeys.ValidateExplicitBytes(utf8Key, nameof(utf8Key));
+        if (utf8Configuration.Contains((byte)0))
+        {
+            throw new ArgumentException(
+                "Extension configuration cannot contain NUL characters.",
+                nameof(utf8Configuration)
+            );
+        }
+
+        var element = ArenaWriter.AddNativeExtensionNode(
+            _arena,
+            component,
+            utf8Key,
+            utf8Configuration
+        );
+        ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
+        ArenaWriter.AddChildren(element.Inner, children);
+        return element;
+    }
 }

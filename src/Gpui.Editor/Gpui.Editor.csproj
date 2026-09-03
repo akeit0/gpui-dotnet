@@ -12,4 +12,8 @@
         <ProjectReference Include="../Gpui.Core/Gpui.Core.csproj" AdditionalProperties="BuildGpuiNative=false" />
         <None Include="schema.json" Pack="true" PackagePath="schema" />
     </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Gpui.Tests" />
+    </ItemGroup>
 </Project>
