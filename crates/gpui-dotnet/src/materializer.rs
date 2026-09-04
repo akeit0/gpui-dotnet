@@ -3,11 +3,11 @@ use std::path::PathBuf;
 use gpui::{
     AnyElement, App, ClickEvent, Context, CursorStyle, DefiniteLength, ElementId, Entity,
     ExternalPaths, FillOptions, FillRule, FocusHandle, FontWeight, InteractiveElement, IntoElement,
-    KeyDownEvent, KeyUpEvent, ListState, ModifiersChangedEvent, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, ObjectFit, ParentElement, PathBuilder, PathStyle, Pixels,
-    ScrollWheelEvent, SharedString, StatefulInteractiveElement, Styled, StyledImage, TextAlign,
-    WeakFocusHandle, Window, WindowControlArea, anchored, canvas, deferred, div, img, list, point,
-    px, relative, rgba,
+    KeyDownEvent, KeyUpEvent, Length, ListState, ModifiersChangedEvent, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, ParentElement, PathBuilder, PathStyle,
+    Pixels, ScrollWheelEvent, SharedString, StatefulInteractiveElement, Styled, StyledImage,
+    TextAlign, WeakFocusHandle, Window, WindowControlArea, anchored, canvas, deferred, div, img,
+    list, point, px, relative, rgba,
 };
 use gpui_base::FocusTrapElement as _;
 
@@ -34,15 +34,16 @@ use crate::{
         EVENT_MOUSE_UP, EVENT_MOUSE_UP_OUT, EVENT_SCROLL_WHEEL, NativeAdapter, OP_ABSOLUTE,
         OP_ACTIVE_BACKGROUND_RGBA, OP_ACTIVE_BORDER_RGBA, OP_ACTIVE_TEXT_RGBA, OP_ALIGN_CONTENT,
         OP_ASPECT_RATIO, OP_BACKGROUND_RGBA, OP_BORDER_RGBA, OP_BORDER_STYLE, OP_BORDER_WIDTH_PX,
-        OP_BOTTOM_PX, OP_CHECKED, OP_CONTEXT_MENU_MARGIN_PX, OP_CONTEXT_MENU_PRIORITY, OP_CURSOR,
-        OP_DISABLED, OP_DISPLAY_NONE, OP_DRAWING_VIEW_BOX_ORIGIN, OP_DRAWING_VIEW_BOX_SIZE,
-        OP_ELEMENT_OWNER, OP_FLEX, OP_FLEX_BASIS_PERCENT, OP_FLEX_BASIS_PX, OP_FLEX_GROW,
-        OP_FLEX_SHRINK, OP_FLEX_WRAP, OP_FONT_SIZE_PX, OP_FONT_STYLE, OP_FONT_WEIGHT,
-        OP_GAP_PERCENT, OP_GAP_PX, OP_GAP_X_PERCENT, OP_GAP_X_PX, OP_GAP_Y_PERCENT, OP_GAP_Y_PX,
-        OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_HOVER_BACKGROUND_RGBA, OP_HOVER_BORDER_RGBA,
-        OP_HOVER_TEXT_RGBA, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_INSET_PX,
-        OP_ITEMS_BASELINE, OP_ITEMS_CENTER, OP_ITEMS_END, OP_ITEMS_START, OP_ITEMS_STRETCH,
-        OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER, OP_JUSTIFY_END, OP_JUSTIFY_START, OP_LEFT_PX,
+        OP_BOTTOM_PERCENT, OP_BOTTOM_PX, OP_CHECKED, OP_CONTEXT_MENU_MARGIN_PX,
+        OP_CONTEXT_MENU_PRIORITY, OP_CURSOR, OP_DISABLED, OP_DISPLAY_NONE,
+        OP_DRAWING_VIEW_BOX_ORIGIN, OP_DRAWING_VIEW_BOX_SIZE, OP_ELEMENT_OWNER, OP_FLEX,
+        OP_FLEX_BASIS_PERCENT, OP_FLEX_BASIS_PX, OP_FLEX_GROW, OP_FLEX_SHRINK, OP_FLEX_WRAP,
+        OP_FONT_SIZE_PX, OP_FONT_STYLE, OP_FONT_WEIGHT, OP_GAP_PERCENT, OP_GAP_PX,
+        OP_GAP_X_PERCENT, OP_GAP_X_PX, OP_GAP_Y_PERCENT, OP_GAP_Y_PX, OP_HEIGHT_PERCENT,
+        OP_HEIGHT_PX, OP_HOVER_BACKGROUND_RGBA, OP_HOVER_BORDER_RGBA, OP_HOVER_TEXT_RGBA,
+        OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_INSET_PERCENT, OP_INSET_PX, OP_ITEMS_BASELINE,
+        OP_ITEMS_CENTER, OP_ITEMS_END, OP_ITEMS_START, OP_ITEMS_STRETCH, OP_JUSTIFY_BETWEEN,
+        OP_JUSTIFY_CENTER, OP_JUSTIFY_END, OP_JUSTIFY_START, OP_LEFT_PERCENT, OP_LEFT_PX,
         OP_LINE_CLAMP, OP_LINE_HEIGHT_PERCENT, OP_LINE_HEIGHT_PX, OP_LIST_ALIGNMENT,
         OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT,
         OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_MARGIN_BOTTOM_PERCENT, OP_MARGIN_BOTTOM_PX,
@@ -67,14 +68,14 @@ use crate::{
         OP_PATH_MOVE_TO, OP_PATH_QUADRATIC_CONTROL, OP_PATH_QUADRATIC_TO, OP_PATH_STROKE_RGBA,
         OP_PATH_STROKE_WIDTH_PX, OP_POPOVER_MENU_MARGIN_PX, OP_POPOVER_MENU_PRIORITY,
         OP_RADIUS_BOTTOM_LEFT_PX, OP_RADIUS_BOTTOM_RIGHT_PX, OP_RADIUS_PX, OP_RADIUS_TOP_LEFT_PX,
-        OP_RADIUS_TOP_RIGHT_PX, OP_RELATIVE, OP_RESOURCE_OWNER, OP_RIGHT_PX, OP_SCROLL_AXIS,
-        OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SELF_BASELINE, OP_SELF_CENTER, OP_SELF_END,
-        OP_SELF_FLEX_END, OP_SELF_FLEX_START, OP_SELF_START, OP_SELF_STRETCH, OP_SHOW_SCROLLBAR,
-        OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER, OP_TEXT_ALIGN,
-        OP_TEXT_BACKGROUND, OP_TEXT_ELLIPSIS, OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT,
+        OP_RADIUS_TOP_RIGHT_PX, OP_RELATIVE, OP_RESOURCE_OWNER, OP_RIGHT_PERCENT, OP_RIGHT_PX,
+        OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SELF_BASELINE, OP_SELF_CENTER,
+        OP_SELF_END, OP_SELF_FLEX_END, OP_SELF_FLEX_START, OP_SELF_START, OP_SELF_STRETCH,
+        OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER,
+        OP_TEXT_ALIGN, OP_TEXT_BACKGROUND, OP_TEXT_ELLIPSIS, OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT,
         OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS, OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT,
-        OP_TOOLTIP_SHOW_DELAY_MS, OP_TOP_PX, OP_V_STACK, OP_VISIBILITY, OP_WHITE_SPACE,
-        OP_WIDTH_PERCENT, OP_WIDTH_PX, OP_WINDOW_CONTROL_AREA, component_metadata,
+        OP_TOOLTIP_SHOW_DELAY_MS, OP_TOP_PERCENT, OP_TOP_PX, OP_V_STACK, OP_VISIBILITY,
+        OP_WHITE_SPACE, OP_WIDTH_PERCENT, OP_WIDTH_PX, OP_WINDOW_CONTROL_AREA, component_metadata,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
     theme::NativeTheme,
@@ -1992,6 +1993,21 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
             OP_RIGHT_PX => element.right(px(value)),
             OP_BOTTOM_PX => element.bottom(px(value)),
             OP_INSET_PX => element.inset(px(value)),
+            OP_TOP_PERCENT => {
+                element.top(Length::Definite(DefiniteLength::Fraction(value / 100.0)))
+            }
+            OP_LEFT_PERCENT => {
+                element.left(Length::Definite(DefiniteLength::Fraction(value / 100.0)))
+            }
+            OP_RIGHT_PERCENT => {
+                element.right(Length::Definite(DefiniteLength::Fraction(value / 100.0)))
+            }
+            OP_BOTTOM_PERCENT => {
+                element.bottom(Length::Definite(DefiniteLength::Fraction(value / 100.0)))
+            }
+            OP_INSET_PERCENT => {
+                element.inset(Length::Definite(DefiniteLength::Fraction(value / 100.0)))
+            }
             OP_OVERFLOW_HIDDEN => element.overflow_hidden(),
             OP_OVERFLOW_X_HIDDEN => element.overflow_x_hidden(),
             OP_OVERFLOW_Y_HIDDEN => element.overflow_y_hidden(),

@@ -967,40 +967,35 @@
       "name": "top_px",
       "csharp": "Top",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 150,
       "name": "left_px",
       "csharp": "Left",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 151,
       "name": "right_px",
       "csharp": "Right",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 152,
       "name": "bottom_px",
       "csharp": "Bottom",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 153,
       "name": "inset_px",
       "csharp": "Inset",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 154,
@@ -2318,6 +2313,46 @@
       "managedApi": null,
       "validation": { "kind": "u32Max", "max": 1, "status": -22 },
       "managedMethod": { "kind": "enum", "method": "FontStyle", "enum": "font_style", "param": "style", "doc": "Declares the font style of an element. Only normal and italic faces are exposed." }
+    },
+    {
+      "id": 766,
+      "name": "top_percent",
+      "csharp": "TopPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 767,
+      "name": "left_percent",
+      "csharp": "LeftPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 768,
+      "name": "right_percent",
+      "csharp": "RightPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 769,
+      "name": "bottom_percent",
+      "csharp": "BottomPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 770,
+      "name": "inset_percent",
+      "csharp": "InsetPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
     }
   ],
   "lengthMethods": [
@@ -2495,6 +2530,41 @@
       "px": "line_height_px",
       "percent": "line_height_percent",
       "doc": "Declares the line height of an element, in pixels or percent of the font size."
+    },
+    {
+      "method": "Top",
+      "param": "value",
+      "px": "top_px",
+      "percent": "top_percent",
+      "doc": "Declares the top offset of an element, in pixels or percent."
+    },
+    {
+      "method": "Left",
+      "param": "value",
+      "px": "left_px",
+      "percent": "left_percent",
+      "doc": "Declares the left offset of an element, in pixels or percent."
+    },
+    {
+      "method": "Right",
+      "param": "value",
+      "px": "right_px",
+      "percent": "right_percent",
+      "doc": "Declares the right offset of an element, in pixels or percent."
+    },
+    {
+      "method": "Bottom",
+      "param": "value",
+      "px": "bottom_px",
+      "percent": "bottom_percent",
+      "doc": "Declares the bottom offset of an element, in pixels or percent."
+    },
+    {
+      "method": "Inset",
+      "param": "value",
+      "px": "inset_px",
+      "percent": "inset_percent",
+      "doc": "Declares the inset of an element, in pixels or percent."
     }
   ],
   "resources": [

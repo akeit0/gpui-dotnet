@@ -250,6 +250,11 @@ namespace Gpui.Interop
         DisplayNone = 763,
         TextEllipsis = 764,
         FontStyle = 765,
+        TopPercent = 766,
+        LeftPercent = 767,
+        RightPercent = 768,
+        BottomPercent = 769,
+        InsetPercent = 770,
     }
 
     internal enum ValueKind : ushort
@@ -310,7 +315,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x14502E2BBC11E8A0UL;
+        internal const ulong SchemaHash = 0xEBADAE7525039250UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -582,6 +587,11 @@ namespace Gpui.Interop
             OpCode.DisplayNone => ValueKind.None,
             OpCode.TextEllipsis => ValueKind.None,
             OpCode.FontStyle => ValueKind.U32,
+            OpCode.TopPercent => ValueKind.F32,
+            OpCode.LeftPercent => ValueKind.F32,
+            OpCode.RightPercent => ValueKind.F32,
+            OpCode.BottomPercent => ValueKind.F32,
+            OpCode.InsetPercent => ValueKind.F32,
             _ => null,
         };
 
@@ -834,6 +844,11 @@ namespace Gpui.Interop
             OpCode.DisplayNone => 0x0000000000000001UL,
             OpCode.TextEllipsis => 0x0000000000000001UL,
             OpCode.FontStyle => 0x0000000000000001UL,
+            OpCode.TopPercent => 0x0000000000000001UL,
+            OpCode.LeftPercent => 0x0000000000000001UL,
+            OpCode.RightPercent => 0x0000000000000001UL,
+            OpCode.BottomPercent => 0x0000000000000001UL,
+            OpCode.InsetPercent => 0x0000000000000001UL,
             _ => 0,
         };
 

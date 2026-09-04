@@ -609,46 +609,6 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Top<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.TopPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Left<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.LeftPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Right<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.RightPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Bottom<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.BottomPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Inset<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.InsetPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Element<TTag> OverflowHidden<TTag>(this Element<TTag> element)
             where TTag : unmanaged, IStyledElementTag
         {
@@ -1487,6 +1447,106 @@ namespace Gpui
                     break;
                 case LengthUnit.Percent:
                     ArenaWriter.AddF32(element.Inner, OpCode.LineHeightPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the top offset of an element, in pixels or percent.</summary>
+        public static Element<TTag> Top<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.TopPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.TopPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the left offset of an element, in pixels or percent.</summary>
+        public static Element<TTag> Left<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.LeftPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.LeftPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the right offset of an element, in pixels or percent.</summary>
+        public static Element<TTag> Right<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.RightPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.RightPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the bottom offset of an element, in pixels or percent.</summary>
+        public static Element<TTag> Bottom<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.BottomPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.BottomPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the inset of an element, in pixels or percent.</summary>
+        public static Element<TTag> Inset<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.InsetPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.InsetPercent, value.Value);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(value));

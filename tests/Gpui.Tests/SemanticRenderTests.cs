@@ -210,6 +210,21 @@ public sealed class SemanticRenderTests
         var absoluteUi = absoluteArena.BeginRender();
         var absoluteRoot = absoluteUi.Div().Absolute();
         absoluteArena.Validate(absoluteRoot);
+
+        using var percentArena = new RenderArenaOwner();
+        var percentUi = percentArena.BeginRender();
+        var percentRoot = percentUi.Div()
+            .Top(Percent(10))
+            .Left(Percent(20))
+            .Right(Percent(30))
+            .Bottom(Percent(40))
+            .Inset(Percent(5));
+        percentArena.Validate(percentRoot);
+        Assert.Equal(10, ReadLastF32Op(percentArena, OpCode.TopPercent));
+        Assert.Equal(20, ReadLastF32Op(percentArena, OpCode.LeftPercent));
+        Assert.Equal(30, ReadLastF32Op(percentArena, OpCode.RightPercent));
+        Assert.Equal(40, ReadLastF32Op(percentArena, OpCode.BottomPercent));
+        Assert.Equal(5, ReadLastF32Op(percentArena, OpCode.InsetPercent));
     }
 
     [Fact]
