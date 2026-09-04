@@ -472,7 +472,7 @@ internal static class BindingGenerator
         {
             return;
         }
-        if (method.Kind is not ("f32" or "f32x2" or "u32" or "u64" or "color" or "string" or "enum"))
+        if (method.Kind is not ("f32" or "f32x2" or "u32" or "u64" or "color" or "string" or "strings" or "pairs" or "enum"))
         {
             throw new InvalidOperationException(
                 $"Operation {operation.Name} has unknown managed method kind '{method.Kind}'."
@@ -481,7 +481,7 @@ internal static class BindingGenerator
         var expectedValue = method.Kind switch
         {
             "enum" or "color" => "u32",
-            "string" => "data",
+            "string" or "strings" or "pairs" => "data",
             _ => method.Kind,
         };
         if (expectedValue != operation.Value)
@@ -531,7 +531,7 @@ internal static class BindingGenerator
         if (
             (method.Kind is "f32" or "f32x2" && method.Guard == "nonZero")
             || (method.Kind is not ("f32" or "f32x2") && method.Guard == "positive")
-            || (method.Kind is "color" or "enum" or "string" && method.Guard is not null)
+            || (method.Kind is "color" or "enum" or "string" or "strings" or "pairs" && method.Guard is not null)
         )
         {
             throw new InvalidOperationException(
@@ -1462,6 +1462,12 @@ internal static class BindingGenerator
     )
     {
         var method = operation.ManagedMethod!;
+        if (method.Kind is "strings" or "pairs")
+        {
+            AppendListMethod(builder, operation, method);
+            builder.AppendLine();
+            return;
+        }
         if (method.Kind == "string")
         {
             AppendStringMethod(builder, operation, method, utf8: false);
@@ -1506,6 +1512,72 @@ internal static class BindingGenerator
         builder.AppendLine("            return element;");
         builder.AppendLine("        }");
         builder.AppendLine();
+    }
+
+    private static void AppendListMethod(
+        StringBuilder builder,
+        Operation operation,
+        ManagedMethod method
+    )
+    {
+        var opCode = Pascal(operation.Name);
+        var parameterType =
+            method.Kind == "pairs" ? "(string Tag, uint Value)" : "string";
+        builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+        builder.AppendLine($"        /// <summary>{XmlDoc(method.Doc)}</summary>");
+        builder.AppendLine(
+            $"        public static Element<TTag> {method.Method}<TTag>(this Element<TTag> element, params ReadOnlySpan<{parameterType}> {method.Param})"
+        );
+        builder.AppendLine(
+            $"            where TTag : unmanaged, {CapabilityInterface(operation.Requires)}"
+        );
+        builder.AppendLine("        {");
+        builder.AppendLine($"            if ({method.Param}.IsEmpty)");
+        builder.AppendLine("            {");
+        builder.AppendLine(
+            $"                throw new ArgumentException(\"At least one entry is required.\", nameof({method.Param}));"
+        );
+        builder.AppendLine("            }");
+        builder.AppendLine();
+        if (method.Kind == "pairs")
+        {
+            builder.AppendLine($"            foreach (var (tag, _) in {method.Param})");
+            builder.AppendLine("            {");
+            builder.AppendLine("                var validTag = tag is not null && tag.Length > 0 && tag.Length <= 4;");
+            builder.AppendLine("                for (var i = 0; validTag && i < tag.Length; i++)");
+            builder.AppendLine("                {");
+            builder.AppendLine("                    validTag = char.IsAsciiLetterOrDigit(tag[i]);");
+            builder.AppendLine("                }");
+            builder.AppendLine("                if (!validTag)");
+            builder.AppendLine("                {");
+            builder.AppendLine(
+                $"                    throw new ArgumentException(\"Feature tags must be 1-4 ASCII letters or digits.\", nameof({method.Param}));"
+            );
+            builder.AppendLine("                }");
+            builder.AppendLine("            }");
+            builder.AppendLine();
+            builder.AppendLine(
+                $"            ArenaWriter.AddFeatureData(element.Inner, OpCode.{opCode}, {method.Param});"
+            );
+        }
+        else
+        {
+            builder.AppendLine($"            foreach (var entry in {method.Param})");
+            builder.AppendLine("            {");
+            builder.AppendLine("                if (string.IsNullOrEmpty(entry) || entry.Contains(','))");
+            builder.AppendLine("                {");
+            builder.AppendLine(
+                $"                    throw new ArgumentException(\"Entries must be non-empty and contain no commas.\", nameof({method.Param}));"
+            );
+            builder.AppendLine("                }");
+            builder.AppendLine("            }");
+            builder.AppendLine();
+            builder.AppendLine(
+                $"            ArenaWriter.AddJoinedData(element.Inner, OpCode.{opCode}, {method.Param}, ',');"
+            );
+        }
+        builder.AppendLine("            return element;");
+        builder.AppendLine("        }");
     }
 
     private static void AppendStringMethod(

@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use gpui::{
     AnyElement, App, BoxShadow, ClickEvent, Context, CursorStyle, DefiniteLength, ElementId,
-    Entity, ExternalPaths, FillOptions, FillRule, FocusHandle, FontWeight, Hsla,
-    InteractiveElement, IntoElement, KeyDownEvent, KeyUpEvent, Length, ListState,
+    Entity, ExternalPaths, FillOptions, FillRule, FocusHandle, Font, FontFallbacks, FontStyle,
+    FontWeight, Hsla, InteractiveElement, IntoElement, KeyDownEvent, KeyUpEvent, Length, ListState,
     ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit,
     ParentElement, PathBuilder, PathStyle, Pixels, ScrollWheelEvent, SharedString,
     StatefulInteractiveElement, Styled, StyledImage, TextAlign, TextOverflow, WeakFocusHandle,
@@ -39,26 +39,27 @@ use crate::{
         OP_CONTEXT_MENU_PRIORITY, OP_CURSOR, OP_DISABLED, OP_DISPLAY_NONE,
         OP_DRAWING_VIEW_BOX_ORIGIN, OP_DRAWING_VIEW_BOX_SIZE, OP_ELEMENT_OWNER, OP_FLEX,
         OP_FLEX_BASIS_PERCENT, OP_FLEX_BASIS_PX, OP_FLEX_GROW, OP_FLEX_SHRINK, OP_FLEX_WRAP,
-        OP_FONT_FAMILY, OP_FONT_SIZE_PX, OP_FONT_STYLE, OP_FONT_WEIGHT, OP_GAP_PERCENT, OP_GAP_PX,
-        OP_GAP_X_PERCENT, OP_GAP_X_PX, OP_GAP_Y_PERCENT, OP_GAP_Y_PX, OP_HEIGHT_PERCENT,
-        OP_HEIGHT_PX, OP_HOVER_BACKGROUND_RGBA, OP_HOVER_BORDER_RGBA, OP_HOVER_TEXT_RGBA,
-        OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_INSET_PERCENT, OP_INSET_PX, OP_ITEMS_BASELINE,
-        OP_ITEMS_CENTER, OP_ITEMS_END, OP_ITEMS_START, OP_ITEMS_STRETCH, OP_JUSTIFY_BETWEEN,
-        OP_JUSTIFY_CENTER, OP_JUSTIFY_END, OP_JUSTIFY_START, OP_LEFT_PERCENT, OP_LEFT_PX,
-        OP_LINE_CLAMP, OP_LINE_HEIGHT_PERCENT, OP_LINE_HEIGHT_PX, OP_LINE_THROUGH,
-        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
-        OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_MARGIN_BOTTOM_PERCENT,
-        OP_MARGIN_BOTTOM_PX, OP_MARGIN_LEFT_PERCENT, OP_MARGIN_LEFT_PX, OP_MARGIN_PERCENT,
-        OP_MARGIN_PX, OP_MARGIN_RIGHT_PERCENT, OP_MARGIN_RIGHT_PX, OP_MARGIN_TOP_PERCENT,
-        OP_MARGIN_TOP_PX, OP_MARGIN_X_PERCENT, OP_MARGIN_X_PX, OP_MARGIN_Y_PERCENT, OP_MARGIN_Y_PX,
-        OP_MAX_HEIGHT_PERCENT, OP_MAX_HEIGHT_PX, OP_MAX_WIDTH_PERCENT, OP_MAX_WIDTH_PX,
-        OP_MIN_HEIGHT_PERCENT, OP_MIN_HEIGHT_PX, OP_MIN_WIDTH_PERCENT, OP_MIN_WIDTH_PX,
-        OP_ON_CLICK, OP_ON_FILE_DROP, OP_ON_HOVER, OP_ON_KEY_DOWN, OP_ON_KEY_UP,
-        OP_ON_MODIFIERS_CHANGED, OP_ON_MOUSE_DOWN, OP_ON_MOUSE_DOWN_OUT, OP_ON_MOUSE_MOVE,
-        OP_ON_MOUSE_UP, OP_ON_MOUSE_UP_OUT, OP_ON_SCROLL_WHEEL, OP_OPACITY, OP_OVERFLOW_HIDDEN,
-        OP_OVERFLOW_X_HIDDEN, OP_OVERFLOW_Y_HIDDEN, OP_OVERLAY_BACKDROP_RGBA,
-        OP_OVERLAY_DISMISS_ON_BACKDROP, OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX,
-        OP_OVERLAY_MODAL, OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY,
+        OP_FONT_FALLBACKS, OP_FONT_FAMILY, OP_FONT_FEATURES, OP_FONT_SIZE_PX, OP_FONT_STYLE,
+        OP_FONT_WEIGHT, OP_GAP_PERCENT, OP_GAP_PX, OP_GAP_X_PERCENT, OP_GAP_X_PX, OP_GAP_Y_PERCENT,
+        OP_GAP_Y_PX, OP_HEIGHT_PERCENT, OP_HEIGHT_PX, OP_HOVER_BACKGROUND_RGBA,
+        OP_HOVER_BORDER_RGBA, OP_HOVER_TEXT_RGBA, OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT,
+        OP_INSET_PERCENT, OP_INSET_PX, OP_ITEMS_BASELINE, OP_ITEMS_CENTER, OP_ITEMS_END,
+        OP_ITEMS_START, OP_ITEMS_STRETCH, OP_JUSTIFY_BETWEEN, OP_JUSTIFY_CENTER, OP_JUSTIFY_END,
+        OP_JUSTIFY_START, OP_LEFT_PERCENT, OP_LEFT_PX, OP_LINE_CLAMP, OP_LINE_HEIGHT_PERCENT,
+        OP_LINE_HEIGHT_PX, OP_LINE_THROUGH, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
+        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX,
+        OP_LIST_RENDERER, OP_MARGIN_BOTTOM_PERCENT, OP_MARGIN_BOTTOM_PX, OP_MARGIN_LEFT_PERCENT,
+        OP_MARGIN_LEFT_PX, OP_MARGIN_PERCENT, OP_MARGIN_PX, OP_MARGIN_RIGHT_PERCENT,
+        OP_MARGIN_RIGHT_PX, OP_MARGIN_TOP_PERCENT, OP_MARGIN_TOP_PX, OP_MARGIN_X_PERCENT,
+        OP_MARGIN_X_PX, OP_MARGIN_Y_PERCENT, OP_MARGIN_Y_PX, OP_MAX_HEIGHT_PERCENT,
+        OP_MAX_HEIGHT_PX, OP_MAX_WIDTH_PERCENT, OP_MAX_WIDTH_PX, OP_MIN_HEIGHT_PERCENT,
+        OP_MIN_HEIGHT_PX, OP_MIN_WIDTH_PERCENT, OP_MIN_WIDTH_PX, OP_ON_CLICK, OP_ON_FILE_DROP,
+        OP_ON_HOVER, OP_ON_KEY_DOWN, OP_ON_KEY_UP, OP_ON_MODIFIERS_CHANGED, OP_ON_MOUSE_DOWN,
+        OP_ON_MOUSE_DOWN_OUT, OP_ON_MOUSE_MOVE, OP_ON_MOUSE_UP, OP_ON_MOUSE_UP_OUT,
+        OP_ON_SCROLL_WHEEL, OP_OPACITY, OP_OVERFLOW_HIDDEN, OP_OVERFLOW_X_HIDDEN,
+        OP_OVERFLOW_Y_HIDDEN, OP_OVERLAY_BACKDROP_RGBA, OP_OVERLAY_DISMISS_ON_BACKDROP,
+        OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
+        OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY,
         OP_PADDING_BOTTOM_PERCENT, OP_PADDING_BOTTOM_PX, OP_PADDING_LEFT_PERCENT,
         OP_PADDING_LEFT_PX, OP_PADDING_PERCENT, OP_PADDING_PX, OP_PADDING_RIGHT_PERCENT,
         OP_PADDING_RIGHT_PX, OP_PADDING_TOP_PERCENT, OP_PADDING_TOP_PX, OP_PADDING_X_PERCENT,
@@ -81,7 +82,7 @@ use crate::{
         OP_TOP_PX, OP_UNDERLINE, OP_V_STACK, OP_VISIBILITY, OP_WHITE_SPACE, OP_WIDTH_PERCENT,
         OP_WIDTH_PX, OP_WINDOW_CONTROL_AREA, component_metadata,
     },
-    snapshot::{SnapshotNode, ValidatedSnapshot},
+    snapshot::{SnapshotNode, ValidatedSnapshot, parse_font_fallbacks, parse_font_features},
     theme::NativeTheme,
     tooltip::{TooltipConfiguration, tooltip},
 };
@@ -2058,6 +2059,22 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
                 Some(family) => element.font_family(family),
                 None => element,
             },
+            OP_FONT_FEATURES => match snapshot
+                .last_data_op(node, OP_FONT_FEATURES)
+                .as_deref()
+                .and_then(parse_font_features)
+            {
+                Some(features) => element.font_features(features),
+                None => element,
+            },
+            OP_FONT_FALLBACKS => match snapshot
+                .last_data_op(node, OP_FONT_FALLBACKS)
+                .as_deref()
+                .and_then(parse_font_fallbacks)
+            {
+                Some(fallbacks) => element.font(apply_font_fallbacks(snapshot, node, fallbacks)),
+                None => element,
+            },
             OP_FONT_STYLE => match op.a as u32 {
                 // GPUI exposes no oblique setter, so the schema enum covers normal and italic only.
                 1 => element.italic(),
@@ -2150,6 +2167,36 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
         };
     }
     element
+}
+
+/// Builds the full font description for a fallbacks declaration. Sibling font operations
+/// supply the remaining parts so per-field last-wins ordering holds; anything unset falls back
+/// to the GPUI font defaults.
+fn apply_font_fallbacks(
+    snapshot: &ValidatedSnapshot,
+    node: &SnapshotNode,
+    fallbacks: FontFallbacks,
+) -> Font {
+    let mut font = gpui::font(
+        snapshot
+            .last_data_op(node, OP_FONT_FAMILY)
+            .unwrap_or_else(|| ".SystemUIFont".into()),
+    );
+    if let Some(operation) = last_op(snapshot, node, OP_FONT_WEIGHT) {
+        font.weight = FontWeight::from(f32::from_bits(operation.a as u32));
+    }
+    if last_op(snapshot, node, OP_FONT_STYLE).is_some_and(|operation| operation.a == 1) {
+        font.style = FontStyle::Italic;
+    }
+    if let Some(features) = snapshot
+        .last_data_op(node, OP_FONT_FEATURES)
+        .as_deref()
+        .and_then(parse_font_features)
+    {
+        font.features = features;
+    }
+    font.fallbacks = Some(fallbacks);
+    font
 }
 
 /// Composes the single-layer box shadow from its scalar parts. Any shadow operation on the

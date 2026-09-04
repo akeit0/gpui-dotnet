@@ -1097,6 +1097,55 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares OpenType feature tags with values, such as ligatures.</summary>
+        public static Element<TTag> FontFeatures<TTag>(this Element<TTag> element, params ReadOnlySpan<(string Tag, uint Value)> features)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if (features.IsEmpty)
+            {
+                throw new ArgumentException("At least one entry is required.", nameof(features));
+            }
+
+            foreach (var (tag, _) in features)
+            {
+                var validTag = tag is not null && tag.Length > 0 && tag.Length <= 4;
+                for (var i = 0; validTag && i < tag.Length; i++)
+                {
+                    validTag = char.IsAsciiLetterOrDigit(tag[i]);
+                }
+                if (!validTag)
+                {
+                    throw new ArgumentException("Feature tags must be 1-4 ASCII letters or digits.", nameof(features));
+                }
+            }
+
+            ArenaWriter.AddFeatureData(element.Inner, OpCode.FontFeatures, features);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares font fallback families tried in order when glyphs are missing.</summary>
+        public static Element<TTag> FontFallbacks<TTag>(this Element<TTag> element, params ReadOnlySpan<string> families)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if (families.IsEmpty)
+            {
+                throw new ArgumentException("At least one entry is required.", nameof(families));
+            }
+
+            foreach (var entry in families)
+            {
+                if (string.IsNullOrEmpty(entry) || entry.Contains(','))
+                {
+                    throw new ArgumentException("Entries must be non-empty and contain no commas.", nameof(families));
+                }
+            }
+
+            ArenaWriter.AddJoinedData(element.Inner, OpCode.FontFallbacks, families, ',');
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         /// <summary>Declares the width of an element, in pixels or percent.</summary>
         public static Element<TTag> Width<TTag>(this Element<TTag> element, Length value)
             where TTag : unmanaged, IStyledElementTag

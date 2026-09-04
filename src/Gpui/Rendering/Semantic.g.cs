@@ -267,6 +267,8 @@ namespace Gpui.Interop
         TextDecorationSolid = 780,
         FontFamily = 781,
         TextTruncate = 782,
+        FontFeatures = 783,
+        FontFallbacks = 784,
     }
 
     internal enum ValueKind : ushort
@@ -328,7 +330,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0xA7B43F070C8A73EFUL;
+        internal const ulong SchemaHash = 0x38FAF7C59642BE34UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -617,6 +619,8 @@ namespace Gpui.Interop
             OpCode.TextDecorationSolid => ValueKind.None,
             OpCode.FontFamily => ValueKind.Data,
             OpCode.TextTruncate => ValueKind.Data,
+            OpCode.FontFeatures => ValueKind.Data,
+            OpCode.FontFallbacks => ValueKind.Data,
             _ => null,
         };
 
@@ -886,6 +890,8 @@ namespace Gpui.Interop
             OpCode.TextDecorationSolid => 0x0000000000000001UL,
             OpCode.FontFamily => 0x0000000000000001UL,
             OpCode.TextTruncate => 0x0000000000000001UL,
+            OpCode.FontFeatures => 0x0000000000000001UL,
+            OpCode.FontFallbacks => 0x0000000000000001UL,
             _ => 0,
         };
 
