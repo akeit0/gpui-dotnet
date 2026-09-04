@@ -167,11 +167,30 @@ internal static unsafe class ManagedValidator
                 );
             }
 
-            if (operation.B != 0 && !SemanticRegistry.AllowsPayload(code))
+            if (
+                operation.B != 0
+                && expectedKind != ValueKind.Data
+                && !SemanticRegistry.AllowsPayload(code)
+            )
             {
                 throw new InvalidOperationException(
                     $"Operation {i} uses payload word B outside an event binding."
                 );
+            }
+
+            if (expectedKind == ValueKind.Data)
+            {
+                var dataEnd = operation.A + operation.B;
+                if (
+                    operation.B == 0
+                    || dataEnd < operation.A
+                    || dataEnd > (ulong)arena->Utf8Length
+                )
+                {
+                    throw new InvalidOperationException(
+                        $"Operation {i} has a data range outside the UTF-8 arena."
+                    );
+                }
             }
 
             if (expectedKind == ValueKind.None && operation.A != 0)

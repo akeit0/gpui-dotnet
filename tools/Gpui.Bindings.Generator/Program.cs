@@ -390,7 +390,7 @@ internal static class BindingGenerator
             ValidateId(operation.Id, $"operation {operation.Name}");
             ValidateName(operation.Name, "operation");
             ValidateCSharpIdentifier(operation.CSharp, "operation");
-            if (operation.Value is not ("none" or "f32" or "f32x2" or "u32" or "callback" or "u64"))
+            if (operation.Value is not ("none" or "f32" or "f32x2" or "u32" or "callback" or "u64" or "data"))
             {
                 throw new InvalidOperationException(
                     $"Operation {operation.Name} has unknown value kind '{operation.Value}'."
@@ -472,7 +472,7 @@ internal static class BindingGenerator
         {
             return;
         }
-        if (method.Kind is not ("f32" or "f32x2" or "u32" or "u64" or "color" or "enum"))
+        if (method.Kind is not ("f32" or "f32x2" or "u32" or "u64" or "color" or "string" or "enum"))
         {
             throw new InvalidOperationException(
                 $"Operation {operation.Name} has unknown managed method kind '{method.Kind}'."
@@ -481,6 +481,7 @@ internal static class BindingGenerator
         var expectedValue = method.Kind switch
         {
             "enum" or "color" => "u32",
+            "string" => "data",
             _ => method.Kind,
         };
         if (expectedValue != operation.Value)
@@ -530,7 +531,7 @@ internal static class BindingGenerator
         if (
             (method.Kind is "f32" or "f32x2" && method.Guard == "nonZero")
             || (method.Kind is not ("f32" or "f32x2") && method.Guard == "positive")
-            || (method.Kind is "color" or "enum" && method.Guard is not null)
+            || (method.Kind is "color" or "enum" or "string" && method.Guard is not null)
         )
         {
             throw new InvalidOperationException(
@@ -1083,6 +1084,7 @@ internal static class BindingGenerator
         builder.AppendLine("        Callback = 3,");
         builder.AppendLine("        U64 = 4,");
         builder.AppendLine("        F32x2 = 5,");
+        builder.AppendLine("        Data = 6,");
         builder.AppendLine("    }");
         builder.AppendLine();
         builder.AppendLine("    internal enum ResourceKind : ushort");
@@ -1460,6 +1462,14 @@ internal static class BindingGenerator
     )
     {
         var method = operation.ManagedMethod!;
+        if (method.Kind == "string")
+        {
+            AppendStringMethod(builder, operation, method, utf8: false);
+            builder.AppendLine();
+            AppendStringMethod(builder, operation, method, utf8: true);
+            builder.AppendLine();
+            return;
+        }
         var parameter = method.Kind switch
         {
             "f32" => $", float {method.Param}{FormatOptionalDefault(method.Default)}",
@@ -1496,6 +1506,39 @@ internal static class BindingGenerator
         builder.AppendLine("            return element;");
         builder.AppendLine("        }");
         builder.AppendLine();
+    }
+
+    private static void AppendStringMethod(
+        StringBuilder builder,
+        Operation operation,
+        ManagedMethod method,
+        bool utf8
+    )
+    {
+        var opCode = Pascal(operation.Name);
+        var parameter = utf8
+            ? $"utf8{char.ToUpperInvariant(method.Param[0]) + method.Param[1..]}"
+            : method.Param;
+        var parameterType = utf8 ? "ReadOnlySpan<byte>" : "ReadOnlySpan<char>";
+        builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+        builder.AppendLine($"        /// <summary>{XmlDoc(method.Doc)}</summary>");
+        builder.AppendLine(
+            $"        public static Element<TTag> {method.Method}<TTag>(this Element<TTag> element, {parameterType} {parameter})"
+        );
+        builder.AppendLine(
+            $"            where TTag : unmanaged, {CapabilityInterface(operation.Requires)}"
+        );
+        builder.AppendLine("        {");
+        builder.AppendLine($"            if ({parameter}.IsEmpty)");
+        builder.AppendLine("            {");
+        builder.AppendLine(
+            $"                throw new ArgumentException(\"A non-empty value is required.\", nameof({parameter}));"
+        );
+        builder.AppendLine("            }");
+        builder.AppendLine();
+        builder.AppendLine($"            ArenaWriter.AddData(element.Inner, OpCode.{opCode}, {parameter});");
+        builder.AppendLine("            return element;");
+        builder.AppendLine("        }");
     }
 
     private static void AppendMethodGuard(
@@ -1731,6 +1774,7 @@ internal static class BindingGenerator
         builder.AppendLine("    Callback = 3,");
         builder.AppendLine("    U64 = 4,");
         builder.AppendLine("    F32x2 = 5,");
+        builder.AppendLine("    Data = 6,");
         builder.AppendLine("}");
         builder.AppendLine();
         builder.AppendLine("#[derive(Clone, Copy, Debug, Eq, PartialEq)]");
@@ -1901,6 +1945,7 @@ internal static class BindingGenerator
         builder.AppendLine("        assert_eq!(ValueKind::Callback as u16, 3);");
         builder.AppendLine("        assert_eq!(ValueKind::U64 as u16, 4);");
         builder.AppendLine("        assert_eq!(ValueKind::F32x2 as u16, 5);");
+        builder.AppendLine("        assert_eq!(ValueKind::Data as u16, 6);");
         builder.AppendLine("    }");
         builder.AppendLine("}");
         return builder.ToString();

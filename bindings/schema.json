@@ -2438,6 +2438,15 @@
       "value": "none",
       "requires": "styled",
       "managedApi": "extension"
+    },
+    {
+      "id": 781,
+      "name": "font_family",
+      "csharp": "FontFamily",
+      "value": "data",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "string", "method": "FontFamily", "param": "family", "doc": "Declares the font family of an element and its children." }
     }
   ],
   "lengthMethods": [

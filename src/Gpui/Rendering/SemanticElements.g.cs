@@ -1041,6 +1041,34 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the font family of an element and its children.</summary>
+        public static Element<TTag> FontFamily<TTag>(this Element<TTag> element, ReadOnlySpan<char> family)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if (family.IsEmpty)
+            {
+                throw new ArgumentException("A non-empty value is required.", nameof(family));
+            }
+
+            ArenaWriter.AddData(element.Inner, OpCode.FontFamily, family);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the font family of an element and its children.</summary>
+        public static Element<TTag> FontFamily<TTag>(this Element<TTag> element, ReadOnlySpan<byte> utf8Family)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if (utf8Family.IsEmpty)
+            {
+                throw new ArgumentException("A non-empty value is required.", nameof(utf8Family));
+            }
+
+            ArenaWriter.AddData(element.Inner, OpCode.FontFamily, utf8Family);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         /// <summary>Declares the width of an element, in pixels or percent.</summary>
         public static Element<TTag> Width<TTag>(this Element<TTag> element, Length value)
             where TTag : unmanaged, IStyledElementTag

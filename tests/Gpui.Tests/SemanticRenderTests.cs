@@ -181,7 +181,50 @@ public sealed class SemanticRenderTests
         Assert.Equal(7, ReadLastF32Op(arena, OpCode.GapPercent));
         Assert.Equal((uint)FontStyle.Italic, ReadLastU32Op(arena, OpCode.FontStyle));
         Assert.Equal(12, ReadLastF32Op(arena, OpCode.ShadowBlur));
-        Assert.Equal(2, ReadLastF32Op(arena, OpCode.ShadowSpread));    }
+        Assert.Equal(2, ReadLastF32Op(arena, OpCode.ShadowSpread));
+    }
+
+    [Fact]
+    public void FontFamilyPassesManagedValidation()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var root = ui.Div(ui.Text("family"u8)).FontFamily("Inter");
+        arena.Validate(root);
+        Assert.Equal("Inter", ReadDataOp(arena, OpCode.FontFamily));
+
+        using var utf8Arena = new RenderArenaOwner();
+        var utf8Ui = utf8Arena.BeginRender();
+        var utf8Root = utf8Ui.Div().FontFamily("Inter"u8);
+        utf8Arena.Validate(utf8Root);
+        Assert.Equal("Inter", ReadDataOp(utf8Arena, OpCode.FontFamily));
+
+        Assert.Throws<ArgumentException>(() =>
+        {
+            using var emptyArena = new RenderArenaOwner();
+            var emptyUi = emptyArena.BeginRender();
+            emptyUi.Div().FontFamily(string.Empty);
+        });
+    }
+
+    [Fact]
+    public unsafe void FragmentCompositionRemapsDataPayloads()
+    {
+        using var parent = new RenderArenaOwner();
+        using var child = new RenderArenaOwner();
+        var childUi = child.BeginRender();
+        var childRoot = childUi.Div(childUi.Text("child").FontFamily("Georgia"));
+        var parentUi = parent.BeginRender();
+        var host = parentUi.Div(parentUi.Text("parent-text"));
+        var composed = ArenaWriter.AppendFragment(
+            parent.NativeArena,
+            child.NativeArena,
+            childRoot.Inner.Node
+        );
+        var root = host.Children(composed);
+        parent.Validate(root);
+        Assert.Equal("Georgia", ReadDataOp(parent, OpCode.FontFamily));
+    }
 
     [Fact]
     public void PositioningOverflowOpacityAndTextPassManagedValidation()
@@ -2040,6 +2083,24 @@ public sealed class SemanticRenderTests
 
     private static unsafe float ReadLastF32Op(RenderArenaOwner arena, OpCode code) =>
         BitConverter.UInt32BitsToSingle(ReadLastU32Op(arena, code));
+
+    private static unsafe string ReadDataOp(RenderArenaOwner arena, OpCode code)
+    {
+        for (var index = arena.NativeArena->OpLength - 1; index >= 0; index--)
+        {
+            ref readonly var operation = ref arena.NativeArena->Ops[index];
+            if (operation.Code == (ushort)code)
+            {
+                var bytes = new ReadOnlySpan<byte>(
+                    arena.NativeArena->Utf8 + (uint)operation.A,
+                    checked((int)operation.B)
+                );
+                return System.Text.Encoding.UTF8.GetString(bytes);
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException($"The render did not contain {code}.");
+    }
 
     private static unsafe bool ContainsOp(RenderArenaOwner arena, OpCode code)
     {

@@ -265,6 +265,7 @@ namespace Gpui.Interop
         TextDecorationColor = 778,
         TextDecorationWavy = 779,
         TextDecorationSolid = 780,
+        FontFamily = 781,
     }
 
     internal enum ValueKind : ushort
@@ -275,6 +276,7 @@ namespace Gpui.Interop
         Callback = 3,
         U64 = 4,
         F32x2 = 5,
+        Data = 6,
     }
 
     internal enum ResourceKind : ushort
@@ -325,7 +327,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0xDFAF2E6FF24BFE47UL;
+        internal const ulong SchemaHash = 0x0F845D366AA6CCE0UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -612,6 +614,7 @@ namespace Gpui.Interop
             OpCode.TextDecorationColor => ValueKind.U32,
             OpCode.TextDecorationWavy => ValueKind.None,
             OpCode.TextDecorationSolid => ValueKind.None,
+            OpCode.FontFamily => ValueKind.Data,
             _ => null,
         };
 
@@ -879,6 +882,7 @@ namespace Gpui.Interop
             OpCode.TextDecorationColor => 0x0000000000000001UL,
             OpCode.TextDecorationWavy => 0x0000000000000001UL,
             OpCode.TextDecorationSolid => 0x0000000000000001UL,
+            OpCode.FontFamily => 0x0000000000000001UL,
             _ => 0,
         };
 

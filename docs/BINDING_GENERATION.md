@@ -36,8 +36,9 @@ The schema defines:
 - operation IDs, value kinds, managed API types, compatibility requirements, and scalar/payload
   constraints;
 - `uint` style enums (C# names plus explicit wire values, e.g. `FlexWrap`, `MouseCursor`);
-- per-operation `managedMethod` fluent APIs (`f32`/`u32`/`u64` scalars with optional defaults and
-  fail-fast guards, or enum-typed parameters) and `lengthMethods` (`Length` overloads fanning out
+- per-operation `managedMethod` fluent APIs (`f32`/`f32x2`/`u32`/`u64`/`color` scalars with optional
+  defaults and fail-fast guards, enum-typed parameters, or `string` UTF-8 data payloads recorded
+  as arena offset/length pairs) and `lengthMethods` (`Length` overloads fanning out
   to paired pixel/percent operations such as `Width`);
 - retained resource kinds and their command IDs, names, and documentation;
 - control event IDs, family grouping, and documentation.

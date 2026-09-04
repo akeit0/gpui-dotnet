@@ -38,7 +38,7 @@ use crate::{
         OP_CONTEXT_MENU_PRIORITY, OP_CURSOR, OP_DISABLED, OP_DISPLAY_NONE,
         OP_DRAWING_VIEW_BOX_ORIGIN, OP_DRAWING_VIEW_BOX_SIZE, OP_ELEMENT_OWNER, OP_FLEX,
         OP_FLEX_BASIS_PERCENT, OP_FLEX_BASIS_PX, OP_FLEX_GROW, OP_FLEX_SHRINK, OP_FLEX_WRAP,
-        OP_FONT_SIZE_PX, OP_FONT_STYLE, OP_FONT_WEIGHT, OP_GAP_PERCENT, OP_GAP_PX,
+        OP_FONT_FAMILY, OP_FONT_SIZE_PX, OP_FONT_STYLE, OP_FONT_WEIGHT, OP_GAP_PERCENT, OP_GAP_PX,
         OP_GAP_X_PERCENT, OP_GAP_X_PX, OP_GAP_Y_PERCENT, OP_GAP_Y_PX, OP_HEIGHT_PERCENT,
         OP_HEIGHT_PX, OP_HOVER_BACKGROUND_RGBA, OP_HOVER_BORDER_RGBA, OP_HOVER_TEXT_RGBA,
         OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_INSET_PERCENT, OP_INSET_PX, OP_ITEMS_BASELINE,
@@ -2053,6 +2053,10 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
             OP_TEXT_BACKGROUND => element.text_bg(rgba(op.a as u32)),
             OP_FONT_SIZE_PX => element.text_size(px(value)),
             OP_FONT_WEIGHT => element.font_weight(FontWeight::from(value)),
+            OP_FONT_FAMILY => match snapshot.last_data_op(node, OP_FONT_FAMILY) {
+                Some(family) => element.font_family(family),
+                None => element,
+            },
             OP_FONT_STYLE => match op.a as u32 {
                 // GPUI exposes no oblique setter, so the schema enum covers normal and italic only.
                 1 => element.italic(),
