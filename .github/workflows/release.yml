@@ -119,6 +119,10 @@ jobs:
               throw "Release tag '$($env:RELEASE_TAG)' must match package version '$version' (optional leading 'v')."
           }
 
+      - name: Verify version consistency
+        shell: pwsh
+        run: ./eng/check-version.ps1
+
       - name: Install Linux runtime dependencies
         run: |
           sudo apt-get update

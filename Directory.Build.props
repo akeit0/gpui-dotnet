@@ -6,7 +6,7 @@
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <Deterministic>true</Deterministic>
-        <Version>0.1.0-preview.1</Version>
+        <Version>0.2.0-preview.1</Version>
         <Authors>Akito Inoue</Authors>
         <Copyright>Copyright (c) 2026 Akito Inoue</Copyright>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
