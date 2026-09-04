@@ -79,7 +79,10 @@ internal sealed partial class ImageGalleryView : View
             .Fit(fit)
             .Grayscale(grayscale)
             .Width(Percent(100))
-            .AspectRatio(4f / 3f)
+            // Fixed height instead of AspectRatio: GPUI fills the Auto axis of a
+            // percent-width image from intrinsic size on load, discarding the ratio
+            // (zed-industries/zed#63747).
+            .Height(Px(180))
             .Radius(Px(12))
             .Background(theme.Colors.ElementActive);
 
