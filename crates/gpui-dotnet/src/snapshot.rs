@@ -31,6 +31,7 @@ pub struct ValidatedSnapshot {
     pub nodes: Vec<SnapshotNode>,
     ops: Vec<OpRecord>,
     children: Vec<u32>,
+    op_data: Vec<Option<SharedString>>,
 }
 
 impl ValidatedSnapshot {
@@ -70,6 +71,23 @@ impl ValidatedSnapshot {
         self.children.extend_from_slice(&scratch.grouped_children);
 
         retained_strings.begin_snapshot();
+        self.op_data.clear();
+        self.op_data.resize(self.ops.len(), None);
+        for (index, op) in self.ops.iter().enumerate() {
+            let is_data = operation_metadata(op.code)
+                .is_some_and(|metadata| metadata.value_kind == ValueKind::Data);
+            if !is_data {
+                continue;
+            }
+            let start = op.a as usize;
+            let end = start + op.b as usize;
+            self.op_data[index] = Some(
+                retained_strings.intern(
+                    std::str::from_utf8(&utf8[start..end])
+                        .expect("validated data payload must remain valid UTF-8"),
+                ),
+            );
+        }
         self.nodes.clear();
         self.nodes.reserve(nodes.len());
         for (index, node) in nodes.iter().enumerate() {
@@ -103,6 +121,23 @@ impl ValidatedSnapshot {
     pub fn children(&self, node: &SnapshotNode) -> &[u32] {
         let start = node.child_start as usize;
         &self.children[start..start + node.child_len as usize]
+    }
+
+    /// Returns the interned string of the last data-valued operation with the given code on
+    /// the node. Data payloads are interned at decode time because the arena UTF-8 buffer is
+    /// reused by subsequent renders.
+    pub(crate) fn last_data_op(&self, node: &SnapshotNode, code: u16) -> Option<SharedString> {
+        let ops = self.ops(node);
+        if ops.is_empty() {
+            return None;
+        }
+        let base =
+            (ops.as_ptr() as usize - self.ops.as_ptr() as usize) / std::mem::size_of::<OpRecord>();
+        ops.iter()
+            .enumerate()
+            .rev()
+            .find(|(_, op)| op.code == code)
+            .and_then(|(index, _)| self.op_data.get(base + index).cloned().flatten())
     }
 }
 
@@ -339,8 +374,21 @@ fn validate_with_scratch(
         if op.value_kind != metadata.value_kind as u16 {
             return Err(-16);
         }
-        if op.b != 0 && !allows_payload(op.code) {
+        if op.b != 0 && !allows_payload(op.code) && metadata.value_kind != ValueKind::Data {
             return Err(-23);
+        }
+        if metadata.value_kind == ValueKind::Data {
+            let end = op.a.checked_add(op.b).unwrap_or(u64::MAX);
+            if op.b == 0 {
+                return Err(-63);
+            }
+            if end > utf8_len as u64 {
+                return Err(-5);
+            }
+            let payload = &utf8[op.a as usize..end as usize];
+            if payload.contains(&0) || std::str::from_utf8(payload).is_err() {
+                return Err(-8);
+            }
         }
         match metadata.value_kind {
             ValueKind::None if op.a != 0 => return Err(-24),
@@ -685,6 +733,62 @@ mod tests {
         operation.b = 1;
         let arena = arena_with(&mut node, Some(&mut operation));
         assert_eq!(validate(&arena, 0), Err(-23));
+    }
+
+    #[test]
+    fn rejects_malformed_data_operations() {
+        let mut node = NodeRecord {
+            component: COMPONENT_DIV,
+            ..Default::default()
+        };
+        let mut payload = b"Inter".to_vec();
+        let mut operation = OpRecord {
+            code: crate::semantic::OP_FONT_FAMILY,
+            value_kind: ValueKind::Data as u16,
+            b: payload.len() as u64,
+            ..Default::default()
+        };
+        let arena =
+            |node: &mut NodeRecord, operation: &mut OpRecord, payload: &mut Vec<u8>| RenderArena {
+                nodes: node,
+                node_length: 1,
+                node_capacity: 1,
+                ops: operation,
+                op_length: 1,
+                op_capacity: 1,
+                children: std::ptr::null_mut(),
+                child_length: 0,
+                child_capacity: 0,
+                utf8: payload.as_mut_ptr(),
+                utf8_length: payload.len() as i32,
+                utf8_capacity: payload.len() as i32,
+                generation: 1,
+                flags: 0,
+                required_node_capacity: 0,
+                required_op_capacity: 0,
+                required_child_capacity: 0,
+                required_utf8_capacity: 0,
+            };
+        assert!(validate(&arena(&mut node, &mut operation, &mut payload), 0).is_ok());
+
+        operation.b = 0;
+        assert_eq!(
+            validate(&arena(&mut node, &mut operation, &mut payload), 0),
+            Err(-63)
+        );
+
+        operation.b = payload.len() as u64 + 1;
+        assert_eq!(
+            validate(&arena(&mut node, &mut operation, &mut payload), 0),
+            Err(-5)
+        );
+
+        operation.b = payload.len() as u64;
+        payload[1] = 0;
+        assert_eq!(
+            validate(&arena(&mut node, &mut operation, &mut payload), 0),
+            Err(-8)
+        );
     }
 
     #[test]
@@ -1527,6 +1631,60 @@ mod tests {
             vec![OP_GAP_PX, OP_PADDING_PX]
         );
         assert_eq!(snapshot.ops(&snapshot.nodes[2])[0].code, OP_GAP_PX);
+    }
+
+    #[test]
+    fn decodes_data_operations_into_retained_strings() {
+        let mut nodes = [NodeRecord {
+            component: COMPONENT_DIV,
+            ..Default::default()
+        }];
+        let mut operations = [OpRecord {
+            code: crate::semantic::OP_FONT_FAMILY,
+            value_kind: ValueKind::Data as u16,
+            a: 0,
+            b: 5,
+            ..Default::default()
+        }];
+        let mut utf8 = b"Inter".to_vec();
+        let arena = RenderArena {
+            nodes: nodes.as_mut_ptr(),
+            node_length: nodes.len() as i32,
+            node_capacity: nodes.len() as i32,
+            ops: operations.as_mut_ptr(),
+            op_length: operations.len() as i32,
+            op_capacity: operations.len() as i32,
+            children: std::ptr::null_mut(),
+            child_length: 0,
+            child_capacity: 0,
+            utf8: utf8.as_mut_ptr(),
+            utf8_length: utf8.len() as i32,
+            utf8_capacity: utf8.len() as i32,
+            generation: 1,
+            flags: 0,
+            required_node_capacity: 0,
+            required_op_capacity: 0,
+            required_child_capacity: 0,
+            required_utf8_capacity: 0,
+        };
+
+        let mut snapshot = ValidatedSnapshot::default();
+        snapshot
+            .decode_into(
+                &arena,
+                0,
+                &mut RetainedStrings::default(),
+                &mut SnapshotScratch::default(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            snapshot
+                .last_data_op(&snapshot.nodes[0], crate::semantic::OP_FONT_FAMILY)
+                .as_deref(),
+            Some("Inter")
+        );
+        assert_eq!(snapshot.last_data_op(&snapshot.nodes[0], OP_GAP_PX), None);
     }
 
     #[test]

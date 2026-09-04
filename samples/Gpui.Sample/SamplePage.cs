@@ -5,6 +5,7 @@ internal enum SamplePage
     Tables,
     Dock,
     Images,
+    Text,
     Inputs,
     Observers,
     Overlays,

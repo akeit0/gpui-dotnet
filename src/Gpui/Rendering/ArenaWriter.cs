@@ -626,6 +626,27 @@ internal static unsafe class ArenaWriter
         AddOp(element, code, ValueKind.U64, value);
     }
 
+    /// <summary>
+    /// Appends UTF-8 payload bytes to the arena and records an offset/length data operation.
+    /// The payload must be non-empty; native validation additionally rejects interior NUL bytes
+    /// and invalid UTF-8.
+    /// </summary>
+    internal static void AddData(Element element, OpCode code, ReadOnlySpan<char> value)
+    {
+        var (offset, length) = AppendUtf8(element.Arena, value);
+        AddOp(element, code, ValueKind.Data, offset, length);
+    }
+
+    /// <summary>
+    /// Records an offset/length data operation over already encoded UTF-8 bytes.
+    /// The bytes are trusted: they must contain valid UTF-8 with no interior NUL.
+    /// </summary>
+    internal static void AddData(Element element, OpCode code, ReadOnlySpan<byte> value)
+    {
+        var (offset, length) = AppendUtf8(element.Arena, value);
+        AddOp(element, code, ValueKind.Data, offset, length);
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void AddCallback(Element element, OpCode code, ulong eventToken)
     {
@@ -671,6 +692,13 @@ internal static unsafe class ArenaWriter
         {
             var operation = source->Ops[index];
             operation.Node = checked(operation.Node + nodeOffset);
+            if (
+                operation.ValueKind == (ushort)ValueKind.Data
+                && operation.B != 0
+            )
+            {
+                operation.A = checked(operation.A + utf8Offset);
+            }
             destination->Ops[destination->OpLength++] = operation;
         }
 

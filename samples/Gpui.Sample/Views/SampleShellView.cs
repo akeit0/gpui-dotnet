@@ -88,6 +88,7 @@ internal sealed partial class SampleShellView : View
             SamplePage.Tables => ui.Child<TableView>("content"),
             SamplePage.Dock => ui.Child<DockView>("content"),
             SamplePage.Images => ui.Child<ImageGalleryView>("content"),
+            SamplePage.Text => ui.Child<TypographyView>("content"),
             SamplePage.Inputs => ui.Child<InputGalleryView>("content"),
             SamplePage.Observers => ui.Child<ObserverView>("content"),
             SamplePage.Overlays => ui.Child<OverlayGalleryView>("content"),
@@ -104,6 +105,7 @@ internal sealed partial class SampleShellView : View
                 SamplePage.Tables => "Tables",
                 SamplePage.Dock => "Dock",
                 SamplePage.Images => "Images",
+                SamplePage.Text => "Text",
                 SamplePage.Inputs => "Inputs",
                 SamplePage.Observers => "Observers",
                 SamplePage.Overlays => "Overlays",
@@ -120,6 +122,7 @@ internal sealed partial class SampleShellView : View
                 SamplePage.Dock =>
                     "native tab activation, dragging, resizing, focus, and retained managed panels",
                 SamplePage.Images => "GPUI-native decoding, caching, fitting, and grayscale",
+                SamplePage.Text => "weight, style, decorations, and line height without a web view",
                 SamplePage.Inputs =>
                     "retained native editing, IME, selection, focus, and UTF-8 events",
                 SamplePage.Observers =>
@@ -193,6 +196,7 @@ internal sealed partial class SampleShellView : View
                 GpuiMenuItem.Command("Virtual table", () => ShowPage(SamplePage.Tables)),
                 GpuiMenuItem.Command("Dock", () => ShowPage(SamplePage.Dock)),
                 GpuiMenuItem.Command("Images", () => ShowPage(SamplePage.Images)),
+                GpuiMenuItem.Command("Text", () => ShowPage(SamplePage.Text)),
                 GpuiMenuItem.Command("Inputs", () => ShowPage(SamplePage.Inputs)),
                 GpuiMenuItem.Command("Observers", () => ShowPage(SamplePage.Observers)),
                 GpuiMenuItem.Command("Overlays + tooltips", () => ShowPage(SamplePage.Overlays)),
@@ -224,6 +228,7 @@ internal sealed partial class SampleShellView : View
                 NavigationButton(ref ui, "show-tables", "Virtual table", SamplePage.Tables),
                 NavigationButton(ref ui, "show-dock", "Dock", SamplePage.Dock),
                 NavigationButton(ref ui, "show-images", "Images", SamplePage.Images),
+                NavigationButton(ref ui, "show-text", "Text", SamplePage.Text),
                 NavigationButton(ref ui, "show-inputs", "Inputs", SamplePage.Inputs),
                 NavigationButton(ref ui, "show-observers", "Observers", SamplePage.Observers),
                 NavigationButton(

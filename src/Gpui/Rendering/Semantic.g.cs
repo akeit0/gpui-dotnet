@@ -255,6 +255,18 @@ namespace Gpui.Interop
         RightPercent = 768,
         BottomPercent = 769,
         InsetPercent = 770,
+        ShadowColor = 771,
+        ShadowOffset = 772,
+        ShadowBlur = 773,
+        ShadowSpread = 774,
+        Underline = 775,
+        LineThrough = 776,
+        TextDecorationNone = 777,
+        TextDecorationColor = 778,
+        TextDecorationWavy = 779,
+        TextDecorationSolid = 780,
+        FontFamily = 781,
+        TextTruncate = 782,
     }
 
     internal enum ValueKind : ushort
@@ -265,6 +277,7 @@ namespace Gpui.Interop
         Callback = 3,
         U64 = 4,
         F32x2 = 5,
+        Data = 6,
     }
 
     internal enum ResourceKind : ushort
@@ -315,7 +328,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0xEBADAE7525039250UL;
+        internal const ulong SchemaHash = 0xA7B43F070C8A73EFUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -592,6 +605,18 @@ namespace Gpui.Interop
             OpCode.RightPercent => ValueKind.F32,
             OpCode.BottomPercent => ValueKind.F32,
             OpCode.InsetPercent => ValueKind.F32,
+            OpCode.ShadowColor => ValueKind.U32,
+            OpCode.ShadowOffset => ValueKind.F32x2,
+            OpCode.ShadowBlur => ValueKind.F32,
+            OpCode.ShadowSpread => ValueKind.F32,
+            OpCode.Underline => ValueKind.None,
+            OpCode.LineThrough => ValueKind.None,
+            OpCode.TextDecorationNone => ValueKind.None,
+            OpCode.TextDecorationColor => ValueKind.U32,
+            OpCode.TextDecorationWavy => ValueKind.None,
+            OpCode.TextDecorationSolid => ValueKind.None,
+            OpCode.FontFamily => ValueKind.Data,
+            OpCode.TextTruncate => ValueKind.Data,
             _ => null,
         };
 
@@ -849,6 +874,18 @@ namespace Gpui.Interop
             OpCode.RightPercent => 0x0000000000000001UL,
             OpCode.BottomPercent => 0x0000000000000001UL,
             OpCode.InsetPercent => 0x0000000000000001UL,
+            OpCode.ShadowColor => 0x0000000000000001UL,
+            OpCode.ShadowOffset => 0x0000000000000001UL,
+            OpCode.ShadowBlur => 0x0000000000000001UL,
+            OpCode.ShadowSpread => 0x0000000000000001UL,
+            OpCode.Underline => 0x0000000000000001UL,
+            OpCode.LineThrough => 0x0000000000000001UL,
+            OpCode.TextDecorationNone => 0x0000000000000001UL,
+            OpCode.TextDecorationColor => 0x0000000000000001UL,
+            OpCode.TextDecorationWavy => 0x0000000000000001UL,
+            OpCode.TextDecorationSolid => 0x0000000000000001UL,
+            OpCode.FontFamily => 0x0000000000000001UL,
+            OpCode.TextTruncate => 0x0000000000000001UL,
             _ => 0,
         };
 

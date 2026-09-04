@@ -1,13 +1,14 @@
 use std::path::PathBuf;
 
 use gpui::{
-    AnyElement, App, ClickEvent, Context, CursorStyle, DefiniteLength, ElementId, Entity,
-    ExternalPaths, FillOptions, FillRule, FocusHandle, FontWeight, InteractiveElement, IntoElement,
-    KeyDownEvent, KeyUpEvent, Length, ListState, ModifiersChangedEvent, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit, ParentElement, PathBuilder, PathStyle,
-    Pixels, ScrollWheelEvent, SharedString, StatefulInteractiveElement, Styled, StyledImage,
-    TextAlign, WeakFocusHandle, Window, WindowControlArea, anchored, canvas, deferred, div, img,
-    list, point, px, relative, rgba,
+    AnyElement, App, BoxShadow, ClickEvent, Context, CursorStyle, DefiniteLength, ElementId,
+    Entity, ExternalPaths, FillOptions, FillRule, FocusHandle, FontWeight, Hsla,
+    InteractiveElement, IntoElement, KeyDownEvent, KeyUpEvent, Length, ListState,
+    ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit,
+    ParentElement, PathBuilder, PathStyle, Pixels, ScrollWheelEvent, SharedString,
+    StatefulInteractiveElement, Styled, StyledImage, TextAlign, TextOverflow, WeakFocusHandle,
+    Window, WindowControlArea, anchored, canvas, deferred, div, img, list, point, px, relative,
+    rgba,
 };
 use gpui_base::FocusTrapElement as _;
 
@@ -38,18 +39,18 @@ use crate::{
         OP_CONTEXT_MENU_PRIORITY, OP_CURSOR, OP_DISABLED, OP_DISPLAY_NONE,
         OP_DRAWING_VIEW_BOX_ORIGIN, OP_DRAWING_VIEW_BOX_SIZE, OP_ELEMENT_OWNER, OP_FLEX,
         OP_FLEX_BASIS_PERCENT, OP_FLEX_BASIS_PX, OP_FLEX_GROW, OP_FLEX_SHRINK, OP_FLEX_WRAP,
-        OP_FONT_SIZE_PX, OP_FONT_STYLE, OP_FONT_WEIGHT, OP_GAP_PERCENT, OP_GAP_PX,
+        OP_FONT_FAMILY, OP_FONT_SIZE_PX, OP_FONT_STYLE, OP_FONT_WEIGHT, OP_GAP_PERCENT, OP_GAP_PX,
         OP_GAP_X_PERCENT, OP_GAP_X_PX, OP_GAP_Y_PERCENT, OP_GAP_Y_PX, OP_HEIGHT_PERCENT,
         OP_HEIGHT_PX, OP_HOVER_BACKGROUND_RGBA, OP_HOVER_BORDER_RGBA, OP_HOVER_TEXT_RGBA,
         OP_IMAGE_GRAYSCALE, OP_IMAGE_OBJECT_FIT, OP_INSET_PERCENT, OP_INSET_PX, OP_ITEMS_BASELINE,
         OP_ITEMS_CENTER, OP_ITEMS_END, OP_ITEMS_START, OP_ITEMS_STRETCH, OP_JUSTIFY_BETWEEN,
         OP_JUSTIFY_CENTER, OP_JUSTIFY_END, OP_JUSTIFY_START, OP_LEFT_PERCENT, OP_LEFT_PX,
-        OP_LINE_CLAMP, OP_LINE_HEIGHT_PERCENT, OP_LINE_HEIGHT_PX, OP_LIST_ALIGNMENT,
-        OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT,
-        OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_MARGIN_BOTTOM_PERCENT, OP_MARGIN_BOTTOM_PX,
-        OP_MARGIN_LEFT_PERCENT, OP_MARGIN_LEFT_PX, OP_MARGIN_PERCENT, OP_MARGIN_PX,
-        OP_MARGIN_RIGHT_PERCENT, OP_MARGIN_RIGHT_PX, OP_MARGIN_TOP_PERCENT, OP_MARGIN_TOP_PX,
-        OP_MARGIN_X_PERCENT, OP_MARGIN_X_PX, OP_MARGIN_Y_PERCENT, OP_MARGIN_Y_PX,
+        OP_LINE_CLAMP, OP_LINE_HEIGHT_PERCENT, OP_LINE_HEIGHT_PX, OP_LINE_THROUGH,
+        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
+        OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_MARGIN_BOTTOM_PERCENT,
+        OP_MARGIN_BOTTOM_PX, OP_MARGIN_LEFT_PERCENT, OP_MARGIN_LEFT_PX, OP_MARGIN_PERCENT,
+        OP_MARGIN_PX, OP_MARGIN_RIGHT_PERCENT, OP_MARGIN_RIGHT_PX, OP_MARGIN_TOP_PERCENT,
+        OP_MARGIN_TOP_PX, OP_MARGIN_X_PERCENT, OP_MARGIN_X_PX, OP_MARGIN_Y_PERCENT, OP_MARGIN_Y_PX,
         OP_MAX_HEIGHT_PERCENT, OP_MAX_HEIGHT_PX, OP_MAX_WIDTH_PERCENT, OP_MAX_WIDTH_PX,
         OP_MIN_HEIGHT_PERCENT, OP_MIN_HEIGHT_PX, OP_MIN_WIDTH_PERCENT, OP_MIN_WIDTH_PX,
         OP_ON_CLICK, OP_ON_FILE_DROP, OP_ON_HOVER, OP_ON_KEY_DOWN, OP_ON_KEY_UP,
@@ -71,11 +72,14 @@ use crate::{
         OP_RADIUS_TOP_RIGHT_PX, OP_RELATIVE, OP_RESOURCE_OWNER, OP_RIGHT_PERCENT, OP_RIGHT_PX,
         OP_SCROLL_AXIS, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SELF_BASELINE, OP_SELF_CENTER,
         OP_SELF_END, OP_SELF_FLEX_END, OP_SELF_FLEX_START, OP_SELF_START, OP_SELF_STRETCH,
-        OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER,
-        OP_TEXT_ALIGN, OP_TEXT_BACKGROUND, OP_TEXT_ELLIPSIS, OP_TEXT_RGBA, OP_TOOLTIP_ALIGNMENT,
-        OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS, OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT,
-        OP_TOOLTIP_SHOW_DELAY_MS, OP_TOP_PERCENT, OP_TOP_PX, OP_V_STACK, OP_VISIBILITY,
-        OP_WHITE_SPACE, OP_WIDTH_PERCENT, OP_WIDTH_PX, OP_WINDOW_CONTROL_AREA, component_metadata,
+        OP_SHADOW_BLUR, OP_SHADOW_COLOR, OP_SHADOW_OFFSET, OP_SHADOW_SPREAD, OP_SHOW_SCROLLBAR,
+        OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER, OP_TEXT_ALIGN,
+        OP_TEXT_BACKGROUND, OP_TEXT_DECORATION_COLOR, OP_TEXT_DECORATION_NONE,
+        OP_TEXT_DECORATION_SOLID, OP_TEXT_DECORATION_WAVY, OP_TEXT_ELLIPSIS, OP_TEXT_RGBA,
+        OP_TEXT_TRUNCATE, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS,
+        OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_TOP_PERCENT,
+        OP_TOP_PX, OP_UNDERLINE, OP_V_STACK, OP_VISIBILITY, OP_WHITE_SPACE, OP_WIDTH_PERCENT,
+        OP_WIDTH_PX, OP_WINDOW_CONTROL_AREA, component_metadata,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
     theme::NativeTheme,
@@ -2050,6 +2054,10 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
             OP_TEXT_BACKGROUND => element.text_bg(rgba(op.a as u32)),
             OP_FONT_SIZE_PX => element.text_size(px(value)),
             OP_FONT_WEIGHT => element.font_weight(FontWeight::from(value)),
+            OP_FONT_FAMILY => match snapshot.last_data_op(node, OP_FONT_FAMILY) {
+                Some(family) => element.font_family(family),
+                None => element,
+            },
             OP_FONT_STYLE => match op.a as u32 {
                 // GPUI exposes no oblique setter, so the schema enum covers normal and italic only.
                 1 => element.italic(),
@@ -2058,6 +2066,21 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
             OP_TEXT_ELLIPSIS => element.text_ellipsis(),
             OP_LINE_HEIGHT_PX => element.line_height(px(value)),
             OP_LINE_HEIGHT_PERCENT => element.line_height(DefiniteLength::Fraction(value / 100.0)),
+            OP_UNDERLINE => element.underline(),
+            OP_LINE_THROUGH => element.line_through(),
+            OP_TEXT_DECORATION_NONE => element.text_decoration_none(),
+            OP_TEXT_DECORATION_COLOR => {
+                element.text_decoration_color(Hsla::from(rgba(op.a as u32)))
+            }
+            OP_TEXT_DECORATION_WAVY => element.text_decoration_wavy(),
+            OP_TEXT_DECORATION_SOLID => element.text_decoration_solid(),
+            OP_TEXT_TRUNCATE => match snapshot.last_data_op(node, OP_TEXT_TRUNCATE) {
+                Some(truncation) => element.text_overflow(TextOverflow::Truncate(truncation)),
+                None => element,
+            },
+            OP_SHADOW_COLOR | OP_SHADOW_OFFSET | OP_SHADOW_BLUR | OP_SHADOW_SPREAD => {
+                apply_box_shadow(element, node, snapshot)
+            }
             OP_CURSOR => match op.a as u32 {
                 0 => element.cursor(CursorStyle::Arrow),
                 1 => element.cursor(CursorStyle::IBeam),
@@ -2127,6 +2150,25 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
         };
     }
     element
+}
+
+/// Composes the single-layer box shadow from its scalar parts. Any shadow operation on the
+/// node enables the layer; parts without an explicit operation fall back to transparent black,
+/// zero offset, and zero blur/spread. Multi-layer shadow vectors are not exposed.
+fn apply_box_shadow<T: Styled>(element: T, node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> T {
+    let color = last_op(snapshot, node, OP_SHADOW_COLOR).map_or(0, |op| op.a as u32);
+    let (x, y) = last_op(snapshot, node, OP_SHADOW_OFFSET).map_or((0.0, 0.0), op_f32x2);
+    let blur =
+        last_op(snapshot, node, OP_SHADOW_BLUR).map_or(0.0, |op| f32::from_bits(op.a as u32));
+    let spread =
+        last_op(snapshot, node, OP_SHADOW_SPREAD).map_or(0.0, |op| f32::from_bits(op.a as u32));
+    element.shadow(vec![BoxShadow {
+        color: Hsla::from(rgba(color)),
+        offset: point(px(x), px(y)),
+        blur_radius: px(blur),
+        spread_radius: px(spread),
+        inset: false,
+    }])
 }
 
 #[derive(Clone, Copy, Default)]
