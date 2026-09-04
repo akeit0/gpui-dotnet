@@ -647,6 +647,102 @@ internal static unsafe class ArenaWriter
         AddOp(element, code, ValueKind.Data, offset, length);
     }
 
+    /// <summary>
+    /// Joins entries with a separator directly into the arena and records an offset/length
+    /// data operation. No intermediate string is allocated. Entries must already be validated;
+    /// separators inside entries would corrupt the encoding.
+    /// </summary>
+    internal static void AddJoinedData(
+        Element element,
+        OpCode code,
+        ReadOnlySpan<string> entries,
+        char separator
+    )
+    {
+        var arena = element.Arena;
+        var bytes = 0;
+        foreach (var entry in entries)
+        {
+            bytes = checked(bytes + Encoding.UTF8.GetByteCount(entry) + 1);
+        }
+
+        EnsureUtf8(arena, bytes);
+        var offset = checked((uint)arena->Utf8Length);
+        var destination = new Span<byte>(arena->Utf8 + offset, bytes);
+        var first = true;
+        foreach (var entry in entries)
+        {
+            if (!first)
+            {
+                destination[0] = (byte)separator;
+                destination = destination[1..];
+            }
+            first = false;
+            var written = Encoding.UTF8.GetBytes(entry, destination);
+            destination = destination[written..];
+        }
+
+        var length = checked((uint)bytes - 1);
+        arena->Utf8Length += checked((int)length);
+        AddOp(element, code, ValueKind.Data, offset, length);
+    }
+
+    /// <summary>
+    /// Writes <c>tag=value</c> entries joined by commas directly into the arena and records an
+    /// offset/length data operation. No intermediate string is allocated. Tags must already be
+    /// validated; separators inside tags would corrupt the encoding.
+    /// </summary>
+    internal static void AddFeatureData(
+        Element element,
+        OpCode code,
+        ReadOnlySpan<(string Tag, uint Value)> features
+    )
+    {
+        var arena = element.Arena;
+        var bytes = 0;
+        foreach (var (tag, value) in features)
+        {
+            bytes = checked(
+                bytes + Encoding.UTF8.GetByteCount(tag) + 1 + DigitCount(value) + 1
+            );
+        }
+
+        EnsureUtf8(arena, bytes);
+        var offset = checked((uint)arena->Utf8Length);
+        var destination = new Span<byte>(arena->Utf8 + offset, bytes);
+        var first = true;
+        foreach (var (tag, value) in features)
+        {
+            if (!first)
+            {
+                destination[0] = (byte)',';
+                destination = destination[1..];
+            }
+            first = false;
+            var written = Encoding.UTF8.GetBytes(tag, destination);
+            destination = destination[written..];
+            destination[0] = (byte)'=';
+            destination = destination[1..];
+            value.TryFormat(destination, out var digitsWritten);
+            destination = destination[digitsWritten..];
+        }
+
+        var length = checked((uint)bytes - 1);
+        arena->Utf8Length += checked((int)length);
+        AddOp(element, code, ValueKind.Data, offset, length);
+    }
+
+    private static int DigitCount(uint value)
+    {
+        var count = 1;
+        while (value >= 10)
+        {
+            value /= 10;
+            count++;
+        }
+        return count;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void AddCallback(Element element, OpCode code, ulong eventToken)
     {

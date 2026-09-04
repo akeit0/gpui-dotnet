@@ -1,6 +1,6 @@
 use std::{collections::HashSet, slice, sync::Arc};
 
-use gpui::SharedString;
+use gpui::{FontFallbacks, FontFeatures, SharedString};
 
 use crate::{
     abi::{NodeRecord, OpRecord, RenderArena},
@@ -10,8 +10,9 @@ use crate::{
         COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_NATIVE_EXTENSION, COMPONENT_OVERLAY,
         COMPONENT_PATH, COMPONENT_POPOVER_MENU, COMPONENT_SLIDER, COMPONENT_TABLE,
         COMPONENT_TOOLTIP, DataKind, OP_DOCK_ACTIVE_INDEX, OP_DOCK_REGION_SIDE,
-        OP_DRAWING_VIEW_BOX_SIZE, OP_PATH_ARC_RADII, OP_RESOURCE_OWNER, ValueKind, allows_payload,
-        component_metadata, operation_metadata, payload_error,
+        OP_DRAWING_VIEW_BOX_SIZE, OP_FONT_FALLBACKS, OP_FONT_FEATURES, OP_PATH_ARC_RADII,
+        OP_RESOURCE_OWNER, ValueKind, allows_payload, component_metadata, operation_metadata,
+        payload_error,
     },
 };
 
@@ -206,6 +207,33 @@ impl SnapshotScratch {
     }
 }
 
+/// Parses a comma-separated `tag=value` OpenType feature list, as written by the managed
+/// font-features API. Tags are 1-4 ASCII letters or digits; values are decimal.
+pub(crate) fn parse_font_features(text: &str) -> Option<FontFeatures> {
+    let mut entries = Vec::new();
+    for entry in text.split(',') {
+        let (tag, value) = entry.split_once('=')?;
+        if tag.is_empty() || tag.len() > 4 || !tag.bytes().all(|b| b.is_ascii_alphanumeric()) {
+            return None;
+        }
+        entries.push((tag.to_string(), value.parse::<u32>().ok()?));
+    }
+    if entries.is_empty() {
+        return None;
+    }
+    Some(FontFeatures(Arc::new(entries)))
+}
+
+/// Parses a comma-separated font fallback family list. Entries must be non-empty; commas
+/// inside names are rejected by the managed API so the split is total.
+pub(crate) fn parse_font_fallbacks(text: &str) -> Option<FontFallbacks> {
+    let families: Vec<String> = text.split(',').map(str::to_string).collect();
+    if families.iter().any(String::is_empty) {
+        return None;
+    }
+    Some(FontFallbacks::from_fonts(families))
+}
+
 pub fn validate(arena: &RenderArena, root: u32) -> Result<(), i32> {
     validate_with_scratch(arena, root, &mut SnapshotScratch::default())
 }
@@ -388,6 +416,17 @@ fn validate_with_scratch(
             let payload = &utf8[op.a as usize..end as usize];
             if payload.contains(&0) || std::str::from_utf8(payload).is_err() {
                 return Err(-8);
+            }
+            if matches!(op.code, OP_FONT_FEATURES | OP_FONT_FALLBACKS) {
+                let text = std::str::from_utf8(payload).unwrap_or_default();
+                let valid = if op.code == OP_FONT_FEATURES {
+                    parse_font_features(text).is_some()
+                } else {
+                    parse_font_fallbacks(text).is_some()
+                };
+                if !valid {
+                    return Err(-64);
+                }
             }
         }
         match metadata.value_kind {
@@ -1631,6 +1670,30 @@ mod tests {
             vec![OP_GAP_PX, OP_PADDING_PX]
         );
         assert_eq!(snapshot.ops(&snapshot.nodes[2])[0].code, OP_GAP_PX);
+    }
+
+    #[test]
+    fn font_list_payloads_parse_strictly() {
+        let features = parse_font_features("liga=1,smcp=0").expect("valid features");
+        assert_eq!(
+            features.tag_value_list(),
+            &[("liga".to_string(), 1), ("smcp".to_string(), 0)]
+        );
+        assert!(parse_font_features("").is_none());
+        assert!(parse_font_features("liga").is_none());
+        assert!(parse_font_features("liga=").is_none());
+        assert!(parse_font_features("toolong=1").is_none());
+        assert!(parse_font_features("li ga=1").is_none());
+        assert!(parse_font_features("liga=x").is_none());
+        assert!(parse_font_features("liga=1,").is_none());
+
+        let fallbacks = parse_font_fallbacks("Georgia,Arial").expect("valid fallbacks");
+        assert_eq!(
+            fallbacks.fallback_list(),
+            &["Georgia".to_string(), "Arial".to_string()]
+        );
+        assert!(parse_font_fallbacks("").is_none());
+        assert!(parse_font_fallbacks("Georgia,").is_none());
     }
 
     #[test]

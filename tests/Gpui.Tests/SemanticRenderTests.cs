@@ -210,6 +210,44 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void FontListsPassManagedValidation()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var root = ui.Div(ui.Text("lists"u8))
+            .FontFeatures(("liga", 1u), ("smcp", 0u))
+            .FontFallbacks("Georgia", "Arial");
+        arena.Validate(root);
+        Assert.Equal("liga=1,smcp=0", ReadDataOp(arena, OpCode.FontFeatures));
+        Assert.Equal("Georgia,Arial", ReadDataOp(arena, OpCode.FontFallbacks));
+
+        Assert.Throws<ArgumentException>(() =>
+        {
+            using var emptyArena = new RenderArenaOwner();
+            var emptyUi = emptyArena.BeginRender();
+            emptyUi.Div().FontFeatures();
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            using var badTagArena = new RenderArenaOwner();
+            var badTagUi = badTagArena.BeginRender();
+            badTagUi.Div().FontFeatures(("toolongtag", 1u));
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            using var emptyFallbackArena = new RenderArenaOwner();
+            var emptyFallbackUi = emptyFallbackArena.BeginRender();
+            emptyFallbackUi.Div().FontFallbacks();
+        });
+        Assert.Throws<ArgumentException>(() =>
+        {
+            using var commaArena = new RenderArenaOwner();
+            var commaUi = commaArena.BeginRender();
+            commaUi.Div().FontFallbacks("a,b");
+        });
+    }
+
+    [Fact]
     public unsafe void FragmentCompositionRemapsDataPayloads()
     {
         using var parent = new RenderArenaOwner();

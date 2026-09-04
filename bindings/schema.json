@@ -2456,6 +2456,24 @@
       "requires": "styled",
       "managedApi": null,
       "managedMethod": { "kind": "string", "method": "TextTruncate", "param": "truncation", "doc": "Truncates overflowing text with the given indicator string, such as an ellipsis." }
+    },
+    {
+      "id": 783,
+      "name": "font_features",
+      "csharp": "FontFeatures",
+      "value": "data",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "pairs", "method": "FontFeatures", "param": "features", "doc": "Declares OpenType feature tags with values, such as ligatures." }
+    },
+    {
+      "id": 784,
+      "name": "font_fallbacks",
+      "csharp": "FontFallbacks",
+      "value": "data",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "strings", "method": "FontFallbacks", "param": "families", "doc": "Declares font fallback families tried in order when glyphs are missing." }
     }
   ],
   "lengthMethods": [
