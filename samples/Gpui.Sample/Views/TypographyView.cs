@@ -33,6 +33,15 @@ internal sealed partial class TypographyView : View
                     .FontFamily("Courier New")
                     .FontSize(Px(theme.Typography.Body))
                     .TextColor(theme.Colors.Text),
+                ui.Div(
+                        ui.Text("A long line cut short with a custom ellipsis indicator")
+                            .WhiteSpace(WhiteSpace.Nowrap)
+                            .TextTruncate("…")
+                            .FontSize(Px(theme.Typography.Body))
+                            .TextColor(theme.Colors.TextMuted)
+                    )
+                    .Width(Px(240))
+                    .MaxWidth(Percent(100)),
                 ui.Text("Highlighted with a taller line height")
                     .TextBackground(theme.Colors.WarningBackground)
                     .LineHeight(Percent(175))
