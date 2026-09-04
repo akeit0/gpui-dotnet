@@ -113,6 +113,24 @@ namespace Gpui
         Hidden = 1,
     }
 
+    public enum AlignContent : uint
+    {
+        Normal = 0,
+        FlexStart = 1,
+        FlexEnd = 2,
+        Center = 3,
+        Stretch = 4,
+        SpaceBetween = 5,
+        SpaceEvenly = 6,
+        SpaceAround = 7,
+    }
+
+    public enum BorderStyle : uint
+    {
+        Solid = 0,
+        Dashed = 1,
+    }
+
     public enum InputEventKind : ushort
     {
         /// <summary>The input value changed.</summary>
@@ -425,22 +443,6 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Gap<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.GapPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Padding<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.PaddingPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Element<TTag> Background<TTag>(this Element<TTag> element, Color color)
             where TTag : unmanaged, IStyledElementTag
         {
@@ -549,158 +551,6 @@ namespace Gpui
             where TTag : unmanaged, IDisableableElementTag
         {
             ArenaWriter.AddU32(element.Inner, OpCode.Disabled, value ? 1u : 0u);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Margin<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.MarginPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> MarginX<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.MarginXPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> MarginY<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.MarginYPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> MarginTop<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.MarginTopPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> MarginBottom<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.MarginBottomPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> MarginLeft<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.MarginLeftPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> MarginRight<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.MarginRightPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> PaddingX<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.PaddingXPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> PaddingY<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.PaddingYPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> PaddingTop<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.PaddingTopPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> PaddingBottom<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.PaddingBottomPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> PaddingLeft<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.PaddingLeftPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> PaddingRight<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.PaddingRightPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> GapX<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.GapXPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> GapY<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.GapYPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> MinWidth<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.MinWidthPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> MinHeight<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.MinHeightPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> MaxWidth<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.MaxWidthPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> MaxHeight<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.MaxHeightPx, value.Value);
             return element;
         }
 
@@ -1027,6 +877,88 @@ namespace Gpui
             return element;
         }
 
+        /// <summary>Declares how content is aligned in the cross axis of a flex container.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> AlignContent<TTag>(this Element<TTag> element, AlignContent alignContent)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if ((uint)alignContent > (uint)global::Gpui.AlignContent.SpaceAround)
+            {
+                throw new ArgumentOutOfRangeException(nameof(alignContent));
+            }
+
+            ArenaWriter.AddU32(element.Inner, OpCode.AlignContent, (uint)alignContent);
+            return element;
+        }
+
+        /// <summary>Declares the font weight of an element, from 100 (thin) to 900 (black).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> FontWeight<TTag>(this Element<TTag> element, float weight)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.FontWeight, weight);
+            return element;
+        }
+
+        /// <summary>Declares the background color behind an element's text.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> TextBackground<TTag>(this Element<TTag> element, Color background)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.TextBackground, background.Rgba);
+            return element;
+        }
+
+        /// <summary>Declares the border style of an element. Solid is the default and applies no change.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> BorderStyle<TTag>(this Element<TTag> element, BorderStyle style)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if ((uint)style > (uint)global::Gpui.BorderStyle.Dashed)
+            {
+                throw new ArgumentOutOfRangeException(nameof(style));
+            }
+
+            ArenaWriter.AddU32(element.Inner, OpCode.BorderStyle, (uint)style);
+            return element;
+        }
+
+        /// <summary>Declares the top-left corner radius of an element.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RadiusTopLeft<TTag>(this Element<TTag> element, float radius)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.RadiusTopLeftPx, radius);
+            return element;
+        }
+
+        /// <summary>Declares the top-right corner radius of an element.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RadiusTopRight<TTag>(this Element<TTag> element, float radius)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.RadiusTopRightPx, radius);
+            return element;
+        }
+
+        /// <summary>Declares the bottom-left corner radius of an element.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RadiusBottomLeft<TTag>(this Element<TTag> element, float radius)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.RadiusBottomLeftPx, radius);
+            return element;
+        }
+
+        /// <summary>Declares the bottom-right corner radius of an element.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RadiusBottomRight<TTag>(this Element<TTag> element, float radius)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.RadiusBottomRightPx, radius);
+            return element;
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         /// <summary>Declares the width of an element, in pixels or percent.</summary>
         public static Element<TTag> Width<TTag>(this Element<TTag> element, Length value)
@@ -1079,6 +1011,446 @@ namespace Gpui
                     break;
                 case LengthUnit.Percent:
                     ArenaWriter.AddF32(element.Inner, OpCode.FlexBasisPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the minimum width of an element, in pixels or percent.</summary>
+        public static Element<TTag> MinWidth<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MinWidthPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MinWidthPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the minimum height of an element, in pixels or percent.</summary>
+        public static Element<TTag> MinHeight<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MinHeightPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MinHeightPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the maximum width of an element, in pixels or percent.</summary>
+        public static Element<TTag> MaxWidth<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MaxWidthPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MaxWidthPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the maximum height of an element, in pixels or percent.</summary>
+        public static Element<TTag> MaxHeight<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MaxHeightPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MaxHeightPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the margin of an element, in pixels or percent.</summary>
+        public static Element<TTag> Margin<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the horizontal margin of an element, in pixels or percent.</summary>
+        public static Element<TTag> MarginX<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginXPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginXPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the vertical margin of an element, in pixels or percent.</summary>
+        public static Element<TTag> MarginY<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginYPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginYPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the top margin of an element, in pixels or percent.</summary>
+        public static Element<TTag> MarginTop<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginTopPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginTopPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the bottom margin of an element, in pixels or percent.</summary>
+        public static Element<TTag> MarginBottom<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginBottomPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginBottomPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the left margin of an element, in pixels or percent.</summary>
+        public static Element<TTag> MarginLeft<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginLeftPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginLeftPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the right margin of an element, in pixels or percent.</summary>
+        public static Element<TTag> MarginRight<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginRightPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginRightPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the padding of an element, in pixels or percent.</summary>
+        public static Element<TTag> Padding<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the horizontal padding of an element, in pixels or percent.</summary>
+        public static Element<TTag> PaddingX<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingXPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingXPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the vertical padding of an element, in pixels or percent.</summary>
+        public static Element<TTag> PaddingY<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingYPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingYPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the top padding of an element, in pixels or percent.</summary>
+        public static Element<TTag> PaddingTop<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingTopPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingTopPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the bottom padding of an element, in pixels or percent.</summary>
+        public static Element<TTag> PaddingBottom<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingBottomPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingBottomPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the left padding of an element, in pixels or percent.</summary>
+        public static Element<TTag> PaddingLeft<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingLeftPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingLeftPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the right padding of an element, in pixels or percent.</summary>
+        public static Element<TTag> PaddingRight<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingRightPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingRightPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the gap between items in a flex container, in pixels or percent.</summary>
+        public static Element<TTag> Gap<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.GapPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.GapPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the horizontal gap between items in a flex container, in pixels or percent.</summary>
+        public static Element<TTag> GapX<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.GapXPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.GapXPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the vertical gap between items in a flex container, in pixels or percent.</summary>
+        public static Element<TTag> GapY<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.GapYPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.GapYPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the line height of an element, in pixels or percent of the font size.</summary>
+        public static Element<TTag> LineHeight<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.LineHeightPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.LineHeightPercent, value.Value);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(value));

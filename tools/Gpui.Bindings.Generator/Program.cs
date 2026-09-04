@@ -472,13 +472,17 @@ internal static class BindingGenerator
         {
             return;
         }
-        if (method.Kind is not ("f32" or "u32" or "u64" or "enum"))
+        if (method.Kind is not ("f32" or "u32" or "u64" or "color" or "enum"))
         {
             throw new InvalidOperationException(
                 $"Operation {operation.Name} has unknown managed method kind '{method.Kind}'."
             );
         }
-        var expectedValue = method.Kind == "enum" ? "u32" : method.Kind;
+        var expectedValue = method.Kind switch
+        {
+            "enum" or "color" => "u32",
+            _ => method.Kind,
+        };
         if (expectedValue != operation.Value)
         {
             throw new InvalidOperationException(
@@ -526,6 +530,7 @@ internal static class BindingGenerator
         if (
             (method.Kind == "f32" && method.Guard == "nonZero")
             || (method.Kind != "f32" && method.Guard == "positive")
+            || (method.Kind == "color" && method.Guard is not null)
         )
         {
             throw new InvalidOperationException(
@@ -1460,6 +1465,7 @@ internal static class BindingGenerator
             "f32" => $", float {method.Param}{FormatOptionalDefault(method.Default)}",
             "u32" => $", uint {method.Param}",
             "u64" => $", ulong {method.Param}",
+            "color" => $", Color {method.Param}",
             "enum" => $", {EnumCSharp(schema, method.Enum!)} {method.Param}",
             _ => throw new InvalidOperationException(),
         };
@@ -1469,6 +1475,7 @@ internal static class BindingGenerator
             "f32" => $"ArenaWriter.AddF32(element.Inner, OpCode.{opCode}, {method.Param});",
             "u32" => $"ArenaWriter.AddU32(element.Inner, OpCode.{opCode}, {method.Param});",
             "u64" => $"ArenaWriter.AddU64(element.Inner, OpCode.{opCode}, {method.Param});",
+            "color" => $"ArenaWriter.AddU32(element.Inner, OpCode.{opCode}, {method.Param}.Rgba);",
             "enum" => $"ArenaWriter.AddU32(element.Inner, OpCode.{opCode}, (uint){method.Param});",
             _ => throw new InvalidOperationException(),
         };

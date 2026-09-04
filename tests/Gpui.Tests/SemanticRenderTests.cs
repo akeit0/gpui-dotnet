@@ -133,6 +133,42 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void ExtendedStylingPassesManagedValidation()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var root = ui.Div(ui.Text("extended"u8))
+            .AlignContent(AlignContent.SpaceBetween)
+            .FontWeight(700)
+            .TextBackground(Colors.Rgba(255, 0, 0, 255))
+            .LineHeight(Percent(150))
+            .BorderStyle(BorderStyle.Dashed)
+            .RadiusTopLeft(4)
+            .RadiusTopRight(5)
+            .RadiusBottomLeft(6)
+            .RadiusBottomRight(7)
+            .MinWidth(Percent(10))
+            .MinHeight(Percent(20))
+            .MaxWidth(Percent(90))
+            .MaxHeight(Percent(80))
+            .Margin(Percent(5))
+            .Padding(Percent(6))
+            .Gap(Percent(7));
+
+        arena.Validate(root);
+
+        Assert.Equal((uint)AlignContent.SpaceBetween, ReadLastU32Op(arena, OpCode.AlignContent));
+        Assert.Equal(700, ReadLastF32Op(arena, OpCode.FontWeight));
+        Assert.Equal(150, ReadLastF32Op(arena, OpCode.LineHeightPercent));
+        Assert.Equal((uint)BorderStyle.Dashed, ReadLastU32Op(arena, OpCode.BorderStyle));
+        Assert.Equal(4, ReadLastF32Op(arena, OpCode.RadiusTopLeftPx));
+        Assert.Equal(10, ReadLastF32Op(arena, OpCode.MinWidthPercent));
+        Assert.Equal(5, ReadLastF32Op(arena, OpCode.MarginPercent));
+        Assert.Equal(6, ReadLastF32Op(arena, OpCode.PaddingPercent));
+        Assert.Equal(7, ReadLastF32Op(arena, OpCode.GapPercent));
+    }
+
+    [Fact]
     public void PositioningOverflowOpacityAndTextPassManagedValidation()
     {
         using var arena = new RenderArenaOwner();
@@ -204,6 +240,18 @@ public sealed class SemanticRenderTests
             using var arena = new RenderArenaOwner();
             var ui = arena.BeginRender();
             ui.Div().Visibility((Visibility)2);
+        });
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender();
+            ui.Div().AlignContent((AlignContent)8);
+        });
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender();
+            ui.Div().BorderStyle((BorderStyle)2);
         });
     }
 
