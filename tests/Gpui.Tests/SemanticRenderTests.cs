@@ -166,7 +166,8 @@ public sealed class SemanticRenderTests
             .TextDecorationColor(Colors.Rgba(255, 0, 0, 255))
             .TextDecorationWavy()
             .TextDecorationSolid()
-            .TextDecorationNone();
+            .TextDecorationNone()
+            .TextTruncate("…");
 
         arena.Validate(root);
 
@@ -182,6 +183,7 @@ public sealed class SemanticRenderTests
         Assert.Equal((uint)FontStyle.Italic, ReadLastU32Op(arena, OpCode.FontStyle));
         Assert.Equal(12, ReadLastF32Op(arena, OpCode.ShadowBlur));
         Assert.Equal(2, ReadLastF32Op(arena, OpCode.ShadowSpread));
+        Assert.Equal("…", ReadDataOp(arena, OpCode.TextTruncate));
     }
 
     [Fact]

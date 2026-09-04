@@ -6,8 +6,9 @@ use gpui::{
     InteractiveElement, IntoElement, KeyDownEvent, KeyUpEvent, Length, ListState,
     ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit,
     ParentElement, PathBuilder, PathStyle, Pixels, ScrollWheelEvent, SharedString,
-    StatefulInteractiveElement, Styled, StyledImage, TextAlign, WeakFocusHandle, Window,
-    WindowControlArea, anchored, canvas, deferred, div, img, list, point, px, relative, rgba,
+    StatefulInteractiveElement, Styled, StyledImage, TextAlign, TextOverflow, WeakFocusHandle,
+    Window, WindowControlArea, anchored, canvas, deferred, div, img, list, point, px, relative,
+    rgba,
 };
 use gpui_base::FocusTrapElement as _;
 
@@ -75,10 +76,10 @@ use crate::{
         OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN, OP_TABLE_SHOW_HEADER, OP_TEXT_ALIGN,
         OP_TEXT_BACKGROUND, OP_TEXT_DECORATION_COLOR, OP_TEXT_DECORATION_NONE,
         OP_TEXT_DECORATION_SOLID, OP_TEXT_DECORATION_WAVY, OP_TEXT_ELLIPSIS, OP_TEXT_RGBA,
-        OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS, OP_TOOLTIP_MARGIN_PX,
-        OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_TOP_PERCENT, OP_TOP_PX, OP_UNDERLINE,
-        OP_V_STACK, OP_VISIBILITY, OP_WHITE_SPACE, OP_WIDTH_PERCENT, OP_WIDTH_PX,
-        OP_WINDOW_CONTROL_AREA, component_metadata,
+        OP_TEXT_TRUNCATE, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX, OP_TOOLTIP_HIDE_DELAY_MS,
+        OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT, OP_TOOLTIP_SHOW_DELAY_MS, OP_TOP_PERCENT,
+        OP_TOP_PX, OP_UNDERLINE, OP_V_STACK, OP_VISIBILITY, OP_WHITE_SPACE, OP_WIDTH_PERCENT,
+        OP_WIDTH_PX, OP_WINDOW_CONTROL_AREA, component_metadata,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
     theme::NativeTheme,
@@ -2073,6 +2074,10 @@ fn apply_styles<T: Styled>(mut element: T, node: &SnapshotNode, snapshot: &Valid
             }
             OP_TEXT_DECORATION_WAVY => element.text_decoration_wavy(),
             OP_TEXT_DECORATION_SOLID => element.text_decoration_solid(),
+            OP_TEXT_TRUNCATE => match snapshot.last_data_op(node, OP_TEXT_TRUNCATE) {
+                Some(truncation) => element.text_overflow(TextOverflow::Truncate(truncation)),
+                None => element,
+            },
             OP_SHADOW_COLOR | OP_SHADOW_OFFSET | OP_SHADOW_BLUR | OP_SHADOW_SPREAD => {
                 apply_box_shadow(element, node, snapshot)
             }

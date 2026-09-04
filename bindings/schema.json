@@ -2447,6 +2447,15 @@
       "requires": "styled",
       "managedApi": null,
       "managedMethod": { "kind": "string", "method": "FontFamily", "param": "family", "doc": "Declares the font family of an element and its children." }
+    },
+    {
+      "id": 782,
+      "name": "text_truncate",
+      "csharp": "TextTruncate",
+      "value": "data",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "string", "method": "TextTruncate", "param": "truncation", "doc": "Truncates overflowing text with the given indicator string, such as an ellipsis." }
     }
   ],
   "lengthMethods": [

@@ -1069,6 +1069,34 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Truncates overflowing text with the given indicator string, such as an ellipsis.</summary>
+        public static Element<TTag> TextTruncate<TTag>(this Element<TTag> element, ReadOnlySpan<char> truncation)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if (truncation.IsEmpty)
+            {
+                throw new ArgumentException("A non-empty value is required.", nameof(truncation));
+            }
+
+            ArenaWriter.AddData(element.Inner, OpCode.TextTruncate, truncation);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Truncates overflowing text with the given indicator string, such as an ellipsis.</summary>
+        public static Element<TTag> TextTruncate<TTag>(this Element<TTag> element, ReadOnlySpan<byte> utf8Truncation)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if (utf8Truncation.IsEmpty)
+            {
+                throw new ArgumentException("A non-empty value is required.", nameof(utf8Truncation));
+            }
+
+            ArenaWriter.AddData(element.Inner, OpCode.TextTruncate, utf8Truncation);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         /// <summary>Declares the width of an element, in pixels or percent.</summary>
         public static Element<TTag> Width<TTag>(this Element<TTag> element, Length value)
             where TTag : unmanaged, IStyledElementTag
