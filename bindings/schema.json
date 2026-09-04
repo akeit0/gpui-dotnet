@@ -31,6 +31,99 @@
     "extension",
     "key_mouse"
   ],
+  "enums": [
+    {
+      "name": "flex_wrap",
+      "csharp": "FlexWrap",
+      "variants": [
+        { "name": "no_wrap", "csharp": "NoWrap", "value": 0 },
+        { "name": "wrap", "csharp": "Wrap", "value": 1 },
+        { "name": "wrap_reverse", "csharp": "WrapReverse", "value": 2 }
+      ]
+    },
+    {
+      "name": "text_align",
+      "csharp": "TextAlignment",
+      "variants": [
+        { "name": "left", "csharp": "Left", "value": 0 },
+        { "name": "center", "csharp": "Center", "value": 1 },
+        { "name": "right", "csharp": "Right", "value": 2 }
+      ]
+    },
+    {
+      "name": "mouse_cursor",
+      "csharp": "MouseCursor",
+      "variants": [
+        { "name": "arrow", "csharp": "Arrow", "value": 0 },
+        { "name": "ibeam", "csharp": "IBeam", "value": 1 },
+        { "name": "crosshair", "csharp": "Crosshair", "value": 2 },
+        { "name": "closed_hand", "csharp": "ClosedHand", "value": 3 },
+        { "name": "open_hand", "csharp": "OpenHand", "value": 4 },
+        { "name": "pointing_hand", "csharp": "PointingHand", "value": 5 },
+        { "name": "resize_left", "csharp": "ResizeLeft", "value": 6 },
+        { "name": "resize_right", "csharp": "ResizeRight", "value": 7 },
+        { "name": "resize_left_right", "csharp": "ResizeLeftRight", "value": 8 },
+        { "name": "resize_up", "csharp": "ResizeUp", "value": 9 },
+        { "name": "resize_down", "csharp": "ResizeDown", "value": 10 },
+        { "name": "resize_up_down", "csharp": "ResizeUpDown", "value": 11 },
+        { "name": "resize_up_left_down_right", "csharp": "ResizeUpLeftDownRight", "value": 12 },
+        { "name": "resize_up_right_down_left", "csharp": "ResizeUpRightDownLeft", "value": 13 },
+        { "name": "resize_column", "csharp": "ResizeColumn", "value": 14 },
+        { "name": "resize_row", "csharp": "ResizeRow", "value": 15 },
+        { "name": "ibeam_cursor_for_vertical_layout", "csharp": "IBeamCursorForVerticalLayout", "value": 16 },
+        { "name": "operation_not_allowed", "csharp": "OperationNotAllowed", "value": 17 },
+        { "name": "drag_link", "csharp": "DragLink", "value": 18 },
+        { "name": "drag_copy", "csharp": "DragCopy", "value": 19 },
+        { "name": "contextual_menu", "csharp": "ContextualMenu", "value": 20 }
+      ]
+    },
+    {
+      "name": "white_space",
+      "csharp": "WhiteSpace",
+      "variants": [
+        { "name": "normal", "csharp": "Normal", "value": 0 },
+        { "name": "nowrap", "csharp": "Nowrap", "value": 1 }
+      ]
+    },
+    {
+      "name": "visibility",
+      "csharp": "Visibility",
+      "variants": [
+        { "name": "visible", "csharp": "Visible", "value": 0 },
+        { "name": "hidden", "csharp": "Hidden", "value": 1 }
+      ]
+    },
+    {
+      "name": "align_content",
+      "csharp": "AlignContent",
+      "variants": [
+        { "name": "normal", "csharp": "Normal", "value": 0 },
+        { "name": "flex_start", "csharp": "FlexStart", "value": 1 },
+        { "name": "flex_end", "csharp": "FlexEnd", "value": 2 },
+        { "name": "center", "csharp": "Center", "value": 3 },
+        { "name": "stretch", "csharp": "Stretch", "value": 4 },
+        { "name": "space_between", "csharp": "SpaceBetween", "value": 5 },
+        { "name": "space_evenly", "csharp": "SpaceEvenly", "value": 6 },
+        { "name": "space_around", "csharp": "SpaceAround", "value": 7 }
+      ]
+    },
+    {
+      "name": "border_style",
+      "csharp": "BorderStyle",
+      "variants": [
+        { "name": "solid", "csharp": "Solid", "value": 0 },
+        { "name": "dashed", "csharp": "Dashed", "value": 1 }
+      ]
+    },
+    {
+      "name": "font_style",
+      "csharp": "FontStyle",
+      "variants": [
+        { "name": "normal", "csharp": "Normal", "value": 0 },
+        { "name": "italic", "csharp": "Italic", "value": 1 }
+      ]
+    }
+  ],
   "components": [
     {
       "id": 1,
@@ -493,23 +586,22 @@
       "value": "f32",
       "requires": "styled",
       "managedApi": null,
-      "validation": { "kind": "f32Min", "min": 0, "status": -46 }
+      "validation": { "kind": "f32Min", "min": 0, "status": -46 },
+      "managedMethod": { "kind": "f32", "method": "Grow", "param": "factor", "default": 1, "doc": "Declares the flex grow factor of an item. Defaults to 1." }
     },
     {
       "id": 100,
       "name": "gap_px",
       "csharp": "Gap",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 101,
       "name": "padding_px",
       "csharp": "Padding",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 102,
@@ -658,152 +750,133 @@
       "name": "margin_px",
       "csharp": "Margin",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 121,
       "name": "margin_x_px",
       "csharp": "MarginX",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 122,
       "name": "margin_y_px",
       "csharp": "MarginY",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 123,
       "name": "margin_top_px",
       "csharp": "MarginTop",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 124,
       "name": "margin_bottom_px",
       "csharp": "MarginBottom",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 125,
       "name": "margin_left_px",
       "csharp": "MarginLeft",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 126,
       "name": "margin_right_px",
       "csharp": "MarginRight",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 127,
       "name": "padding_x_px",
       "csharp": "PaddingX",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 128,
       "name": "padding_y_px",
       "csharp": "PaddingY",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 129,
       "name": "padding_top_px",
       "csharp": "PaddingTop",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 130,
       "name": "padding_bottom_px",
       "csharp": "PaddingBottom",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 131,
       "name": "padding_left_px",
       "csharp": "PaddingLeft",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 132,
       "name": "padding_right_px",
       "csharp": "PaddingRight",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 133,
       "name": "gap_x_px",
       "csharp": "GapX",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 134,
       "name": "gap_y_px",
       "csharp": "GapY",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 135,
       "name": "min_width_px",
       "csharp": "MinWidth",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 136,
       "name": "min_height_px",
       "csharp": "MinHeight",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 137,
       "name": "max_width_px",
       "csharp": "MaxWidth",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 138,
       "name": "max_height_px",
       "csharp": "MaxHeight",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 139,
@@ -828,7 +901,8 @@
       "value": "f32",
       "requires": "styled",
       "managedApi": null,
-      "validation": { "kind": "f32Min", "min": 0, "status": -44 }
+      "validation": { "kind": "f32Min", "min": 0, "status": -44 },
+      "managedMethod": { "kind": "f32", "method": "Shrink", "param": "factor", "doc": "Declares the flex shrink factor of an item. Must be finite and non-negative." }
     },
     {
       "id": 142,
@@ -837,7 +911,8 @@
       "value": "u32",
       "requires": "styled",
       "managedApi": null,
-      "validation": { "kind": "u32Max", "max": 2, "status": -45 }
+      "validation": { "kind": "u32Max", "max": 2, "status": -45 },
+      "managedMethod": { "kind": "enum", "method": "Wrap", "enum": "flex_wrap", "param": "wrap", "doc": "Declares the flex wrapping behavior of a container." }
     },
     {
       "id": 143,
@@ -892,40 +967,35 @@
       "name": "top_px",
       "csharp": "Top",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 150,
       "name": "left_px",
       "csharp": "Left",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 151,
       "name": "right_px",
       "csharp": "Right",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 152,
       "name": "bottom_px",
       "csharp": "Bottom",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 153,
       "name": "inset_px",
       "csharp": "Inset",
       "value": "f32",
-      "requires": "styled",
-      "managedApi": "pixels"
+      "requires": "styled"
     },
     {
       "id": 154,
@@ -958,7 +1028,8 @@
       "value": "f32",
       "requires": "styled",
       "managedApi": null,
-      "validation": { "kind": "f32Range", "min": 0, "max": 1, "status": -47 }
+      "validation": { "kind": "f32Range", "min": 0, "max": 1, "status": -47 },
+      "managedMethod": { "kind": "f32", "method": "Opacity", "param": "opacity", "doc": "Declares the opacity of an element, from 0 (transparent) to 1 (opaque)." }
     },
     {
       "id": 158,
@@ -967,7 +1038,8 @@
       "value": "u32",
       "requires": "styled",
       "managedApi": null,
-      "validation": { "kind": "u32Max", "max": 2, "status": -48 }
+      "validation": { "kind": "u32Max", "max": 2, "status": -48 },
+      "managedMethod": { "kind": "enum", "method": "TextAlign", "enum": "text_align", "param": "align", "doc": "Declares the horizontal text alignment within an element." }
     },
     {
       "id": 159,
@@ -976,7 +1048,8 @@
       "value": "u32",
       "requires": "styled",
       "managedApi": null,
-      "validation": { "kind": "u32Min", "min": 1, "status": -49 }
+      "validation": { "kind": "u32Min", "min": 1, "status": -49 },
+      "managedMethod": { "kind": "u32", "method": "LineClamp", "param": "lines", "guard": "nonZero", "guardMessage": "Line clamp must be at least 1.", "doc": "Truncates text after the given number of lines. Must be at least 1." }
     },
     {
       "id": 160,
@@ -985,7 +1058,8 @@
       "value": "u32",
       "requires": "styled",
       "managedApi": null,
-      "validation": { "kind": "u32Max", "max": 20, "status": -50 }
+      "validation": { "kind": "u32Max", "max": 20, "status": -50 },
+      "managedMethod": { "kind": "enum", "method": "Cursor", "enum": "mouse_cursor", "param": "cursor", "doc": "Declares the mouse cursor shown while hovering an element." }
     },
     {
       "id": 161,
@@ -1276,7 +1350,8 @@
       "csharp": "ListItemId",
       "value": "u64",
       "requires": "styled",
-      "managedApi": null
+      "managedApi": null,
+      "managedMethod": { "kind": "u64", "method": "ItemId", "param": "itemId", "guard": "nonZero", "guardMessage": "Item ID 0 is reserved.", "doc": "Declares the stable model identity of a virtualized list row. IDs must be unique within one list; payload 0 is reserved." }
     },
     {
       "id": 400,
@@ -1923,6 +1998,573 @@
       "requires": "path",
       "managedApi": null,
       "validation": { "kind": "f32Min", "min": 0, "minExclusive": true, "status": -59 }
+    },
+    {
+      "id": 729,
+      "name": "aspect_ratio",
+      "csharp": "AspectRatio",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "minExclusive": true, "status": -51 },
+      "managedMethod": { "kind": "f32", "method": "AspectRatio", "param": "ratio", "guard": "positive", "guardMessage": "Aspect ratio must be finite and positive.", "doc": "Declares the preferred aspect ratio (width divided by height) of an item. Must be finite and positive." }
+    },
+    {
+      "id": 730,
+      "name": "white_space",
+      "csharp": "WhiteSpace",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 1, "status": -52 },
+      "managedMethod": { "kind": "enum", "method": "WhiteSpace", "enum": "white_space", "param": "whiteSpace", "doc": "Declares the line-wrapping behavior of text within an element." }
+    },
+    {
+      "id": 731,
+      "name": "visibility",
+      "csharp": "Visibility",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 1, "status": -53 },
+      "managedMethod": { "kind": "enum", "method": "Visibility", "enum": "visibility", "param": "visibility", "doc": "Declares the draw visibility of an element. Hidden elements still occupy layout space." }
+    },
+    {
+      "id": 732,
+      "name": "align_content",
+      "csharp": "AlignContent",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 7, "status": -54 },
+      "managedMethod": { "kind": "enum", "method": "AlignContent", "enum": "align_content", "param": "alignContent", "doc": "Declares how content is aligned in the cross axis of a flex container." }
+    },
+    {
+      "id": 733,
+      "name": "font_weight",
+      "csharp": "FontWeight",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "f32Range", "min": 100, "max": 900, "status": -55 },
+      "managedMethod": { "kind": "f32", "method": "FontWeight", "param": "weight", "doc": "Declares the font weight of an element, from 100 (thin) to 900 (black)." }
+    },
+    {
+      "id": 734,
+      "name": "text_background",
+      "csharp": "TextBackground",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "TextBackground", "param": "background", "doc": "Declares the background color behind an element's text." }
+    },
+    {
+      "id": 735,
+      "name": "line_height_px",
+      "csharp": "LineHeightPx",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 736,
+      "name": "line_height_percent",
+      "csharp": "LineHeightPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 737,
+      "name": "border_style",
+      "csharp": "BorderStyle",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 1, "status": -56 },
+      "managedMethod": { "kind": "enum", "method": "BorderStyle", "enum": "border_style", "param": "style", "doc": "Declares the border style of an element. Solid is the default and applies no change." }
+    },
+    {
+      "id": 738,
+      "name": "radius_top_left_px",
+      "csharp": "RadiusTopLeftPx",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "f32", "method": "RadiusTopLeft", "param": "radius", "doc": "Declares the top-left corner radius of an element." }
+    },
+    {
+      "id": 739,
+      "name": "radius_top_right_px",
+      "csharp": "RadiusTopRightPx",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "f32", "method": "RadiusTopRight", "param": "radius", "doc": "Declares the top-right corner radius of an element." }
+    },
+    {
+      "id": 740,
+      "name": "radius_bottom_left_px",
+      "csharp": "RadiusBottomLeftPx",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "f32", "method": "RadiusBottomLeft", "param": "radius", "doc": "Declares the bottom-left corner radius of an element." }
+    },
+    {
+      "id": 741,
+      "name": "radius_bottom_right_px",
+      "csharp": "RadiusBottomRightPx",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "f32", "method": "RadiusBottomRight", "param": "radius", "doc": "Declares the bottom-right corner radius of an element." }
+    },
+    {
+      "id": 742,
+      "name": "min_width_percent",
+      "csharp": "MinWidthPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 743,
+      "name": "min_height_percent",
+      "csharp": "MinHeightPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 744,
+      "name": "max_width_percent",
+      "csharp": "MaxWidthPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 745,
+      "name": "max_height_percent",
+      "csharp": "MaxHeightPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 746,
+      "name": "margin_percent",
+      "csharp": "MarginPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 747,
+      "name": "margin_x_percent",
+      "csharp": "MarginXPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 748,
+      "name": "margin_y_percent",
+      "csharp": "MarginYPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 749,
+      "name": "margin_top_percent",
+      "csharp": "MarginTopPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 750,
+      "name": "margin_bottom_percent",
+      "csharp": "MarginBottomPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 751,
+      "name": "margin_left_percent",
+      "csharp": "MarginLeftPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 752,
+      "name": "margin_right_percent",
+      "csharp": "MarginRightPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 753,
+      "name": "padding_percent",
+      "csharp": "PaddingPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 754,
+      "name": "padding_x_percent",
+      "csharp": "PaddingXPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 755,
+      "name": "padding_y_percent",
+      "csharp": "PaddingYPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 756,
+      "name": "padding_top_percent",
+      "csharp": "PaddingTopPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 757,
+      "name": "padding_bottom_percent",
+      "csharp": "PaddingBottomPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 758,
+      "name": "padding_left_percent",
+      "csharp": "PaddingLeftPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 759,
+      "name": "padding_right_percent",
+      "csharp": "PaddingRightPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 760,
+      "name": "gap_percent",
+      "csharp": "GapPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 761,
+      "name": "gap_x_percent",
+      "csharp": "GapXPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 762,
+      "name": "gap_y_percent",
+      "csharp": "GapYPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 763,
+      "name": "display_none",
+      "csharp": "Hidden",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 764,
+      "name": "text_ellipsis",
+      "csharp": "TextEllipsis",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 765,
+      "name": "font_style",
+      "csharp": "FontStyle",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 1, "status": -22 },
+      "managedMethod": { "kind": "enum", "method": "FontStyle", "enum": "font_style", "param": "style", "doc": "Declares the font style of an element. Only normal and italic faces are exposed." }
+    },
+    {
+      "id": 766,
+      "name": "top_percent",
+      "csharp": "TopPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 767,
+      "name": "left_percent",
+      "csharp": "LeftPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 768,
+      "name": "right_percent",
+      "csharp": "RightPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 769,
+      "name": "bottom_percent",
+      "csharp": "BottomPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    },
+    {
+      "id": 770,
+      "name": "inset_percent",
+      "csharp": "InsetPercent",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null
+    }
+  ],
+  "lengthMethods": [
+    {
+      "method": "Width",
+      "param": "value",
+      "px": "width_px",
+      "percent": "width_percent",
+      "doc": "Declares the width of an element, in pixels or percent."
+    },
+    {
+      "method": "Height",
+      "param": "value",
+      "px": "height_px",
+      "percent": "height_percent",
+      "doc": "Declares the height of an element, in pixels or percent."
+    },
+    {
+      "method": "Basis",
+      "param": "value",
+      "px": "flex_basis_px",
+      "percent": "flex_basis_percent",
+      "doc": "Declares the initial main size of a flex item, in pixels or percent."
+    },
+    {
+      "method": "MinWidth",
+      "param": "value",
+      "px": "min_width_px",
+      "percent": "min_width_percent",
+      "doc": "Declares the minimum width of an element, in pixels or percent."
+    },
+    {
+      "method": "MinHeight",
+      "param": "value",
+      "px": "min_height_px",
+      "percent": "min_height_percent",
+      "doc": "Declares the minimum height of an element, in pixels or percent."
+    },
+    {
+      "method": "MaxWidth",
+      "param": "value",
+      "px": "max_width_px",
+      "percent": "max_width_percent",
+      "doc": "Declares the maximum width of an element, in pixels or percent."
+    },
+    {
+      "method": "MaxHeight",
+      "param": "value",
+      "px": "max_height_px",
+      "percent": "max_height_percent",
+      "doc": "Declares the maximum height of an element, in pixels or percent."
+    },
+    {
+      "method": "Margin",
+      "param": "value",
+      "px": "margin_px",
+      "percent": "margin_percent",
+      "doc": "Declares the margin of an element, in pixels or percent."
+    },
+    {
+      "method": "MarginX",
+      "param": "value",
+      "px": "margin_x_px",
+      "percent": "margin_x_percent",
+      "doc": "Declares the horizontal margin of an element, in pixels or percent."
+    },
+    {
+      "method": "MarginY",
+      "param": "value",
+      "px": "margin_y_px",
+      "percent": "margin_y_percent",
+      "doc": "Declares the vertical margin of an element, in pixels or percent."
+    },
+    {
+      "method": "MarginTop",
+      "param": "value",
+      "px": "margin_top_px",
+      "percent": "margin_top_percent",
+      "doc": "Declares the top margin of an element, in pixels or percent."
+    },
+    {
+      "method": "MarginBottom",
+      "param": "value",
+      "px": "margin_bottom_px",
+      "percent": "margin_bottom_percent",
+      "doc": "Declares the bottom margin of an element, in pixels or percent."
+    },
+    {
+      "method": "MarginLeft",
+      "param": "value",
+      "px": "margin_left_px",
+      "percent": "margin_left_percent",
+      "doc": "Declares the left margin of an element, in pixels or percent."
+    },
+    {
+      "method": "MarginRight",
+      "param": "value",
+      "px": "margin_right_px",
+      "percent": "margin_right_percent",
+      "doc": "Declares the right margin of an element, in pixels or percent."
+    },
+    {
+      "method": "Padding",
+      "param": "value",
+      "px": "padding_px",
+      "percent": "padding_percent",
+      "doc": "Declares the padding of an element, in pixels or percent."
+    },
+    {
+      "method": "PaddingX",
+      "param": "value",
+      "px": "padding_x_px",
+      "percent": "padding_x_percent",
+      "doc": "Declares the horizontal padding of an element, in pixels or percent."
+    },
+    {
+      "method": "PaddingY",
+      "param": "value",
+      "px": "padding_y_px",
+      "percent": "padding_y_percent",
+      "doc": "Declares the vertical padding of an element, in pixels or percent."
+    },
+    {
+      "method": "PaddingTop",
+      "param": "value",
+      "px": "padding_top_px",
+      "percent": "padding_top_percent",
+      "doc": "Declares the top padding of an element, in pixels or percent."
+    },
+    {
+      "method": "PaddingBottom",
+      "param": "value",
+      "px": "padding_bottom_px",
+      "percent": "padding_bottom_percent",
+      "doc": "Declares the bottom padding of an element, in pixels or percent."
+    },
+    {
+      "method": "PaddingLeft",
+      "param": "value",
+      "px": "padding_left_px",
+      "percent": "padding_left_percent",
+      "doc": "Declares the left padding of an element, in pixels or percent."
+    },
+    {
+      "method": "PaddingRight",
+      "param": "value",
+      "px": "padding_right_px",
+      "percent": "padding_right_percent",
+      "doc": "Declares the right padding of an element, in pixels or percent."
+    },
+    {
+      "method": "Gap",
+      "param": "value",
+      "px": "gap_px",
+      "percent": "gap_percent",
+      "doc": "Declares the gap between items in a flex container, in pixels or percent."
+    },
+    {
+      "method": "GapX",
+      "param": "value",
+      "px": "gap_x_px",
+      "percent": "gap_x_percent",
+      "doc": "Declares the horizontal gap between items in a flex container, in pixels or percent."
+    },
+    {
+      "method": "GapY",
+      "param": "value",
+      "px": "gap_y_px",
+      "percent": "gap_y_percent",
+      "doc": "Declares the vertical gap between items in a flex container, in pixels or percent."
+    },
+    {
+      "method": "LineHeight",
+      "param": "value",
+      "px": "line_height_px",
+      "percent": "line_height_percent",
+      "doc": "Declares the line height of an element, in pixels or percent of the font size."
+    },
+    {
+      "method": "Top",
+      "param": "value",
+      "px": "top_px",
+      "percent": "top_percent",
+      "doc": "Declares the top offset of an element, in pixels or percent."
+    },
+    {
+      "method": "Left",
+      "param": "value",
+      "px": "left_px",
+      "percent": "left_percent",
+      "doc": "Declares the left offset of an element, in pixels or percent."
+    },
+    {
+      "method": "Right",
+      "param": "value",
+      "px": "right_px",
+      "percent": "right_percent",
+      "doc": "Declares the right offset of an element, in pixels or percent."
+    },
+    {
+      "method": "Bottom",
+      "param": "value",
+      "px": "bottom_px",
+      "percent": "bottom_percent",
+      "doc": "Declares the bottom offset of an element, in pixels or percent."
+    },
+    {
+      "method": "Inset",
+      "param": "value",
+      "px": "inset_px",
+      "percent": "inset_percent",
+      "doc": "Declares the inset of an element, in pixels or percent."
     }
   ],
   "resources": [

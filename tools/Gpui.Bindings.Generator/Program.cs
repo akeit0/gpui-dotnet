@@ -11,7 +11,8 @@ internal static class BindingGenerator
 {
     private const string SchemaPath = "bindings/schema.json";
     private const string ExtensionManifestPath = "bindings/extensions.json";
-    private const string CSharpOutputPath = "src/Gpui/Rendering/Semantic.g.cs";
+    private const string CSharpProtocolOutputPath = "src/Gpui/Rendering/Semantic.g.cs";
+    private const string CSharpElementsOutputPath = "src/Gpui/Rendering/SemanticElements.g.cs";
     private const string RustOutputPath = "crates/gpui-dotnet/src/semantic.g.rs";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -48,7 +49,8 @@ internal static class BindingGenerator
 
             var outputs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                [CSharpOutputPath] = GenerateCSharp(schema, hash),
+                [CSharpProtocolOutputPath] = GenerateCSharpProtocol(schema, hash),
+                [CSharpElementsOutputPath] = GenerateCSharpElements(schema),
                 [RustOutputPath] = GenerateRust(schema, hash),
             };
 
@@ -227,6 +229,37 @@ internal static class BindingGenerator
         foreach (var capability in schema.Capabilities)
         {
             ValidateName(capability, "capability");
+        }
+
+        EnsureUnique(schema.Enums.Select(e => e.Name), "enum name");
+        EnsureUnique(schema.Enums.Select(e => e.CSharp), "enum C# name");
+        foreach (var enumSchema in schema.Enums)
+        {
+            ValidateName(enumSchema.Name, "enum");
+            ValidateCSharpIdentifier(enumSchema.CSharp, "enum");
+            if (enumSchema.Variants.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Enum {enumSchema.Name} must declare at least one variant."
+                );
+            }
+            EnsureUnique(
+                enumSchema.Variants.Select(variant => variant.Name),
+                $"variant name on enum {enumSchema.Name}"
+            );
+            EnsureUnique(
+                enumSchema.Variants.Select(variant => variant.CSharp),
+                $"variant C# name on enum {enumSchema.Name}"
+            );
+            EnsureUnique(
+                enumSchema.Variants.Select(variant => variant.Value),
+                $"variant value on enum {enumSchema.Name}"
+            );
+            foreach (var variant in enumSchema.Variants)
+            {
+                ValidateName(variant.Name, "enum variant");
+                ValidateCSharpIdentifier(variant.CSharp, "enum variant");
+            }
         }
 
         EnsureUnique(schema.Components.Select(component => component.Id), "component ID");
@@ -419,6 +452,174 @@ internal static class BindingGenerator
             }
 
             ValidateValidation(operation);
+            ValidateManagedMethod(schema, operation);
+        }
+
+        ValidateLengthMethods(schema);
+        EnsureUnique(
+            schema.Operations
+                .Where(operation => operation.ManagedMethod is not null)
+                .Select(operation => operation.ManagedMethod!.Method)
+                .Concat(schema.LengthMethods.Select(method => method.Method)),
+            "managed method name"
+        );
+    }
+
+    private static void ValidateManagedMethod(BindingSchema schema, Operation operation)
+    {
+        var method = operation.ManagedMethod;
+        if (method is null)
+        {
+            return;
+        }
+        if (method.Kind is not ("f32" or "u32" or "u64" or "color" or "enum"))
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} has unknown managed method kind '{method.Kind}'."
+            );
+        }
+        var expectedValue = method.Kind switch
+        {
+            "enum" or "color" => "u32",
+            _ => method.Kind,
+        };
+        if (expectedValue != operation.Value)
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} managed method kind is incompatible with value kind {operation.Value}."
+            );
+        }
+        ValidateCSharpIdentifier(method.Param, $"managed method parameter on {operation.Name}");
+        ValidateCSharpIdentifier(method.Method, $"managed method name on {operation.Name}");
+        if (method.Kind == "enum")
+        {
+            if (method.Enum is null)
+            {
+                throw new InvalidOperationException(
+                    $"Operation {operation.Name} managed method needs an enum reference."
+                );
+            }
+            if (!schema.Enums.Any(e => e.Name == method.Enum))
+            {
+                throw new InvalidOperationException(
+                    $"Operation {operation.Name} references unknown enum '{method.Enum}'."
+                );
+            }
+        }
+        else if (method.Enum is not null)
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} managed method needs an enum reference only for enum methods."
+            );
+        }
+        if (
+            method.Default is double defaultValue
+            && (method.Kind != "f32" || !double.IsFinite(defaultValue))
+        )
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} managed method default must be a finite f32 value."
+            );
+        }
+        if (method.Guard is not ("positive" or "nonZero") && method.Guard is not null)
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} has unknown managed method guard '{method.Guard}'."
+            );
+        }
+        if (
+            (method.Kind == "f32" && method.Guard == "nonZero")
+            || (method.Kind != "f32" && method.Guard == "positive")
+            || (method.Kind == "color" && method.Guard is not null)
+        )
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} managed method guard is incompatible with kind {method.Kind}."
+            );
+        }
+        if ((method.Guard is null) != (method.GuardMessage is null))
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} managed method needs a guard message exactly when it has a guard."
+            );
+        }
+        if (string.IsNullOrWhiteSpace(method.Doc))
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.Name} managed method needs documentation."
+            );
+        }
+    }
+
+    private static void ValidateLengthMethods(BindingSchema schema)
+    {
+        EnsureUnique(schema.LengthMethods.Select(method => method.Method), "length method name");
+        var operationNames = schema.Operations.Select(operation => operation.Name).ToHashSet(
+            StringComparer.Ordinal
+        );
+        var operationCSharp = schema.Operations.Select(operation => operation.CSharp).ToHashSet(
+            StringComparer.Ordinal
+        );
+        foreach (var method in schema.LengthMethods)
+        {
+            ValidateCSharpIdentifier(method.Method, "length method");
+            ValidateCSharpIdentifier(method.Param, $"length method parameter on {method.Method}");
+            if (operationCSharp.Contains(method.Method))
+            {
+                var owner = schema.Operations.FirstOrDefault(operation =>
+                    operation.CSharp == method.Method
+                    && operation.Name != method.Px
+                    && operation.Name != method.Percent
+                );
+                if (owner is not null)
+                {
+                    throw new InvalidOperationException(
+                        $"Length method {method.Method} collides with operation {owner.Name}."
+                    );
+                }
+            }
+            if (string.IsNullOrWhiteSpace(method.Doc))
+            {
+                throw new InvalidOperationException(
+                    $"Length method {method.Method} needs documentation."
+                );
+            }
+            foreach (var reference in new[] { method.Px, method.Percent })
+            {
+                if (!operationNames.Contains(reference))
+                {
+                    throw new InvalidOperationException(
+                        $"Length method {method.Method} references unknown operation '{reference}'."
+                    );
+                }
+                var operation = schema.Operations.First(operation => operation.Name == reference);
+                if (operation.Value != "f32")
+                {
+                    throw new InvalidOperationException(
+                        $"Length method {method.Method} operation '{reference}' must be f32."
+                    );
+                }
+                if (operation.ManagedMethod is not null)
+                {
+                    throw new InvalidOperationException(
+                        $"Length method {method.Method} operation '{reference}' must not declare its own managed method."
+                    );
+                }
+            }
+            if (method.Px == method.Percent)
+            {
+                throw new InvalidOperationException(
+                    $"Length method {method.Method} needs distinct pixel and percent operations."
+                );
+            }
+            var pxRequires = schema.Operations.First(operation => operation.Name == method.Px).Requires;
+            var percentRequires = schema.Operations.First(operation => operation.Name == method.Percent).Requires;
+            if (pxRequires != percentRequires)
+            {
+                throw new InvalidOperationException(
+                    $"Length method {method.Method} operations require different capabilities."
+                );
+            }
         }
     }
 
@@ -851,12 +1052,10 @@ internal static class BindingGenerator
         return builder.ToString();
     }
 
-    private static string GenerateCSharp(BindingSchema schema, ulong hash)
+    private static string GenerateCSharpProtocol(BindingSchema schema, ulong hash)
     {
         var builder = new StringBuilder();
         builder.AppendLine("// <auto-generated />");
-        builder.AppendLine("using System.Runtime.CompilerServices;");
-        builder.AppendLine("using Gpui.Interop;");
         builder.AppendLine();
         builder.AppendLine("namespace Gpui.Interop");
         builder.AppendLine("{");
@@ -1014,6 +1213,15 @@ internal static class BindingGenerator
         builder.AppendLine("        };");
         builder.AppendLine("    }");
         builder.AppendLine("}");
+        return builder.ToString();
+    }
+
+    private static string GenerateCSharpElements(BindingSchema schema)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("// <auto-generated />");
+        builder.AppendLine("using System.Runtime.CompilerServices;");
+        builder.AppendLine("using Gpui.Interop;");
         builder.AppendLine();
         builder.AppendLine("namespace Gpui");
         builder.AppendLine("{");
@@ -1030,6 +1238,17 @@ internal static class BindingGenerator
             );
         }
         builder.AppendLine();
+        foreach (var enumSchema in schema.Enums)
+        {
+            builder.AppendLine($"    public enum {enumSchema.CSharp} : uint");
+            builder.AppendLine("    {");
+            foreach (var variant in enumSchema.Variants)
+            {
+                builder.AppendLine($"        {variant.CSharp} = {variant.Value},");
+            }
+            builder.AppendLine("    }");
+            builder.AppendLine();
+        }
         foreach (var group in schema.ControlEvents.Select(controlEvent => controlEvent.Group).Distinct())
         {
             builder.AppendLine($"    public enum {Pascal(group)}EventKind : ushort");
@@ -1067,6 +1286,18 @@ internal static class BindingGenerator
         )
         {
             AppendManagedApi(builder, operation);
+        }
+        foreach (
+            var operation in schema.Operations.Where(operation =>
+                operation.ManagedMethod is not null
+            )
+        )
+        {
+            AppendManagedMethod(builder, schema, operation);
+        }
+        foreach (var method in schema.LengthMethods)
+        {
+            AppendLengthMethod(builder, schema, method);
         }
         builder.AppendLine("    }");
         builder.AppendLine("}");
@@ -1220,6 +1451,153 @@ internal static class BindingGenerator
         builder.AppendLine("            return parent;");
         builder.AppendLine("        }");
         builder.AppendLine();
+    }
+
+    private static void AppendManagedMethod(
+        StringBuilder builder,
+        BindingSchema schema,
+        Operation operation
+    )
+    {
+        var method = operation.ManagedMethod!;
+        var parameter = method.Kind switch
+        {
+            "f32" => $", float {method.Param}{FormatOptionalDefault(method.Default)}",
+            "u32" => $", uint {method.Param}",
+            "u64" => $", ulong {method.Param}",
+            "color" => $", Color {method.Param}",
+            "enum" => $", {EnumCSharp(schema, method.Enum!)} {method.Param}",
+            _ => throw new InvalidOperationException(),
+        };
+        var opCode = Pascal(operation.Name);
+        var statement = method.Kind switch
+        {
+            "f32" => $"ArenaWriter.AddF32(element.Inner, OpCode.{opCode}, {method.Param});",
+            "u32" => $"ArenaWriter.AddU32(element.Inner, OpCode.{opCode}, {method.Param});",
+            "u64" => $"ArenaWriter.AddU64(element.Inner, OpCode.{opCode}, {method.Param});",
+            "color" => $"ArenaWriter.AddU32(element.Inner, OpCode.{opCode}, {method.Param}.Rgba);",
+            "enum" => $"ArenaWriter.AddU32(element.Inner, OpCode.{opCode}, (uint){method.Param});",
+            _ => throw new InvalidOperationException(),
+        };
+
+        builder.AppendLine($"        /// <summary>{XmlDoc(method.Doc)}</summary>");
+        builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+        builder.AppendLine(
+            $"        public static Element<TTag> {method.Method}<TTag>(this Element<TTag> element{parameter})"
+        );
+        builder.AppendLine(
+            $"            where TTag : unmanaged, {CapabilityInterface(operation.Requires)}"
+        );
+        builder.AppendLine("        {");
+        AppendMethodGuard(builder, method, schema);
+        builder.AppendLine($"            {statement}");
+        builder.AppendLine("            return element;");
+        builder.AppendLine("        }");
+        builder.AppendLine();
+    }
+
+    private static void AppendMethodGuard(
+        StringBuilder builder,
+        ManagedMethod method,
+        BindingSchema schema
+    )
+    {
+        if (method.Guard == "positive")
+        {
+            builder.AppendLine(
+                $"            if (!float.IsFinite({method.Param}) || {method.Param} <= 0)"
+            );
+            builder.AppendLine("            {");
+            builder.AppendLine(
+                $"                throw new ArgumentOutOfRangeException(nameof({method.Param}), \"{XmlDoc(method.GuardMessage!)}\");"
+            );
+            builder.AppendLine("            }");
+            builder.AppendLine();
+        }
+        else if (method.Guard == "nonZero")
+        {
+            builder.AppendLine($"            if ({method.Param} == 0)");
+            builder.AppendLine("            {");
+            builder.AppendLine(
+                $"                throw new ArgumentOutOfRangeException(nameof({method.Param}), \"{XmlDoc(method.GuardMessage!)}\");"
+            );
+            builder.AppendLine("            }");
+            builder.AppendLine();
+        }
+        else if (method.Kind == "enum")
+        {
+            var max = MaxEnumVariant(schema, method.Enum!);
+            builder.AppendLine(
+                $"            if ((uint){method.Param} > (uint)global::Gpui.{EnumCSharp(schema, method.Enum!)}.{max})"
+            );
+            builder.AppendLine("            {");
+            builder.AppendLine(
+                $"                throw new ArgumentOutOfRangeException(nameof({method.Param}));"
+            );
+            builder.AppendLine("            }");
+            builder.AppendLine();
+        }
+    }
+
+    private static void AppendLengthMethod(
+        StringBuilder builder,
+        BindingSchema schema,
+        LengthMethod method
+    )
+    {
+        var px = schema.Operations.First(operation => operation.Name == method.Px);
+        var percent = schema.Operations.First(operation => operation.Name == method.Percent);
+        builder.AppendLine("        [MethodImpl(MethodImplOptions.AggressiveInlining)]");
+        builder.AppendLine($"        /// <summary>{XmlDoc(method.Doc)}</summary>");
+        builder.AppendLine(
+            $"        public static Element<TTag> {method.Method}<TTag>(this Element<TTag> element, Length value)"
+        );
+        builder.AppendLine(
+            $"            where TTag : unmanaged, {CapabilityInterface(px.Requires)}"
+        );
+        builder.AppendLine("        {");
+        builder.AppendLine("            switch (value.Unit)");
+        builder.AppendLine("            {");
+        builder.AppendLine("                case LengthUnit.Pixels:");
+        builder.AppendLine(
+            $"                    ArenaWriter.AddF32(element.Inner, OpCode.{Pascal(px.Name)}, value.Value);"
+        );
+        builder.AppendLine("                    break;");
+        builder.AppendLine("                case LengthUnit.Percent:");
+        builder.AppendLine(
+            $"                    ArenaWriter.AddF32(element.Inner, OpCode.{Pascal(percent.Name)}, value.Value);"
+        );
+        builder.AppendLine("                    break;");
+        builder.AppendLine("                default:");
+        builder.AppendLine("                    throw new ArgumentOutOfRangeException(nameof(value));");
+        builder.AppendLine("            }");
+        builder.AppendLine();
+        builder.AppendLine("            return element;");
+        builder.AppendLine("        }");
+        builder.AppendLine();
+    }
+
+    private static string EnumCSharp(BindingSchema schema, string name) =>
+        schema.Enums.First(e => e.Name == name).CSharp;
+
+    private static string MaxEnumVariant(BindingSchema schema, string name) =>
+        schema.Enums
+            .First(e => e.Name == name)
+            .Variants.OrderByDescending(variant => variant.Value)
+            .First()
+            .CSharp;
+
+    private static string FormatOptionalDefault(double? value)
+    {
+        if (value is not double defaultValue)
+        {
+            return string.Empty;
+        }
+        var literal =
+            defaultValue == Math.Truncate(defaultValue)
+                ? $"{checked((long)defaultValue)}"
+                : CSharpFloatLiteral(defaultValue);
+        return $" = {literal}";
     }
 
     private static void AppendManagedApi(StringBuilder builder, Operation operation)
@@ -1671,8 +2049,10 @@ internal static class BindingGenerator
 internal sealed record BindingSchema(
     int SchemaVersion,
     List<string> Capabilities,
+    List<EnumSchema> Enums,
     List<Component> Components,
     List<Operation> Operations,
+    List<LengthMethod> LengthMethods,
     List<ResourceSchema> Resources,
     List<ControlEventSchema> ControlEvents
 );
@@ -1717,6 +2097,26 @@ internal sealed record Component(
     string NativeAdapter
 );
 
+internal sealed record EnumSchema(
+    string Name,
+    [property: JsonPropertyName("csharp")] string CSharp,
+    List<EnumVariant> Variants
+);
+
+internal sealed record EnumVariant(
+    string Name,
+    [property: JsonPropertyName("csharp")] string CSharp,
+    uint Value
+);
+
+internal sealed record LengthMethod(
+    [property: JsonPropertyName("method")] string Method,
+    [property: JsonPropertyName("param")] string Param,
+    [property: JsonPropertyName("px")] string Px,
+    [property: JsonPropertyName("percent")] string Percent,
+    [property: JsonPropertyName("doc")] string Doc
+);
+
 internal sealed record Operation(
     int Id,
     string Name,
@@ -1725,7 +2125,19 @@ internal sealed record Operation(
     string Requires,
     string? ManagedApi,
     string? Payload,
-    Validation? Validation
+    Validation? Validation,
+    ManagedMethod? ManagedMethod
+);
+
+internal sealed record ManagedMethod(
+    [property: JsonPropertyName("kind")] string Kind,
+    [property: JsonPropertyName("method")] string Method,
+    [property: JsonPropertyName("param")] string Param,
+    [property: JsonPropertyName("default")] double? Default,
+    [property: JsonPropertyName("guard")] string? Guard,
+    [property: JsonPropertyName("guardMessage")] string? GuardMessage,
+    [property: JsonPropertyName("enum")] string? Enum,
+    [property: JsonPropertyName("doc")] string Doc
 );
 
 internal sealed record Validation(

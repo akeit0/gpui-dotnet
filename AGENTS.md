@@ -41,6 +41,7 @@ dotnet run --project tools/Gpui.Bindings.Generator -- verify
 Never hand-edit:
 
 - `src/Gpui/Rendering/Semantic.g.cs`
+- `src/Gpui/Rendering/SemanticElements.g.cs`
 - `crates/gpui-dotnet/src/semantic.g.rs`
 - `src/Gpui/Interop/NativeMethods.g.cs`
 
