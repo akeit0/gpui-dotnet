@@ -25,6 +25,14 @@ internal sealed partial class TypographyView : View
                     .LineThrough()
                     .FontSize(Px(theme.Typography.Body))
                     .TextColor(theme.Colors.TextMuted),
+                ui.Text("Georgia serif (system fallback if unavailable)")
+                    .FontFamily("Georgia")
+                    .FontSize(Px(theme.Typography.Body))
+                    .TextColor(theme.Colors.Text),
+                ui.Text("Courier New monospace")
+                    .FontFamily("Courier New")
+                    .FontSize(Px(theme.Typography.Body))
+                    .TextColor(theme.Colors.Text),
                 ui.Text("Highlighted with a taller line height")
                     .TextBackground(theme.Colors.WarningBackground)
                     .LineHeight(Percent(175))
