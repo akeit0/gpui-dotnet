@@ -74,4 +74,22 @@ foreach ($entry in $nativeEntries.GetEnumerator()) {
     }
 }
 
+$gpuiPackagePath = Join-Path $packOutput "GPUI.NET.$version.nupkg"
+$gpuiBuildEntries = @(
+    'buildTransitive/GPUI.NET.targets',
+    'buildTransitive/GPUI.NET.Windows.manifest'
+)
+
+$archive = [System.IO.Compression.ZipFile]::OpenRead($gpuiPackagePath)
+try {
+    foreach ($entry in $gpuiBuildEntries) {
+        if ($null -eq $archive.GetEntry($entry)) {
+            throw "GPUI.NET does not contain $entry."
+        }
+    }
+}
+finally {
+    $archive.Dispose()
+}
+
 Write-Host "Packed GPUI.NET $version ($($actualFiles.Count) packages) into $packOutput"

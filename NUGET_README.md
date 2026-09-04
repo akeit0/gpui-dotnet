@@ -43,10 +43,13 @@ internal sealed partial class MainView : View
 
 - .NET SDK/runtime 10.
 - A desktop environment supported by the selected runtime identifier.
-- On Windows, the application executable must embed a Common Controls v6 application manifest.
+- On Windows, `GPUI.NET` supplies a default Windows application manifest for executable projects.
 
-The Windows manifest is owned by the consuming application. A reference manifest is available in
-the [sample application](https://github.com/akeit0/gpui-dotnet/tree/main/samples/Gpui.Sample).
+The default manifest enables Common Controls v6 and Per-Monitor V2 DPI awareness. An explicitly
+configured consumer `ApplicationManifest` is preserved, and `NoWin32Manifest=true` disables the
+package-provided manifest. A custom manifest must include `Microsoft.Windows.Common-Controls`
+version `6.0.0.0`; without it, Windows may fail to load the native host because the
+common-control API set is not activated for the process.
 
 ## Links
 
