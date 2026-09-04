@@ -22,7 +22,6 @@ internal sealed partial class ImageGalleryView : View
         var grayscale = ImageCard(ref ui, "Grayscale", ImageFit.Cover, true);
         var (chartProgress, chartAnimating) = ChartAnimation();
         var vectorChart = ui.Dynamic(chartAnimating, VectorChart(ref ui, chartProgress));
-
         return ui.VStack(
                 ui.HStack(
                         ui.Text(
@@ -63,7 +62,7 @@ internal sealed partial class ImageGalleryView : View
             .Fit(fit)
             .Grayscale(grayscale)
             .Width(Percent(100))
-            .Height(Px(180))
+            .AspectRatio(4f / 3f)
             .Radius(Px(12))
             .Background(theme.Colors.ElementActive);
 
@@ -77,7 +76,11 @@ internal sealed partial class ImageGalleryView : View
             .Background(theme.Colors.SurfaceBackground)
             .BorderWidth(Px(1))
             .BorderColor(theme.Colors.BorderVariant)
-            .Radius(Px(12));
+            .Radius(Px(12))
+            .ShadowColor(Colors.Rgba(0, 0, 0, 90))
+            .ShadowOffset(0, 6)
+            .ShadowBlur(16)
+            .ShadowSpread(0);
     }
 
     private static Element VectorChart(ref RenderContext ui, float progress)
