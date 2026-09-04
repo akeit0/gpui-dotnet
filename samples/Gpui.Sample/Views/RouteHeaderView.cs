@@ -10,8 +10,10 @@ internal sealed partial class RouteHeaderView : View<RouteHeaderProps>
                     .FontSize(Px(ui.Theme.Typography.Heading))
                     .TextColor(ui.Theme.Colors.Text),
                 ui.Text(Props.Detail)
+                    .Width(Percent(100))
                     .FontSize(Px(ui.Theme.Typography.Detail))
                     .TextColor(ui.Theme.Colors.TextMuted)
             )
-            .Gap(Px(3));
+            .Gap(Px(3))
+            .MinWidth(Px(100));
 }
