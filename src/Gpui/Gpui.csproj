@@ -29,6 +29,16 @@
         <None Include="$(RepositoryRoot)/NOTICE" Pack="true" PackagePath="\" />
         <None Include="$(RepositoryRoot)/docs/EXTENSIONS.md" Pack="true" PackagePath="docs" />
         <None
+            Include="buildTransitive/GPUI.NET.targets"
+            Pack="true"
+            PackagePath="buildTransitive/GPUI.NET.targets"
+        />
+        <None
+            Include="buildTransitive/GPUI.NET.Windows.manifest"
+            Pack="true"
+            PackagePath="buildTransitive/GPUI.NET.Windows.manifest"
+        />
+        <None
             Include="$(RepositoryRoot)/src/Gpui.Generators/bin/$(Configuration)/netstandard2.0/Gpui.Generators.dll"
             Pack="true"
             PackagePath="analyzers/dotnet/cs"

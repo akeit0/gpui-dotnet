@@ -108,7 +108,7 @@ unless a separate label automation is added.
 
 The `Release` GitHub Actions workflow builds and tests all four native RIDs on their platform
 runners, assembles the package family, and verifies clean local restores and runtime loading on
-Linux and macOS plus a Windows restore/build consumer check. The package version comes from
+Linux, macOS, and Windows, including a file-based `#:package` consumer on Windows. The package version comes from
 `Directory.Build.props`; a release tag must match that version, with an optional leading `v`.
 
 Configure a NuGet.org trusted publishing policy with:
@@ -138,10 +138,34 @@ A release pipeline should verify:
 - NativeAOT publishing succeeds for supported RIDs;
 - no package attempts to compile Rust on the consumer machine.
 
-Windows consumers must also embed a Common Controls v6 application manifest in the executable;
-the sample's `app.manifest` is the reference. Without it, Windows may fail to load the native host
-because the common-control API set is not activated for the process. The release workflow therefore
-keeps its Windows package check at restore/build; the application manifest remains consumer-owned.
+## Windows application manifest
+
+`GPUI.NET` ships a default Windows application manifest through `buildTransitive`:
+
+```text
+buildTransitive/GPUI.NET.targets
+buildTransitive/GPUI.NET.Windows.manifest
+```
+
+The target applies only to Windows executable projects (`Exe`/`WinExe`). When the consumer has
+not already set `ApplicationManifest` and has not set `NoWin32Manifest=true`, the package sets
+`ApplicationManifest` to its bundled `GPUI.NET.Windows.manifest`. The default enables Common
+Controls v6 (`Microsoft.Windows.Common-Controls` version `6.0.0.0`) and Per-Monitor V2 DPI
+awareness.
+
+Custom-manifest ownership is preserved: an explicitly configured consumer `ApplicationManifest`
+is never overwritten, and `NoWin32Manifest=true` opts out of the package-provided manifest. A
+custom manifest must include `Microsoft.Windows.Common-Controls` version `6.0.0.0`; without it,
+Windows may fail to load the native host because the common-control API set is not activated
+for the process. The sample keeps its explicit `app.manifest` because it consumes `Gpui.csproj`
+through `ProjectReference`, which does not apply NuGet `buildTransitive` assets.
+
+Windows clean-consumer validation restores a `net10.0` / `win-x64` project with no
+`ApplicationManifest` from the packed `GPUI.NET` package, verifies the MSBuild
+`ApplicationManifest` property points at the package-provided manifest, then builds and runs the
+consumer so `NativeRuntime.Load()` proves the Common Controls v6 dependency resolves. A second
+file-based `#:package GPUI.NET@<version>` consumer (`dotnet run --file app.cs`) covers the
+file-based reproduction path.
 
 ## Extensions
 

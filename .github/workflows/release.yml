@@ -237,7 +237,7 @@ jobs:
           name: nuget-packages
           path: artifacts/packages
 
-      - name: Restore and build clean Windows consumer
+      - name: Restore, build, and run clean Windows consumer
         shell: pwsh
         run: |
           [xml] $props = Get-Content Directory.Build.props
@@ -272,9 +272,52 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet restore $smokeProject --configfile $nugetConfig --packages $packagesPath --runtime $rid
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          # Windows application manifests are consumer-owned; this job validates restore and build only.
           dotnet build $smokeProject --runtime $rid --no-restore
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run `
+              --project $smokeProject `
+              --runtime $rid `
+              --no-build `
+              --no-restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run Windows file-based consumer
+        shell: pwsh
+        run: |
+          [xml] $props = Get-Content Directory.Build.props
+          $version = [string] $props.Project.PropertyGroup.Version
+          $fileSmoke = 'artifacts/file-smoke'
+          if (Test-Path $fileSmoke) { Remove-Item $fileSmoke -Recurse -Force }
+          New-Item -ItemType Directory -Path $fileSmoke | Out-Null
+          $packageSource = (Resolve-Path -LiteralPath 'artifacts/packages').Path
+          $nugetSource = 'https://api.nuget.org/v3/index.json'
+          @"
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="local" value="$packageSource" />
+              <add key="nuget.org" value="$nugetSource" />
+            </packageSources>
+          </configuration>
+          "@ | Set-Content -LiteralPath "$fileSmoke/NuGet.Config" -Encoding utf8
+          @"
+          #:property TargetFramework=net10.0
+          #:property RuntimeIdentifier=win-x64
+          #:package GPUI.NET@$version
+
+          using Gpui.Interop;
+
+          var runtime = NativeRuntime.Load();
+          Console.WriteLine("Loaded " + runtime.GetType().FullName + " from file-based GPUI.NET app.");
+          "@ | Set-Content -LiteralPath "$fileSmoke/app.cs" -Encoding utf8
+          Push-Location $fileSmoke
+          try {
+            dotnet run --file app.cs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            Pop-Location
+          }
 
   macos-consumer:
     name: Validate ${{ matrix.rid }} NuGet consumer
