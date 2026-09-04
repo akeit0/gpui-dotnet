@@ -7,12 +7,18 @@ internal sealed partial class ImageGalleryView : View
 {
     private const double ChartAnimationSeconds = 0.7;
     private long _chartAnimationStart;
+    private ScrollController _scroll;
 
     private static readonly string ImagePath = Path.Combine(
         AppContext.BaseDirectory,
         "Assets",
         "gpui.svg"
     );
+
+    protected override void OnMounted(ref ViewContext context)
+    {
+        _scroll = context.CreateScrollController("images-scroll");
+    }
 
     protected override Element Render(ref RenderContext ui)
     {
@@ -22,7 +28,7 @@ internal sealed partial class ImageGalleryView : View
         var grayscale = ImageCard(ref ui, "Grayscale", ImageFit.Cover, true);
         var (chartProgress, chartAnimating) = ChartAnimation();
         var vectorChart = ui.Dynamic(chartAnimating, VectorChart(ref ui, chartProgress));
-        return ui.VStack(
+        var body = ui.VStack(
                 ui.HStack(
                         ui.Text(
                                 "Native vector paths and one cached SVG rendered without a web view."u8
@@ -44,10 +50,21 @@ internal sealed partial class ImageGalleryView : View
                     .Gap(Px(10))
                     .ItemsCenter(),
                 vectorChart,
-                ui.HStack(contain, cover, grayscale).Gap(Px(14)).JustifyCenter().Wrap(FlexWrap.Wrap).Grow()
+                ui.HStack(contain, cover, grayscale).Gap(Px(14)).JustifyCenter().Wrap(FlexWrap.Wrap)
             )
-            .Gap(Px(14))
-            .Grow().OverflowHidden();
+            .Gap(Px(14));
+        return ui.Scroll(
+                "images-scroll",
+                ScrollAxis.Vertical,
+                new ScrollOptions(
+                    smoothScrolling: true,
+                    showScrollbar: true,
+                    scrollbarGutter: true
+                ),
+                body
+            )
+            .Grow()
+            .Width(Percent(100));
     }
 
     private static Element ImageCard(

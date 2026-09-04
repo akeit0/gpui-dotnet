@@ -760,6 +760,62 @@ namespace Gpui
             return element;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Grid<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.DisplayGrid);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ColStartAuto<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.ColStartAuto);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ColEndAuto<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.ColEndAuto);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RowStartAuto<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.RowStartAuto);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RowEndAuto<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.RowEndAuto);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ColSpanFull<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.ColSpanFull);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RowSpanFull<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.RowSpanFull);
+            return element;
+        }
+
         /// <summary>Declares the flex grow factor of an item. Defaults to 1.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Element<TTag> Grow<TTag>(this Element<TTag> element, float factor = 1)
@@ -1142,6 +1198,114 @@ namespace Gpui
             }
 
             ArenaWriter.AddJoinedData(element.Inner, OpCode.FontFallbacks, families, ',');
+            return element;
+        }
+
+        /// <summary>Declares the column count of a grid container.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> GridCols<TTag>(this Element<TTag> element, ushort cols)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.GridCols, cols);
+            return element;
+        }
+
+        /// <summary>Declares the column count of a grid container with min-content minimum sizing.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> GridColsMinContent<TTag>(this Element<TTag> element, ushort cols)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.GridColsMinContent, cols);
+            return element;
+        }
+
+        /// <summary>Declares the column count of a grid container with max-content maximum sizing.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> GridColsMaxContent<TTag>(this Element<TTag> element, ushort cols)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.GridColsMaxContent, cols);
+            return element;
+        }
+
+        /// <summary>Declares the row count of a grid container.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> GridRows<TTag>(this Element<TTag> element, ushort rows)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.GridRows, rows);
+            return element;
+        }
+
+        /// <summary>Declares the row count of a grid container with min-content minimum sizing.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> GridRowsMinContent<TTag>(this Element<TTag> element, ushort rows)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.GridRowsMinContent, rows);
+            return element;
+        }
+
+        /// <summary>Declares the row count of a grid container with max-content maximum sizing.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> GridRowsMaxContent<TTag>(this Element<TTag> element, ushort rows)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.GridRowsMaxContent, rows);
+            return element;
+        }
+
+        /// <summary>Declares how many grid columns an item spans.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ColSpan<TTag>(this Element<TTag> element, ushort span)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ColSpan, span);
+            return element;
+        }
+
+        /// <summary>Declares how many grid rows an item spans.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RowSpan<TTag>(this Element<TTag> element, ushort span)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.RowSpan, span);
+            return element;
+        }
+
+        /// <summary>Declares the starting grid line of an item's columns. Negative lines count from the end.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ColStart<TTag>(this Element<TTag> element, short start)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ColStart, (uint)(ushort)start);
+            return element;
+        }
+
+        /// <summary>Declares the ending grid line of an item's columns. Negative lines count from the end.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ColEnd<TTag>(this Element<TTag> element, short end)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ColEnd, (uint)(ushort)end);
+            return element;
+        }
+
+        /// <summary>Declares the starting grid line of an item's rows. Negative lines count from the end.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RowStart<TTag>(this Element<TTag> element, short start)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.RowStart, (uint)(ushort)start);
+            return element;
+        }
+
+        /// <summary>Declares the ending grid line of an item's rows. Negative lines count from the end.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RowEnd<TTag>(this Element<TTag> element, short end)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.RowEnd, (uint)(ushort)end);
             return element;
         }
 

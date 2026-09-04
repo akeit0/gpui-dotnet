@@ -472,7 +472,7 @@ internal static class BindingGenerator
         {
             return;
         }
-        if (method.Kind is not ("f32" or "f32x2" or "u32" or "u64" or "color" or "string" or "strings" or "pairs" or "enum"))
+        if (method.Kind is not ("f32" or "f32x2" or "u16" or "i16" or "u32" or "u64" or "color" or "string" or "strings" or "pairs" or "enum"))
         {
             throw new InvalidOperationException(
                 $"Operation {operation.Name} has unknown managed method kind '{method.Kind}'."
@@ -480,7 +480,7 @@ internal static class BindingGenerator
         }
         var expectedValue = method.Kind switch
         {
-            "enum" or "color" => "u32",
+            "enum" or "color" or "u16" or "i16" => "u32",
             "string" or "strings" or "pairs" => "data",
             _ => method.Kind,
         };
@@ -528,11 +528,14 @@ internal static class BindingGenerator
                 $"Operation {operation.Name} has unknown managed method guard '{method.Guard}'."
             );
         }
-        if (
-            (method.Kind is "f32" or "f32x2" && method.Guard == "nonZero")
-            || (method.Kind is not ("f32" or "f32x2") && method.Guard == "positive")
-            || (method.Kind is "color" or "enum" or "string" or "strings" or "pairs" && method.Guard is not null)
-        )
+        var guardAllowed = (method.Kind, method.Guard) switch
+        {
+            (_, null) => true,
+            ("f32", "positive") => true,
+            ("u32" or "u64", "nonZero") => true,
+            _ => false,
+        };
+        if (!guardAllowed)
         {
             throw new InvalidOperationException(
                 $"Operation {operation.Name} managed method guard is incompatible with kind {method.Kind}."
@@ -1480,6 +1483,8 @@ internal static class BindingGenerator
         {
             "f32" => $", float {method.Param}{FormatOptionalDefault(method.Default)}",
             "f32x2" => $", float {method.Param}X, float {method.Param}Y",
+            "u16" => $", ushort {method.Param}",
+            "i16" => $", short {method.Param}",
             "u32" => $", uint {method.Param}",
             "u64" => $", ulong {method.Param}",
             "color" => $", Color {method.Param}",
@@ -1491,6 +1496,8 @@ internal static class BindingGenerator
         {
             "f32" => $"ArenaWriter.AddF32(element.Inner, OpCode.{opCode}, {method.Param});",
             "f32x2" => $"ArenaWriter.AddF32x2(element.Inner, OpCode.{opCode}, {method.Param}X, {method.Param}Y);",
+            "u16" => $"ArenaWriter.AddU32(element.Inner, OpCode.{opCode}, {method.Param});",
+            "i16" => $"ArenaWriter.AddU32(element.Inner, OpCode.{opCode}, (uint)(ushort){method.Param});",
             "u32" => $"ArenaWriter.AddU32(element.Inner, OpCode.{opCode}, {method.Param});",
             "u64" => $"ArenaWriter.AddU64(element.Inner, OpCode.{opCode}, {method.Param});",
             "color" => $"ArenaWriter.AddU32(element.Inner, OpCode.{opCode}, {method.Param}.Rgba);",
