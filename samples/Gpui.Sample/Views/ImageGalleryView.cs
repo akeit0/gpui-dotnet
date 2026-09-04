@@ -45,10 +45,10 @@ internal sealed partial class ImageGalleryView : View
                     .Gap(Px(10))
                     .ItemsCenter(),
                 vectorChart,
-                ui.HStack(contain, cover, grayscale).Gap(Px(14)).JustifyCenter().Grow()
+                ui.HStack(contain, cover, grayscale).Gap(Px(14)).JustifyCenter().Wrap(FlexWrap.Wrap).Grow()
             )
             .Gap(Px(14))
-            .Grow();
+            .Grow().OverflowHidden();
     }
 
     private static Element ImageCard(

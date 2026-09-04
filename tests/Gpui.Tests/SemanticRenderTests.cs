@@ -1521,6 +1521,13 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void DetachedElementsAreRejectedWithAnActionableMessage()
+    {
+        var error = Assert.Throws<InvalidOperationException>(ValidateDetachedElement);
+        Assert.Contains("never attached to the render tree", error.Message);
+    }
+
+    [Fact]
     public void DockControllerValidatesArguments()
     {
         var view = new ProbeView();
@@ -1815,6 +1822,14 @@ public sealed class SemanticRenderTests
         var ui = arena.BeginRender();
         var tabs = ui.DockTabs(panels: ui.DockPanel("orphan", "Orphan", ui.Div()));
         arena.Validate(tabs);
+    }
+
+    private static void ValidateDetachedElement()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        _ = ui.Text("detached");
+        arena.Validate(ui.Div());
     }
 
     private static void RenderInvalidCircle()

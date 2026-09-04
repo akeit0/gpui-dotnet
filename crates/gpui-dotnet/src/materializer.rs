@@ -228,9 +228,11 @@ impl ManagedView {
         }
         element = apply_styles(element, node, snapshot);
         if last_op(snapshot, node, OP_FLEX_GROW).is_some() {
-            // A growing flex item must be allowed to shrink below its content's intrinsic height;
-            // otherwise a descendant scroll viewport expands to its full content height.
-            element = element.min_h_0();
+            // A growing flex item must be allowed to shrink below its content's intrinsic
+            // size; otherwise a descendant scroll viewport expands to its full content
+            // height, or a growing row item forces the row wider than its parent when a
+            // long text child reports a wide max-content width.
+            element = element.min_h_0().min_w_0();
         }
         element = apply_window_control_area(element, node, snapshot);
 
