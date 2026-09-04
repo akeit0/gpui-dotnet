@@ -440,6 +440,23 @@ internal static unsafe class ManagedValidator
                     }
                 }
             }
+
+            // Edge validation above marks every attached child with Flags bit 0. Any
+            // non-root node left unmarked was declared but never attached to the tree,
+            // which native validation would only report as an opaque status code.
+            for (var nodeIndex = 0; nodeIndex < arena->NodeLength; nodeIndex++)
+            {
+                if (
+                    (uint)nodeIndex != root.Node
+                    && (arena->Nodes[nodeIndex].Flags & 1) == 0
+                )
+                {
+                    var component = (ComponentId)arena->Nodes[nodeIndex].Component;
+                    throw new InvalidOperationException(
+                        $"Node {nodeIndex} ({component}) was declared but never attached to the render tree."
+                    );
+                }
+            }
         }
         finally
         {
