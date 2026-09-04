@@ -1,6 +1,6 @@
 [package]
 name = "gpui-dotnet-editor-host"
-version = "0.1.0-preview.1"
+version.workspace = true
 edition = "2024"
 publish = false
 

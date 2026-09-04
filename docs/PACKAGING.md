@@ -85,15 +85,49 @@ application meta package, verifies the native entries, and writes packages to
 Every package embeds the standalone repository-root `NUGET_README.md` as its NuGet readme. The
 repository `README.md` remains the project overview and is not copied into packages.
 
-## NuGet release
+## Versioning
 
-The `Release` workflow runs when a version tag is pushed. Create a tag matching the version in
-`Directory.Build.props` and push it, for example:
+`Directory.Build.props` (`/Project/PropertyGroup/Version`) is the single source of truth for the
+package version. All NuGet projects inherit it through MSBuild, and `eng/pack.ps1` plus the
+`Release` workflow read it back to name and verify the `.nupkg` files.
+
+Rust crates are not published, so their versions exist only to keep diagnostics consistent. They
+share one Cargo workspace version instead of repeating it per crate:
+
+- `crates/gpui-dotnet/Cargo.toml` defines `[workspace.package] version`.
+- the root, `hosts/default`, and `extensions/editor-host` packages all use
+  `version.workspace = true`.
+- `crates/gpui-dotnet/Cargo.lock` is generated; refresh it with Cargo after every bump.
+
+`README.md` carries no version literals: the NuGet badge tracks the latest release and the
+install snippet restores it without `--version`. `eng/check-version.sh` verifies the props,
+workspace, member inheritance, and lock entries all agree, and fails if a pinned version
+literal is reintroduced into `README.md`. The PowerShell equivalent is
+`eng/check-version.ps1`.
+
+Bump the version with:
 
 ```sh
-git tag v0.1.0-preview.1
-git push origin v0.1.0-preview.1
+./eng/bump-version.sh <version>
 ```
+
+The PowerShell equivalent is `./eng/bump-version.ps1 -Version <version>`. The script
+updates `Directory.Build.props`, the Cargo workspace version, and `Cargo.lock`,
+then runs the consistency check. Verify bindings and tests before
+committing, then tag the release commit as described below.
+
+## NuGet release
+
+The `Release` workflow runs when a version tag is pushed. Tag the version recorded in
+`Directory.Build.props` (with an optional leading `v`) and push it:
+
+```sh
+version=$(sed -n 's/.*<Version>\([^<]*\)<\/Version>.*/\1/p' Directory.Build.props)
+git tag "v$version"
+git push origin "v$version"
+```
+
+The PowerShell equivalent is `$version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version`.
 
 It builds and validates the package family, publishes the validated packages to NuGet.org, and
 then creates the GitHub Release with generated notes and package assets. Package versions

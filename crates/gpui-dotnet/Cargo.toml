@@ -1,6 +1,6 @@
 [package]
 name = "gpui-dotnet"
-version = "0.1.0-preview.1"
+version.workspace = true
 edition = "2024"
 publish = false
 
@@ -9,6 +9,8 @@ members = ["hosts/default", "extensions/editor-host"]
 default-members = [".", "hosts/default"]
 resolver = "3"
 
+[workspace.package]
+version = "0.2.0-preview.1"
 # Deny the lint groups that silently change behavior when missed: an unresolved
 # constant in pattern position becomes a catch-all binding, and dead code hides
 # untested paths. Scoped to groups rather than `warnings` so toolchain upgrades

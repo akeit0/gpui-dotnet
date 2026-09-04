@@ -2464,7 +2464,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-dotnet"
-version = "0.1.0-preview.1"
+version = "0.2.0-preview.1"
 dependencies = [
  "async-channel",
  "csbindgen",
@@ -2479,14 +2479,14 @@ dependencies = [
 
 [[package]]
 name = "gpui-dotnet-default-host"
-version = "0.1.0-preview.1"
+version = "0.2.0-preview.1"
 dependencies = [
  "gpui-dotnet",
 ]
 
 [[package]]
 name = "gpui-dotnet-editor-host"
-version = "0.1.0-preview.1"
+version = "0.2.0-preview.1"
 dependencies = [
  "gpui",
  "gpui-component",

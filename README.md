@@ -10,7 +10,7 @@ materializes GPUI elements, windows, controls, and retained resources.
 The API is semantic rather than a direct binding of every GPUI Rust type. This keeps normal C#
 code platform-neutral and lets the native implementation evolve behind a versioned C ABI.
 
-The current package line is `0.1.0-preview.1`. It is a first preview: public APIs, the semantic
+This is a preview release: public APIs, the semantic
 schema, and the native ABI may change before a stable release.
 
 ## Features at a glance
@@ -96,8 +96,10 @@ managed output.
 ## Install from NuGet
 
 ```sh
-dotnet add package GPUI.NET --version 0.1.0-preview.1
+dotnet add package GPUI.NET
 ```
+
+Pin a specific preview with `dotnet add package GPUI.NET --version <version>`.
 
 The `GPUI.NET` package brings the managed API and the platform-specific native package family.
 Package consumers need the .NET 10 SDK/runtime and a desktop environment supported by the selected
