@@ -267,6 +267,38 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void GridStylingPassesManagedValidation()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var root = ui.Div(
+                ui.Div(ui.Text("cell"u8)).ColStart(0).ColEnd(2).RowStart(0).RowEnd(-1)
+            )
+            .Grid()
+            .GridCols(3)
+            .GridRows(2)
+            .GridColsMinContent(3)
+            .GridColsMaxContent(3)
+            .GridRowsMinContent(2)
+            .GridRowsMaxContent(2)
+            .ColSpan(2)
+            .RowSpan(1)
+            .ColStartAuto()
+            .ColEndAuto()
+            .RowStartAuto()
+            .RowEndAuto()
+            .ColSpanFull()
+            .RowSpanFull();
+
+        arena.Validate(root);
+
+        Assert.Equal(3u, ReadLastU32Op(arena, OpCode.GridCols));
+        Assert.Equal(2u, ReadLastU32Op(arena, OpCode.GridRows));
+        Assert.Equal(2u, ReadLastU32Op(arena, OpCode.ColSpan));
+        Assert.Equal(1u, ReadLastU32Op(arena, OpCode.RowSpan));
+    }
+
+    [Fact]
     public void PositioningOverflowOpacityAndTextPassManagedValidation()
     {
         using var arena = new RenderArenaOwner();

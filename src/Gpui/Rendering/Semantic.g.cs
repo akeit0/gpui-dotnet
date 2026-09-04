@@ -269,6 +269,25 @@ namespace Gpui.Interop
         TextTruncate = 782,
         FontFeatures = 783,
         FontFallbacks = 784,
+        DisplayGrid = 785,
+        GridCols = 786,
+        GridColsMinContent = 787,
+        GridColsMaxContent = 788,
+        GridRows = 789,
+        GridRowsMinContent = 790,
+        GridRowsMaxContent = 791,
+        ColSpan = 792,
+        RowSpan = 793,
+        ColStart = 794,
+        ColEnd = 795,
+        RowStart = 796,
+        RowEnd = 797,
+        ColStartAuto = 798,
+        ColEndAuto = 799,
+        RowStartAuto = 800,
+        RowEndAuto = 801,
+        ColSpanFull = 802,
+        RowSpanFull = 803,
     }
 
     internal enum ValueKind : ushort
@@ -330,7 +349,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x38FAF7C59642BE34UL;
+        internal const ulong SchemaHash = 0x518C26D23555512DUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -621,6 +640,25 @@ namespace Gpui.Interop
             OpCode.TextTruncate => ValueKind.Data,
             OpCode.FontFeatures => ValueKind.Data,
             OpCode.FontFallbacks => ValueKind.Data,
+            OpCode.DisplayGrid => ValueKind.None,
+            OpCode.GridCols => ValueKind.U32,
+            OpCode.GridColsMinContent => ValueKind.U32,
+            OpCode.GridColsMaxContent => ValueKind.U32,
+            OpCode.GridRows => ValueKind.U32,
+            OpCode.GridRowsMinContent => ValueKind.U32,
+            OpCode.GridRowsMaxContent => ValueKind.U32,
+            OpCode.ColSpan => ValueKind.U32,
+            OpCode.RowSpan => ValueKind.U32,
+            OpCode.ColStart => ValueKind.U32,
+            OpCode.ColEnd => ValueKind.U32,
+            OpCode.RowStart => ValueKind.U32,
+            OpCode.RowEnd => ValueKind.U32,
+            OpCode.ColStartAuto => ValueKind.None,
+            OpCode.ColEndAuto => ValueKind.None,
+            OpCode.RowStartAuto => ValueKind.None,
+            OpCode.RowEndAuto => ValueKind.None,
+            OpCode.ColSpanFull => ValueKind.None,
+            OpCode.RowSpanFull => ValueKind.None,
             _ => null,
         };
 
@@ -892,6 +930,25 @@ namespace Gpui.Interop
             OpCode.TextTruncate => 0x0000000000000001UL,
             OpCode.FontFeatures => 0x0000000000000001UL,
             OpCode.FontFallbacks => 0x0000000000000001UL,
+            OpCode.DisplayGrid => 0x0000000000000001UL,
+            OpCode.GridCols => 0x0000000000000001UL,
+            OpCode.GridColsMinContent => 0x0000000000000001UL,
+            OpCode.GridColsMaxContent => 0x0000000000000001UL,
+            OpCode.GridRows => 0x0000000000000001UL,
+            OpCode.GridRowsMinContent => 0x0000000000000001UL,
+            OpCode.GridRowsMaxContent => 0x0000000000000001UL,
+            OpCode.ColSpan => 0x0000000000000001UL,
+            OpCode.RowSpan => 0x0000000000000001UL,
+            OpCode.ColStart => 0x0000000000000001UL,
+            OpCode.ColEnd => 0x0000000000000001UL,
+            OpCode.RowStart => 0x0000000000000001UL,
+            OpCode.RowEnd => 0x0000000000000001UL,
+            OpCode.ColStartAuto => 0x0000000000000001UL,
+            OpCode.ColEndAuto => 0x0000000000000001UL,
+            OpCode.RowStartAuto => 0x0000000000000001UL,
+            OpCode.RowEndAuto => 0x0000000000000001UL,
+            OpCode.ColSpanFull => 0x0000000000000001UL,
+            OpCode.RowSpanFull => 0x0000000000000001UL,
             _ => 0,
         };
 

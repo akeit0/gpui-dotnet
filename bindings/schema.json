@@ -2474,6 +2474,170 @@
       "requires": "styled",
       "managedApi": null,
       "managedMethod": { "kind": "strings", "method": "FontFallbacks", "param": "families", "doc": "Declares font fallback families tried in order when glyphs are missing." }
+    },
+    {
+      "id": 785,
+      "name": "display_grid",
+      "csharp": "Grid",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 786,
+      "name": "grid_cols",
+      "csharp": "GridCols",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "u16", "method": "GridCols", "param": "cols", "doc": "Declares the column count of a grid container." }
+    },
+    {
+      "id": 787,
+      "name": "grid_cols_min_content",
+      "csharp": "GridColsMinContent",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "u16", "method": "GridColsMinContent", "param": "cols", "doc": "Declares the column count of a grid container with min-content minimum sizing." }
+    },
+    {
+      "id": 788,
+      "name": "grid_cols_max_content",
+      "csharp": "GridColsMaxContent",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "u16", "method": "GridColsMaxContent", "param": "cols", "doc": "Declares the column count of a grid container with max-content maximum sizing." }
+    },
+    {
+      "id": 789,
+      "name": "grid_rows",
+      "csharp": "GridRows",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "u16", "method": "GridRows", "param": "rows", "doc": "Declares the row count of a grid container." }
+    },
+    {
+      "id": 790,
+      "name": "grid_rows_min_content",
+      "csharp": "GridRowsMinContent",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "u16", "method": "GridRowsMinContent", "param": "rows", "doc": "Declares the row count of a grid container with min-content minimum sizing." }
+    },
+    {
+      "id": 791,
+      "name": "grid_rows_max_content",
+      "csharp": "GridRowsMaxContent",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "u16", "method": "GridRowsMaxContent", "param": "rows", "doc": "Declares the row count of a grid container with max-content maximum sizing." }
+    },
+    {
+      "id": 792,
+      "name": "col_span",
+      "csharp": "ColSpan",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "u16", "method": "ColSpan", "param": "span", "doc": "Declares how many grid columns an item spans." }
+    },
+    {
+      "id": 793,
+      "name": "row_span",
+      "csharp": "RowSpan",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "u16", "method": "RowSpan", "param": "span", "doc": "Declares how many grid rows an item spans." }
+    },
+    {
+      "id": 794,
+      "name": "col_start",
+      "csharp": "ColStart",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "i16", "method": "ColStart", "param": "start", "doc": "Declares the starting grid line of an item's columns. Negative lines count from the end." }
+    },
+    {
+      "id": 795,
+      "name": "col_end",
+      "csharp": "ColEnd",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "i16", "method": "ColEnd", "param": "end", "doc": "Declares the ending grid line of an item's columns. Negative lines count from the end." }
+    },
+    {
+      "id": 796,
+      "name": "row_start",
+      "csharp": "RowStart",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "i16", "method": "RowStart", "param": "start", "doc": "Declares the starting grid line of an item's rows. Negative lines count from the end." }
+    },
+    {
+      "id": 797,
+      "name": "row_end",
+      "csharp": "RowEnd",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "i16", "method": "RowEnd", "param": "end", "doc": "Declares the ending grid line of an item's rows. Negative lines count from the end." }
+    },
+    {
+      "id": 798,
+      "name": "col_start_auto",
+      "csharp": "ColStartAuto",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 799,
+      "name": "col_end_auto",
+      "csharp": "ColEndAuto",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 800,
+      "name": "row_start_auto",
+      "csharp": "RowStartAuto",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 801,
+      "name": "row_end_auto",
+      "csharp": "RowEndAuto",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 802,
+      "name": "col_span_full",
+      "csharp": "ColSpanFull",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 803,
+      "name": "row_span_full",
+      "csharp": "RowSpanFull",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
     }
   ],
   "lengthMethods": [
