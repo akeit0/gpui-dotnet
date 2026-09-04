@@ -131,6 +131,12 @@ namespace Gpui
         Dashed = 1,
     }
 
+    public enum FontStyle : uint
+    {
+        Normal = 0,
+        Italic = 1,
+    }
+
     public enum InputEventKind : ushort
     {
         /// <summary>The input value changed.</summary>
@@ -738,6 +744,22 @@ namespace Gpui
             return element;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Hidden<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.DisplayNone);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> TextEllipsis<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.TextEllipsis);
+            return element;
+        }
+
         /// <summary>Declares the flex grow factor of an item. Defaults to 1.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Element<TTag> Grow<TTag>(this Element<TTag> element, float factor = 1)
@@ -956,6 +978,20 @@ namespace Gpui
             where TTag : unmanaged, IStyledElementTag
         {
             ArenaWriter.AddF32(element.Inner, OpCode.RadiusBottomRightPx, radius);
+            return element;
+        }
+
+        /// <summary>Declares the font style of an element. Only normal and italic faces are exposed.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> FontStyle<TTag>(this Element<TTag> element, FontStyle style)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if ((uint)style > (uint)global::Gpui.FontStyle.Italic)
+            {
+                throw new ArgumentOutOfRangeException(nameof(style));
+            }
+
+            ArenaWriter.AddU32(element.Inner, OpCode.FontStyle, (uint)style);
             return element;
         }
 

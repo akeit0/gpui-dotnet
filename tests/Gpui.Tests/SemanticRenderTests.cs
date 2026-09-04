@@ -153,7 +153,10 @@ public sealed class SemanticRenderTests
             .MaxHeight(Percent(80))
             .Margin(Percent(5))
             .Padding(Percent(6))
-            .Gap(Percent(7));
+            .Gap(Percent(7))
+            .FontStyle(FontStyle.Italic)
+            .TextEllipsis()
+            .Hidden();
 
         arena.Validate(root);
 
@@ -166,6 +169,7 @@ public sealed class SemanticRenderTests
         Assert.Equal(5, ReadLastF32Op(arena, OpCode.MarginPercent));
         Assert.Equal(6, ReadLastF32Op(arena, OpCode.PaddingPercent));
         Assert.Equal(7, ReadLastF32Op(arena, OpCode.GapPercent));
+        Assert.Equal((uint)FontStyle.Italic, ReadLastU32Op(arena, OpCode.FontStyle));
     }
 
     [Fact]
@@ -252,6 +256,12 @@ public sealed class SemanticRenderTests
             using var arena = new RenderArenaOwner();
             var ui = arena.BeginRender();
             ui.Div().BorderStyle((BorderStyle)2);
+        });
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender();
+            ui.Div().FontStyle((FontStyle)2);
         });
     }
 

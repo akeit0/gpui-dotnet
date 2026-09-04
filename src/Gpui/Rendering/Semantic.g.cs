@@ -247,6 +247,9 @@ namespace Gpui.Interop
         GapPercent = 760,
         GapXPercent = 761,
         GapYPercent = 762,
+        DisplayNone = 763,
+        TextEllipsis = 764,
+        FontStyle = 765,
     }
 
     internal enum ValueKind : ushort
@@ -307,7 +310,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x0F058D7B5B4B9EC8UL;
+        internal const ulong SchemaHash = 0x14502E2BBC11E8A0UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -576,6 +579,9 @@ namespace Gpui.Interop
             OpCode.GapPercent => ValueKind.F32,
             OpCode.GapXPercent => ValueKind.F32,
             OpCode.GapYPercent => ValueKind.F32,
+            OpCode.DisplayNone => ValueKind.None,
+            OpCode.TextEllipsis => ValueKind.None,
+            OpCode.FontStyle => ValueKind.U32,
             _ => null,
         };
 
@@ -825,6 +831,9 @@ namespace Gpui.Interop
             OpCode.GapPercent => 0x0000000000000001UL,
             OpCode.GapXPercent => 0x0000000000000001UL,
             OpCode.GapYPercent => 0x0000000000000001UL,
+            OpCode.DisplayNone => 0x0000000000000001UL,
+            OpCode.TextEllipsis => 0x0000000000000001UL,
+            OpCode.FontStyle => 0x0000000000000001UL,
             _ => 0,
         };
 
@@ -905,6 +914,7 @@ namespace Gpui.Interop
             OpCode.AlignContent when !(a <= 7UL) => -54,
             OpCode.FontWeight when !(BitConverter.UInt32BitsToSingle((uint)a) >= 100f && BitConverter.UInt32BitsToSingle((uint)a) <= 900f) => -55,
             OpCode.BorderStyle when !(a <= 1UL) => -56,
+            OpCode.FontStyle when !(a <= 1UL) => -22,
             _ => 0,
         };
     }

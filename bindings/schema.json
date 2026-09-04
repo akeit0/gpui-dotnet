@@ -114,6 +114,14 @@
         { "name": "solid", "csharp": "Solid", "value": 0 },
         { "name": "dashed", "csharp": "Dashed", "value": 1 }
       ]
+    },
+    {
+      "name": "font_style",
+      "csharp": "FontStyle",
+      "variants": [
+        { "name": "normal", "csharp": "Normal", "value": 0 },
+        { "name": "italic", "csharp": "Italic", "value": 1 }
+      ]
     }
   ],
   "components": [
@@ -2284,6 +2292,32 @@
       "value": "f32",
       "requires": "styled",
       "managedApi": null
+    },
+    {
+      "id": 763,
+      "name": "display_none",
+      "csharp": "Hidden",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 764,
+      "name": "text_ellipsis",
+      "csharp": "TextEllipsis",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 765,
+      "name": "font_style",
+      "csharp": "FontStyle",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 1, "status": -22 },
+      "managedMethod": { "kind": "enum", "method": "FontStyle", "enum": "font_style", "param": "style", "doc": "Declares the font style of an element. Only normal and italic faces are exposed." }
     }
   ],
   "lengthMethods": [
