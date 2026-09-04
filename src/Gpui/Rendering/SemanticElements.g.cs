@@ -720,6 +720,46 @@ namespace Gpui
             return element;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Underline<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.Underline);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> LineThrough<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.LineThrough);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> TextDecorationNone<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.TextDecorationNone);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> TextDecorationWavy<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.TextDecorationWavy);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> TextDecorationSolid<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.TextDecorationSolid);
+            return element;
+        }
+
         /// <summary>Declares the flex grow factor of an item. Defaults to 1.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Element<TTag> Grow<TTag>(this Element<TTag> element, float factor = 1)
@@ -952,6 +992,51 @@ namespace Gpui
             }
 
             ArenaWriter.AddU32(element.Inner, OpCode.FontStyle, (uint)style);
+            return element;
+        }
+
+        /// <summary>Declares the color of an element's box shadow. The shadow is a single layer; unset parts default to transparent, zero offset, and zero blur/spread.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ShadowColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.ShadowColor, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Declares the pixel offset of an element's box shadow.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ShadowOffset<TTag>(this Element<TTag> element, float offsetX, float offsetY)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32x2(element.Inner, OpCode.ShadowOffset, offsetX, offsetY);
+            return element;
+        }
+
+        /// <summary>Declares the blur radius of an element's box shadow, in pixels.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ShadowBlur<TTag>(this Element<TTag> element, float blur)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.ShadowBlur, blur);
+            return element;
+        }
+
+        /// <summary>Declares the spread radius of an element's box shadow, in pixels.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ShadowSpread<TTag>(this Element<TTag> element, float spread)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.ShadowSpread, spread);
+            return element;
+        }
+
+        /// <summary>Declares the color of an element's underline, creating a default underline if none is set.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> TextDecorationColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.TextDecorationColor, color.Rgba);
             return element;
         }
 

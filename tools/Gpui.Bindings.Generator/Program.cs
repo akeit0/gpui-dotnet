@@ -472,7 +472,7 @@ internal static class BindingGenerator
         {
             return;
         }
-        if (method.Kind is not ("f32" or "u32" or "u64" or "color" or "enum"))
+        if (method.Kind is not ("f32" or "f32x2" or "u32" or "u64" or "color" or "enum"))
         {
             throw new InvalidOperationException(
                 $"Operation {operation.Name} has unknown managed method kind '{method.Kind}'."
@@ -528,9 +528,9 @@ internal static class BindingGenerator
             );
         }
         if (
-            (method.Kind == "f32" && method.Guard == "nonZero")
-            || (method.Kind != "f32" && method.Guard == "positive")
-            || (method.Kind == "color" && method.Guard is not null)
+            (method.Kind is "f32" or "f32x2" && method.Guard == "nonZero")
+            || (method.Kind is not ("f32" or "f32x2") && method.Guard == "positive")
+            || (method.Kind is "color" or "enum" && method.Guard is not null)
         )
         {
             throw new InvalidOperationException(
@@ -1463,6 +1463,7 @@ internal static class BindingGenerator
         var parameter = method.Kind switch
         {
             "f32" => $", float {method.Param}{FormatOptionalDefault(method.Default)}",
+            "f32x2" => $", float {method.Param}X, float {method.Param}Y",
             "u32" => $", uint {method.Param}",
             "u64" => $", ulong {method.Param}",
             "color" => $", Color {method.Param}",
@@ -1473,6 +1474,7 @@ internal static class BindingGenerator
         var statement = method.Kind switch
         {
             "f32" => $"ArenaWriter.AddF32(element.Inner, OpCode.{opCode}, {method.Param});",
+            "f32x2" => $"ArenaWriter.AddF32x2(element.Inner, OpCode.{opCode}, {method.Param}X, {method.Param}Y);",
             "u32" => $"ArenaWriter.AddU32(element.Inner, OpCode.{opCode}, {method.Param});",
             "u64" => $"ArenaWriter.AddU64(element.Inner, OpCode.{opCode}, {method.Param});",
             "color" => $"ArenaWriter.AddU32(element.Inner, OpCode.{opCode}, {method.Param}.Rgba);",

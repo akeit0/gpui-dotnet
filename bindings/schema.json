@@ -2353,6 +2353,91 @@
       "value": "f32",
       "requires": "styled",
       "managedApi": null
+    },
+    {
+      "id": 771,
+      "name": "shadow_color",
+      "csharp": "ShadowColor",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "ShadowColor", "param": "color", "doc": "Declares the color of an element's box shadow. The shadow is a single layer; unset parts default to transparent, zero offset, and zero blur/spread." }
+    },
+    {
+      "id": 772,
+      "name": "shadow_offset",
+      "csharp": "ShadowOffset",
+      "value": "f32x2",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "f32x2", "method": "ShadowOffset", "param": "offset", "doc": "Declares the pixel offset of an element's box shadow." }
+    },
+    {
+      "id": 773,
+      "name": "shadow_blur",
+      "csharp": "ShadowBlur",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "f32", "method": "ShadowBlur", "param": "blur", "doc": "Declares the blur radius of an element's box shadow, in pixels." }
+    },
+    {
+      "id": 774,
+      "name": "shadow_spread",
+      "csharp": "ShadowSpread",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "f32", "method": "ShadowSpread", "param": "spread", "doc": "Declares the spread radius of an element's box shadow, in pixels." }
+    },
+    {
+      "id": 775,
+      "name": "underline",
+      "csharp": "Underline",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 776,
+      "name": "line_through",
+      "csharp": "LineThrough",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 777,
+      "name": "text_decoration_none",
+      "csharp": "TextDecorationNone",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 778,
+      "name": "text_decoration_color",
+      "csharp": "TextDecorationColor",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "TextDecorationColor", "param": "color", "doc": "Declares the color of an element's underline, creating a default underline if none is set." }
+    },
+    {
+      "id": 779,
+      "name": "text_decoration_wavy",
+      "csharp": "TextDecorationWavy",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
+    },
+    {
+      "id": 780,
+      "name": "text_decoration_solid",
+      "csharp": "TextDecorationSolid",
+      "value": "none",
+      "requires": "styled",
+      "managedApi": "extension"
     }
   ],
   "lengthMethods": [

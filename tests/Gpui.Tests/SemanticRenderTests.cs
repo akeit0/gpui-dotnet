@@ -156,7 +156,17 @@ public sealed class SemanticRenderTests
             .Gap(Percent(7))
             .FontStyle(FontStyle.Italic)
             .TextEllipsis()
-            .Hidden();
+            .Hidden()
+            .ShadowColor(Colors.Rgba(0, 0, 0, 128))
+            .ShadowOffset(4, 8)
+            .ShadowBlur(12)
+            .ShadowSpread(2)
+            .Underline()
+            .LineThrough()
+            .TextDecorationColor(Colors.Rgba(255, 0, 0, 255))
+            .TextDecorationWavy()
+            .TextDecorationSolid()
+            .TextDecorationNone();
 
         arena.Validate(root);
 
@@ -170,7 +180,8 @@ public sealed class SemanticRenderTests
         Assert.Equal(6, ReadLastF32Op(arena, OpCode.PaddingPercent));
         Assert.Equal(7, ReadLastF32Op(arena, OpCode.GapPercent));
         Assert.Equal((uint)FontStyle.Italic, ReadLastU32Op(arena, OpCode.FontStyle));
-    }
+        Assert.Equal(12, ReadLastF32Op(arena, OpCode.ShadowBlur));
+        Assert.Equal(2, ReadLastF32Op(arena, OpCode.ShadowSpread));    }
 
     [Fact]
     public void PositioningOverflowOpacityAndTextPassManagedValidation()
