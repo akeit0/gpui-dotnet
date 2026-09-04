@@ -6,7 +6,8 @@ The repository has two generators with separate responsibilities.
 
 `tools/Gpui.Bindings.Generator` reads `bindings/schema.json` and produces:
 
-- `src/Gpui/Rendering/Semantic.g.cs`;
+- `src/Gpui/Rendering/Semantic.g.cs` (wire protocol: IDs and the validation registry);
+- `src/Gpui/Rendering/SemanticElements.g.cs` (managed API: tags, style enums, factories, styling);
 - `crates/gpui-dotnet/src/semantic.g.rs`;
 - matching component IDs, operation IDs, capabilities, adapters, value constraints, and schema
   hash on both sides.
@@ -34,6 +35,10 @@ The schema defines:
 - capabilities such as styled, interactive, or checked;
 - operation IDs, value kinds, managed API types, compatibility requirements, and scalar/payload
   constraints;
+- `uint` style enums (C# names plus explicit wire values, e.g. `FlexWrap`, `MouseCursor`);
+- per-operation `managedMethod` fluent APIs (`f32`/`u32`/`u64` scalars with optional defaults and
+  fail-fast guards, or enum-typed parameters) and `lengthMethods` (`Length` overloads fanning out
+  to paired pixel/percent operations such as `Width`);
 - retained resource kinds and their command IDs, names, and documentation;
 - control event IDs, family grouping, and documentation.
 

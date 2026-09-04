@@ -31,6 +31,69 @@
     "extension",
     "key_mouse"
   ],
+  "enums": [
+    {
+      "name": "flex_wrap",
+      "csharp": "FlexWrap",
+      "variants": [
+        { "name": "no_wrap", "csharp": "NoWrap", "value": 0 },
+        { "name": "wrap", "csharp": "Wrap", "value": 1 },
+        { "name": "wrap_reverse", "csharp": "WrapReverse", "value": 2 }
+      ]
+    },
+    {
+      "name": "text_align",
+      "csharp": "TextAlignment",
+      "variants": [
+        { "name": "left", "csharp": "Left", "value": 0 },
+        { "name": "center", "csharp": "Center", "value": 1 },
+        { "name": "right", "csharp": "Right", "value": 2 }
+      ]
+    },
+    {
+      "name": "mouse_cursor",
+      "csharp": "MouseCursor",
+      "variants": [
+        { "name": "arrow", "csharp": "Arrow", "value": 0 },
+        { "name": "ibeam", "csharp": "IBeam", "value": 1 },
+        { "name": "crosshair", "csharp": "Crosshair", "value": 2 },
+        { "name": "closed_hand", "csharp": "ClosedHand", "value": 3 },
+        { "name": "open_hand", "csharp": "OpenHand", "value": 4 },
+        { "name": "pointing_hand", "csharp": "PointingHand", "value": 5 },
+        { "name": "resize_left", "csharp": "ResizeLeft", "value": 6 },
+        { "name": "resize_right", "csharp": "ResizeRight", "value": 7 },
+        { "name": "resize_left_right", "csharp": "ResizeLeftRight", "value": 8 },
+        { "name": "resize_up", "csharp": "ResizeUp", "value": 9 },
+        { "name": "resize_down", "csharp": "ResizeDown", "value": 10 },
+        { "name": "resize_up_down", "csharp": "ResizeUpDown", "value": 11 },
+        { "name": "resize_up_left_down_right", "csharp": "ResizeUpLeftDownRight", "value": 12 },
+        { "name": "resize_up_right_down_left", "csharp": "ResizeUpRightDownLeft", "value": 13 },
+        { "name": "resize_column", "csharp": "ResizeColumn", "value": 14 },
+        { "name": "resize_row", "csharp": "ResizeRow", "value": 15 },
+        { "name": "ibeam_cursor_for_vertical_layout", "csharp": "IBeamCursorForVerticalLayout", "value": 16 },
+        { "name": "operation_not_allowed", "csharp": "OperationNotAllowed", "value": 17 },
+        { "name": "drag_link", "csharp": "DragLink", "value": 18 },
+        { "name": "drag_copy", "csharp": "DragCopy", "value": 19 },
+        { "name": "contextual_menu", "csharp": "ContextualMenu", "value": 20 }
+      ]
+    },
+    {
+      "name": "white_space",
+      "csharp": "WhiteSpace",
+      "variants": [
+        { "name": "normal", "csharp": "Normal", "value": 0 },
+        { "name": "nowrap", "csharp": "Nowrap", "value": 1 }
+      ]
+    },
+    {
+      "name": "visibility",
+      "csharp": "Visibility",
+      "variants": [
+        { "name": "visible", "csharp": "Visible", "value": 0 },
+        { "name": "hidden", "csharp": "Hidden", "value": 1 }
+      ]
+    }
+  ],
   "components": [
     {
       "id": 1,
@@ -493,7 +556,8 @@
       "value": "f32",
       "requires": "styled",
       "managedApi": null,
-      "validation": { "kind": "f32Min", "min": 0, "status": -46 }
+      "validation": { "kind": "f32Min", "min": 0, "status": -46 },
+      "managedMethod": { "kind": "f32", "method": "Grow", "param": "factor", "default": 1, "doc": "Declares the flex grow factor of an item. Defaults to 1." }
     },
     {
       "id": 100,
@@ -828,7 +892,8 @@
       "value": "f32",
       "requires": "styled",
       "managedApi": null,
-      "validation": { "kind": "f32Min", "min": 0, "status": -44 }
+      "validation": { "kind": "f32Min", "min": 0, "status": -44 },
+      "managedMethod": { "kind": "f32", "method": "Shrink", "param": "factor", "doc": "Declares the flex shrink factor of an item. Must be finite and non-negative." }
     },
     {
       "id": 142,
@@ -837,7 +902,8 @@
       "value": "u32",
       "requires": "styled",
       "managedApi": null,
-      "validation": { "kind": "u32Max", "max": 2, "status": -45 }
+      "validation": { "kind": "u32Max", "max": 2, "status": -45 },
+      "managedMethod": { "kind": "enum", "method": "Wrap", "enum": "flex_wrap", "param": "wrap", "doc": "Declares the flex wrapping behavior of a container." }
     },
     {
       "id": 143,
@@ -958,7 +1024,8 @@
       "value": "f32",
       "requires": "styled",
       "managedApi": null,
-      "validation": { "kind": "f32Range", "min": 0, "max": 1, "status": -47 }
+      "validation": { "kind": "f32Range", "min": 0, "max": 1, "status": -47 },
+      "managedMethod": { "kind": "f32", "method": "Opacity", "param": "opacity", "doc": "Declares the opacity of an element, from 0 (transparent) to 1 (opaque)." }
     },
     {
       "id": 158,
@@ -967,7 +1034,8 @@
       "value": "u32",
       "requires": "styled",
       "managedApi": null,
-      "validation": { "kind": "u32Max", "max": 2, "status": -48 }
+      "validation": { "kind": "u32Max", "max": 2, "status": -48 },
+      "managedMethod": { "kind": "enum", "method": "TextAlign", "enum": "text_align", "param": "align", "doc": "Declares the horizontal text alignment within an element." }
     },
     {
       "id": 159,
@@ -976,7 +1044,8 @@
       "value": "u32",
       "requires": "styled",
       "managedApi": null,
-      "validation": { "kind": "u32Min", "min": 1, "status": -49 }
+      "validation": { "kind": "u32Min", "min": 1, "status": -49 },
+      "managedMethod": { "kind": "u32", "method": "LineClamp", "param": "lines", "guard": "nonZero", "guardMessage": "Line clamp must be at least 1.", "doc": "Truncates text after the given number of lines. Must be at least 1." }
     },
     {
       "id": 160,
@@ -985,7 +1054,8 @@
       "value": "u32",
       "requires": "styled",
       "managedApi": null,
-      "validation": { "kind": "u32Max", "max": 20, "status": -50 }
+      "validation": { "kind": "u32Max", "max": 20, "status": -50 },
+      "managedMethod": { "kind": "enum", "method": "Cursor", "enum": "mouse_cursor", "param": "cursor", "doc": "Declares the mouse cursor shown while hovering an element." }
     },
     {
       "id": 161,
@@ -1276,7 +1346,8 @@
       "csharp": "ListItemId",
       "value": "u64",
       "requires": "styled",
-      "managedApi": null
+      "managedApi": null,
+      "managedMethod": { "kind": "u64", "method": "ItemId", "param": "itemId", "guard": "nonZero", "guardMessage": "Item ID 0 is reserved.", "doc": "Declares the stable model identity of a virtualized list row. IDs must be unique within one list; payload 0 is reserved." }
     },
     {
       "id": 400,
@@ -1923,6 +1994,59 @@
       "requires": "path",
       "managedApi": null,
       "validation": { "kind": "f32Min", "min": 0, "minExclusive": true, "status": -59 }
+    },
+    {
+      "id": 729,
+      "name": "aspect_ratio",
+      "csharp": "AspectRatio",
+      "value": "f32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "f32Min", "min": 0, "minExclusive": true, "status": -51 },
+      "managedMethod": { "kind": "f32", "method": "AspectRatio", "param": "ratio", "guard": "positive", "guardMessage": "Aspect ratio must be finite and positive.", "doc": "Declares the preferred aspect ratio (width divided by height) of an item. Must be finite and positive." }
+    },
+    {
+      "id": 730,
+      "name": "white_space",
+      "csharp": "WhiteSpace",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 1, "status": -52 },
+      "managedMethod": { "kind": "enum", "method": "WhiteSpace", "enum": "white_space", "param": "whiteSpace", "doc": "Declares the line-wrapping behavior of text within an element." }
+    },
+    {
+      "id": 731,
+      "name": "visibility",
+      "csharp": "Visibility",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "u32Max", "max": 1, "status": -53 },
+      "managedMethod": { "kind": "enum", "method": "Visibility", "enum": "visibility", "param": "visibility", "doc": "Declares the draw visibility of an element. Hidden elements still occupy layout space." }
+    }
+  ],
+  "lengthMethods": [
+    {
+      "method": "Width",
+      "param": "value",
+      "px": "width_px",
+      "percent": "width_percent",
+      "doc": "Declares the width of an element, in pixels or percent."
+    },
+    {
+      "method": "Height",
+      "param": "value",
+      "px": "height_px",
+      "percent": "height_percent",
+      "doc": "Declares the height of an element, in pixels or percent."
+    },
+    {
+      "method": "Basis",
+      "param": "value",
+      "px": "flex_basis_px",
+      "percent": "flex_basis_percent",
+      "doc": "Declares the initial main size of a flex item, in pixels or percent."
     }
   ],
   "resources": [

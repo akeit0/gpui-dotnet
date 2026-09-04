@@ -72,6 +72,7 @@ public sealed class SemanticRenderTests
             .Basis(Percent(50))
             .Shrink(0)
             .Grow(2)
+            .AspectRatio(16f / 9f)
             .Wrap(FlexWrap.Wrap)
             .ItemsStart()
             .ItemsEnd()
@@ -96,6 +97,7 @@ public sealed class SemanticRenderTests
         Assert.Equal(50, ReadLastF32Op(arena, OpCode.FlexBasisPercent));
         Assert.Equal(0, ReadLastF32Op(arena, OpCode.FlexShrink));
         Assert.Equal(2, ReadLastF32Op(arena, OpCode.FlexGrow));
+        Assert.Equal(16f / 9f, ReadLastF32Op(arena, OpCode.AspectRatio));
         Assert.Equal((uint)FlexWrap.Wrap, ReadLastU32Op(arena, OpCode.FlexWrap));
 
         using var basisArena = new RenderArenaOwner();
@@ -103,6 +105,20 @@ public sealed class SemanticRenderTests
         var basisRoot = basisUi.Div().Basis(Px(200));
         basisArena.Validate(basisRoot);
         Assert.Equal(200, ReadLastF32Op(basisArena, OpCode.FlexBasisPx));
+    }
+
+    [Fact]
+    public void AspectRatioRejectsNonPositiveOrNonFiniteRatios()
+    {
+        foreach (var ratio in new[] { 0f, -1f, float.NaN, float.PositiveInfinity })
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+            {
+                using var arena = new RenderArenaOwner();
+                var ui = arena.BeginRender();
+                ui.Div().AspectRatio(ratio);
+            });
+        }
     }
 
     [Fact]
@@ -133,6 +149,8 @@ public sealed class SemanticRenderTests
             .OverflowYHidden()
             .Opacity(0.5f)
             .TextAlign(TextAlignment.Center)
+            .WhiteSpace(WhiteSpace.Nowrap)
+            .Visibility(Visibility.Hidden)
             .LineClamp(3);
 
         arena.Validate(root);
@@ -144,6 +162,8 @@ public sealed class SemanticRenderTests
         Assert.Equal(5, ReadLastF32Op(arena, OpCode.InsetPx));
         Assert.Equal(0.5f, ReadLastF32Op(arena, OpCode.Opacity));
         Assert.Equal((uint)TextAlignment.Center, ReadLastU32Op(arena, OpCode.TextAlign));
+        Assert.Equal((uint)WhiteSpace.Nowrap, ReadLastU32Op(arena, OpCode.WhiteSpace));
+        Assert.Equal((uint)Visibility.Hidden, ReadLastU32Op(arena, OpCode.Visibility));
         Assert.Equal(3u, ReadLastU32Op(arena, OpCode.LineClamp));
 
         using var absoluteArena = new RenderArenaOwner();
@@ -172,6 +192,18 @@ public sealed class SemanticRenderTests
             using var arena = new RenderArenaOwner();
             var ui = arena.BeginRender();
             ui.Div().Cursor((MouseCursor)21);
+        });
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender();
+            ui.Div().WhiteSpace((WhiteSpace)2);
+        });
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender();
+            ui.Div().Visibility((Visibility)2);
         });
     }
 
