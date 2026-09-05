@@ -130,13 +130,8 @@ internal sealed unsafe partial class ManagedSession
     {
         ThrowIfUnavailable();
         var state = GetRenderState(view);
-        long requiredVersion;
-        lock (_renderStateGate)
-        {
-            requiredVersion = state.RequiredVersion;
-        }
 
-        if (state.Fragment is null || state.RenderedVersion != requiredVersion)
+        if (state.Fragment is null || state.Dirty)
         {
             state.Fragment ??= new RenderArenaOwner(64, 256, 128, 4096);
             BeginComposition(view);
@@ -149,10 +144,6 @@ internal sealed unsafe partial class ManagedSession
                 view.ValidateRenderInputs();
                 state.Root = element.Node;
                 CompleteComposition(view);
-                lock (_renderStateGate)
-                {
-                    state.RenderedVersion = requiredVersion;
-                }
             }
             catch
             {
@@ -174,6 +165,7 @@ internal sealed unsafe partial class ManagedSession
         }
 
         var state = GetRenderState(view);
+        state.Dirty = true;
         state.WorkingChildren?.Clear();
         state.WorkingViews?.Clear();
         state.WorkingNextPosition = 0;
@@ -215,61 +207,60 @@ internal sealed unsafe partial class ManagedSession
         _snapshotVisited.Clear();
         _mountCandidates.Clear();
 
-        lock (_renderStateGate)
+        _snapshotStack.Push(RootView);
+        while (_snapshotStack.TryPop(out var current))
         {
-            _snapshotStack.Push(RootView);
-            while (_snapshotStack.TryPop(out var current))
+            if (!_snapshotVisited.Add(current))
             {
-                if (!_snapshotVisited.Add(current))
-                {
-                    continue;
-                }
-                if (!_renderStates.TryGetValue(current, out var state))
+                continue;
+            }
+            if (!_renderStates.TryGetValue(current, out var state))
+            {
+                throw new InvalidOperationException(
+                    "The committed managed view tree references a missing render state."
+                );
+            }
+
+            if (state.HasStagedComposition)
+            {
+                (state.Children, state.StagedChildren) = (state.StagedChildren, state.Children);
+                state.StagedChildren?.Clear();
+                state.HasStagedComposition = false;
+                state.Candidates?.Clear();
+                // Publication stages output; only native acceptance makes it reusable.
+                state.Dirty = false;
+            }
+
+            current.CommitStagedProps();
+            if (!current.IsMountedCore)
+            {
+                _mountCandidates.Add(current);
+            }
+
+            if (state.Children is null)
+            {
+                continue;
+            }
+
+            foreach (var entry in state.Children.Values)
+            {
+                if (!_renderStates.TryGetValue(entry.View, out var childState))
                 {
                     throw new InvalidOperationException(
-                        "The committed managed view tree references a missing render state."
+                        "A committed child View is missing its retained render state."
                     );
                 }
-
-                if (state.HasStagedComposition)
+                if (
+                    childState.Parent is not null
+                    && !ReferenceEquals(childState.Parent, current)
+                )
                 {
-                    (state.Children, state.StagedChildren) = (state.StagedChildren, state.Children);
-                    state.StagedChildren?.Clear();
-                    state.HasStagedComposition = false;
-                    state.Candidates?.Clear();
+                    throw new InvalidOperationException(
+                        "A managed child View cannot be committed under multiple parents."
+                    );
                 }
-
-                current.CommitStagedProps();
-                if (!current.IsMountedCore)
-                {
-                    _mountCandidates.Add(current);
-                }
-
-                if (state.Children is null)
-                {
-                    continue;
-                }
-
-                foreach (var entry in state.Children.Values)
-                {
-                    if (!_renderStates.TryGetValue(entry.View, out var childState))
-                    {
-                        throw new InvalidOperationException(
-                            "A committed child View is missing its retained render state."
-                        );
-                    }
-                    if (
-                        childState.Parent is not null
-                        && !ReferenceEquals(childState.Parent, current)
-                    )
-                    {
-                        throw new InvalidOperationException(
-                            "A managed child View cannot be committed under multiple parents."
-                        );
-                    }
-                    childState.Parent = current;
-                    _snapshotStack.Push(entry.View);
-                }
+                childState.Parent = current;
+                _snapshotStack.Push(entry.View);
             }
         }
 
@@ -296,24 +287,18 @@ internal sealed unsafe partial class ManagedSession
 
     private void MarkViewFragmentDirty(ViewBase view)
     {
-        lock (_renderStateGate)
+        Execution.AssertAccess();
+        if (_renderStates.TryGetValue(view, out var state))
         {
-            if (_renderStates.TryGetValue(view, out var state))
-            {
-                state.RequiredVersion++;
-            }
+            // Changed props are discovered while the parent is already composing.
+            state.Dirty = true;
         }
     }
 
     private void RollBackStagedProps()
     {
-        ViewBase[] views;
-        lock (_renderStateGate)
-        {
-            views = _renderStates.Keys.ToArray();
-        }
-
-        foreach (var view in views)
+        Execution.AssertAccess();
+        foreach (var view in _renderStates.Keys)
         {
             view.RollBackStagedProps();
         }

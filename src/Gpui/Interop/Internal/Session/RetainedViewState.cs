@@ -3,15 +3,14 @@ using Gpui;
 namespace Gpui.Interop.Internal.Session;
 
 /// <summary>
-/// Retained per-View render state. Extracted from ManagedSession to give each class its own file (single responsibility).
+/// Application-thread-owned composition and fragment state for one View.
 /// </summary>
 internal sealed class RetainedViewState
 {
     internal ViewBase? Parent;
     internal RenderArenaOwner? Fragment;
     internal uint Root;
-    internal long RequiredVersion = 1;
-    internal long RenderedVersion;
+    internal bool Dirty = true;
     internal uint WorkingNextPosition;
     internal bool HasStagedComposition;
     internal Dictionary<ChildSlot, ChildEntry>? Children;

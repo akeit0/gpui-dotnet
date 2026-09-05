@@ -27,9 +27,7 @@ callback throws. The application's final error report may retain a session's fai
 it does not act as an independent recovery mechanism. Metadata updates invalidate
 healthy sessions but cannot revive a faulted session; restarting is required.
 
-The execution, ingress, fault, and acceptance boundaries preserve the existing retained
-version representation. Removing version counters is a separate change with its own correctness tests. Regression
-tests for each subsequent phase should be introduced immediately before its fix so
+Regression tests for each subsequent phase should be introduced immediately before its fix so
 the normal suite remains an executable acceptance gate throughout migration.
 
 ## Acceptance and resource presence
@@ -99,10 +97,30 @@ immediately. Exhaustion fails explicitly; neither event IDs nor artifact/source 
 Retired IDs and retired owner handles are ignored; malformed or never-issued identities remain
 protocol errors. Root bindings and demand bindings cannot retire one another.
 
+## Retained dirty state
+
+Each retained View starts dirty. Entering composition marks its fragment dirty, and completing
+managed rendering only stages output. Native root acceptance clears dirty flags for the reachable
+Views whose composition was staged, before mounting. A rejected publication or failed render
+never marks its fragments clean. A clean child copies its accepted fragment without rerunning
+user rendering; the root still renders whenever native requests a new managed snapshot.
+
+Any-thread requests continue to enter the existing coalesced ingress queue. Only the application
+thread consumes them and touches retained state. Consumption marks the target and its ancestors
+dirty, stopping at the first already-dirty View. Each dirty ancestor already has a path to the
+root; props changes are the local exception because their parent is already composing that path.
+Ambient invalidation marks all states directly. Requests arriving during rendering or while its
+output awaits acceptance stay queued, so clearing accepted dirty flags cannot consume later work.
+
+The retained state table, ownership edges, fragment arenas, and composition collections use the
+application execution guard instead of locks. Teardown before the first callback owns no UI state
+and remains valid on the window-opening thread. Dirty state requires no native ABI or public
+authoring API. Tests cover dirty state before and after acknowledgement, rejection, queued
+invalidation across acceptance, deep propagation, and reuse of unaffected sibling fragments.
+
 ## Reactivity and structured work
 
-After execution, acceptance, and artifact leases are established, replace retained
-version propagation with dirty flags cleared only by accepted work. A Signal binds
+Build Signal dependencies on accepted dirty state and explicit artifact leases. A Signal binds
 permanently on its first tracked read to an application identity without strongly
 retaining the application. Both reads and writes then assert the owner thread.
 Accept dependency edges with their consumer and detach them on retirement. Reuse

@@ -17,7 +17,9 @@ After arena warmup:
 - child APIs accept spans;
 - event tokens use compact non-reused IDs mapped to recyclable registry slots;
 - framework child activation uses generated factories;
-- native snapshot buffers and decode scratch are reused.
+- native snapshot buffers and decode scratch are reused;
+- retained composition uses application-thread dirty flags without locks or version counters;
+- invalidation walks stop at an already-dirty ancestor, and clean sibling fragments are reused.
 
 Do not replace this model with per-element or per-style P/Invoke calls.
 

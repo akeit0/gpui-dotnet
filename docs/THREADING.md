@@ -119,8 +119,11 @@ idempotent after owner or session teardown.
 
 Invalidation publishes a stable, never-pooled View identity with an atomic pending bit. Repeated
 requests coalesce before reaching the application thread. Only ingress consumption touches the
-retained tree; requests arriving during rendering apply on a later render. Theme and metadata
-updates likewise enqueue full-tree invalidation. Native wakeups coalesce per session.
+retained tree. Its tables, ownership edges, and dirty flags are application-thread-owned and need
+no locks. Dirty propagation stops at an already-dirty ancestor, and acceptance clears only the
+staged compositions it commits. Requests arriving during rendering or pending acceptance apply
+on a later render. Theme and metadata updates likewise enqueue full-tree invalidation. Native
+wakeups coalesce per session.
 
 View-bound posted callbacks recheck their stable command route when consumed and are discarded
 after owner retirement. Legacy async event continuations remain session-bound; they still need

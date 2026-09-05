@@ -106,8 +106,9 @@ Reload state. Release rendering therefore has no per-frame Hot Reload branch or 
 ## Managed invalidation
 
 Each healthy `ManagedSession` queues full-fragment invalidation, the same primitive used by theme
-changes. The application thread consumes it and increments `RequiredVersion` for every retained
-View fragment. The metadata-update thread never traverses or mutates the retained tree.
+changes. The application thread consumes it and marks every retained View fragment dirty. Dirty
+flags clear when native accepts the updated composition. The metadata-update thread never
+traverses or mutates the retained tree.
 
 This preserves:
 

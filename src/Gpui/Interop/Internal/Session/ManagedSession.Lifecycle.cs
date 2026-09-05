@@ -35,14 +35,11 @@ internal sealed unsafe partial class ManagedSession
             }
         }
 
-        lock (_renderStateGate)
+        foreach (var state in _renderStates.Values)
         {
-            foreach (var state in _renderStates.Values)
-            {
-                state.Fragment?.Dispose();
-            }
-            _renderStates.Clear();
+            state.Fragment?.Dispose();
         }
+        _renderStates.Clear();
 
         _attachedViews.Clear();
         _demandArtifacts.Clear();
@@ -63,15 +60,12 @@ internal sealed unsafe partial class ManagedSession
 
     private void AttachRoot()
     {
-        lock (_renderStateGate)
+        var rootState = GetRenderState(RootView);
+        if (rootState.Parent is not null)
         {
-            var rootState = GetRenderState(RootView);
-            if (rootState.Parent is not null)
-            {
-                throw new InvalidOperationException(
-                    "The root View cannot be owned by another View."
-                );
-            }
+            throw new InvalidOperationException(
+                "The root View cannot be owned by another View."
+            );
         }
         Attach(RootView);
     }
@@ -107,12 +101,9 @@ internal sealed unsafe partial class ManagedSession
         {
             _viewsByHandle.Remove(handle);
             _attachedViews.Remove(view);
-            lock (_renderStateGate)
+            if (_renderStates.Remove(view, out var failedState))
             {
-                if (_renderStates.Remove(view, out var failedState))
-                {
-                    failedState.Fragment?.Dispose();
-                }
+                failedState.Fragment?.Dispose();
             }
             throw;
         }
@@ -139,13 +130,10 @@ internal sealed unsafe partial class ManagedSession
             }
             _attachedViews.Remove(view);
 
-            lock (_renderStateGate)
+            if (_renderStates.Remove(view, out var state))
             {
-                if (_renderStates.Remove(view, out var state))
-                {
-                    state.Parent = null;
-                    state.Fragment?.Dispose();
-                }
+                state.Parent = null;
+                state.Fragment?.Dispose();
             }
         }
 
@@ -158,37 +146,32 @@ internal sealed unsafe partial class ManagedSession
     private RetainedViewState GetRenderState(ViewBase view)
     {
         Execution.AssertAccess();
-        lock (_renderStateGate)
+        if (!_renderStates.TryGetValue(view, out var state))
         {
-            if (!_renderStates.TryGetValue(view, out var state))
-            {
-                state = new RetainedViewState();
-                _renderStates.Add(view, state);
-            }
-            return state;
+            state = new RetainedViewState();
+            _renderStates.Add(view, state);
         }
+        return state;
     }
 
     private void MarkDirty(ViewBase view)
     {
         Execution.AssertAccess();
-        lock (_renderStateGate)
+        if (Volatile.Read(ref _stopped) != 0)
         {
-            if (Volatile.Read(ref _stopped) != 0)
+            return;
+        }
+
+        ViewBase? current = view;
+        while (current is not null)
+        {
+            if (!_renderStates.TryGetValue(current, out var state) || state.Dirty)
             {
                 return;
             }
-
-            ViewBase? current = view;
-            while (current is not null)
-            {
-                if (!_renderStates.TryGetValue(current, out var state))
-                {
-                    return;
-                }
-                state.RequiredVersion++;
-                current = state.Parent;
-            }
+            // An already-dirty ancestor has already propagated to the root.
+            state.Dirty = true;
+            current = state.Parent;
         }
     }
 
@@ -198,42 +181,39 @@ internal sealed unsafe partial class ManagedSession
         _unmountStack.Clear();
         _unmountVisited.Clear();
 
-        lock (_renderStateGate)
+        foreach (var view in _attachedViews)
         {
-            foreach (var view in _attachedViews)
+            if (!includeCommittedTree && _snapshotVisited.Contains(view))
             {
-                if (!includeCommittedTree && _snapshotVisited.Contains(view))
+                continue;
+            }
+
+            _unmountStack.Push((view, false));
+            while (_unmountStack.TryPop(out var entry))
+            {
+                if (entry.Expanded)
+                {
+                    _unmountCandidates.Add(entry.View);
+                    continue;
+                }
+
+                if (!_unmountVisited.Add(entry.View))
                 {
                     continue;
                 }
 
-                _unmountStack.Push((view, false));
-                while (_unmountStack.TryPop(out var entry))
+                _unmountStack.Push((entry.View, true));
+                if (!_renderStates.TryGetValue(entry.View, out var state))
                 {
-                    if (entry.Expanded)
-                    {
-                        _unmountCandidates.Add(entry.View);
-                        continue;
-                    }
-
-                    if (!_unmountVisited.Add(entry.View))
-                    {
-                        continue;
-                    }
-
-                    _unmountStack.Push((entry.View, true));
-                    if (!_renderStates.TryGetValue(entry.View, out var state))
-                    {
-                        continue;
-                    }
-
-                    PushCleanupChildren(state.Children, includeCommittedTree);
-                    if (state.HasStagedComposition)
-                    {
-                        PushCleanupChildren(state.StagedChildren, includeCommittedTree);
-                    }
-                    PushCleanupChildren(state.Candidates, includeCommittedTree);
+                    continue;
                 }
+
+                PushCleanupChildren(state.Children, includeCommittedTree);
+                if (state.HasStagedComposition)
+                {
+                    PushCleanupChildren(state.StagedChildren, includeCommittedTree);
+                }
+                PushCleanupChildren(state.Candidates, includeCommittedTree);
             }
         }
     }

@@ -63,8 +63,9 @@ Normal external callbacks cannot enter between publication and acceptance.
 
 The native `ManagedView` keeps the last valid snapshot. A clean GPUI repaint materializes or paints
 that snapshot without calling managed code. `View.Invalidate()` queues a coalesced request using
-stable View identity. The application thread consumes it before rendering, increments the managed
-retained version, and rerenders the required fragments.
+stable View identity. The application thread consumes it before rendering, marks the View and its
+ancestors dirty, and rerenders the required fragments. Propagation stops at an already-dirty
+ancestor. Retained tree state uses the application execution guard and needs no locks.
 
 ## Managed view tree
 
@@ -89,6 +90,11 @@ Child views render into retained fragment arenas. The parent snapshot copies tho
 the current root arena. Staged props changes and child invalidation mark the necessary fragment and
 its ancestors dirty. Application-wide theme changes invalidate every retained fragment because a
 theme is ambient render input rather than child props.
+
+Completing a managed fragment only stages it. Dirty flags clear for reachable staged compositions
+when native accepts the root, before mount hooks run. Rejection leaves the flags dirty. Requests
+queued during rendering or pending acceptance are consumed by a later render, so accepting the
+current snapshot cannot erase a newer invalidation.
 
 New children are prepared without lifecycle hooks and remain session-owned candidates until native
 acceptance. Tree replacement commits the new composition before terminally unmounting the old

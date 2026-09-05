@@ -15,7 +15,6 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     private readonly ConcurrentQueue<IngressWork> _ingress = new();
     private readonly HashSet<ViewBase> _attachedViews = new(ViewIdentity);
     private readonly Dictionary<uint, ViewBase> _viewsByHandle = [];
-    private readonly object _renderStateGate = new();
     private readonly Dictionary<ViewBase, RetainedViewState> _renderStates = new(ViewIdentity);
     private readonly HashSet<ViewBase> _renderingViews = new(ViewIdentity);
     private readonly Stack<ViewBase> _snapshotStack = new();
@@ -249,7 +248,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
                 Volatile.Write(ref _allViewsPending, 0);
                 foreach (var state in _renderStates.Values)
                 {
-                    state.RequiredVersion++;
+                    state.Dirty = true;
                 }
             }
         }

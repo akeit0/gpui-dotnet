@@ -120,7 +120,7 @@ public abstract class View<TProps> : ViewBase
     private TProps _committedProps = default!;
 
     // The latest declaration is also the retained-fragment comparison baseline. Fragment
-    // RequiredVersion/RenderedVersion records whether a failed render actually accepted it.
+    // dirty state clears only when native accepts the snapshot containing that declaration.
     private TProps _latestProps = default!;
     private PropsState _propsState;
 

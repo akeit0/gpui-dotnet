@@ -104,8 +104,8 @@ before any mount hook runs. A failed render does not promote them and faults nor
 
 The implementation retains two `TProps` payloads, not three: the committed value observed outside
 rendering and the latest declaration used during rendering and for fragment comparison. The
-fragment's required/rendered versions determine whether that latest declaration produced valid
-cached output, including across render attempts.
+fragment stays dirty until native accepts the snapshot containing that declaration. Only an
+accepted, clean fragment is reused by later parent renders.
 
 `TProps` must implement `IEquatable<TProps>`, enforced by the `View<TProps>` generic constraint, so
 `EqualityComparer<TProps>.Default` has a strongly typed comparison path. Records and record structs
@@ -193,9 +193,10 @@ ever painted. A native decode or acknowledgement failure is terminal for that se
 ## Invalidation and async work
 
 `Invalidate()` queues a coalesced request for the current View. At the next root-render callback,
-the application thread marks its fragment dirty and propagates the required version to its
-ancestors. Requests arriving during rendering remain queued for a later render. Native wakeups
-are also coalesced while one render is already pending.
+the application thread marks its fragment and ancestors dirty, stopping at an already-dirty
+ancestor. Dirty flags clear only for compositions accepted by native. Requests arriving during
+rendering or pending acceptance remain queued for a later render. Native wakeups are also
+coalesced while one render is already pending.
 
 Root rendering always uses the current `GpuiApplication.Theme`. Retained child fragments receive
 the same theme. A theme change invalidates every fragment in each window because ambient theme

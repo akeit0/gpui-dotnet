@@ -11,6 +11,125 @@ namespace Gpui.Tests;
 public sealed unsafe class RuntimeExecutionTests
 {
     [Fact]
+    public void PublishedChildRemainsDirtyUntilNativeAcknowledgement()
+    {
+        using var fixture = new SessionFixture(new ParentView());
+        fixture.Publish();
+        var child = fixture.CandidateChild;
+        Assert.True(fixture.State(child).Dirty);
+        Assert.Equal(0, fixture.Complete());
+        Assert.False(fixture.State(child).Dirty);
+        fixture.Render();
+        Assert.Equal(1, child.RenderCount);
+    }
+
+    [Fact]
+    public void NativeRejectionDoesNotCleanTheRenderedChild()
+    {
+        using var fixture = new SessionFixture(new ParentView());
+        fixture.Render();
+        var child = fixture.Child;
+        child.Invalidate();
+        fixture.Publish();
+        Assert.Equal(-103, fixture.Complete(status: -40));
+        Assert.True(fixture.State(child).Dirty);
+    }
+
+    [Fact]
+    public void RootFailureAfterRenderingAChildDoesNotCleanThatChild()
+    {
+        var parent = new ParentView();
+        using var fixture = new SessionFixture(parent);
+        fixture.Render();
+        var child = fixture.Child;
+        child.Invalidate();
+        parent.AfterChildren = () => throw new InvalidOperationException("parent render failed");
+        Assert.Throws<InvalidOperationException>(fixture.Publish);
+        Assert.Equal(2, child.RenderCount);
+        Assert.True(fixture.State(child).Dirty);
+    }
+
+    [Fact]
+    public void MountingObservesTheWholeTreeWithAcceptedCleanState()
+    {
+        using var fixture = new SessionFixture(new ParentView());
+        fixture.Publish();
+        var child = fixture.CandidateChild;
+        fixture.View.DuringMount = () =>
+        {
+            Assert.False(fixture.State(fixture.View).Dirty);
+            Assert.False(fixture.State(child).Dirty);
+        };
+        Assert.Equal(0, fixture.Complete());
+    }
+
+    [Fact]
+    public void InvalidationWhileAwaitingAcceptanceSurvivesAcknowledgement()
+    {
+        using var fixture = new SessionFixture(new ParentView());
+        fixture.Render();
+        var child = fixture.Child;
+        child.Invalidate();
+        fixture.Publish();
+        RunWorker(child.Invalidate);
+        Assert.Equal(0, fixture.Complete());
+        fixture.Render();
+        Assert.Equal(3, child.RenderCount);
+        fixture.Render();
+        Assert.Equal(3, child.RenderCount);
+    }
+
+    [Fact]
+    public void RootInvalidationReusesCleanDescendants()
+    {
+        using var fixture = new SessionFixture(new ParentView());
+        fixture.Render();
+        fixture.View.Invalidate();
+        fixture.Render();
+        Assert.Equal(2, fixture.View.RenderCount);
+        Assert.Equal(1, fixture.Child.RenderCount);
+    }
+
+    [Fact]
+    public void SiblingInvalidationsPropagateThroughAnAlreadyDirtyBranch()
+    {
+        using var fixture = new SessionFixture(new TreeView());
+        fixture.Render();
+        var children = fixture.State(fixture.View).Children!.Values.Select(entry => entry.View).ToArray();
+        var branch = Assert.IsType<BranchView>(children.Single(view => view is BranchView));
+        var unaffected = Assert.IsType<ChildView>(children.Single(view => view is ChildView));
+        var leaves = fixture.State(branch).Children!.Values.Select(entry => (ChildView)entry.View).ToArray();
+
+        // Dirty the common ancestor first, then both leaves. Each leaf must still render.
+        branch.Invalidate();
+        foreach (var leaf in leaves)
+            leaf.Invalidate();
+        fixture.Render();
+        Assert.Equal(2, branch.RenderCount);
+        Assert.All(leaves, leaf => Assert.Equal(2, leaf.RenderCount));
+        Assert.Equal(1, unaffected.RenderCount);
+        fixture.Render();
+        Assert.Equal(2, branch.RenderCount);
+    }
+
+    [Fact]
+    public void ChangedPropsRemainDirtyUntilAcceptedAndThenReuseTheFragment()
+    {
+        var parent = new PropsParentView();
+        using var fixture = new SessionFixture(parent);
+        fixture.Render();
+        var child = Assert.IsType<PropsChildView>(fixture.State(parent).Children!.Values.Single().View);
+        parent.Label = "changed";
+        fixture.Publish();
+        Assert.True(fixture.State(child).Dirty);
+        Assert.Equal(0, fixture.Complete());
+        Assert.False(fixture.State(child).Dirty);
+        fixture.Render();
+        Assert.Equal(2, child.RenderCount);
+        Assert.Equal(new LabelProps("changed"), child.CurrentProps);
+    }
+
+    [Fact]
     public void RenderRootOutputPreparesViewsWithoutRunningMountHooks()
     {
         using var fixture = new SessionFixture(new ProbeView());
@@ -180,14 +299,16 @@ public sealed unsafe class RuntimeExecutionTests
         fixture.Render();
         var child = fixture.Child;
         var state = fixture.State(child);
-        var version = state.RequiredVersion;
+        Assert.False(state.Dirty);
 
         RunWorker(() => Parallel.For(0, 1000, _ => child.Invalidate()));
 
-        Assert.Equal(version, state.RequiredVersion);
+        Assert.False(state.Dirty);
         Assert.Equal(1, fixture.Notifications);
-        fixture.Render();
-        Assert.Equal(version + 1, state.RequiredVersion);
+        fixture.Publish();
+        Assert.True(state.Dirty);
+        Assert.Equal(0, fixture.Complete());
+        Assert.False(state.Dirty);
         Assert.Equal(2, child.RenderCount);
     }
 
@@ -212,16 +333,18 @@ public sealed unsafe class RuntimeExecutionTests
         fixture.Render();
         var child = fixture.Child;
         var state = fixture.State(child);
-        var version = state.RequiredVersion;
+        Assert.False(state.Dirty);
         RunWorker(() =>
         {
             for (var i = 0; i < 100; i++)
                 fixture.Session.InvalidateAllViews();
         });
-        Assert.Equal(version, state.RequiredVersion);
+        Assert.False(state.Dirty);
         Assert.Equal(1, fixture.Notifications);
-        fixture.Render();
-        Assert.Equal(version + 1, state.RequiredVersion);
+        fixture.Publish();
+        Assert.True(state.Dirty);
+        Assert.Equal(0, fixture.Complete());
+        Assert.False(state.Dirty);
         Assert.Equal(2, child.RenderCount);
     }
 
@@ -688,12 +811,28 @@ public sealed unsafe class RuntimeExecutionTests
     private sealed class ParentView : ProbeView
     {
         internal bool ShowChild = true;
+        internal Action? AfterChildren;
 
         protected override Element Render(ref RenderContext ui)
         {
             var root = base.Render(ref ui);
-            return ShowChild ? ui.Div(root, ui.Child<ChildView>("child")) : root;
+            var result = ShowChild ? ui.Div(root, ui.Child<ChildView>("child")) : root;
+            AfterChildren?.Invoke();
+            return result;
         }
+    }
+
+    private sealed class BranchView : ProbeView, IGeneratedViewFactory<BranchView>
+    {
+        public static BranchView CreateGpuiView() => new();
+        protected override Element Render(ref RenderContext ui) =>
+            ui.Div(base.Render(ref ui), ui.Child<ChildView>("first"), ui.Child<ChildView>("second"));
+    }
+
+    private sealed class TreeView : ProbeView
+    {
+        protected override Element Render(ref RenderContext ui) =>
+            ui.Div(base.Render(ref ui), ui.Child<BranchView>("branch"), ui.Child<ChildView>("unaffected"));
     }
 
     private sealed record LabelProps(string Text);
@@ -702,12 +841,18 @@ public sealed unsafe class RuntimeExecutionTests
     {
         public static PropsChildView CreateGpuiView() => new();
         internal LabelProps CurrentProps => Props;
-        protected override Element Render(ref RenderContext ui) => ui.Text(Props.Text);
+        internal int RenderCount;
+        protected override Element Render(ref RenderContext ui)
+        {
+            RenderCount++;
+            return ui.Text(Props.Text);
+        }
     }
 
     private sealed class PropsParentView : ProbeView
     {
+        internal string Label = "accepted";
         protected override Element Render(ref RenderContext ui) =>
-            ui.Child<PropsChildView, LabelProps>("props-child", new LabelProps("accepted"));
+            ui.Child<PropsChildView, LabelProps>("props-child", new LabelProps(Label));
     }
 }

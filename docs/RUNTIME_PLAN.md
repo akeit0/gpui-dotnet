@@ -2,7 +2,7 @@
 
 The runtime uses single-pass grow-before-write managed arenas and native acceptance (ABI 6).
 Application-thread ingress, terminal session faults, post-acceptance mounting, resource
-presence generations, non-reused event IDs, and cached-range leases are described in
+presence generations, accepted dirty state, non-reused event IDs, and cached-range leases are described in
 [RUNTIME_DESIGN.md](RUNTIME_DESIGN.md). The open work below builds on those boundaries.
 
 ## 0. Regression cases first
@@ -13,16 +13,15 @@ cross-application access, and retirement while an uncooperative producer is stil
 
 Exit gate: failing regressions identify the production path each phase must fix.
 
-## 1. Dirty state and reactivity
+## 1. Reactivity
 
-Build on explicit demand-artifact ownership and replace
-retained-tree locks and version-chain propagation with UI-thread dirty flags cleared
-only by accepted work. Bind Signals permanently on first tracked read with
+Build on explicit demand-artifact ownership and dirty flags cleared only by accepted work.
+Bind Signals permanently on first tracked read with
 application/thread assertions; attach subscriber edges at acceptance and detach them
 at teardown. Demand artifacts are their own reactive consumers: invalidating a Signal
 read only by a row evicts that artifact without forcing the owner View to rerender.
 
-Exit gate: no UI hot-path locks, conditional dependencies resolve correctly, and
+Exit gate: dependency tracking adds no UI hot-path locks, conditional dependencies resolve correctly, and
 teardown cannot leak subscribers through long-lived Signals.
 
 ## 2. Structured async, diagnostics, and migration

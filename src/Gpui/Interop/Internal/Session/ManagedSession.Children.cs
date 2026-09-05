@@ -170,19 +170,16 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
 
     private RetainedViewState PrepareOwnership(ViewBase child, ViewBase parent)
     {
-        lock (_renderStateGate)
+        var childState = GetRenderState(child);
+        if (childState.Parent is not null && !ReferenceEquals(childState.Parent, parent))
         {
-            var childState = GetRenderState(child);
-            if (childState.Parent is not null && !ReferenceEquals(childState.Parent, parent))
-            {
-                throw new InvalidOperationException(
-                    $"Managed View '{child.GetType().Name}' is already owned by "
-                        + $"'{childState.Parent.GetType().Name}'. A View instance may have only one parent."
-                );
-            }
-            childState.Parent = parent;
-            return childState;
+            throw new InvalidOperationException(
+                $"Managed View '{child.GetType().Name}' is already owned by "
+                    + $"'{childState.Parent.GetType().Name}'. A View instance may have only one parent."
+            );
         }
+        childState.Parent = parent;
+        return childState;
     }
 
     private void RollBackPreparedOwnership(
@@ -191,21 +188,18 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         ViewBase parent
     )
     {
-        lock (_renderStateGate)
+        if (
+            !_attachedViews.Contains(child)
+            && ReferenceEquals(childState.Parent, parent)
+            && (childState.Children is null || childState.Children.Count == 0)
+            && (childState.Candidates is null || childState.Candidates.Count == 0)
+            && !childState.HasStagedComposition
+        )
         {
-            if (
-                !_attachedViews.Contains(child)
-                && ReferenceEquals(childState.Parent, parent)
-                && (childState.Children is null || childState.Children.Count == 0)
-                && (childState.Candidates is null || childState.Candidates.Count == 0)
-                && !childState.HasStagedComposition
-            )
+            childState.Parent = null;
+            if (_renderStates.Remove(child, out var removed))
             {
-                childState.Parent = null;
-                if (_renderStates.Remove(child, out var removed))
-                {
-                    removed.Fragment?.Dispose();
-                }
+                removed.Fragment?.Dispose();
             }
         }
     }
