@@ -17,6 +17,7 @@ internal sealed unsafe partial class ManagedSession
             var completed = false;
             try
             {
+                using var reads = GetRenderState(RootView).Consumer!.Begin();
                 var ui = new RenderContext(arena, this, RootView, _application.Theme);
                 var element = RootView.RenderCore(ref ui);
                 ThrowIfUnavailable();
@@ -89,6 +90,7 @@ internal sealed unsafe partial class ManagedSession
         {
             owner.BeginEventBindingPass(ViewEventBindingScope.ListRange, artifact);
             ViewBase.CurrentEventBindingOwner = owner;
+            using var reads = _demandArtifacts[artifact].Begin();
             var ui = new RenderContext(arena, theme: _application.Theme);
             var batchRoot = ui.Div();
             for (uint offset = 0; offset < count; offset++)
@@ -115,7 +117,8 @@ internal sealed unsafe partial class ManagedSession
                 owner.CompleteEventBindingPass(ViewEventBindingScope.ListRange, completed);
                 if (!completed)
                 {
-                    _demandArtifacts.Remove(artifact);
+                    if (_demandArtifacts.Remove(artifact, out var failed))
+                        failed.Dispose();
                 }
             }
             finally
@@ -137,6 +140,7 @@ internal sealed unsafe partial class ManagedSession
             BeginComposition(view);
             try
             {
+                using var reads = state.Consumer!.Begin();
                 var ui = state.Fragment.BeginRender(this, view, _application.Theme);
                 var element = view.RenderCore(ref ui);
                 ThrowIfUnavailable();
@@ -165,6 +169,7 @@ internal sealed unsafe partial class ManagedSession
         }
 
         var state = GetRenderState(view);
+        state.Consumer ??= new ReactiveConsumer(this, view);
         state.Dirty = true;
         state.WorkingChildren?.Clear();
         state.WorkingViews?.Clear();
@@ -229,6 +234,7 @@ internal sealed unsafe partial class ManagedSession
                 state.Candidates?.Clear();
                 // Publication stages output; only native acceptance makes it reusable.
                 state.Dirty = false;
+                state.Consumer!.Commit();
             }
 
             current.CommitStagedProps();
@@ -300,6 +306,7 @@ internal sealed unsafe partial class ManagedSession
         Execution.AssertAccess();
         foreach (var view in _renderStates.Keys)
         {
+            _renderStates[view].Consumer?.Abort();
             view.RollBackStagedProps();
         }
     }

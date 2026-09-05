@@ -1,6 +1,6 @@
 # Native ABI
 
-GPUI.NET currently uses ABI version 6. Managed startup requires an exact ABI version, a compatible
+GPUI.NET currently uses ABI version 7. Managed startup requires an exact ABI version, a compatible
 API-table prefix, all required function entries, and the semantic schema hash generated from
 `bindings/schema.json`.
 
@@ -24,6 +24,7 @@ The API table contains:
 - `dispatch_application_menu`;
 - `supports_extension` for independently versioned build-time extension schemas.
 - `dispatch_extension_command` for schema-owned commands to retained extension resources.
+- `invalidate_artifacts` for batched reactive demand-cache invalidation.
 
 The generated base schema hash is deliberately separate from the ABI version. Component IDs,
 operation IDs, capabilities, or payload constraints can change without altering C record layouts;
@@ -38,9 +39,9 @@ The extension-command envelope keeps extension-specific IDs and payload layouts 
 numeric command and flags, expected revision, and opaque byte payload. Native code validates the
 envelope and provider compatibility and copies the payload before the FFI call returns.
 
-ABI 6 adds source and artifact identities to range rendering and a required `release_artifact`
-callback. It retains explicit root acceptance and managed-owned single-pass buffers. The
-callback-table layout and range-render signature are incompatible with earlier hosts.
+ABI 7 adds required artifact acceptance and batched artifact invalidation. It retains explicit
+root acceptance, range source/artifact identities, release obligations, and managed-owned
+single-pass buffers. Both function tables are incompatible with earlier hosts.
 The API table keeps the historical `GpuiDotnetApiV3` name;
 its `abi_version` value and the requested version, not that type name, negotiate this protocol.
 Old and new managed/native hosts must not be mixed; rebuild custom hosts with the matching contract.
@@ -105,8 +106,8 @@ a nonzero validation/decode status faults the session without mounting candidate
 callbacks have no publication and receive no acknowledgement. An acknowledgement failure also
 rejects the native snapshot. Missing, zero, mismatched, or duplicate revisions are protocol errors.
 The callback table places this required pointer after `dynamic_frame` (offset 72 on 64-bit
-targets; offset 36 on 32-bit targets). ABI 6 appends `release_artifact` at offset 80/40, for a
-total table size of 88/44 bytes on 64/32-bit targets.
+targets; offset 36 on 32-bit targets). `release_artifact` is at offset 80/40 and `accept_artifact`
+at offset 88/44, for a total callback-table size of 96/48 bytes on 64/32-bit targets.
 
 Managed acceptance commits the complete reachable tree and props, retires replaced subtrees, then
 mounts new Views parent-first. New root/range render and event dispatch are excluded until it
@@ -154,6 +155,26 @@ after managed shutdown are harmless. A live artifact cannot be released by anoth
 Release runs framework cleanup only and is allowed during pending root acceptance and after a
 session fault. Removing a source releases its batches even if an old native frame retains the
 row engine. No cache hit or individual cached row requires a release callback.
+
+After successful decode and row-count validation, native calls the required
+`accept_artifact(session_id, source_id, artifact_id)` callback, returning `int32_t`. It runs after
+the arena borrow ends and before the batch enters the cache. Managed code commits the artifact's
+Signal dependencies here. Duplicate or mismatched acceptance faults the session. Acceptance
+failure discards and releases the batch.
+
+Signal changes send native invalidation at the outer managed callback boundary:
+
+```c
+struct native_artifact_key { uint64_t source; uint64_t artifact; };
+int32_t invalidate_artifacts(uint64_t session_id, const native_artifact_key* keys, int32_t count);
+```
+
+Each key is 16 bytes, with `artifact` at offset 8. The required API entry is at offset 80/48 on
+64/32-bit targets. Count must be positive, the pointer non-null, and both IDs nonzero. Native
+copies the batch before returning and delivers it through the existing window message channel.
+Delivery evicts matching artifacts and remeasures their rows, preserving other cached batches and
+requesting native repaint without marking the managed root dirty. Stale source/artifact pairs are
+harmless. The regular release callback retires their managed dependencies and event bindings.
 
 An active `Dynamic` wrapper asks native GPUI for another display frame. Before the corresponding
 root render, native invokes `dynamic_frame(session_id, owner_view)` so managed retained fragments

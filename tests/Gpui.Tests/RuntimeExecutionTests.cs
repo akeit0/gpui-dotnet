@@ -11,6 +11,409 @@ namespace Gpui.Tests;
 public sealed unsafe class RuntimeExecutionTests
 {
     [Fact]
+    public void RowSignalsInvalidateOnlyTheirAcceptedArtifactsAndBatchAtCallbackExit()
+    {
+        var first = new Signal<int>(0);
+        var second = new Signal<int>(0);
+        using var fixture = new SessionFixture(new ProbeView
+        {
+            DuringRow = index => _ = index == 0 ? first.Value : second.Value
+        });
+        fixture.Render();
+        var a = fixture.Range(0);
+        var b = fixture.Range(1);
+        fixture.View.OnClick = () => { first.Value++; second.Value++; first.Value++; };
+        Assert.Equal(0, fixture.Click());
+        Assert.Single(fixture.ArtifactBatches);
+        Assert.Equal(new[] { a, b }, fixture.ArtifactBatches[0].Select(key => key.artifact).Order().ToArray());
+        Assert.Equal(0, fixture.Notifications);
+        Assert.False(fixture.State(fixture.View).Dirty);
+        Assert.Equal(1, fixture.View.RenderCount);
+        Assert.Equal(0, fixture.Release(1, a));
+        Assert.Equal(0, fixture.Release(1, b));
+        first.Value++;
+        second.Value++;
+        Assert.Single(fixture.ArtifactBatches);
+    }
+
+    [Fact]
+    public void AnUnacceptedRowObservationDoesNotSubscribeAndClosesTheRevisionGap()
+    {
+        var signal = new Signal<int>(0);
+        using var fixture = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value });
+        fixture.Render();
+        var artifact = fixture.Range(0, accept: false);
+        signal.Value++;
+        Assert.Empty(fixture.ArtifactBatches);
+        Assert.Equal(0, fixture.Accept(1, artifact));
+        Assert.Equal(artifact, Assert.Single(Assert.Single(fixture.ArtifactBatches)).artifact);
+        Assert.Equal(-109, fixture.Accept(1, artifact));
+    }
+
+    [Fact]
+    public void SourcesSharingARendererHaveIndependentSignalSubscriptions()
+    {
+        var signal = new Signal<int>(0);
+        using var fixture = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value });
+        fixture.Render();
+        var a = fixture.Range(0, source: 10);
+        var b = fixture.Range(0, source: 20);
+        Assert.Equal(0, fixture.Release(10, a));
+        signal.Value++;
+        var key = Assert.Single(Assert.Single(fixture.ArtifactBatches));
+        Assert.Equal(20UL, key.source);
+        Assert.Equal(b, key.artifact);
+    }
+
+    [Fact]
+    public void RejectedDemandObservationNeverSubscribes()
+    {
+        var signal = new Signal<int>(0);
+        using var fixture = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value });
+        fixture.Render();
+        var artifact = fixture.Range(0, accept: false);
+        Assert.Equal(-109, fixture.Release(1, artifact, -40));
+        signal.Value++;
+        Assert.Empty(fixture.ArtifactBatches);
+    }
+
+    [Fact]
+    public void SharedSignalInvalidatesTwoWindowsInOneApplication()
+    {
+        var signal = new Signal<int>(0);
+        var application = new GpuiApplication();
+        using var first = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value }, application);
+        using var second = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value }, application);
+        first.Render();
+        second.Render();
+        signal.Value++;
+        Assert.True(first.State(first.View).Dirty);
+        Assert.True(second.State(second.View).Dirty);
+        Assert.Equal(1, first.Notifications);
+        Assert.Equal(1, second.Notifications);
+    }
+
+    [Fact]
+    public void SignalNotificationFailureStillInvalidatesLaterSubscribers()
+    {
+        var signal = new Signal<int>(0);
+        var application = new GpuiApplication();
+        var observed = -1;
+        using var healthy = new SessionFixture(new ProbeView { DuringRender = () => observed = signal.Value }, application);
+        using var secondFailure = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value }, application);
+        using var firstFailure = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value }, application);
+        // New subscriptions precede old ones: both failures occur before the healthy subscriber.
+        healthy.Render();
+        secondFailure.Render();
+        firstFailure.Render();
+        firstFailure.NotifyStatus = -32;
+        secondFailure.NotifyStatus = -33;
+
+        var error = Assert.Throws<InvalidOperationException>(() => signal.Set(1));
+        Assert.Equal(1, signal.Value);
+        Assert.Same(firstFailure.Session.Failure, error);
+        Assert.Contains("NotifyView", error.StackTrace);
+        Assert.NotNull(secondFailure.Session.Failure);
+        Assert.Null(healthy.Session.Failure);
+        Assert.Equal(1, healthy.Notifications);
+        Assert.True(healthy.State(healthy.View).Dirty);
+        Assert.False(signal.Set(1));
+        healthy.Render();
+        Assert.Equal(1, observed);
+        Assert.True(signal.Set(2));
+        healthy.Render();
+        Assert.Equal(2, observed);
+        Assert.Equal(1, firstFailure.Notifications);
+        Assert.Equal(1, secondFailure.Notifications);
+    }
+
+    [Fact]
+    public void SignalNotificationFailureStillFlushesLaterRowSubscribersAndPreservesFirstError()
+    {
+        var signal = new Signal<int>(0);
+        var application = new GpuiApplication();
+        using var healthyRows = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value }, application);
+        using var failedRows = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value }, application);
+        using var failedView = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value }, application);
+        healthyRows.Render();
+        var healthyArtifact = healthyRows.Range(0);
+        failedRows.Render();
+        failedRows.Range(0);
+        failedView.Render();
+        failedView.NotifyStatus = -32;
+        failedRows.ArtifactStatus = -33;
+
+        var error = Assert.Throws<InvalidOperationException>(() => signal.Set(1));
+        Assert.Same(failedView.Session.Failure, error);
+        Assert.NotNull(failedRows.Session.Failure);
+        Assert.Null(healthyRows.Session.Failure);
+        Assert.Equal(healthyArtifact, Assert.Single(Assert.Single(healthyRows.ArtifactBatches)).artifact);
+        Assert.Single(failedRows.ArtifactBatches);
+        Assert.False(healthyRows.State(healthyRows.View).Dirty);
+        Assert.Null(ApplicationExecution.Current);
+        Assert.False(signal.Set(1));
+        // Flush failure must also clear application scratch state and permit another delivery.
+        Assert.Equal(0, healthyRows.Release(1, healthyArtifact));
+        var replacement = healthyRows.Range(0);
+        Assert.True(signal.Set(2));
+        Assert.Equal(replacement, Assert.Single(healthyRows.ArtifactBatches[1]).artifact);
+        Assert.Single(failedRows.ArtifactBatches);
+    }
+
+    [Fact]
+    public void SignalRowFlushFailureStillDeliversOtherWindows()
+    {
+        var signal = new Signal<int>(0);
+        var application = new GpuiApplication();
+        using var healthy = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value }, application);
+        using var failing = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value }, application);
+        healthy.Render();
+        var artifact = healthy.Range(0);
+        failing.Render();
+        failing.Range(0);
+        failing.ArtifactStatus = -33;
+
+        var error = Assert.Throws<InvalidOperationException>(() => signal.Set(1));
+        Assert.Same(failing.Session.Failure, error);
+        Assert.Equal(artifact, Assert.Single(Assert.Single(healthy.ArtifactBatches)).artifact);
+        Assert.Null(healthy.Session.Failure);
+        Assert.Equal(1, signal.Value);
+        Assert.Null(ApplicationExecution.Current);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SignalFailureInAnEventStillFlushesHealthyRows(bool failRowFlush)
+    {
+        var signal = new Signal<int>(0);
+        var application = new GpuiApplication();
+        using var healthyRows = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value }, application);
+        using var otherRows = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value }, application);
+        using var failedView = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value }, application);
+        using var writer = new SessionFixture(new ProbeView { OnClick = () => signal.Set(1) }, application);
+        healthyRows.Render();
+        var artifact = healthyRows.Range(0);
+        otherRows.Render();
+        otherRows.Range(0);
+        failedView.Render();
+        writer.Render();
+        failedView.NotifyStatus = -32;
+        otherRows.ArtifactStatus = failRowFlush ? -33 : 0;
+
+        Assert.Equal(-111, writer.Click());
+        Assert.Same(failedView.Session.Failure, writer.Session.Failure);
+        Assert.Equal(failRowFlush, otherRows.Session.Failure is not null);
+        Assert.Equal(artifact, Assert.Single(Assert.Single(healthyRows.ArtifactBatches)).artifact);
+        Assert.Single(otherRows.ArtifactBatches);
+        Assert.Null(healthyRows.Session.Failure);
+        Assert.Equal(1, signal.Value);
+        Assert.Null(ApplicationExecution.Current);
+    }
+
+    [Fact]
+    public void ASignalReadOutsideRenderingDoesNotSubscribe()
+    {
+        var signal = new Signal<int>(0);
+        using var fixture = new SessionFixture(new ProbeView { OnClick = () => _ = signal.Value });
+        fixture.Render();
+        Assert.Equal(0, fixture.Click());
+        signal.Value++;
+        Assert.False(fixture.State(fixture.View).Dirty);
+        Assert.Equal(0, fixture.Notifications);
+    }
+
+    [Fact]
+    public void ASignalWriteFromMountInvalidatesTheAlreadyAcceptedConsumer()
+    {
+        var signal = new Signal<int>(0);
+        using var fixture = new SessionFixture(new ProbeView
+        {
+            DuringRender = () => _ = signal.Value,
+            DuringMount = () => signal.Value++
+        });
+        fixture.Render();
+        Assert.True(fixture.State(fixture.View).Dirty);
+        fixture.Render();
+        Assert.False(fixture.State(fixture.View).Dirty);
+    }
+
+    [Fact]
+    public void SignalDoesNotRetainARetiredViewSessionOrApplication()
+    {
+        var signal = new Signal<int>(0);
+        var references = RetireSignalConsumer(signal);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        Assert.All(references, reference => Assert.False(reference.IsAlive));
+        signal.Value++;
+        GC.KeepAlive(signal);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference[] RetireSignalConsumer(Signal<int> signal)
+    {
+        var application = new GpuiApplication();
+        using var fixture = new SessionFixture(new ProbeView
+        {
+            DuringRender = () => _ = signal.Value,
+            DuringRow = index => _ = signal.Value
+        }, application);
+        fixture.Render();
+        fixture.Range(0);
+        return [new(fixture.View), new(fixture.Session), new(application)];
+    }
+
+    [Fact]
+    public void WarmSignalReadsAndCoalescedWritesAllocateNothing()
+    {
+        var signal = new Signal<int>(0);
+        var allocated = -1L;
+        using var fixture = new SessionFixture(new ProbeView
+        {
+            DuringRender = () =>
+            {
+                _ = signal.Value;
+                var before = GC.GetAllocatedBytesForCurrentThread();
+                for (var i = 0; i < 10_000; i++)
+                    _ = signal.Value;
+                allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            }
+        });
+        fixture.Render();
+        fixture.Render();
+        Assert.Equal(0, allocated);
+        signal.Value++;
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < 10_000; i++)
+            signal.Value++;
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(1, fixture.Notifications);
+    }
+
+    [Fact]
+    public void SignalChangeInvalidatesOnlyTheChildThatReadIt()
+    {
+        var value = new Signal<int>(0);
+        using var fixture = new SessionFixture(new ParentView());
+        fixture.Render();
+        var child = fixture.Child;
+        child.DuringRender = () => _ = value.Value;
+        child.Invalidate();
+        fixture.Render();
+        Assert.True(value.Set(1));
+        fixture.Render();
+        Assert.Equal(3, child.RenderCount);
+        Assert.False(value.Set(1));
+        fixture.Render();
+        Assert.Equal(3, child.RenderCount);
+    }
+
+    [Fact]
+    public void PausedSharedSignalReaderReusesItsFragmentWhileItsSiblingRenders()
+    {
+        var parent = new SignalSiblingParentView();
+        using var fixture = new SessionFixture(parent);
+        fixture.Render();
+        var readers = fixture.State(parent).Children!.Values
+            .Select(entry => (SharedSignalReaderView)entry.View).ToArray();
+        var live = readers.Single(reader => !reader.CanPause);
+        var pausable = readers.Single(reader => reader.CanPause);
+        Assert.Equal(1, live.RenderCount);
+        Assert.Equal(1, pausable.RenderCount);
+
+        parent.OnClick = () => parent.Count.Value++;
+        Assert.Equal(0, fixture.Click());
+        fixture.Render();
+        Assert.Equal(2, live.RenderCount);
+        Assert.Equal(2, pausable.RenderCount);
+
+        Assert.Equal(0, fixture.Click(pausable.ToggleToken));
+        fixture.Render();
+        Assert.Equal(2, live.RenderCount);
+        Assert.Equal(3, pausable.RenderCount);
+        Assert.Null(pausable.ObservedValue);
+
+        Assert.Equal(0, fixture.Click());
+        Assert.True(fixture.State(live).Dirty);
+        Assert.False(fixture.State(pausable).Dirty);
+        fixture.Render();
+        Assert.Equal(3, live.RenderCount);
+        Assert.Equal(2, live.ObservedValue);
+        Assert.Equal(3, pausable.RenderCount);
+
+        Assert.Equal(0, fixture.Click(pausable.ToggleToken));
+        fixture.Render();
+        Assert.Equal(3, live.RenderCount);
+        Assert.Equal(4, pausable.RenderCount);
+        Assert.Equal(2, pausable.ObservedValue);
+    }
+
+    [Fact]
+    public void ConditionalSignalDependenciesChangeOnlyAtAcceptance()
+    {
+        var first = new Signal<int>(0);
+        var second = new Signal<int>(0);
+        using var fixture = new SessionFixture(new ParentView());
+        fixture.Render();
+        var child = fixture.Child;
+        child.DuringRender = () => _ = first.Value;
+        child.Invalidate();
+        fixture.Render();
+        child.DuringRender = () => _ = second.Value;
+        child.Invalidate();
+        fixture.Publish();
+        Assert.Equal(0, fixture.Complete());
+        first.Value++;
+        Assert.False(fixture.State(child).Dirty);
+        second.Value++;
+        Assert.True(fixture.State(child).Dirty);
+    }
+
+    [Fact]
+    public void SignalChangeBetweenObservationAndAcceptanceIsNotLost()
+    {
+        var signal = new Signal<int>(0);
+        using var fixture = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value });
+        fixture.Publish();
+        signal.Value = 1;
+        Assert.Equal(0, fixture.Complete());
+        Assert.True(fixture.State(fixture.View).Dirty);
+    }
+
+    [Fact]
+    public void BoundSignalRejectsReadsAndWritesOnAWorker()
+    {
+        var signal = new Signal<int>(0);
+        using var fixture = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value });
+        fixture.Render();
+        RunWorker(() =>
+        {
+            Assert.Throws<InvalidOperationException>(() => signal.Value);
+            Assert.Throws<InvalidOperationException>(() => signal.Set(1));
+        });
+    }
+
+    [Fact]
+    public void SignalCannotBindToAnotherApplicationOnTheSameThread()
+    {
+        var signal = new Signal<int>(0);
+        using var first = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value });
+        using var second = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value });
+        first.Render();
+        Assert.Throws<InvalidOperationException>(second.Render);
+    }
+
+    [Fact]
+    public void EvenAnEqualUnboundSignalWriteDuringRenderIsRejected()
+    {
+        var signal = new Signal<int>(0);
+        using var fixture = new SessionFixture(new ProbeView { DuringRender = () => signal.Set(0) });
+        Assert.Throws<InvalidOperationException>(fixture.Render);
+    }
+
+    [Fact]
     public void PublishedChildRemainsDirtyUntilNativeAcknowledgement()
     {
         using var fixture = new SessionFixture(new ParentView());
@@ -653,11 +1056,17 @@ public sealed unsafe class RuntimeExecutionTests
     {
         private static long _nextId = 1_000_000;
         private static readonly ConcurrentDictionary<ulong, int> NotificationCounts = new();
+        private static readonly ConcurrentDictionary<ulong, List<NativeArtifactKey[]>> ArtifactCalls = new();
+        private static readonly ConcurrentDictionary<ulong, int> NotifyStatuses = new();
+        private static readonly ConcurrentDictionary<ulong, int> ArtifactStatuses = new();
         private readonly GpuiDotnetApiV3* _api;
         private readonly ulong _id;
         internal ProbeView View { get; }
         internal ManagedSession Session { get; }
         internal int Notifications => NotificationCounts[_id];
+        internal List<NativeArtifactKey[]> ArtifactBatches => ArtifactCalls[_id];
+        internal int NotifyStatus { set => NotifyStatuses[_id] = value; }
+        internal int ArtifactStatus { set => ArtifactStatuses[_id] = value; }
         internal ChildView Child => (ChildView)State(View).Children!.Values.Single().View;
         internal ChildView CandidateChild => (ChildView)State(View).StagedChildren!.Values.Single().View;
 
@@ -666,8 +1075,10 @@ public sealed unsafe class RuntimeExecutionTests
             View = view;
             _id = checked((ulong)Interlocked.Increment(ref _nextId));
             NotificationCounts[_id] = 0;
+            ArtifactCalls[_id] = [];
             _api = (GpuiDotnetApiV3*)NativeMemory.AllocZeroed((nuint)sizeof(GpuiDotnetApiV3));
             _api->notify_view = &Notify;
+            _api->invalidate_artifacts = &InvalidateArtifacts;
             var constructor = typeof(NativeRuntime).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic).Single();
             var runtime = (NativeRuntime)constructor.Invoke([Pointer.Box(_api, typeof(GpuiDotnetApiV3*)), null]);
             Session = new ManagedSession(runtime, application ?? new GpuiApplication(), _id, view);
@@ -703,14 +1114,22 @@ public sealed unsafe class RuntimeExecutionTests
             return callback(_id, revision ?? Session.PendingRenderRevision, status);
         }
 
-        internal ulong Range(uint start, ulong source = 1)
+        internal ulong Range(uint start, ulong source = 1, bool accept = true)
         {
             RenderArena arena = default;
             uint root = 0;
             ulong artifact = 0;
             delegate* unmanaged[Cdecl]<ulong, ulong, ulong, uint, uint, RenderArena*, uint*, ulong*, int> callback = &NativeCallbacks.ListRenderRange;
             Assert.Equal(0, callback(_id, ((ulong)View.RuntimeViewHandle << 32) | 1, source, start, 1, &arena, &root, &artifact));
+            if (accept)
+                Assert.Equal(0, Accept(source, artifact));
             return artifact;
+        }
+
+        internal int Accept(ulong source, ulong artifact)
+        {
+            delegate* unmanaged[Cdecl]<ulong, ulong, ulong, int> callback = &NativeCallbacks.AcceptArtifact;
+            return callback(_id, source, artifact);
         }
 
         internal int Release(ulong source, ulong artifact, int status = 0)
@@ -737,14 +1156,24 @@ public sealed unsafe class RuntimeExecutionTests
             Session.Stop();
             NativeRegistry.Sessions.TryRemove(_id, out _);
             NotificationCounts.TryRemove(_id, out _);
+            ArtifactCalls.TryRemove(_id, out _);
+            NotifyStatuses.TryRemove(_id, out _);
+            ArtifactStatuses.TryRemove(_id, out _);
             NativeMemory.Free(_api);
+        }
+
+        [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+        private static int InvalidateArtifacts(ulong id, NativeArtifactKey* keys, int count)
+        {
+            ArtifactCalls[id].Add(new ReadOnlySpan<NativeArtifactKey>(keys, count).ToArray());
+            return ArtifactStatuses.GetValueOrDefault(id);
         }
 
         [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
         private static int Notify(ulong id)
         {
             NotificationCounts.AddOrUpdate(id, 1, static (_, count) => count + 1);
-            return 0;
+            return NotifyStatuses.GetValueOrDefault(id);
         }
     }
 
@@ -759,6 +1188,7 @@ public sealed unsafe class RuntimeExecutionTests
         internal int UnmountCount;
         internal ulong ClickToken;
         internal Action? DuringRender;
+        internal Action<int>? DuringRow;
         internal Action? DuringMount;
         internal Action? OnClick;
         internal bool ThrowDuringUnmount;
@@ -791,6 +1221,7 @@ public sealed unsafe class RuntimeExecutionTests
 
         protected override Element RenderListItem(uint rendererId, int index, ref RenderContext ui)
         {
+            DuringRow?.Invoke(index);
             Action<ProbeView, ClickEvent> callback = index == 0
                 ? static (view, _) => view.ClickCount++
                 : static (view, _) => view.SecondClickCount++;
@@ -833,6 +1264,41 @@ public sealed unsafe class RuntimeExecutionTests
     {
         protected override Element Render(ref RenderContext ui) =>
             ui.Div(base.Render(ref ui), ui.Child<BranchView>("branch"), ui.Child<ChildView>("unaffected"));
+    }
+
+    private readonly record struct SharedSignalReaderProps(Signal<int> Count, bool CanPause);
+
+    private sealed class SharedSignalReaderView : View<SharedSignalReaderProps>, IGeneratedViewFactory<SharedSignalReaderView>
+    {
+        public static SharedSignalReaderView CreateGpuiView() => new();
+        private readonly Signal<bool> _following = new(true);
+        internal bool CanPause => Props.CanPause;
+        internal int RenderCount;
+        internal int? ObservedValue;
+        internal ulong ToggleToken;
+
+        protected override Element Render(ref RenderContext ui)
+        {
+            RenderCount++;
+            ObservedValue = !Props.CanPause || _following.Value ? Props.Count.Value : null;
+            ToggleToken = BindClick<SharedSignalReaderView>(static (view, _) =>
+            {
+                view._following.Value = !view._following.Value;
+            });
+            return ui.Text(ObservedValue?.ToString() ?? "Paused");
+        }
+    }
+
+    private sealed class SignalSiblingParentView : ProbeView
+    {
+        internal readonly Signal<int> Count = new(0);
+
+        protected override Element Render(ref RenderContext ui) =>
+            ui.Div(
+                base.Render(ref ui),
+                ui.Child<SharedSignalReaderView, SharedSignalReaderProps>("live", new(Count, false)),
+                ui.Child<SharedSignalReaderView, SharedSignalReaderProps>("pausable", new(Count, true))
+            );
     }
 
     private sealed record LabelProps(string Text);

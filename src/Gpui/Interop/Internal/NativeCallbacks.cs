@@ -139,6 +139,23 @@ internal static unsafe class NativeCallbacks
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    internal static int AcceptArtifact(ulong sessionId, ulong source, ulong artifact)
+    {
+        try
+        {
+            if (!NativeRegistry.Sessions.TryGetValue(sessionId, out var session))
+                return -109;
+            session.AcceptDemandArtifact(source, artifact);
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            NativeRegistry.RecordFailure(sessionId, exception);
+            return -109;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     internal static int DynamicFrame(ulong sessionId, uint ownerView)
     {
         try

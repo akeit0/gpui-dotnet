@@ -73,6 +73,7 @@ internal sealed unsafe partial class ManagedSession
         {
             if (_demandArtifacts.Remove(artifact, out var failed))
             {
+                failed.Dispose();
                 failed.Owner.ReleaseEventArtifact(artifact);
             }
             artifact = 0;

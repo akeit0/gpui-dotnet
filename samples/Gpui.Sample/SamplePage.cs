@@ -1,6 +1,7 @@
 internal enum SamplePage
 {
     Overview,
+    Reactivity,
     Activity,
     Tables,
     Dock,

@@ -192,6 +192,13 @@ ever painted. A native decode or acknowledgement failure is terminal for that se
 
 ## Invalidation and async work
 
+Use `Signal<T>` for state read by rendering. Replacing `Value` or calling `Set(value)` automatically
+invalidates accepted consumers when equality changes. Nested child reads belong to that child;
+row reads belong to the cached range. Reads outside rendering create no subscription. A Signal
+binds to one application on its first tracked read; all later reads and writes use that thread.
+Rendering cannot write Signals. Mount hooks may write after the complete tree's dependencies
+commit. Unmount detaches dependencies before user cleanup. See [Reactivity](REACTIVITY.md).
+
 `Invalidate()` queues a coalesced request for the current View. At the next root-render callback,
 the application thread marks its fragment and ancestors dirty, stopping at an already-dirty
 ancestor. Dirty flags clear only for compositions accepted by native. Requests arriving during

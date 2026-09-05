@@ -7,6 +7,7 @@ internal enum ExecutionPhase
     Render,
     DemandRender,
     ArtifactRelease,
+    ArtifactAcceptance,
     Acceptance,
     Event,
     Cleanup,
@@ -15,7 +16,9 @@ internal enum ExecutionPhase
 /// <summary>Shared callback-thread identity and external reentrancy guard for one application.</summary>
 internal sealed class ApplicationExecution
 {
+    [ThreadStatic] internal static ApplicationExecution? Current;
     private int _threadId;
+    private HashSet<Session.ManagedSession>? _reactiveSessions;
     internal ExecutionPhase Phase { get; private set; }
 
     internal void BindThread()
@@ -43,14 +46,33 @@ internal sealed class ApplicationExecution
     internal Scope Enter(ExecutionPhase phase)
     {
         BindThread();
-        if (Phase != ExecutionPhase.Idle)
+        if (Phase != ExecutionPhase.Idle || Current is not null)
         {
             throw new InvalidOperationException(
                 $"Nested managed callbacks are not supported ({Phase} -> {phase})."
             );
         }
         Phase = phase;
+        Current = this;
         return new Scope(this);
+    }
+
+    internal void ScheduleArtifacts(Session.ManagedSession session) =>
+        (_reactiveSessions ??= []).Add(session);
+
+    private void FlushArtifacts()
+    {
+        if (_reactiveSessions is null)
+            return;
+        Exception? failure = null;
+        foreach (var session in _reactiveSessions)
+        {
+            try { session.FlushReactiveArtifacts(); }
+            catch (Exception exception) { session.RecordFailure(exception); failure ??= exception; }
+        }
+        _reactiveSessions.Clear();
+        if (failure is not null)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
     internal void SetPhase(ExecutionPhase phase)
@@ -65,7 +87,8 @@ internal sealed class ApplicationExecution
         {
             if (execution is not null)
             {
-                execution.Phase = ExecutionPhase.Idle;
+                try { execution.FlushArtifacts(); }
+                finally { execution.Phase = ExecutionPhase.Idle; Current = null; }
             }
         }
     }

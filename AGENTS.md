@@ -150,9 +150,11 @@ git diff --check
 For documentation-only changes, verify links, command names, generated-file names, and
 `git diff --check`; run compilation only if examples or build metadata changed.
 
-For UI behavior, build and launch the sample on the affected platform. Exercise both initial state
-and transitions such as theme switching, resizing, scrolling, focus, route replacement, title-bar
-mode, and menu activation. Do not report visual verification when screen access was unavailable.
+For UI behavior, build the affected sample. The user runs samples; do not launch them as a routine
+verification step. Launch only when a specific issue requires visual investigation or the user asks.
+When visual investigation is needed, exercise the relevant initial state and transitions, such as
+theme switching, resizing, scrolling, focus, route replacement, title-bar mode, and menu activation.
+Do not report visual verification unless it was actually performed.
 
 ## Git
 

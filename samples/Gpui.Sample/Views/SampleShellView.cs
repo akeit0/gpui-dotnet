@@ -84,6 +84,7 @@ internal sealed partial class SampleShellView : View
         var page = _page switch
         {
             SamplePage.Overview => ui.Child<DashboardView>("content"),
+            SamplePage.Reactivity => ui.Child<ReactivityView>("content"),
             SamplePage.Activity => ui.Child<ActivityView>("content"),
             SamplePage.Tables => ui.Child<TableView>("content"),
             SamplePage.Dock => ui.Child<DockView>("content"),
@@ -102,6 +103,7 @@ internal sealed partial class SampleShellView : View
             _page switch
             {
                 SamplePage.Overview => "Overview",
+                SamplePage.Reactivity => "Reactivity",
                 SamplePage.Activity => "Activity",
                 SamplePage.Tables => "Tables",
                 SamplePage.Dock => "Dock",
@@ -117,6 +119,7 @@ internal sealed partial class SampleShellView : View
             _page switch
             {
                 SamplePage.Overview => "retained ScrollHandle; wheel scrolling stays native",
+                SamplePage.Reactivity => "shared Signals across sibling views, conditional reads, and teardown",
                 SamplePage.Activity =>
                     "20,000 variable-height rows; managed rendering is range-batched",
                 SamplePage.Tables =>
@@ -154,7 +157,7 @@ internal sealed partial class SampleShellView : View
                     )
                     .OnClick(this, (view, _) => view.ToggleTheme())
                     .Style(SampleStyles.Button(theme, SampleButtonVariant.Primary)),
-                ui.Badge(ui.Text("ABI v6"u8))
+                ui.Badge(ui.Text("ABI v7"u8))
                     .FontSize(Px(theme.Typography.Caption))
                     .Background(theme.Colors.InfoBackground)
                     .TextColor(theme.Colors.Info)
@@ -195,6 +198,7 @@ internal sealed partial class SampleShellView : View
             new GpuiMenu(
                 "View",
                 GpuiMenuItem.Command("Scroll view", () => ShowPage(SamplePage.Overview)),
+                GpuiMenuItem.Command("Reactivity", () => ShowPage(SamplePage.Reactivity)),
                 GpuiMenuItem.Command("Virtual list", () => ShowPage(SamplePage.Activity)),
                 GpuiMenuItem.Command("Virtual table", () => ShowPage(SamplePage.Tables)),
                 GpuiMenuItem.Command("Dock", () => ShowPage(SamplePage.Dock)),
@@ -228,6 +232,7 @@ internal sealed partial class SampleShellView : View
                     .TextColor(theme.Colors.TextPlaceholder),
                 ui.Divider().Background(theme.Colors.TitleBarHover),
                 NavigationButton(ref ui, "show-overview", "Scroll view", SamplePage.Overview),
+                NavigationButton(ref ui, "show-reactivity", "Reactivity", SamplePage.Reactivity),
                 NavigationButton(ref ui, "show-activity", "Virtual list", SamplePage.Activity),
                 NavigationButton(ref ui, "show-tables", "Virtual table", SamplePage.Tables),
                 NavigationButton(ref ui, "show-dock", "Dock", SamplePage.Dock),

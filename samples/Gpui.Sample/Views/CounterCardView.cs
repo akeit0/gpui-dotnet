@@ -4,13 +4,12 @@ using static Gpui.Units;
 [GpuiView]
 internal sealed partial class CounterCardView : View<CounterCardProps>
 {
-    private int _count;
+    private readonly Signal<int> _count = new(0);
 
     private async ValueTask Increment()
     {
         await Task.Delay(100, Lifetime);
-        _count++;
-        Invalidate();
+        _count.Value++;
     }
 
     protected override Element Render(ref RenderContext ui) =>
@@ -21,7 +20,7 @@ internal sealed partial class CounterCardView : View<CounterCardProps>
                 ui.Text($"Parent props revision: {Props.Revision:N0}")
                     .FontSize(Px(ui.Theme.Typography.Detail))
                     .TextColor(ui.Theme.Colors.TextMuted),
-                ui.Text($"Retained local count: {_count:N0}").TextColor(ui.Theme.Colors.Text),
+                ui.Text($"Retained local count: {_count.Value:N0}").TextColor(ui.Theme.Colors.Text),
                 ui.Button("increment", "Async increment")
                     .OnClick(this, (view, _) => view.Increment())
                     .Style(SampleStyles.Button(ui.Theme, SampleButtonVariant.Primary))

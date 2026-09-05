@@ -95,6 +95,14 @@ pub(crate) struct ResourceStore {
 }
 
 impl ResourceStore {
+    pub(crate) fn invalidate_artifacts(&self, keys: &[crate::abi::NativeArtifactKey]) -> bool {
+        let mut changed = false;
+        for engine in self.lists.borrow().values() {
+            changed |= engine.borrow_mut().invalidate_artifacts(keys);
+        }
+        changed
+    }
+
     pub(crate) fn publish_presence(
         &self,
         presence: &mut crate::presence::ResourcePresence,
@@ -1060,6 +1068,14 @@ impl ManagedListResource {
             return Err(-63);
         }
         batch.last_used = self.use_clock;
+        let accept = self
+            .callbacks
+            .accept_artifact
+            .expect("callbacks were validated before application startup");
+        let status = unsafe { accept(self.session_id, self.source_id, artifact_id) };
+        if status != 0 {
+            return Err(status);
+        }
         self.batches.insert(start, batch);
         self.telemetry.batch_loads += 1;
         Ok(())
@@ -1088,6 +1104,30 @@ impl ManagedListResource {
     /// changes the layout of all rows at once.
     pub(crate) fn invalidate_all_batches(&mut self) {
         self.clear_batches();
+    }
+
+    fn invalidate_artifacts(&mut self, keys: &[crate::abi::NativeArtifactKey]) -> bool {
+        let before = self.batches.len();
+        self.batches.retain(|start, batch| {
+            let remove = batch.lease.as_ref().is_some_and(|lease| {
+                keys.iter()
+                    .any(|key| key.source == self.source_id && key.artifact == lease.artifact_id)
+            });
+            if remove {
+                let count = self
+                    .batch_size
+                    .min(self.item_count.saturating_sub(*start as usize));
+                self.state
+                    .remeasure_items(*start as usize..*start as usize + count);
+            }
+            !remove
+        });
+        let removed = before - self.batches.len();
+        self.telemetry.batch_invalidations += removed as u64;
+        if removed != 0 {
+            self.last_batch = None;
+        }
+        removed != 0
     }
 }
 
@@ -1427,6 +1467,7 @@ mod tests {
         children: Vec<crate::abi::ChildRecord>,
         next_id: u64,
         requests: Vec<(u64, u64)>,
+        accepts: Vec<(u64, u64)>,
         releases: Vec<(u64, u64, i32)>,
         failure_mode: u8,
     }
@@ -1511,10 +1552,70 @@ mod tests {
 
     fn artifact_callbacks() -> ManagedCallbacks {
         ManagedCallbacks {
+            accept_artifact: Some(accept_test_artifact),
             list_render_range: Some(publish_test_range),
             release_artifact: Some(release_test_artifact),
             ..callbacks()
         }
+    }
+
+    unsafe extern "C" fn accept_test_artifact(_: u64, source: u64, artifact: u64) -> i32 {
+        ARTIFACTS.with(|capture| {
+            let mut capture = capture.borrow_mut();
+            capture.accepts.push((source, artifact));
+            // Acceptance can reuse the managed output: native decoding must already be done.
+            capture.nodes.clear();
+            capture.children.clear();
+            if capture.failure_mode == 4 { -109 } else { 0 }
+        })
+    }
+
+    #[test]
+    fn artifact_acceptance_follows_decode_and_rejection_releases_the_batch() {
+        for mode in 0..=4 {
+            ARTIFACTS.with(|capture| {
+                *capture.borrow_mut() = ArtifactCapture {
+                    failure_mode: mode,
+                    ..Default::default()
+                }
+            });
+            let mut resource = artifact_resource();
+            assert_eq!(resource.load_batch(0).is_ok(), mode == 0);
+            if mode == 0 {
+                assert_eq!(resource.batches[&0].snapshot.nodes.len(), 2);
+            }
+            ARTIFACTS.with(|capture| {
+                let capture = capture.borrow();
+                assert_eq!(capture.accepts.len(), usize::from(mode == 0 || mode == 4));
+                if mode == 4 {
+                    assert_eq!(capture.releases.len(), 1);
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn reactive_invalidation_evicts_only_matching_source_and_artifact() {
+        ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
+        let mut resource = artifact_resource();
+        resource.load_batch(0).unwrap();
+        resource.load_batch(1).unwrap();
+        let key = crate::abi::NativeArtifactKey {
+            source: resource.source_id,
+            artifact: 1,
+        };
+        assert!(
+            !resource.invalidate_artifacts(&[crate::abi::NativeArtifactKey {
+                source: key.source + 1,
+                ..key
+            }])
+        );
+        assert!(resource.invalidate_artifacts(&[key]));
+        assert!(resource.batches.contains_key(&1));
+        resource.load_batch(0).unwrap();
+        assert!(!resource.invalidate_artifacts(&[key]));
+        assert_eq!(resource.batches.len(), 2);
+        ARTIFACTS.with(|capture| assert_eq!(capture.borrow().releases, vec![(key.source, 1, 0)]));
     }
 
     fn artifact_resource() -> ManagedListResource {
@@ -1626,6 +1727,7 @@ mod tests {
             render: None,
             render_completed: None,
             release_artifact: None,
+            accept_artifact: None,
             click: None,
             list_render_range: None,
             dynamic_frame: None,

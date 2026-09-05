@@ -2,10 +2,8 @@ namespace Gpui.Interop.Internal.Session;
 
 internal sealed unsafe partial class ManagedSession
 {
-    private readonly Dictionary<ulong, DemandArtifact> _demandArtifacts = [];
+    private readonly Dictionary<ulong, ReactiveConsumer> _demandArtifacts = [];
     private ulong _nextArtifactId;
-
-    private readonly record struct DemandArtifact(ulong Source, ViewBase Owner);
 
     private ulong CreateDemandArtifact(ulong source, ViewBase owner)
     {
@@ -14,8 +12,19 @@ internal sealed unsafe partial class ManagedSession
             throw new InvalidOperationException("Demand rendering requires a bound source identity.");
         }
         var id = checked(++_nextArtifactId);
-        _demandArtifacts.Add(id, new DemandArtifact(source, owner));
+        _demandArtifacts.Add(id, new ReactiveConsumer(this, owner, source, id));
         return id;
+    }
+
+    internal void AcceptDemandArtifact(ulong source, ulong artifact)
+    {
+        ThrowIfUnavailable();
+        using var execution = Execution.Enter(ExecutionPhase.ArtifactAcceptance);
+        RequireAcceptedRender();
+        if (!_demandArtifacts.TryGetValue(artifact, out var consumer)
+            || consumer.Source != source || consumer.Accepted)
+            throw new InvalidOperationException("Artifact acceptance has no matching publication.");
+        consumer.Commit();
     }
 
     internal void ReleaseDemandArtifact(ulong source, ulong artifact, int status)
@@ -38,6 +47,7 @@ internal sealed unsafe partial class ManagedSession
                 throw new InvalidOperationException("Demand artifact belongs to another source.");
             }
             _demandArtifacts.Remove(artifact);
+            entry.Dispose();
             entry.Owner.ReleaseEventArtifact(artifact);
         }
         if (status != 0)
@@ -53,6 +63,7 @@ internal sealed unsafe partial class ManagedSession
             if (ReferenceEquals(artifact.Owner, owner))
             {
                 owner.ReleaseEventArtifact(id);
+                artifact.Dispose();
                 _demandArtifacts.Remove(id);
             }
         }

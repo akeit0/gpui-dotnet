@@ -48,6 +48,7 @@ pub(crate) struct ManagedView {
 
 enum ViewMessage {
     Invalidate,
+    InvalidateArtifacts(Vec<crate::abi::NativeArtifactKey>),
     ResourceCommand(ResourceCommand, u64),
     ExtensionCommand(NativeExtensionCommand, u64),
 }
@@ -271,6 +272,23 @@ pub(crate) fn dispatch_extension_command(view_id: u64, command: NativeExtensionC
     }
 }
 
+pub(crate) fn invalidate_artifacts(view_id: u64, keys: Vec<crate::abi::NativeArtifactKey>) -> i32 {
+    let sender = {
+        let Ok(notifiers) = view_notifiers().lock() else {
+            return -32;
+        };
+        let Some(notifier) = notifiers.get(&view_id) else {
+            return -30;
+        };
+        notifier.sender.clone()
+    };
+    match sender.try_send(ViewMessage::InvalidateArtifacts(keys)) {
+        Ok(()) => 0,
+        Err(TrySendError::Full(_)) => -33,
+        Err(TrySendError::Closed(_)) => -31,
+    }
+}
+
 pub(crate) fn dispatch_application_command(
     application_id: u64,
     command: ApplicationCommand,
@@ -332,6 +350,10 @@ impl ManagedView {
             || (command.resource_kind == 2 && command.command == 10);
         self.resources.dispatch(command);
         notify_native_only
+    }
+
+    fn deliver_artifact_invalidations(&self, keys: &[crate::abi::NativeArtifactKey]) -> bool {
+        self.error.is_none() && self.resources.invalidate_artifacts(keys)
     }
 
     fn deliver_extension_command(&self, command: NativeExtensionCommand, generation: u64) -> bool {
@@ -1019,6 +1041,11 @@ fn create_managed_view(
                         invalidate_pending.store(false, Ordering::Release);
                         view.invalidate(cx);
                     }
+                    ViewMessage::InvalidateArtifacts(keys) => {
+                        if view.deliver_artifact_invalidations(&keys) {
+                            cx.notify();
+                        }
+                    }
                     ViewMessage::ResourceCommand(command, generation) => {
                         if view.deliver_resource_command(command, generation) {
                             cx.notify();
@@ -1232,6 +1259,16 @@ mod tests {
         assert!(receiver.try_recv().is_err());
 
         pending.store(false, Ordering::Release);
+        let keys = vec![crate::abi::NativeArtifactKey {
+            source: 1,
+            artifact: 2,
+        }];
+        assert_eq!(invalidate_artifacts(view_id, keys.clone()), 0);
+        let Ok(ViewMessage::InvalidateArtifacts(received)) = receiver.try_recv() else {
+            panic!("missing artifact message");
+        };
+        assert_eq!(received, keys);
+        assert!(!pending.load(Ordering::Acquire));
         assert_eq!(notify(view_id), 0);
         assert!(matches!(receiver.try_recv(), Ok(ViewMessage::Invalidate)));
 
@@ -1339,9 +1376,18 @@ mod tests {
             dynamic_frame: None,
             render_completed: None,
             release_artifact: None,
+            accept_artifact: None,
         };
         let presence = Arc::new(Mutex::new(ResourcePresence::default()));
-        let view = ManagedView::new(7, callbacks, Rc::default(), presence.clone());
+        let mut view = ManagedView::new(7, callbacks, Rc::default(), presence.clone());
+        view.dirty = false;
+        assert!(
+            !view.deliver_artifact_invalidations(&[crate::abi::NativeArtifactKey {
+                source: 1,
+                artifact: 1
+            }])
+        );
+        assert!(!view.dirty);
         let key = ResourceKey::new(7, "scroll".into());
         let command = ResourceCommand {
             key: key.clone(),

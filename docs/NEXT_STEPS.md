@@ -89,6 +89,8 @@ Keep stacking and dismissal window-owned in Rust while product visuals remain ma
 
 ## List and table
 
+- improve demand-driven rendering separately from View Signal work, preserving targeted row-cache
+  invalidation and measurement refresh for changed items, including items outside cached batches;
 - optional public cache/overscan diagnostics when benchmarks justify an ABI query;
 - table header sort events and column visibility/reordering;
 - row activation and selection semantics;
@@ -100,7 +102,7 @@ proven large-dataset behavior.
 
 ## Runtime
 
-Reactivity and structured async ownership are tracked in
+Structured async ownership and runtime performance verification are tracked in
 [RUNTIME_PLAN.md](RUNTIME_PLAN.md).
 
 ## ABI, diagnostics, and CI

@@ -4,7 +4,7 @@ namespace Gpui.Interop;
 
 internal static class NativeConstants
 {
-    internal const uint AbiVersion = 6;
+    internal const uint AbiVersion = 7;
     internal const ulong SchemaHash = SemanticRegistry.SchemaHash;
 }
 

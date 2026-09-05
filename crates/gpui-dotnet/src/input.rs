@@ -954,6 +954,7 @@ mod tests {
             render: None,
             render_completed: None,
             release_artifact: None,
+            accept_artifact: None,
             click: None,
             list_render_range: None,
             dynamic_frame: None,

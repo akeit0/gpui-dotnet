@@ -109,6 +109,7 @@ public sealed unsafe class NativeRuntime
                 || api->dispatch_application_menu == null
                 || api->supports_extension == null
                 || api->dispatch_extension_command == null
+                || api->invalidate_artifacts == null
         )
         {
             throw new InvalidOperationException(
@@ -211,6 +212,7 @@ public sealed unsafe class NativeRuntime
                 render = &NativeCallbacks.Render,
                 render_completed = &NativeCallbacks.RenderCompleted,
                 release_artifact = &NativeCallbacks.ReleaseArtifact,
+                accept_artifact = &NativeCallbacks.AcceptArtifact,
                 click = &NativeCallbacks.Click,
                 list_render_range = &NativeCallbacks.ListRenderRange,
                 dynamic_frame = &NativeCallbacks.DynamicFrame,

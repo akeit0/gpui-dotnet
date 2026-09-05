@@ -84,6 +84,7 @@ deactivation linear with any command already entering from another thread.
 | --- | --- |
 | `Render()`, `[GpuiListItem]`, lifecycle hooks, event callbacks | GPUI application thread |
 | Child reconciliation, props commit, event binding | GPUI application thread |
+| Bound Signal reads and writes | Owning application's GPUI thread; writes forbidden during rendering |
 | Read or mutate ordinary View fields | GPUI application thread unless the application adds its own synchronization |
 | `Invalidate()` | Any thread while mounted; queues a coalesced request |
 | `Dispatcher.Post(...)` | Any thread while mounted; callback runs on the GPUI application thread |
@@ -116,6 +117,11 @@ Artifact release is a framework-only cleanup callback. Native batch eviction or 
 may invoke it while root acceptance is pending; it releases event slots without running user
 callbacks or resetting output arenas. Release is also admitted after a session fault, and is
 idempotent after owner or session teardown.
+
+Artifact acceptance commits reactive dependencies after native decoding. Signal changes queue
+artifact keys and flush one batch per affected session at the outer callback boundary. Native
+delivery requests repaint without managed root invalidation. Ordinary bound Signal writes outside
+a callback use a short application mutation scope to provide the same flush boundary.
 
 Invalidation publishes a stable, never-pooled View identity with an atomic pending bit. Repeated
 requests coalesce before reaching the application thread. Only ingress consumption touches the

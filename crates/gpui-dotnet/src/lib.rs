@@ -50,6 +50,7 @@ static API_V3: GpuiDotnetApiV3 = GpuiDotnetApiV3 {
     dispatch_application_menu: Some(dispatch_application_menu),
     supports_extension: Some(supports_extension),
     dispatch_extension_command: Some(dispatch_extension_command),
+    invalidate_artifacts: Some(invalidate_artifacts),
 };
 
 pub fn api(requested_version: u32) -> *const GpuiDotnetApiV3 {
@@ -193,6 +194,27 @@ fn validate_render_inner(arena: *const RenderArena, root: u32) -> i32 {
 
 unsafe extern "C" fn notify_view(view_id: u64) -> i32 {
     std::panic::catch_unwind(AssertUnwindSafe(|| app_host::notify(view_id))).unwrap_or(-99)
+}
+
+unsafe extern "C" fn invalidate_artifacts(
+    view_id: u64,
+    keys: *const abi::NativeArtifactKey,
+    count: i32,
+) -> i32 {
+    std::panic::catch_unwind(AssertUnwindSafe(|| {
+        if count <= 0
+            || keys.is_null()
+            || (count as usize) > isize::MAX as usize / size_of::<abi::NativeArtifactKey>()
+        {
+            return -1;
+        }
+        let keys = unsafe { std::slice::from_raw_parts(keys, count as usize) };
+        if keys.iter().any(|key| key.source == 0 || key.artifact == 0) {
+            return -2;
+        }
+        app_host::invalidate_artifacts(view_id, keys.to_vec())
+    }))
+    .unwrap_or(-99)
 }
 
 unsafe extern "C" fn dispatch_command(view_id: u64, command: *const NativeResourceCommand) -> i32 {
@@ -604,6 +626,7 @@ unsafe extern "C" fn run_application(
         || callbacks.menu_action.is_none()
         || callbacks.render_completed.is_none()
         || callbacks.release_artifact.is_none()
+        || callbacks.accept_artifact.is_none()
     {
         return -21;
     }
@@ -616,6 +639,19 @@ unsafe extern "C" fn run_application(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn artifact_invalidation_validates_pointer_count_and_identities() {
+        let zero = super::abi::NativeArtifactKey {
+            source: 0,
+            artifact: 1,
+        };
+        unsafe {
+            assert_eq!(super::invalidate_artifacts(1, std::ptr::null(), 1), -1);
+            assert_eq!(super::invalidate_artifacts(1, &zero, -1), -1);
+            assert_eq!(super::invalidate_artifacts(1, &zero, 0), -1);
+            assert_eq!(super::invalidate_artifacts(1, &zero, 1), -2);
+        }
+    }
     use super::*;
 
     fn empty_application_command(command: u16) -> NativeApplicationCommand {

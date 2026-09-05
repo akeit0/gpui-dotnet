@@ -1,6 +1,6 @@
 # Runtime design
 
-This design refines [RUNTIME_PLAN.md](RUNTIME_PLAN.md). ABI 6 uses single-pass managed-owned
+This design refines [RUNTIME_PLAN.md](RUNTIME_PLAN.md). ABI 7 uses single-pass managed-owned
 arenas, explicit native acceptance, and cached-range artifact leases. The older runtime specification's capacity
 retry protocol is superseded: user rendering must never be repeated to grow storage.
 
@@ -67,7 +67,7 @@ so commands from mounting see accepted resources even before physical materializ
 
 Separate renderer definitions, bound sources, and cached artifacts. A renderer method
 does not identify a List or Table: two controls may call the same method. Range requests
-must carry source identity plus artifact identity. An artifact owns its event and future
+must carry source identity plus artifact identity. An artifact owns its event and reactive
 dependency leases until native eviction, revision/theme invalidation, source removal,
 or shutdown. Release is explicit and idempotent; rendering range B never retires A.
 
@@ -80,7 +80,7 @@ Test the production dispatch and cache routes: remove/rebind under one live View
 retain A while rendering B, evict only A, and bind two sources to the same method.
 Tests must establish callback liveness as well as retained-memory release.
 
-The concrete transport uses ABI 6. A native row engine receives a process-unique, non-reused
+The concrete transport uses ABI 7. A native row engine receives a process-unique, non-reused
 64-bit source ID when created. Each range request carries that source ID alongside the renderer
 token and returns a session-unique artifact ID. Managed code owns an artifact's event slots;
 the native cached batch owns the corresponding release obligation. Batch eviction, invalidation,
@@ -120,7 +120,8 @@ invalidation across acceptance, deep propagation, and reuse of unaffected siblin
 
 ## Reactivity and structured work
 
-Build Signal dependencies on accepted dirty state and explicit artifact leases. A Signal binds
+Signal dependencies use accepted dirty state and explicit artifact leases. The concrete graph,
+ownership checks, and range transport are described in [Reactivity](REACTIVITY.md). A Signal binds
 permanently on its first tracked read to an application identity without strongly
 retaining the application. Both reads and writes then assert the owner thread.
 Accept dependency edges with their consumer and detach them on retirement. Reuse

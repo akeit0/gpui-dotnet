@@ -11,6 +11,7 @@ internal sealed class RetainedViewState
     internal RenderArenaOwner? Fragment;
     internal uint Root;
     internal bool Dirty = true;
+    internal ReactiveConsumer? Consumer;
     internal uint WorkingNextPosition;
     internal bool HasStagedComposition;
     internal Dictionary<ChildSlot, ChildEntry>? Children;

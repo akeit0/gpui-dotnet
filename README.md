@@ -128,16 +128,15 @@ application.Run();
 [GpuiView]
 internal sealed partial class MainView : View
 {
-    private int _count;
+    private readonly Signal<int> _count = new(0);
 
     protected override Element Render(ref RenderContext ui) =>
         ui.VStack(
-                ui.Text($"Count: {_count}"),
+                ui.Text($"Count: {_count.Value}"),
                 ui.Button("increment", "Increment")
                     .OnClick(this, (view, _) =>
                     {
-                        view._count++;
-                        view.Invalidate();
+                        view._count.Value++;
                     })
             )
             .Gap(Px(12))
@@ -164,7 +163,7 @@ C# application and View state
         │ dirty render
         ▼
 flat RenderArena: nodes, operations, children, UTF-8
-        │ ABI v6 + base/extension schema negotiation
+        │ ABI v7 + base/extension schema negotiation
         ▼
 Rust validation and retained snapshot
         │
@@ -433,6 +432,7 @@ Do not edit generated semantic or extension schema files by hand.
 - [Optional editor extension](docs/EDITOR.md)
 - [View lifecycle](docs/VIEW_LIFECYCLE.md)
 - [Lifecycle and threading](docs/THREADING.md)
+- [Signal reactivity and ownership](docs/REACTIVITY.md)
 - [Managed renderer Hot Reload](docs/HOT_RELOAD.md)
 - [ABI contract](docs/ABI.md)
 - [Binding generation](docs/BINDING_GENERATION.md)

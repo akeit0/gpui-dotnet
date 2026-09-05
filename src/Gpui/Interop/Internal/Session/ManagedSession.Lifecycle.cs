@@ -37,12 +37,14 @@ internal sealed unsafe partial class ManagedSession
 
         foreach (var state in _renderStates.Values)
         {
+            state.Consumer?.Dispose();
             state.Fragment?.Dispose();
         }
         _renderStates.Clear();
 
         _attachedViews.Clear();
         _demandArtifacts.Clear();
+        _invalidArtifacts?.Clear();
         _viewsByHandle.Clear();
         _renderingViews.Clear();
         _snapshotStack.Clear();
@@ -112,6 +114,8 @@ internal sealed unsafe partial class ManagedSession
     private void Unmount(ViewBase view)
     {
         RetireDemandArtifacts(view);
+        if (_renderStates.TryGetValue(view, out var retiring))
+            retiring.Consumer?.Dispose();
         var handle = view.RuntimeViewHandle;
         Exception? lifecycleFailure = null;
         try

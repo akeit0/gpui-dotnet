@@ -101,6 +101,14 @@ acceptance. Tree replacement commits the new composition before terminally unmou
 subtree; abandoned Prepared candidates retire without lifecycle hooks. Unmount proceeds child-first. See
 [VIEW_LIFECYCLE.md](VIEW_LIFECYCLE.md).
 
+## Reactive state
+
+`Signal<T>` tracks reads against the current View or demand artifact. Reusable edges become
+subscriptions only when native accepts that consumer's output. Changed values dirty only their
+accepted consumers; conditional reads remove obsolete edges at acceptance. Change revisions
+close the gap between observation and acceptance. Bound reads and writes assert the application's
+thread and identity. Teardown detaches edges before user cleanup. See [Reactivity](REACTIVITY.md).
+
 ## Retained resource path
 
 Scroll, List, Table, Input, Slider, and Dock are declarations plus stable resource identities.
@@ -150,6 +158,10 @@ method. Every loaded batch owns a managed artifact lease that keeps only that ba
 bindings live. Eviction, revision/theme invalidation, source removal, and shutdown release those
 bindings explicitly. Native decode failure releases the unpublished batch's lease and faults the
 session. Artifact release runs no application code, including during root reconciliation.
+
+After range decode, `accept_artifact` commits its reactive observations. Row-only Signal changes
+batch source/artifact keys at the managed callback boundary; native evicts and remeasures those
+batches without requiring managed root rendering. These identities never reach application code.
 
 Dynamic event tokens identify a never-reused ID under a one-shot View handle. Live IDs map to
 recyclable slots. Root rendering retires only root bindings; each artifact releases only its own

@@ -1,5 +1,6 @@
 using Gpui;
 using Gpui.Interop;
+using System.Runtime.InteropServices;
 
 namespace Gpui.Tests;
 
@@ -8,14 +9,18 @@ public sealed class ApplicationModelTests
     [Fact]
     public void UsesExpectedProtocolVersions()
     {
-        Assert.Equal(6u, NativeConstants.AbiVersion);
+        Assert.Equal(7u, NativeConstants.AbiVersion);
         Assert.Equal(1u, SemanticRegistry.SchemaVersion);
     }
 
     [Fact]
     public unsafe void AcceptanceCallbackExtendsTheNativeCallbackTable()
     {
-        Assert.Equal(11 * IntPtr.Size, sizeof(ManagedCallbacks));
+        Assert.Equal(12 * IntPtr.Size, sizeof(ManagedCallbacks));
+        Assert.Equal(11 * IntPtr.Size, (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.accept_artifact)));
+        Assert.Equal(16, sizeof(NativeArtifactKey));
+        Assert.Equal(8, (int)Marshal.OffsetOf<NativeArtifactKey>(nameof(NativeArtifactKey.artifact)));
+        Assert.Equal(16 + 8 * IntPtr.Size, (int)Marshal.OffsetOf<GpuiDotnetApiV3>(nameof(GpuiDotnetApiV3.invalidate_artifacts)));
         Assert.Equal(9 * IntPtr.Size,
             (int)System.Runtime.InteropServices.Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.render_completed)));
         Assert.Equal(10 * IntPtr.Size,

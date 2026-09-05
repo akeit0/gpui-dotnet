@@ -23,6 +23,14 @@ After arena warmup:
 
 Do not replace this model with per-element or per-style P/Invoke calls.
 
+## Signal dependencies
+
+Signal reads reuse consumer edges and make no native call. Accepted subscriptions use linked
+edges, so writes traverse actual subscribers without locks or temporary collections. Conditional
+dependencies detach at acceptance; retirement clears them before user cleanup. Tracking and
+coalesced writes allocate nothing after edge and collection warmup. Artifact keys batch at the
+outer callback boundary using reusable managed storage; native ingress copies that batch once.
+
 ## Native interaction loops
 
 Keep continuous interaction in Rust:
@@ -83,7 +91,7 @@ managed crossings:  1
 
 At most four batches are retained per List/Table row engine. Scrolling inside retained batches
 requires no managed call. A missing batch requires one `list_render_range` call containing all
-rows in that batch.
+rows in that batch and one `accept_artifact` call after validation.
 
 Each batch retains its own managed event lease. Eviction or invalidation adds one artifact-release
 callback per retired batch, never per row. Cache hits require no managed call. Binding storage is
