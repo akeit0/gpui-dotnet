@@ -128,7 +128,7 @@ public readonly struct ListController
     public void ScrollToItem(int index)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.List,
                 ResourceCommandKind.ListScrollToItem,
@@ -146,7 +146,7 @@ public readonly struct ListController
         ArgumentOutOfRangeException.ThrowIfNegative(removedCount);
         ArgumentOutOfRangeException.ThrowIfNegative(insertedCount);
         var packed = ((ulong)checked((uint)removedCount) << 32) | checked((uint)insertedCount);
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.List,
                 ResourceCommandKind.ListSplice,
@@ -156,7 +156,7 @@ public readonly struct ListController
                 Utf8Key: Utf8KeyArray
             )
         );
-        Owner.InvalidateFromController();
+        Owner.Runtime.InvalidateFromController();
     }
 
     /// <summary>
@@ -168,7 +168,7 @@ public readonly struct ListController
         ArgumentOutOfRangeException.ThrowIfNegative(start);
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         DispatchRefresh(start, count);
-        Owner.InvalidateFromController();
+        Owner.Runtime.InvalidateFromController();
     }
 
     /// <summary>
@@ -192,11 +192,11 @@ public readonly struct ListController
         {
             DispatchRefresh(start, count);
         }
-        Owner.InvalidateFromController();
+        Owner.Runtime.InvalidateFromController();
     }
 
     private void DispatchRefresh(int start, int count) =>
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.List,
                 ResourceCommandKind.ListRefresh,
@@ -210,7 +210,7 @@ public readonly struct ListController
     public void Reset(int itemCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(itemCount);
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.List,
                 ResourceCommandKind.ListReset,
@@ -220,7 +220,7 @@ public readonly struct ListController
                 Utf8Key: Utf8KeyArray
             )
         );
-        Owner.InvalidateFromController();
+        Owner.Runtime.InvalidateFromController();
     }
 
     private ViewBase Owner =>

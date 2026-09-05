@@ -1,6 +1,4 @@
-using System.Runtime.CompilerServices;
-
-namespace Gpui;
+namespace Gpui.Interop.Internal;
 
 internal enum ViewEventBindingScope
 {
@@ -9,8 +7,70 @@ internal enum ViewEventBindingScope
     ListRange,
 }
 
-public abstract partial class ViewBase
+internal sealed class ViewEventRegistry
 {
+    private ViewBase? _owner;
+    private int _threadId;
+    private uint ViewHandle { get; set; }
+    private List<EventEntry>? EventEntries { get; set; }
+    private Stack<int>? FreeEventSlots { get; set; }
+    private Dictionary<uint, int>? EventSlots { get; set; }
+    private Dictionary<ulong, List<int>>? ArtifactEventSlots { get; set; }
+    private uint NextEventId { get; set; }
+    private ulong EventBindingArtifact { get; set; }
+    private ViewEventBindingScope EventBindingScope { get; set; }
+    private long EventBindingPass { get; set; }
+    private long NextEventBindingPass { get; set; }
+    private ViewEventRegistry? Active => _owner is null ? null : this;
+    internal int EntryCount => EventEntries?.Count ?? 0;
+
+    internal void Activate(ViewBase owner, uint handle)
+    {
+        _owner = owner;
+        ViewHandle = handle;
+        _threadId = Environment.CurrentManagedThreadId;
+    }
+
+    internal void Reset()
+    {
+        AssertAccess();
+        if (EventEntries is { Capacity: > 256 })
+        {
+            EventEntries = null;
+            FreeEventSlots = null;
+            EventSlots = null;
+        }
+        else
+        {
+            EventEntries?.Clear();
+            FreeEventSlots?.Clear();
+            EventSlots?.Clear();
+        }
+        ArtifactEventSlots = null;
+        NextEventId = 0;
+        EventBindingArtifact = 0;
+        EventBindingScope = ViewEventBindingScope.None;
+        EventBindingPass = 0;
+        NextEventBindingPass = 0;
+        _owner = null;
+        ViewHandle = 0;
+        _threadId = 0;
+    }
+
+    private ViewEventRegistry RequireActive(string? message = null)
+    {
+        if (_owner is null)
+            throw new InvalidOperationException(message ?? "The event registry has retired.");
+        AssertAccess();
+        return this;
+    }
+
+    private void AssertAccess()
+    {
+        if (_threadId != Environment.CurrentManagedThreadId)
+            throw new InvalidOperationException("Event state is confined to the GPUI application thread.");
+    }
+
     private const uint DynamicEventBit = 0x8000_0000u;
     private const uint DynamicEventEntryMask = 0x7FFF_FFFFu;
 
@@ -248,55 +308,55 @@ public abstract partial class ViewBase
     /// render scope or demand artifact; retired identities never alias recycled storage slots.
     /// </summary>
     internal ulong BindClick<TView>(Action<TView, ClickEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, ClickEventBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ClickEventBinder<TView>.Index);
 
     /// <summary>Registers a typed input callback on this mounted View.</summary>
     internal ulong BindInput<TView>(Action<TView, InputEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, InputBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, InputBinder<TView>.Index);
 
     internal ulong BindSlider<TView>(Action<TView, SliderEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, SliderBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, SliderBinder<TView>.Index);
 
     /// <summary>Registers a typed Dock area callback on this mounted View.</summary>
     internal ulong BindDock<TView>(Action<TView, DockEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, DockBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, DockBinder<TView>.Index);
 
     /// <summary>Registers a typed key-event callback on this mounted View.</summary>
     internal ulong BindKey<TView>(Action<TView, KeyEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, KeyBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, KeyBinder<TView>.Index);
 
     /// <summary>Registers a typed mouse-event callback on this mounted View.</summary>
     internal ulong BindMouse<TView>(Action<TView, MouseEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, MouseBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, MouseBinder<TView>.Index);
 
     /// <summary>Registers a typed modifier-key callback on this mounted View.</summary>
     internal ulong BindModifiers<TView>(Action<TView, ModifiersEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, ModifiersBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ModifiersBinder<TView>.Index);
 
     /// <summary>Registers a typed hover-state callback on this mounted View.</summary>
     internal ulong BindHover<TView>(Action<TView, HoverEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, HoverBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, HoverBinder<TView>.Index);
 
     /// <summary>Registers a typed mouse-move callback on this mounted View.</summary>
     internal ulong BindMouseMove<TView>(Action<TView, MouseMoveEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, MouseMoveBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, MouseMoveBinder<TView>.Index);
 
     /// <summary>Registers a typed scroll-wheel callback on this mounted View.</summary>
     internal ulong BindScrollWheel<TView>(Action<TView, ScrollWheelEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, ScrollWheelBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ScrollWheelBinder<TView>.Index);
 
     /// <summary>Registers a typed file-drop callback on this mounted View.</summary>
     internal ulong BindFileDrop<TView>(Action<TView, FileDropEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, FileDropBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, FileDropBinder<TView>.Index);
 
     internal ulong BindNativeExtensionEvent<TView, TEvent>(Action<TView, TEvent> callback)
         where TView : ViewBase
         where TEvent : INativeExtensionEvent<TEvent> =>
-        BindDynamicEvent(this, callback, NativeExtensionBinder<TView, TEvent>.Index);
+        BindDynamicEvent(_owner!, callback, NativeExtensionBinder<TView, TEvent>.Index);
 
     private ulong BindDynamicEvent(ViewBase target, Delegate callback, int binderIndex)
     {
-        return (_currentEventBindingOwner ?? this).BindDynamicEventCore(
+        return (_currentEventBindingOwner ?? _owner!).Runtime.Events.BindDynamicEventCore(
             target,
             callback,
             binderIndex
@@ -305,7 +365,7 @@ public abstract partial class ViewBase
 
     private ulong BindDynamicEventCore(ViewBase target, Delegate callback, int binderIndex)
     {
-        var attachment = RequireUiAttachment(
+        var attachment = RequireActive(
             "Event callbacks can only be bound while the View is mounted and rendering."
         );
         var entries = attachment.EventEntries ??= [];
@@ -334,7 +394,7 @@ public abstract partial class ViewBase
 
         // The same static callback can serve many row artifacts. Reuse its prior validation.
         if (!callbackVerified)
-            ValidateSynchronousEvent(callback);
+            SynchronousCallback.Validate(callback);
         if (attachment.NextEventId == DynamicEventEntryMask)
         {
             throw new InvalidOperationException(
@@ -375,23 +435,9 @@ public abstract partial class ViewBase
         return DynamicEventToken(attachment.ViewHandle, id);
     }
 
-    private static void ValidateSynchronousEvent(Delegate callback)
-    {
-        if (!callback.HasSingleTarget)
-        {
-            foreach (var handler in callback.GetInvocationList())
-                ValidateSynchronousEvent(handler);
-            return;
-        }
-        if (callback.Method.IsDefined(typeof(AsyncStateMachineAttribute), inherit: false))
-            throw new InvalidOperationException(
-                "Event callbacks must be synchronous. Use StartWork for asynchronous production."
-            );
-    }
-
     internal void BeginEventBindingPass(ViewEventBindingScope scope, ulong artifact = 0)
     {
-        var attachment = RequireUiAttachment();
+        var attachment = RequireActive();
         if (attachment.EventBindingScope != ViewEventBindingScope.None)
         {
             throw new InvalidOperationException(
@@ -411,7 +457,7 @@ public abstract partial class ViewBase
 
     internal void CompleteEventBindingPass(ViewEventBindingScope scope, bool completed)
     {
-        var attachment = _uiAttachment;
+        var attachment = Active;
         if (attachment is null)
         {
             return;
@@ -452,7 +498,7 @@ public abstract partial class ViewBase
 
     internal void ReleaseEventArtifact(ulong artifact)
     {
-        var attachment = _uiAttachment;
+        var attachment = Active;
         if (attachment is null)
         {
             return;
@@ -467,7 +513,7 @@ public abstract partial class ViewBase
         }
     }
 
-    private static void ReleaseEventSlot(MountedViewAttachment attachment, int index)
+    private static void ReleaseEventSlot(ViewEventRegistry attachment, int index)
     {
         var entries = attachment.EventEntries!;
         attachment.EventSlots!.Remove(entries[index].Id);
@@ -669,7 +715,7 @@ public abstract partial class ViewBase
             return false;
         }
 
-        var attachment = _uiAttachment;
+        var attachment = Active;
         if (attachment is null)
         {
             entry = default;
@@ -690,13 +736,13 @@ public abstract partial class ViewBase
         }
 
         entry = entries[index];
-        return entry.BinderIndex != 0 && entry.Target is ViewBase { IsMountedCore: true };
+        return entry.BinderIndex != 0 && entry.Target is ViewBase { Runtime.IsMounted: true };
     }
 
     private void MissingDynamicEvent(uint eventId, string eventType)
     {
         if (IsWellFormedEventId(eventId)
-            && (_uiAttachment is null || (eventId & DynamicEventEntryMask) <= _uiAttachment.NextEventId))
+            && (Active is null || (eventId & DynamicEventEntryMask) <= Active.NextEventId))
         {
             return;
         }

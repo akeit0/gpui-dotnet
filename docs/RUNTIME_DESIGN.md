@@ -128,7 +128,8 @@ Accept dependency edges with their consumer and detach them on retirement. Reuse
 unchanged edges; a row-only dependency invalidates its artifact rather than its View.
 
 Event callbacks are synchronous. A View-owned asynchronous operation receives an
-explicit request snapshot and cancellation token, then posts success or failure
+explicit request snapshot and cancellation token on the calling UI thread. The application
+owns offloading and async context policy. A task observer posts success or failure
 through ingress. Check the one-shot owner lifetime when consuming the completion,
 even if production ignored cancellation. Only a live owner may run the apply callback.
 Producer diagnostics require directly supplied static lambdas or methods, without claiming

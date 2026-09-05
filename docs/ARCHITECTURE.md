@@ -77,13 +77,14 @@ UI ownership, rather than CLR reachability, defines lifetime. An open window own
 committed parent slot owns its child. Holding a managed reference does not retain either ownership.
 Unmount is terminal; an instance that leaves its window or slot cannot join another tree.
 
-`ViewBase` keeps one-shot identity/lifecycle state separate from mounted runtime state. A stable,
-non-pooled `ViewCommandRoute` admits any-thread invalidation and controller commands without
-touching UI state. A `MountedViewAttachment` owns the GPUI-thread-only native handle,
-resource-key sequence, and lazy event-binding collections. Unmount deactivates the route, removes
-and resets the attachment, and returns the attachment to a bounded pool before user cleanup.
+`ViewBase` is the authoring boundary. Its composed `ViewRuntime` coordinates one-shot identity,
+lifetime, and mounting. A stable, non-pooled `ViewCommandRoute` admits any-thread commands.
+`MountedViewAttachment` owns the UI handle, resource-key sequence, optional `WorkScope`, and
+`ViewEventRegistry`; the registry owns event tokens and artifact leases. Unmount deactivates the
+route, retires optional capabilities, and resets pooled attachment storage before user cleanup.
+See [Managed View runtime](VIEW_RUNTIME.md) for responsibility and lifetime boundaries.
 
-`View` and `View<TProps>` are sibling authoring shapes over the shared `ViewBase` runtime. Their
+`View` and `View<TProps>` are sibling authoring shapes over the shared `ViewBase` authoring contract. Their
 type relationship makes required props a compile-time child declaration constraint.
 
 Child views render into retained fragment arenas. The parent snapshot copies those fragments into

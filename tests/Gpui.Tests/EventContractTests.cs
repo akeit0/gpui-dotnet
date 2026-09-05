@@ -24,9 +24,9 @@ public sealed class EventContractTests
     public void AsyncVoidDelegatesAreRejectedBeforeAnyHandlerRuns(bool multicast)
     {
         var view = new EventView();
-        view.PrepareRuntime(1, static callback => callback(), static _ => { }, static (_, _) => { },
+        view.Runtime.PrepareRuntime(1, static callback => callback.Invoke(), static _ => { }, static (_, _) => { },
             static (_, _, _) => { }, static (_, _, _, _, _, _, _, _, _, _) => { }, static () => { });
-        view.MountRuntime();
+        view.Runtime.MountRuntime();
         try
         {
             var ran = false;
@@ -37,16 +37,16 @@ public sealed class EventContractTests
             };
             if (multicast)
                 callback += (_, _) => ran = true;
-            var error = Assert.Throws<InvalidOperationException>(() => view.BindClick(callback));
+            var error = Assert.Throws<InvalidOperationException>(() => view.Runtime.Events.BindClick(callback));
             Assert.Contains("synchronous", error.Message);
             Assert.False(ran);
             // Rejection must not consume binding identity or corrupt the event registry.
-            var token = view.BindClick<EventView>((_, _) => ran = true);
+            var token = view.Runtime.Events.BindClick<EventView>((_, _) => ran = true);
             Assert.Equal(0x8000_0001u, unchecked((uint)token));
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 

@@ -574,7 +574,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         {
             Assert.Same(child, fixture.Child);
             Assert.Null(fixture.State(fixture.View).StagedChildren?.SingleOrDefault().Value);
-            Assert.False(child.IsMountedCore);
+            Assert.False(child.Runtime.IsMounted);
             order.Add("parent");
         };
         child.DuringMount = () => order.Add("child");
@@ -612,7 +612,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Equal(0, child.MountCount);
         Assert.Equal(0, child.UnmountCount);
         Assert.True(lifetime.IsCancellationRequested);
-        Assert.True(child.IsUnmountedCore);
+        Assert.True(child.Runtime.IsUnmounted);
         Assert.Contains("-40", fixture.Session.Failure!.Message);
     }
 
@@ -688,7 +688,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Equal(1, fixture.View.UnmountCount);
         Assert.Equal(0, child.MountCount);
         Assert.Equal(0, child.UnmountCount);
-        Assert.True(child.IsUnmountedCore);
+        Assert.True(child.Runtime.IsUnmounted);
     }
 
     [Fact]
@@ -811,7 +811,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         var child = fixture.Child;
         var ran = false;
         // Queue during root rendering, after ingress has drained but before slot retirement.
-        fixture.View.DuringRender = () => child.Post(() => ran = true);
+        fixture.View.DuringRender = () => child.Runtime.Post(() => ran = true);
         ((ParentView)fixture.View).ShowChild = false;
         fixture.Render();
         fixture.View.DuringRender = null;
@@ -1057,9 +1057,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             Assert.Equal(0, fixture.Click(token));
         }
         Assert.Equal(0, fixture.View.ClickCount);
-        var attachment = typeof(ViewBase).GetField("_uiAttachment", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(fixture.View)!;
-        var entries = (System.Collections.ICollection)attachment.GetType().GetProperty("EventEntries", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(attachment)!;
-        Assert.Equal(2, entries.Count);
+        Assert.Equal(2, fixture.View.Runtime.Events.EntryCount);
     }
 
     private sealed class SessionFixture : IDisposable
@@ -1118,6 +1116,12 @@ public sealed unsafe partial class RuntimeExecutionTests
             return status;
         }
 
+        internal void RenderFromNative()
+        {
+            Assert.Equal(0, NativePublish(out var revision));
+            Assert.Equal(0, Complete(revision));
+        }
+
         internal int Complete(ulong? revision = null, int status = 0)
         {
             delegate* unmanaged[Cdecl]<ulong, ulong, int, int> callback = &NativeCallbacks.RenderCompleted;
@@ -1130,7 +1134,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             uint root = 0;
             ulong artifact = 0;
             delegate* unmanaged[Cdecl]<ulong, ulong, ulong, uint, uint, RenderArena*, uint*, ulong*, int> callback = &NativeCallbacks.ListRenderRange;
-            Assert.Equal(0, callback(_id, ((ulong)View.RuntimeViewHandle << 32) | 1, source, start, 1, &arena, &root, &artifact));
+            Assert.Equal(0, callback(_id, ((ulong)View.Runtime.RuntimeViewHandle << 32) | 1, source, start, 1, &arena, &root, &artifact));
             if (accept)
                 Assert.Equal(0, Accept(source, artifact));
             return artifact;
@@ -1213,7 +1217,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         protected override Element Render(ref RenderContext ui)
         {
             RenderCount++;
-            ClickToken = BindClick<ProbeView>(static (view, _) =>
+            ClickToken = Runtime.Events.BindClick<ProbeView>(static (view, _) =>
             {
                 view.ClickCount++;
                 view.OnClick?.Invoke();
@@ -1239,7 +1243,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             {
                 callback = (view, _) => { GC.KeepAlive(captured); view.ClickCount++; };
             }
-            RowToken = BindClick(callback);
+            RowToken = Runtime.Events.BindClick(callback);
             return ui.Button("row", "row").OnClick(this, callback);
         }
     }
@@ -1291,7 +1295,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         {
             RenderCount++;
             ObservedValue = !Props.CanPause || _following.Value ? Props.Count.Value : null;
-            ToggleToken = BindClick<SharedSignalReaderView>(static (view, _) =>
+            ToggleToken = Runtime.Events.BindClick<SharedSignalReaderView>(static (view, _) =>
             {
                 view._following.Value = !view._following.Value;
             });

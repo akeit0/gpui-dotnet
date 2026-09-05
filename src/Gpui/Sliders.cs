@@ -237,7 +237,7 @@ public readonly struct SliderController
     {
         var start = BitConverter.SingleToUInt32Bits(value.Start);
         var end = BitConverter.SingleToUInt32Bits(value.End);
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.Slider,
                 ResourceCommandKind.SliderSetValue,

@@ -476,7 +476,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -592,7 +592,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -621,7 +621,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -660,7 +660,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -694,11 +694,11 @@ public sealed class SemanticRenderTests
 
             var changed = ReadCallbackEventId(arena, OpCode.SliderOnChanged);
             var released = ReadCallbackEventId(arena, OpCode.SliderOnReleased);
-            view.DispatchSliderCore(
+            view.Runtime.Events.DispatchSliderCore(
                 changed,
                 new SliderEvent(SliderEventKind.Changed, 50, 50, false, 4)
             );
-            view.DispatchSliderCore(
+            view.Runtime.Events.DispatchSliderCore(
                 released,
                 new SliderEvent(SliderEventKind.Released, 55, 55, false, 5)
             );
@@ -708,7 +708,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -754,7 +754,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -792,7 +792,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -843,7 +843,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -869,7 +869,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -912,7 +912,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -960,7 +960,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1002,7 +1002,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1032,7 +1032,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1065,7 +1065,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1093,7 +1093,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1118,7 +1118,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1138,7 +1138,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1152,41 +1152,41 @@ public sealed class SemanticRenderTests
             using var arena = new RenderArenaOwner();
 
             var firstUi = arena.BeginRender(new NoopRenderer(), view);
-            var first = view.RenderCore(ref firstUi);
+            var first = view.Runtime.RenderCore(ref firstUi);
             arena.Validate(first);
             var firstEventId = ReadCallbackEventId(arena);
 
             var secondUi = arena.BeginRender(new NoopRenderer(), view);
-            var second = view.RenderCore(ref secondUi);
+            var second = view.Runtime.RenderCore(ref secondUi);
             arena.Validate(second);
             var secondEventId = ReadCallbackEventId(arena);
 
             Assert.Equal(firstEventId, secondEventId);
-            view.DispatchClickCore(firstEventId, default);
+            view.Runtime.Events.DispatchClickCore(firstEventId, default);
             Assert.Equal(1, view.ClickCount);
 
             view.BindCallback = false;
             var thirdUi = arena.BeginRender(new NoopRenderer(), view);
-            var third = view.RenderCore(ref thirdUi);
+            var third = view.Runtime.RenderCore(ref thirdUi);
             arena.Validate(third);
 
-            view.DispatchClickCore(firstEventId, default);
+            view.Runtime.Events.DispatchClickCore(firstEventId, default);
             Assert.Equal(1, view.ClickCount);
 
             view.BindCallback = true;
             var fourthUi = arena.BeginRender(new NoopRenderer(), view);
-            var fourth = view.RenderCore(ref fourthUi);
+            var fourth = view.Runtime.RenderCore(ref fourthUi);
             arena.Validate(fourth);
             var reboundEventId = ReadCallbackEventId(arena);
             Assert.NotEqual(firstEventId, reboundEventId);
-            view.DispatchClickCore(firstEventId, default);
+            view.Runtime.Events.DispatchClickCore(firstEventId, default);
             Assert.Equal(1, view.ClickCount);
-            view.DispatchClickCore(reboundEventId, default);
+            view.Runtime.Events.DispatchClickCore(reboundEventId, default);
             Assert.Equal(2, view.ClickCount);
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1202,17 +1202,17 @@ public sealed class SemanticRenderTests
             using var arena = new RenderArenaOwner();
             owner.CallbackTarget = target;
             var ui = arena.BeginRender(new NoopRenderer(), owner);
-            var button = owner.RenderCore(ref ui);
+            var button = owner.Runtime.RenderCore(ref ui);
             arena.Validate(button);
 
             var eventId = ReadCallbackEventId(arena);
-            owner.DispatchClickCore(eventId, default);
+            owner.Runtime.Events.DispatchClickCore(eventId, default);
             Assert.Equal(1, target.ClickCount);
         }
         finally
         {
-            target.UnmountRuntime();
-            owner.UnmountRuntime();
+            target.Runtime.UnmountRuntime();
+            owner.Runtime.UnmountRuntime();
         }
     }
 
@@ -1249,7 +1249,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1281,7 +1281,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1317,7 +1317,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1360,7 +1360,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1385,7 +1385,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1401,7 +1401,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1417,7 +1417,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1433,7 +1433,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1456,7 +1456,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1476,7 +1476,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1586,7 +1586,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1607,7 +1607,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1674,7 +1674,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1702,7 +1702,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1733,7 +1733,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1790,7 +1790,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1831,7 +1831,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1855,15 +1855,15 @@ public sealed class SemanticRenderTests
 
             var layout = ReadCallbackEventId(arena, OpCode.DockOnLayout);
             var closed = ReadCallbackEventId(arena, OpCode.DockOnClosed);
-            view.DispatchDockCore(
+            view.Runtime.Events.DispatchDockCore(
                 layout,
                 new DockEvent(DockEventKind.LayoutChanged, string.Empty, string.Empty, 1)
             );
-            view.DispatchDockCore(
+            view.Runtime.Events.DispatchDockCore(
                 closed,
                 new DockEvent(DockEventKind.PanelClosed, "editor", string.Empty, 2)
             );
-            view.DispatchDockCore(
+            view.Runtime.Events.DispatchDockCore(
                 layout,
                 new DockEvent(DockEventKind.LayoutExported, string.Empty, """{"v":1}""", 3)
             );
@@ -1876,7 +1876,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1916,32 +1916,32 @@ public sealed class SemanticRenderTests
             var scrollWheel = ReadCallbackEventId(arena, OpCode.OnScrollWheel);
             var fileDrop = ReadCallbackEventId(arena, OpCode.OnFileDrop);
 
-            view.DispatchKeyCore(keyDown, new KeyEvent(KeyEventKind.Down, "s", 1, false));
-            view.DispatchKeyCore(keyUp, new KeyEvent(KeyEventKind.Up, "s", 1, false));
-            view.DispatchMouseCore(
+            view.Runtime.Events.DispatchKeyCore(keyDown, new KeyEvent(KeyEventKind.Down, "s", 1, false));
+            view.Runtime.Events.DispatchKeyCore(keyUp, new KeyEvent(KeyEventKind.Up, "s", 1, false));
+            view.Runtime.Events.DispatchMouseCore(
                 mouseDown,
                 new MouseEvent(MouseEventKind.Down, 12, 34, MouseButton.Right, 1, 1)
             );
-            view.DispatchMouseCore(
+            view.Runtime.Events.DispatchMouseCore(
                 mouseUp,
                 new MouseEvent(MouseEventKind.Up, 12, 34, MouseButton.Right, 1, 1)
             );
-            view.DispatchModifiersCore(modifiersChanged, new ModifiersEvent(1));
-            view.DispatchHoverCore(hover, new HoverEvent(true));
-            view.DispatchMouseCore(
+            view.Runtime.Events.DispatchModifiersCore(modifiersChanged, new ModifiersEvent(1));
+            view.Runtime.Events.DispatchHoverCore(hover, new HoverEvent(true));
+            view.Runtime.Events.DispatchMouseCore(
                 mouseDownOut,
                 new MouseEvent(MouseEventKind.DownOut, 1, 2, MouseButton.Left, 1, 0)
             );
-            view.DispatchMouseCore(
+            view.Runtime.Events.DispatchMouseCore(
                 mouseUpOut,
                 new MouseEvent(MouseEventKind.UpOut, 1, 2, MouseButton.Left, 1, 0)
             );
-            view.DispatchMouseMoveCore(mouseMove, new MouseMoveEvent(3, 4, null, 0));
-            view.DispatchScrollWheelCore(
+            view.Runtime.Events.DispatchMouseMoveCore(mouseMove, new MouseMoveEvent(3, 4, null, 0));
+            view.Runtime.Events.DispatchScrollWheelCore(
                 scrollWheel,
                 new ScrollWheelEvent(5, 6, 0, -3, ScrollDeltaUnits.Lines, 0)
             );
-            view.DispatchFileDropCore(
+            view.Runtime.Events.DispatchFileDropCore(
                 fileDrop,
                 new FileDropEvent(7, 8, ["/tmp/a.txt", "/tmp/b.txt"], 0)
             );
@@ -1968,7 +1968,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1985,16 +1985,16 @@ public sealed class SemanticRenderTests
 
     private static void Attach(View view, uint handle = 1)
     {
-        view.PrepareRuntime(
+        view.Runtime.PrepareRuntime(
             handle,
-            static callback => callback(),
+            static callback => callback.Invoke(),
             static _ => { },
             static (_, _) => { },
             static (_, _, _) => { },
             static (_, _, _, _, _, _, _, _, _, _) => { },
             static () => { }
         );
-        view.MountRuntime();
+        view.Runtime.MountRuntime();
     }
 
     private static void RenderInvalidMove()

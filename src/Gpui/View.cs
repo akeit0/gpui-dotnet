@@ -1,3 +1,5 @@
+using Gpui.Interop.Internal;
+
 namespace Gpui;
 
 /// <summary>
@@ -13,83 +15,49 @@ public interface IGeneratedViewFactory<TSelf>
 }
 
 /// <summary>
-/// Common runtime base for <see cref="View"/> and <see cref="View{TProps}"/>. Applications inherit
+/// Common authoring base for <see cref="View"/> and <see cref="View{TProps}"/>. Applications inherit
 /// one of those two concrete API shapes rather than inheriting this class directly.
 /// </summary>
 [System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
-public abstract partial class ViewBase
+public abstract class ViewBase
 {
-    /// <summary>
-    /// Binds a generated list-item renderer id to this mounted view. The token is consumed by
-    /// native virtualization and is never a managed delegate.
-    /// </summary>
-    protected ListItemRenderer BindListRenderer(uint rendererId)
-    {
-        if (rendererId == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(rendererId), "Renderer id 0 is reserved.");
-        }
+    private protected ViewBase() => Runtime = new ViewRuntime(this);
 
-        var attachment = RequireUiAttachment(
-            "Generated list renderers can only be materialized while the view is mounted. "
-                + "Use Rows.<renderer> from Render(), not from a constructor or field initializer."
-        );
+    internal ViewRuntime Runtime { get; }
+    /// <summary>Posts callbacks to this View's UI thread while it remains mounted.</summary>
+    protected internal Dispatcher Dispatcher => Runtime.Dispatcher;
+    /// <summary>True while the framework owns this View in a mounted tree.</summary>
+    protected bool IsMounted => Runtime.IsMounted;
+    /// <summary>True after terminal retirement; a CLR reference does not retain UI ownership.</summary>
+    protected bool IsUnmounted => Runtime.IsUnmounted;
+    /// <summary>Stable, lazily created token cancelled before OnUnmounted runs.</summary>
+    protected CancellationToken Lifetime => Runtime.Lifetime;
 
-        return new ListItemRenderer(((ulong)attachment.ViewHandle << 32) | rendererId);
-    }
+    /// <summary>Requests a dirty render. Safe from any thread while mounted.</summary>
+    protected internal void Invalidate() => Runtime.Invalidate();
+    /// <summary>Binds a generated element-only row renderer to this View's native handle.</summary>
+    protected ListItemRenderer BindListRenderer(uint rendererId) => Runtime.BindListRenderer(rendererId);
 
-    /// <summary>
-    /// Generated views override this for [GpuiListItem] methods. List item rendering is synchronous
-    /// and element-only; retained child View composition is intentionally not available inside a
-    /// virtualized row batch.
-    /// </summary>
+    /// <summary>Builds render IR synchronously without state mutation or external side effects.</summary>
+    protected abstract Element Render(ref RenderContext ui);
+    /// <summary>Generated dispatch for element-only virtual rows; called on demand.</summary>
     protected virtual Element RenderListItem(uint rendererId, int index, ref RenderContext ui) =>
         throw new InvalidOperationException(
-            $"Generated list renderer 0x{rendererId:X8} is not defined on {GetType().Name}."
-        );
+            $"Generated list renderer 0x{rendererId:X8} is not defined on {GetType().Name}.");
+    /// <summary>Called once after native acceptance; acquire mounted capabilities here.</summary>
+    protected virtual void OnMounted(ref ViewContext context) { }
+    /// <summary>Cleanup after terminal retirement, cancelled lifetime, and disabled commands.</summary>
+    protected virtual void OnUnmounted() { }
 
-    /// <summary>
-    /// Renders the view tree into native IR. Rendering must be synchronous, repeatable, and free of
-    /// externally visible side effects. Buffer growth never reruns user rendering. List batch
-    /// renderers are invoked lazily whenever the viewport requires an uncached range, which may
-    /// happen again after cache eviction or invalidation.
-    /// </summary>
-    protected abstract Element Render(ref RenderContext ui);
-
-    internal Element RenderCore(ref RenderContext ui)
-    {
-        BeginEventBindingPass(ViewEventBindingScope.Render);
-        var previousEventBindingOwner = _currentEventBindingOwner;
-        _currentEventBindingOwner = this;
-        var completed = false;
-        try
-        {
-            var element = Render(ref ui);
-            completed = true;
-            return element;
-        }
-        finally
-        {
-            try
-            {
-                CompleteEventBindingPass(ViewEventBindingScope.Render, completed);
-            }
-            finally
-            {
-                _currentEventBindingOwner = previousEventBindingOwner;
-            }
-        }
-    }
-
+    internal Element RenderCore(ref RenderContext ui) => Render(ref ui);
     internal Element RenderListItemCore(uint rendererId, int index, ref RenderContext ui) =>
         RenderListItem(rendererId, index, ref ui);
+    internal void OnMountedCore(ref ViewContext context) => OnMounted(ref context);
+    internal void OnUnmountedCore() => OnUnmounted();
 
     internal virtual void ValidateRenderInputs() { }
-
     internal virtual void CommitStagedProps() { }
-
     internal virtual void RollBackStagedProps() { }
-
     internal virtual void ReleaseRetainedState() { }
 }
 

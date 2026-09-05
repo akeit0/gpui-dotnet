@@ -19,7 +19,7 @@ internal sealed unsafe partial class ManagedSession
             {
                 using var reads = GetRenderState(RootView).Consumer!.Begin();
                 var ui = new RenderContext(arena, this, RootView, _application.Theme);
-                var element = RootView.RenderCore(ref ui);
+                var element = RootView.Runtime.RenderCore(ref ui);
                 ThrowIfUnavailable();
                 ManagedValidator.Validate(arena, element);
                 CompleteComposition(RootView);
@@ -66,7 +66,7 @@ internal sealed unsafe partial class ManagedSession
         {
             throw new InvalidOperationException("List renderer token 0 is reserved.");
         }
-        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner) || !owner.IsMountedCore)
+        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner) || !owner.Runtime.IsMounted)
         {
             throw new InvalidOperationException(
                 $"List renderer owner View 0x{viewHandle:X8} is no longer mounted."
@@ -84,12 +84,12 @@ internal sealed unsafe partial class ManagedSession
             throw new InvalidOperationException("Nested managed list rendering is not supported.");
         }
         Volatile.Write(ref _notifyAfterRender, 0);
-        var previousEventBindingOwner = ViewBase.CurrentEventBindingOwner;
+        var previousEventBindingOwner = ViewEventRegistry.CurrentEventBindingOwner;
         var completed = false;
         try
         {
-            owner.BeginEventBindingPass(ViewEventBindingScope.ListRange, artifact);
-            ViewBase.CurrentEventBindingOwner = owner;
+            owner.Runtime.Events.BeginEventBindingPass(ViewEventBindingScope.ListRange, artifact);
+            ViewEventRegistry.CurrentEventBindingOwner = owner;
             using var reads = _demandArtifacts[artifact].Begin();
             var ui = new RenderContext(arena, theme: _application.Theme);
             var batchRoot = ui.Div();
@@ -114,7 +114,7 @@ internal sealed unsafe partial class ManagedSession
         {
             try
             {
-                owner.CompleteEventBindingPass(ViewEventBindingScope.ListRange, completed);
+                owner.Runtime.Events.CompleteEventBindingPass(ViewEventBindingScope.ListRange, completed);
                 if (!completed)
                 {
                     if (_demandArtifacts.Remove(artifact, out var failed))
@@ -123,7 +123,7 @@ internal sealed unsafe partial class ManagedSession
             }
             finally
             {
-                ViewBase.CurrentEventBindingOwner = previousEventBindingOwner;
+                ViewEventRegistry.CurrentEventBindingOwner = previousEventBindingOwner;
                 EndRendering();
             }
         }
@@ -142,7 +142,7 @@ internal sealed unsafe partial class ManagedSession
             {
                 using var reads = state.Consumer!.Begin();
                 var ui = state.Fragment.BeginRender(this, view, _application.Theme);
-                var element = view.RenderCore(ref ui);
+                var element = view.Runtime.RenderCore(ref ui);
                 ThrowIfUnavailable();
                 state.Fragment.Validate(element);
                 view.ValidateRenderInputs();
@@ -238,7 +238,7 @@ internal sealed unsafe partial class ManagedSession
             }
 
             current.CommitStagedProps();
-            if (!current.IsMountedCore)
+            if (!current.Runtime.IsMounted)
             {
                 _mountCandidates.Add(current);
             }
@@ -286,7 +286,7 @@ internal sealed unsafe partial class ManagedSession
         foreach (var view in _mountCandidates)
         {
             ThrowIfUnavailable();
-            view.MountRuntime();
+            view.Runtime.MountRuntime();
         }
         _mountCandidates.Clear();
     }

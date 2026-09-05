@@ -36,7 +36,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
 
     internal ulong PendingRenderRevision => _pendingRenderRevision;
 
-    private readonly record struct IngressWork(ViewBase? View, Action? Callback);
+    private readonly record struct IngressWork(object? Target);
     private ApplicationExecution Execution => _application.Execution;
     private bool IsAcceptingWork => Volatile.Read(ref _stopped) == 0 && Failure is null;
     private const int MaxIngressPerRender = 1024;
@@ -86,18 +86,19 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     {
         while (_ingress.TryDequeue(out var work))
         {
-            work.View?.ConsumeInvalidation();
+            if (work.Target is ViewBase view)
+                view.Runtime.ConsumeInvalidation();
         }
         Volatile.Write(ref _allViewsPending, 0);
     }
 
     internal void Invalidate(ViewBase view)
     {
-        if (!IsAcceptingWork || !view.TryQueueInvalidation())
+        if (!IsAcceptingWork || !view.Runtime.TryQueueInvalidation())
         {
             return;
         }
-        Enqueue(new IngressWork(view, null), notify: true);
+        Enqueue(new IngressWork(view), notify: true);
     }
 
     /// <summary>
@@ -146,7 +147,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         {
             return;
         }
-        if (_viewsByHandle.TryGetValue(ownerView, out var view) && view.IsMountedCore)
+        if (_viewsByHandle.TryGetValue(ownerView, out var view) && view.Runtime.IsMounted)
         {
             MarkDirty(view);
         }
@@ -160,7 +161,14 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
             return;
         }
 
-        Enqueue(new IngressWork(null, callback), notify: true);
+        Enqueue(new IngressWork(callback), notify: true);
+    }
+
+    internal void Post(IIngressWork work)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+        if (IsAcceptingWork)
+            Enqueue(new IngressWork(work), notify: true);
     }
 
     internal void Send(SendOrPostCallback callback, object? state)
@@ -234,14 +242,18 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         while (remaining-- > 0 && _ingress.TryDequeue(out var work))
         {
             ThrowIfUnavailable();
-            if (work.View is { } view)
+            if (work.Target is ViewBase view)
             {
-                view.ConsumeInvalidation();
+                view.Runtime.ConsumeInvalidation();
                 MarkDirty(view);
             }
-            else if (work.Callback is { } callback)
+            else if (work.Target is Action callback)
             {
                 callback();
+            }
+            else if (work.Target is IIngressWork operation)
+            {
+                operation.Invoke();
             }
             else
             {

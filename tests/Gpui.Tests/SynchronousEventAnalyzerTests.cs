@@ -17,7 +17,7 @@ public sealed class SynchronousEventAnalyzerTests
     [InlineData("ui.Button(\"b\", \"B\").OnClick(this, (view, e) => AsyncClick(view, e));", true)]
     [InlineData("ui.BindNativeExtensionEvent<EventView, ExtensionEvent>(this, async (view, e) => { await Task.Yield(); });", true)]
     [InlineData("ui.Button(\"b\", \"B\").OnClick(this, (view, e) => view._value++);", false)]
-    [InlineData("ui.Button(\"b\", \"B\").OnClick(this, (view, e) => view.StartWork(1, static async (value, token) => { await Task.Yield(); return value; }, value => view._value = value));", false)]
+    [InlineData("ui.Button(\"b\", \"B\").OnClick(this, (view, e) => view._work.Start(view, 1, static async (value, token) => { await Task.Yield(); return value; }, static (owner, value) => owner._value = value));", false)]
     [InlineData("AcceptOrdinaryCallback(async () => { await Task.Yield(); });", false)]
     public async Task DetectsAsyncCallbacksWithoutRejectingOwnedProducers(string body, bool rejected)
     {
@@ -28,6 +28,8 @@ public sealed class SynchronousEventAnalyzerTests
             public sealed class EventView : View
             {
                 private int _value;
+                private WorkScope _work = null!;
+                protected override void OnMounted(ref ViewContext context) => _work = context.Work;
                 private static async void AsyncClick(EventView view, ClickEvent e) { await Task.Yield(); }
                 private static Task<int> GetData() => Task.FromResult(1);
                 private static ValueTask<int> GetValueData() => ValueTask.FromResult(1);

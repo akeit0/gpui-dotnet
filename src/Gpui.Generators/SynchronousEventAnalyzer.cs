@@ -10,7 +10,7 @@ public sealed class SynchronousEventAnalyzer : DiagnosticAnalyzer
 {
     private static readonly DiagnosticDescriptor SynchronousEvent = new(
         "GPUI018", "GPUI event callbacks must be synchronous",
-        "Use a synchronous callback and StartWork instead of an async handler or a discarded task",
+        "Use a synchronous callback and WorkScope.Start instead of an async handler or a discarded task",
         "Ownership", DiagnosticSeverity.Error, isEnabledByDefault: true
     );
 
@@ -29,7 +29,7 @@ public sealed class SynchronousEventAnalyzer : DiagnosticAnalyzer
         var invocation = (IInvocationOperation)context.Operation;
         var method = invocation.TargetMethod;
         if (method.ContainingAssembly.Name is not ("Gpui" or "Gpui.Core" or "Gpui.Editor")
-            || method.Name == "StartWork")
+            || method.ContainingType.ToDisplayString() == "Gpui.WorkScope")
             return;
 
         foreach (var argument in invocation.Arguments)
@@ -47,7 +47,7 @@ public sealed class SynchronousEventAnalyzer : DiagnosticAnalyzer
 
     private static bool ContainsDetachedWork(IOperation operation)
     {
-        // Nested producers passed to StartWork have their own async contract.
+        // Nested producers passed to WorkScope.Start have their own async contract.
         if (operation is IAnonymousFunctionOperation or ILocalFunctionOperation)
             return false;
         if (operation is IExpressionStatementOperation statement)

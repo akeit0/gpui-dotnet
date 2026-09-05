@@ -1,3 +1,4 @@
+using Gpui.Interop.Internal;
 using System.Runtime.CompilerServices;
 using Gpui.Interop;
 
@@ -34,7 +35,7 @@ public readonly unsafe ref partial struct RenderContext
     public GpuiTheme Theme => _theme;
 
     internal ViewBase EventBindingOwner =>
-        ViewBase.CurrentEventBindingOwner
+        ViewEventRegistry.CurrentEventBindingOwner
         ?? _owner
         ?? throw new InvalidOperationException(
             "Managed title-bar menu actions require an owning View during rendering."
@@ -43,8 +44,8 @@ public readonly unsafe ref partial struct RenderContext
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void AddInteractiveOwner(Element element)
     {
-        var owner = ViewBase.CurrentEventBindingOwner ?? _owner;
-        var handle = owner?.RuntimeViewHandle ?? 0;
+        var owner = ViewEventRegistry.CurrentEventBindingOwner ?? _owner;
+        var handle = owner?.Runtime.RuntimeViewHandle ?? 0;
         if (handle != 0)
         {
             ArenaWriter.AddU32(element, OpCode.ElementOwner, handle);

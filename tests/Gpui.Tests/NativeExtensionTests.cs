@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Buffers.Text;
 using Gpui.Editor;
 using Gpui.Interop;
+using Gpui.Interop.Internal;
 using static Gpui.Units;
 
 namespace Gpui.Tests;
@@ -22,7 +23,7 @@ public sealed class NativeExtensionTests
                 static (target, extensionEvent) => target.ExtensionEventValue = extensionEvent.Value
             );
 
-            view.DispatchNativeExtensionCore(
+            view.Runtime.Events.DispatchNativeExtensionCore(
                 unchecked((uint)binding.Token),
                 new NativeExtensionEvent(7, 0, 3, [42])
             );
@@ -31,7 +32,7 @@ public sealed class NativeExtensionTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -140,7 +141,7 @@ public sealed class NativeExtensionTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -155,7 +156,7 @@ public sealed class NativeExtensionTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -315,7 +316,7 @@ public sealed class NativeExtensionTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -339,7 +340,7 @@ public sealed class NativeExtensionTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -417,7 +418,7 @@ public sealed class NativeExtensionTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -425,8 +426,8 @@ public sealed class NativeExtensionTests
     public void KeyedEditorEventsCanBeDeclaredBeforeMounting()
     {
         var view = new ExtensionProbeView();
-        view.PrepareRuntime(
-            42, static callback => callback(), static _ => { },
+        view.Runtime.PrepareRuntime(
+            42, static callback => callback.Invoke(), static _ => { },
             static (_, _) => { }, static (_, _, _) => { },
             static (_, _, _, _, _, _, _, _, _, _) => { },
             static () => { }
@@ -441,13 +442,13 @@ public sealed class NativeExtensionTests
             );
             arena.Validate(editor);
             Assert.Contains("gpui.net.editor", arena.Dump(editor), StringComparison.Ordinal);
-            Assert.False(view.IsMountedCore);
-            view.MountRuntime();
+            Assert.False(view.Runtime.IsMounted);
+            view.Runtime.MountRuntime();
             Assert.True(view.Editor.IsBound);
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -494,16 +495,16 @@ public sealed class NativeExtensionTests
         NativeExtensionCommandDispatcher? extensionCommand = null
     )
     {
-        view.PrepareRuntime(
+        view.Runtime.PrepareRuntime(
             handle,
-            static callback => callback(),
+            static callback => callback.Invoke(),
             static _ => { },
             static (_, _) => { },
             static (_, _, _) => { },
             extensionCommand ?? (static (_, _, _, _, _, _, _, _, _, _) => { }),
             static () => { }
         );
-        view.MountRuntime();
+        view.Runtime.MountRuntime();
     }
 
     private sealed class ExtensionProbeView : View

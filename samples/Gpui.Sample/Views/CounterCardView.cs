@@ -5,16 +5,20 @@ using static Gpui.Units;
 internal sealed partial class CounterCardView : View<CounterCardProps>
 {
     private readonly Signal<int> _count = new(0);
+    private WorkScope _work = null!;
+
+    protected override void OnMounted(ref ViewContext context) => _work = context.Work;
 
     private void Increment() =>
-        StartWork(
+        _work.Start(
+            this,
             100,
             static async (delay, lifetime) =>
             {
                 await Task.Delay(delay, lifetime).ConfigureAwait(false);
                 return 1;
             },
-            increment => _count.Value += increment
+            static (view, increment) => view._count.Value += increment
         );
 
     protected override Element Render(ref RenderContext ui) =>

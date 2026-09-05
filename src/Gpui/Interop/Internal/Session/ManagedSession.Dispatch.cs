@@ -157,40 +157,40 @@ internal sealed unsafe partial class ManagedSession
     }
 
     internal void DispatchClick(ulong eventToken, ClickEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchClickCore(id, data));
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchClickCore(id, data));
 
     internal void DispatchInput(ulong eventToken, InputEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchInputCore(id, data));
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchInputCore(id, data));
 
     internal void DispatchSlider(ulong eventToken, SliderEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchSliderCore(id, data));
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchSliderCore(id, data));
 
     internal void DispatchDock(ulong eventToken, DockEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchDockCore(id, data));
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchDockCore(id, data));
 
     internal void DispatchKey(ulong eventToken, KeyEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchKeyCore(id, data));
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchKeyCore(id, data));
 
     internal void DispatchMouse(ulong eventToken, MouseEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchMouseCore(id, data));
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchMouseCore(id, data));
 
     internal void DispatchModifiers(ulong eventToken, ModifiersEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchModifiersCore(id, data));
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchModifiersCore(id, data));
 
     internal void DispatchHover(ulong eventToken, HoverEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchHoverCore(id, data));
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchHoverCore(id, data));
 
     internal void DispatchMouseMove(ulong eventToken, MouseMoveEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchMouseMoveCore(id, data));
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchMouseMoveCore(id, data));
 
     internal void DispatchScrollWheel(ulong eventToken, ScrollWheelEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchScrollWheelCore(id, data));
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchScrollWheelCore(id, data));
 
     internal void DispatchFileDrop(ulong eventToken, FileDropEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchFileDropCore(id, data));
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchFileDropCore(id, data));
 
     internal void DispatchNativeExtension(ulong eventToken, NativeExtensionEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchNativeExtensionCore(id, data));
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchNativeExtensionCore(id, data));
 
     private void DispatchEvent<TEvent>(
         ulong eventToken,
@@ -205,7 +205,7 @@ internal sealed unsafe partial class ManagedSession
         {
             var viewHandle = (uint)(eventToken >> 32);
             var handlerId = (uint)eventToken;
-            if (viewHandle == 0 || !ViewBase.IsWellFormedEventId(handlerId))
+            if (viewHandle == 0 || !ViewEventRegistry.IsWellFormedEventId(handlerId))
             {
                 throw new InvalidOperationException("Malformed event token.");
             }

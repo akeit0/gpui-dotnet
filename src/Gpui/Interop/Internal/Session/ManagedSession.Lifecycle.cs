@@ -90,7 +90,7 @@ internal sealed unsafe partial class ManagedSession
         try
         {
             _ = GetRenderState(view);
-            view.PrepareRuntime(
+            view.Runtime.PrepareRuntime(
                 handle,
                 Post,
                 Invalidate,
@@ -117,11 +117,11 @@ internal sealed unsafe partial class ManagedSession
         RetireDemandArtifacts(view);
         if (_renderStates.TryGetValue(view, out var retiring))
             retiring.Consumer?.Dispose();
-        var handle = view.RuntimeViewHandle;
+        var handle = view.Runtime.RuntimeViewHandle;
         Exception? lifecycleFailure = null;
         try
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
         catch (Exception exception)
         {

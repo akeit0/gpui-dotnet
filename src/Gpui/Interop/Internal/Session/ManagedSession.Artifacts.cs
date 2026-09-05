@@ -48,7 +48,7 @@ internal sealed unsafe partial class ManagedSession
             }
             _demandArtifacts.Remove(artifact);
             entry.Dispose();
-            entry.Owner.ReleaseEventArtifact(artifact);
+            entry.Owner.Runtime.Events.ReleaseEventArtifact(artifact);
         }
         if (status != 0)
         {
@@ -62,7 +62,7 @@ internal sealed unsafe partial class ManagedSession
         {
             if (ReferenceEquals(artifact.Owner, owner))
             {
-                owner.ReleaseEventArtifact(id);
+                owner.Runtime.Events.ReleaseEventArtifact(id);
                 artifact.Dispose();
                 _demandArtifacts.Remove(id);
             }

@@ -10,7 +10,9 @@ are described in [ASYNC_WORK.md](ASYNC_WORK.md). The open work below builds on t
 ## Performance and platform verification
 
 Measure warm allocations, subscriber cost, repeated invalidation, cold arena growth,
-row-cache churn, and retained bytes; run the native suite and exercise Windows/macOS
+row-cache churn, retained bytes, and asynchronous work under sustained pending/failure load;
+separate framework allocations from application Tasks and their execution contexts.
+Run the native suite and exercise Windows/macOS
 behavior (theme switching, resize, scroll, focus, title-bar modes, menu activation).
 Do not report visual verification when screen access was unavailable.
 

@@ -44,9 +44,11 @@ During native callbacks, the binding installs a per-window `GpuiSynchronizationC
 foreground dispatch. Events are synchronous and do not return `Task` or `ValueTask`. The context
 does not confer View ownership on manually detached work; use the explicit owned-work boundary.
 
-Use `StartWork` for View-owned production. It schedules a static producer with an explicit request
-and lifetime token on the thread pool, suppressing execution-context flow. The worker holds weak
-UI references; the View owns completion callbacks. Results return through the stable command route
+Use `WorkScope.Start` for View-owned production. It invokes a static producer with an explicit request
+and lifetime token on the calling application thread. The application owns offloading and its
+async continuation/context policy; the framework does not schedule the producer onto a worker.
+Acquire the scope through `ViewContext.Work`. It owns pending operations and clears their UI state
+and route references on retirement. Results return through the stable command route
 and are applied only while that owner remains mounted. Retirement drops pending callbacks before
 cancellation, even when a producer ignores its token. See [Asynchronous work](ASYNC_WORK.md).
 
@@ -96,7 +98,7 @@ deactivation linear with any command already entering from another thread.
 | Window and retained-resource controller commands | Any thread while mounted; GPUI mutation runs on the GPUI application thread |
 | `Lifetime` cancellation observation | Any thread |
 
-Any-thread support is an ingress guarantee, not general thread safety for a View. Use `StartWork`
+Any-thread support is an ingress guarantee, not general thread safety for a View. Use `WorkScope.Start`
 to compute or perform I/O and apply live results through foreground ingress. Cancellation alone
 does not establish ownership: producers may ignore their token, so completion must recheck the
 original View's route. `Dispatcher.Post` provides that check for manually posted synchronous work.

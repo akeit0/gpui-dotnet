@@ -107,7 +107,7 @@ public sealed unsafe class RenderOutputTests
             session.RenderRootOutput(&rootOutput);
             session.CompleteRender(session.PendingRenderRevision, 0);
             var originalTextByte = rootOutput.Utf8[0];
-            var token = ((ulong)view.RuntimeViewHandle << 32) | 1;
+            var token = ((ulong)view.Runtime.RuntimeViewHandle << 32) | 1;
             RenderArena rangeOutput = default;
             var root = session.RenderListRangeOutput(token, 1, 10, 8, &rangeOutput, out _);
             ManagedValidator.Validate(&rangeOutput, new Element(&rangeOutput, root, rangeOutput.Generation));

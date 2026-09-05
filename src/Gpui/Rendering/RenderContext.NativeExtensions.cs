@@ -15,7 +15,7 @@ public readonly unsafe ref partial struct RenderContext
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        return new NativeExtensionEventBinding(view.BindNativeExtensionEvent(callback));
+        return new NativeExtensionEventBinding(view.Runtime.Events.BindNativeExtensionEvent(callback));
     }
 
     /// <summary>

@@ -153,7 +153,7 @@ public readonly struct InputController
     public void SetValue(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.Input,
                 ResourceCommandKind.InputSetValue,
@@ -173,11 +173,11 @@ public readonly struct InputController
     /// </summary>
     public void SetValue(ReadOnlySpan<byte> utf8Value)
     {
-        Owner.DispatchUtf8InputValue(Utf8KeyArray, utf8Value);
+        Owner.Runtime.DispatchUtf8InputValue(Utf8KeyArray, utf8Value);
     }
 
     private void Dispatch(ResourceCommandKind command) =>
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(ResourceKind.Input, command, null, 0, 0, null, Utf8KeyArray)
         );
 

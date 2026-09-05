@@ -1,7 +1,6 @@
-using System.Collections.Concurrent;
 using System.Runtime.ExceptionServices;
 
-namespace Gpui;
+namespace Gpui.Interop.Internal;
 
 internal delegate void Utf8InputValueDispatcher(
     uint ownerView,
@@ -22,217 +21,9 @@ internal delegate void NativeExtensionCommandDispatcher(
     ReadOnlySpan<byte> payload
 );
 
-public abstract partial class ViewBase
+internal sealed class ViewRuntime
 {
     private static readonly CancellationToken CancelledLifetime = new(canceled: true);
-    private static readonly ConcurrentBag<MountedViewAttachment> UiAttachmentPool = [];
-    private static int _uiAttachmentPoolCount;
-
-    private const int MaxPooledUiAttachments = 256;
-    private const int MaxRetainedEventEntryCapacity = 256;
-
-    // Any-thread ingress is isolated from the resettable GPUI-thread state below. A caller may
-    // briefly retain this route while unmount waits in Deactivate, so routes are never pooled.
-    private sealed class ViewCommandRoute
-    {
-        private readonly object _gate = new();
-        private bool _active;
-
-        internal ViewCommandRoute(
-            uint viewHandle,
-            Action<Action> post,
-            Action<ViewBase> invalidate,
-            Action<uint, ResourceCommand> resourceCommand,
-            Utf8InputValueDispatcher utf8InputValue,
-            NativeExtensionCommandDispatcher nativeExtensionCommand,
-            Action ensureAvailable
-        )
-        {
-            ViewHandle = viewHandle;
-            Post = post;
-            Invalidate = invalidate;
-            ResourceCommand = resourceCommand;
-            Utf8InputValue = utf8InputValue;
-            NativeExtensionCommand = nativeExtensionCommand;
-            EnsureAvailable = ensureAvailable;
-        }
-
-        internal uint ViewHandle { get; }
-        internal Action<Action> Post { get; }
-        internal Action<ViewBase> Invalidate { get; }
-        internal Action<uint, ResourceCommand> ResourceCommand { get; }
-        internal Utf8InputValueDispatcher Utf8InputValue { get; }
-        internal NativeExtensionCommandDispatcher NativeExtensionCommand { get; }
-        internal Action EnsureAvailable { get; }
-
-        internal bool TryPost(Action callback)
-        {
-            lock (_gate)
-            {
-                if (!_active)
-                {
-                    return false;
-                }
-                Post(() =>
-                {
-                    if (Volatile.Read(ref _active))
-                    {
-                        callback();
-                    }
-                });
-                return true;
-            }
-        }
-
-        internal bool TryInvalidate(ViewBase owner)
-        {
-            lock (_gate)
-            {
-                if (!_active)
-                {
-                    return false;
-                }
-                Invalidate(owner);
-                return true;
-            }
-        }
-
-        internal bool TryResourceCommand(ResourceCommand command)
-        {
-            lock (_gate)
-            {
-                if (!_active)
-                {
-                    return false;
-                }
-                ResourceCommand(ViewHandle, command);
-                return true;
-            }
-        }
-
-        internal bool TryUtf8InputValue(ReadOnlySpan<byte> utf8Key, ReadOnlySpan<byte> utf8Value)
-        {
-            lock (_gate)
-            {
-                if (!_active)
-                {
-                    return false;
-                }
-                Utf8InputValue(ViewHandle, utf8Key, utf8Value);
-                return true;
-            }
-        }
-
-        internal bool TryNativeExtensionCommand(
-            uint schemaVersion,
-            ulong schemaHash,
-            ReadOnlySpan<byte> extensionId,
-            ReadOnlySpan<byte> componentKind,
-            ReadOnlySpan<byte> utf8Key,
-            ushort command,
-            ushort flags,
-            ulong expectedRevision,
-            ReadOnlySpan<byte> payload
-        )
-        {
-            lock (_gate)
-            {
-                if (!_active)
-                {
-                    return false;
-                }
-                NativeExtensionCommand(
-                    ViewHandle,
-                    schemaVersion,
-                    schemaHash,
-                    extensionId,
-                    componentKind,
-                    utf8Key,
-                    command,
-                    flags,
-                    expectedRevision,
-                    payload
-                );
-                return true;
-            }
-        }
-
-        internal void Deactivate()
-        {
-            lock (_gate)
-            {
-                Volatile.Write(ref _active, false);
-            }
-        }
-
-        internal void Activate()
-        {
-            lock (_gate)
-            {
-                Volatile.Write(ref _active, true);
-            }
-        }
-    }
-
-    // Only GPUI foreground callbacks access this object. That confinement makes complete reset
-    // and immediate reuse safe after the command route has been deactivated.
-    private sealed class MountedViewAttachment
-    {
-        internal uint ViewHandle { get; private set; }
-        internal int ManagedThreadId { get; private set; }
-        internal List<EventEntry>? EventEntries { get; set; }
-        internal Stack<int>? FreeEventSlots { get; set; }
-        internal Dictionary<uint, int>? EventSlots { get; set; }
-        internal Dictionary<ulong, List<int>>? ArtifactEventSlots { get; set; }
-        internal uint NextEventId { get; set; }
-        internal ulong EventBindingArtifact { get; set; }
-        internal ViewEventBindingScope EventBindingScope { get; set; }
-        internal long EventBindingPass { get; set; }
-        internal long NextEventBindingPass { get; set; }
-        internal ulong NextResourceKeyId { get; set; }
-
-        internal void Activate(uint viewHandle)
-        {
-            ViewHandle = viewHandle;
-            ManagedThreadId = Environment.CurrentManagedThreadId;
-        }
-
-        internal void Reset()
-        {
-            AssertAccess();
-            ViewHandle = 0;
-            if (EventEntries is { Capacity: > MaxRetainedEventEntryCapacity })
-            {
-                EventEntries = null;
-                FreeEventSlots = null;
-                EventSlots = null;
-            }
-            else
-            {
-                EventEntries?.Clear();
-                FreeEventSlots?.Clear();
-                EventSlots?.Clear();
-            }
-            ArtifactEventSlots = null;
-            NextEventId = 0;
-            EventBindingArtifact = 0;
-            EventBindingScope = ViewEventBindingScope.None;
-            EventBindingPass = 0;
-            NextEventBindingPass = 0;
-            NextResourceKeyId = 0;
-            ManagedThreadId = 0;
-        }
-
-        internal void AssertAccess()
-        {
-            if (ManagedThreadId != Environment.CurrentManagedThreadId)
-            {
-                throw new InvalidOperationException(
-                    "Managed View render and event state is confined to the GPUI application thread."
-                );
-            }
-        }
-    }
 
     private readonly object _lifecycleGate = new();
     private CancellationTokenSource? _lifetimeSource;
@@ -255,13 +46,18 @@ public abstract partial class ViewBase
     private const int LifecycleUnmounting = 4;
     private const int LifecycleUnmounted = 5;
 
-    private protected ViewBase()
+    private readonly ViewBase _owner;
+
+    internal ViewRuntime(ViewBase owner)
     {
+        _owner = owner;
         Dispatcher = new Dispatcher(this);
     }
 
+    internal ViewEventRegistry Events => RequireUiAttachment().Events;
+
     /// <summary>Posts managed work to this view's GPUI UI thread.</summary>
-    protected internal Dispatcher Dispatcher { get; }
+    internal Dispatcher Dispatcher { get; }
 
     /// <summary>
     /// Allocates the next auto resource-key id for this view. Ids are monotonic per view
@@ -275,7 +71,7 @@ public abstract partial class ViewBase
     }
 
     /// <summary>True while this View is owned by a running managed View tree.</summary>
-    protected bool IsMounted
+    internal bool IsMounted
     {
         get
         {
@@ -288,14 +84,13 @@ public abstract partial class ViewBase
     /// True after this View permanently leaves framework ownership. An unmounted View instance
     /// cannot be mounted or used again, even when application code still holds a reference.
     /// </summary>
-    protected bool IsUnmounted => Volatile.Read(ref _lifecycle) >= LifecycleUnmounting;
+    internal bool IsUnmounted => Volatile.Read(ref _lifecycle) >= LifecycleUnmounting;
 
     /// <summary>
     /// Cancellation token for this View instance's complete one-shot lifetime. It is allocated
-    /// lazily, remains stable once requested, and is cancelled before <see cref="OnUnmounted"/>
-    /// runs.
+    /// lazily, remains stable once requested, and is cancelled before application cleanup.
     /// </summary>
-    protected CancellationToken Lifetime
+    internal CancellationToken Lifetime
     {
         get
         {
@@ -316,20 +111,11 @@ public abstract partial class ViewBase
         }
     }
 
-    /// <summary>Called at most once when this View enters a running managed View tree.</summary>
-    protected virtual void OnMounted(ref ViewContext context) { }
-
-    /// <summary>
-    /// Called exactly once if mounting began, after this View permanently leaves framework
-    /// ownership. <see cref="Lifetime"/> is cancelled and runtime commands are unavailable.
-    /// </summary>
-    protected virtual void OnUnmounted() { }
-
     /// <summary>Schedules a dirty render. Safe to call from any thread while mounted.</summary>
-    protected internal void Invalidate()
+    internal void Invalidate()
     {
         var route = Volatile.Read(ref _commandRoute);
-        if (route is null || !route.TryInvalidate(this))
+        if (route is null || !route.TryInvalidate(_owner))
         {
             throw new InvalidOperationException("The view is not mounted in a GPUI application.");
         }
@@ -349,19 +135,9 @@ public abstract partial class ViewBase
         }
     }
 
-    internal bool IsMountedCore
-    {
-        get
-        {
-            var lifecycle = Volatile.Read(ref _lifecycle);
-            return lifecycle is LifecycleMounting or LifecycleMounted;
-        }
-    }
-    internal bool IsUnmountedCore => Volatile.Read(ref _lifecycle) >= LifecycleUnmounting;
-
     internal void PrepareRuntime(
         uint viewHandle,
-        Action<Action> post,
+        Action<IIngressWork> post,
         Action<ViewBase> invalidate,
         Action<uint, ResourceCommand> resourceCommand,
         Utf8InputValueDispatcher utf8InputValue,
@@ -385,7 +161,7 @@ public abstract partial class ViewBase
             if (_lifecycle >= LifecycleUnmounting)
             {
                 throw new ObjectDisposedException(
-                    GetType().FullName,
+                    _owner.GetType().FullName,
                     "An unmounted View instance cannot be mounted again."
                 );
             }
@@ -406,9 +182,18 @@ public abstract partial class ViewBase
                     ensureAvailable
                 )
             );
-            _uiAttachment = RentUiAttachment(viewHandle);
+            _uiAttachment = MountedViewAttachment.Rent(_owner, viewHandle);
             Volatile.Write(ref _lifecycle, LifecyclePrepared);
         }
+    }
+
+    internal WorkScope GetWorkScope()
+    {
+        var attachment = RequireUiAttachment();
+        if (!IsMounted)
+            throw new InvalidOperationException("A work scope requires a mounted View.");
+        _commandRoute!.EnsureAvailable();
+        return attachment.Work ??= new WorkScope(_commandRoute, Lifetime, attachment.ManagedThreadId);
     }
 
     internal void MountRuntime()
@@ -430,8 +215,8 @@ public abstract partial class ViewBase
 
         try
         {
-            var context = new ViewContext(this);
-            OnMounted(ref context);
+            var context = new ViewContext(_owner);
+            _owner.OnMountedCore(ref context);
             lock (_lifecycleGate)
             {
                 if (
@@ -441,7 +226,7 @@ public abstract partial class ViewBase
                 )
                 {
                     throw new ObjectDisposedException(
-                        GetType().FullName,
+                        _owner.GetType().FullName,
                         "The View left framework ownership while it was mounting."
                     );
                 }
@@ -489,10 +274,10 @@ public abstract partial class ViewBase
         }
 
         commandRoute?.Deactivate();
-        _pendingWork = null;
+        uiAttachment?.Work?.Retire();
         if (uiAttachment is not null)
         {
-            ReturnUiAttachment(uiAttachment);
+            MountedViewAttachment.Return(uiAttachment);
         }
 
         Exception? cancellationFailure = null;
@@ -512,7 +297,7 @@ public abstract partial class ViewBase
             {
                 try
                 {
-                    OnUnmounted();
+                    _owner.OnUnmountedCore();
                 }
                 catch (Exception exception)
                 {
@@ -524,7 +309,7 @@ public abstract partial class ViewBase
         {
             try
             {
-                ReleaseRetainedState();
+                _owner.ReleaseRetainedState();
                 lifetimeSource?.Dispose();
             }
             finally
@@ -600,7 +385,7 @@ public abstract partial class ViewBase
     internal void InvalidateFromController()
     {
         var route = Volatile.Read(ref _commandRoute);
-        if (route is null || !route.TryInvalidate(this))
+        if (route is null || !route.TryInvalidate(_owner))
         {
             throw new InvalidOperationException("The view is not mounted in a GPUI application.");
         }
@@ -616,33 +401,6 @@ public abstract partial class ViewBase
         }
     }
 
-    private static MountedViewAttachment RentUiAttachment(uint viewHandle)
-    {
-        if (UiAttachmentPool.TryTake(out var attachment))
-        {
-            Interlocked.Decrement(ref _uiAttachmentPoolCount);
-        }
-        else
-        {
-            attachment = new MountedViewAttachment();
-        }
-
-        attachment.Activate(viewHandle);
-        return attachment;
-    }
-
-    private static void ReturnUiAttachment(MountedViewAttachment attachment)
-    {
-        attachment.Reset();
-        if (Interlocked.Increment(ref _uiAttachmentPoolCount) <= MaxPooledUiAttachments)
-        {
-            UiAttachmentPool.Add(attachment);
-            return;
-        }
-
-        Interlocked.Decrement(ref _uiAttachmentPoolCount);
-    }
-
     private MountedViewAttachment RequireUiAttachment(
         string message = "The view is not mounted in a GPUI application."
     )
@@ -650,5 +408,45 @@ public abstract partial class ViewBase
         var attachment = _uiAttachment ?? throw new InvalidOperationException(message);
         attachment.AssertAccess();
         return attachment;
+    }
+
+    internal ListItemRenderer BindListRenderer(uint rendererId)
+    {
+        if (rendererId == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(rendererId), "Renderer id 0 is reserved.");
+        }
+
+        var attachment = RequireUiAttachment(
+            "Generated list renderers can only be materialized while the view is mounted. "
+                + "Use Rows.<renderer> from Render(), not from a constructor or field initializer."
+        );
+
+        return new ListItemRenderer(((ulong)attachment.ViewHandle << 32) | rendererId);
+    }
+
+    internal Element RenderCore(ref RenderContext ui)
+    {
+        Events.BeginEventBindingPass(ViewEventBindingScope.Render);
+        var previousEventBindingOwner = ViewEventRegistry.CurrentEventBindingOwner;
+        ViewEventRegistry.CurrentEventBindingOwner = _owner;
+        var completed = false;
+        try
+        {
+            var element = _owner.RenderCore(ref ui);
+            completed = true;
+            return element;
+        }
+        finally
+        {
+            try
+            {
+                Events.CompleteEventBindingPass(ViewEventBindingScope.Render, completed);
+            }
+            finally
+            {
+                ViewEventRegistry.CurrentEventBindingOwner = previousEventBindingOwner;
+            }
+        }
     }
 }

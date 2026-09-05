@@ -35,8 +35,8 @@ public sealed class ViewWorkAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeInvocation(OperationAnalysisContext context)
     {
         var invocation = (IInvocationOperation)context.Operation;
-        if (invocation.TargetMethod.Name != "StartWork"
-            || invocation.TargetMethod.ContainingType.ToDisplayString() != "Gpui.ViewBase")
+        if (invocation.TargetMethod.Name != "Start"
+            || invocation.TargetMethod.ContainingType.ToDisplayString() != "Gpui.WorkScope")
             return;
 
         foreach (var argument in invocation.Arguments)
@@ -52,7 +52,7 @@ public sealed class ViewWorkAnalyzer : DiagnosticAnalyzer
                 if (!isStatic)
                     context.ReportDiagnostic(Diagnostic.Create(StaticProducer, argument.Syntax.GetLocation()));
             }
-            else if (argument.Parameter?.Name is "complete" or "failed")
+            else if (argument.Parameter?.Name is "complete" or "failed" or "cancelled")
             {
                 if (value is IAnonymousFunctionOperation { Symbol.IsAsync: true }
                     or IMethodReferenceOperation { Method.IsAsync: true })

@@ -249,14 +249,14 @@ public sealed class GpuiApplication
             {
                 throw new InvalidOperationException("The GPUI application has already stopped.");
             }
-            if (rootView.IsUnmountedCore)
+            if (rootView.Runtime.IsUnmounted)
             {
                 throw new ObjectDisposedException(
                     rootView.GetType().FullName,
                     "An unmounted View instance cannot own another window."
                 );
             }
-            if (rootView.IsMountedCore || !_roots.Add(rootView))
+            if (rootView.Runtime.IsMounted || !_roots.Add(rootView))
             {
                 throw new InvalidOperationException(
                     "A View instance can be the root of only one open GPUI window."
@@ -479,7 +479,7 @@ public sealed class GpuiApplication
     {
         try
         {
-            root.UnmountRuntime();
+            root.Runtime.UnmountRuntime();
         }
         finally
         {

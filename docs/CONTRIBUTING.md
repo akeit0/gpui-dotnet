@@ -69,7 +69,7 @@ changes, refreshes, splices, and table column changes.
 perform I/O, start tasks, invoke controllers, or call `Invalidate()`. Ref-bound framework
 controllers may acquire their stable key during rendering.
 
-Perform state transitions in synchronous events and lifecycle methods. Use `StartWork` for
+Perform state transitions in synchronous events and lifecycle methods. Use `WorkScope.Start` for
 asynchronous production with a request snapshot, lifetime token, and live completion callback.
 A window or committed parent slot owns
 each View; CLR references do not retain UI ownership, and unmounted instances are terminal.

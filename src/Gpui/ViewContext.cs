@@ -12,6 +12,9 @@ public readonly ref struct ViewContext
 
     public Dispatcher Dispatcher => _view.Dispatcher;
 
+    /// <summary>Optional task observation scoped to this View's mounted lifetime.</summary>
+    public WorkScope Work => _view.Runtime.GetWorkScope();
+
     public void Invalidate() => _view.Invalidate();
 
     /// <summary>

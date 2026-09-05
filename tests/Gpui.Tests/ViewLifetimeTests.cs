@@ -13,30 +13,30 @@ public sealed class ViewLifetimeTests
 
         Assert.True(lifetime.CanBeCanceled);
         Assert.False(lifetime.IsCancellationRequested);
-        Assert.Equal(0u, view.RuntimeViewHandle);
+        Assert.Equal(0u, view.Runtime.RuntimeViewHandle);
 
         Attach(view);
 
         Assert.True(view.Mounted);
         Assert.False(view.Unmounted);
-        Assert.Equal(1u, view.RuntimeViewHandle);
+        Assert.Equal(1u, view.Runtime.RuntimeViewHandle);
         Assert.Equal(lifetime, view.ViewLifetime);
         Assert.Equal(1, view.MountCount);
 
         view.AllocateEventStorage();
 
-        view.UnmountRuntime();
+        view.Runtime.UnmountRuntime();
 
         Assert.False(view.Mounted);
         Assert.True(view.Unmounted);
-        Assert.Equal(0u, view.RuntimeViewHandle);
+        Assert.Equal(0u, view.Runtime.RuntimeViewHandle);
         Assert.True(lifetime.IsCancellationRequested);
         Assert.True(view.LifetimeWasCancelledDuringUnmount);
         Assert.False(view.RuntimeWasAvailableDuringUnmount);
         Assert.True(view.InvalidateWasRejectedDuringUnmount);
         Assert.Equal(1, view.UnmountCount);
 
-        view.UnmountRuntime();
+        view.Runtime.UnmountRuntime();
         Assert.Equal(1, view.UnmountCount);
         Assert.Throws<ObjectDisposedException>(() => Attach(view, 2));
     }
@@ -51,7 +51,7 @@ public sealed class ViewLifetimeTests
         Assert.Equal(1, view.MountCount);
         Assert.Equal(1, view.UnmountCount);
         Assert.True(view.Unmounted);
-        Assert.Equal(0u, view.RuntimeViewHandle);
+        Assert.Equal(0u, view.Runtime.RuntimeViewHandle);
         Assert.True(view.ViewLifetime.IsCancellationRequested);
         Assert.Throws<ObjectDisposedException>(() => Attach(view, 2));
     }
@@ -61,7 +61,7 @@ public sealed class ViewLifetimeTests
     {
         var view = new LifecycleView();
 
-        view.UnmountRuntime();
+        view.Runtime.UnmountRuntime();
         var lifetime = view.ViewLifetime;
 
         Assert.Equal(0, view.MountCount);
@@ -78,12 +78,12 @@ public sealed class ViewLifetimeTests
         var view = new LifecycleView { ThrowDuringUnmount = true };
         Attach(view);
 
-        Assert.Throws<InvalidOperationException>(view.UnmountRuntime);
+        Assert.Throws<InvalidOperationException>(view.Runtime.UnmountRuntime);
 
         Assert.True(view.Unmounted);
         Assert.True(view.ViewLifetime.IsCancellationRequested);
         Assert.Equal(1, view.UnmountCount);
-        view.UnmountRuntime();
+        view.Runtime.UnmountRuntime();
         Assert.Throws<ObjectDisposedException>(() => Attach(view, 2));
     }
 
@@ -95,7 +95,7 @@ public sealed class ViewLifetimeTests
         Attach(view);
         view.Commit();
 
-        view.UnmountRuntime();
+        view.Runtime.UnmountRuntime();
 
         Assert.Equal("account", view.UnmountedValue);
         Assert.Throws<InvalidOperationException>(view.ReadValue);
@@ -109,7 +109,7 @@ public sealed class ViewLifetimeTests
         Attach(view);
         view.RollBack();
 
-        view.UnmountRuntime();
+        view.Runtime.UnmountRuntime();
 
         Assert.Equal("candidate", view.UnmountedValue);
         Assert.Throws<InvalidOperationException>(view.ReadValue);
@@ -142,7 +142,7 @@ public sealed class ViewLifetimeTests
                 view.RequestInvalidate();
                 view.RequestPost(static () => { });
                 view.RequestResourceCommand();
-                _ = view.RuntimeViewHandle;
+                _ = view.Runtime.RuntimeViewHandle;
             }
             catch (Exception exception)
             {
@@ -157,7 +157,7 @@ public sealed class ViewLifetimeTests
         Assert.Equal(17u, Volatile.Read(ref commandOwner));
         Assert.IsType<InvalidOperationException>(failure);
 
-        view.UnmountRuntime();
+        view.Runtime.UnmountRuntime();
     }
 
     [Fact]
@@ -168,7 +168,7 @@ public sealed class ViewLifetimeTests
         var staleEventId = first.AllocateEventStorage();
         Assert.Equal(1ul, first.AllocateResourceKey());
         Assert.Equal(2ul, first.AllocateResourceKey());
-        first.UnmountRuntime();
+        first.Runtime.UnmountRuntime();
 
         var second = new LifecycleView();
         Attach(second, 2);
@@ -176,12 +176,12 @@ public sealed class ViewLifetimeTests
         {
             Assert.Equal(1ul, second.AllocateResourceKey());
             Assert.Throws<InvalidOperationException>(() =>
-                second.DispatchClickCore(staleEventId, default)
+                second.Runtime.Events.DispatchClickCore(staleEventId, default)
             );
         }
         finally
         {
-            second.UnmountRuntime();
+            second.Runtime.UnmountRuntime();
         }
     }
 
@@ -193,16 +193,16 @@ public sealed class ViewLifetimeTests
         Action<uint, ResourceCommand>? resourceCommand = null
     )
     {
-        view.PrepareRuntime(
+        view.Runtime.PrepareRuntime(
             handle,
-            post ?? (static callback => callback()),
+            post is null ? static callback => callback.Invoke() : callback => post(callback.Invoke),
             invalidate ?? (static _ => { }),
             resourceCommand ?? (static (_, _) => { }),
             static (_, _, _) => { },
             static (_, _, _, _, _, _, _, _, _, _) => { },
             static () => { }
         );
-        view.MountRuntime();
+        view.Runtime.MountRuntime();
     }
 
     private sealed class LifecycleView : View
@@ -219,16 +219,16 @@ public sealed class ViewLifetimeTests
         internal CancellationToken ViewLifetime => Lifetime;
 
         internal uint AllocateEventStorage() =>
-            (uint)BindClick<LifecycleView>(static (_, _) => { });
+            (uint)Runtime.Events.BindClick<LifecycleView>(static (_, _) => { });
 
-        internal ulong AllocateResourceKey() => NextResourceKeyId();
+        internal ulong AllocateResourceKey() => Runtime.NextResourceKeyId();
 
         internal void RequestInvalidate() => Invalidate();
 
         internal void RequestPost(Action callback) => Dispatcher.Post(callback);
 
         internal void RequestResourceCommand() =>
-            DispatchResourceCommand(
+            Runtime.DispatchResourceCommand(
                 new ResourceCommand(
                     ResourceKind.Scroll,
                     ResourceCommandKind.ScrollToTop,

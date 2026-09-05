@@ -213,7 +213,7 @@ ui.Button("save", "Save").OnClick(this, (view, _) => view.Save());
 ui.Input("search"u8).OnChanged(this, (view, e) => view.Search(e));
 ```
 
-Event handlers are synchronous `Action` callbacks. Use [StartWork](docs/ASYNC_WORK.md) for
+Event handlers are synchronous `Action` callbacks. Use [WorkScope.Start](docs/ASYNC_WORK.md) for
 asynchronous production; async-void handlers are rejected. View lifetime follows UI ownership: a
 window owns its root and a committed slot owns its child; an ordinary C# reference owns neither.
 Each View has one lazily allocated, stable `Lifetime` token, cancelled before terminal
