@@ -204,9 +204,9 @@ delegate. There is no framework worker job, async wrapper Task, or per-operation
 | Pending Task faulted by its source, handled | 160 | 440 | 600 |
 | Producer throws a failure | 272 | 0 | 272 |
 | Producer throws cancellation | 272 | 0 | 272 |
-| Completed Task, fresh callback capturing `this` | 256 | 0 | 256 |
+| Completed Task, fresh callback capturing `this` | 160 | 0 | 160 |
 | Completed Task, cached instance callback | 96 | 0 | 96 |
-| Completed Task, fresh callback capturing a local | 280 | 0 | 280 |
+| Completed Task, fresh callback capturing a local | 184 | 0 | 184 |
 | Completed Task, cached multicast callback | 96 | 0 | 96 |
 | Producer creates a completed Task with `Task.FromResult(42)` | 168 | 0 | 168 |
 | Producer awaits a pending Task with `ConfigureAwait(false)` | 272 | 0 | 272 |
@@ -220,9 +220,9 @@ accumulating stack history across operations. Source cancellation/fault bookkeep
 the observation column; already-completed Task observation occurs inside Start.
 
 The baseline is one 96-byte operation object. Pending observation adds one 64-byte delegate.
-Fresh capturing callbacks add delegate allocation and runtime method metadata used by synchronous
-callback validation; a local capture also adds a closure object. Caching a callback avoids both
-repeated delegate construction and method inspection allocation. Static callbacks with explicit
+Fresh capturing callbacks add delegate allocation; a local capture also adds a closure object.
+Callback admission does not inspect method metadata. Caching a callback avoids repeated delegate
+construction. Static callbacks with explicit
 state are the default authoring pattern. Cancellation is detected from Task status without creating
 a TaskCanceledException. Fault observation reads the Task's first exception without rethrowing it,
 but accessing Task.Exception still allocates its aggregate representation.
@@ -293,9 +293,13 @@ native cache miss:   batch 4176..4223
 managed crossings:  1
 ```
 
-At most four batches are retained per List/Table row engine. Scrolling inside retained batches
+Each List/Table row engine retains its active frame batches and up to four idle batches. Scrolling inside retained batches
 requires no managed call. A missing batch requires one `list_render_range` call containing all
 rows in that batch and one `accept_artifact` call after validation.
+
+Frame layout/prepaint pins every requested batch. After prepaint, trimming retains those batches
+plus at most four idle batches; the viewport and overdraw demand determine the live working set.
+Source removal and explicit invalidation still release affected batches immediately.
 
 Each batch retains its own managed event lease. Eviction or invalidation adds one artifact-release
 callback per retired batch, never per row. Cache hits require no managed call. Binding storage is
@@ -322,6 +326,27 @@ Avoid:
 Use a stable `.ItemId` and the unmanaged click payload for model identity.
 
 ## Measurement targets
+
+### Dispatcher callback validation cost
+
+`DispatcherAdmissionCost` compares current Post admission with an experimental call to
+the removed reflection-based callback inspection immediately before Post (retained only as a
+test baseline). Windows x64, .NET 10.0.11, Release,
+`DOTNET_TieredCompilation=0`: five warmup batches, seven measured batches of 512 posts, median
+timing. Ingress draining is outside the measured region; the real warmed route/queue is used.
+No CPU affinity or clock control is applied, so timing is exploratory.
+
+| Callback | Current ns/post | With validation ns/post | Current B/post | With validation B/post |
+| --- | ---: | ---: | ---: | ---: |
+| Cached static | 34.6 | 44.5 | 32 | 32 |
+| Fresh local capture | 66.4 | 151.6 | 120 | 216 |
+
+Method-contract caching does not remove per-delegate reflection costs. The additional 96 bytes
+on fresh captures and repeated lookup cost are why no runtime callback admission performs this
+inspection. Events, WorkScope, menus, and Dispatcher rely on the synchronous API contract and
+compile-time diagnostics. Runtime thread, phase, lifetime, and null checks remain.
+
+### End-to-end targets
 
 Track at least:
 

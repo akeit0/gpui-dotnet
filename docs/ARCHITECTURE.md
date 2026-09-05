@@ -1,5 +1,9 @@
 # Architecture
 
+Cross-layer acceptance, displayed-row ownership, and callback-admission invariants are specified
+in [Runtime boundaries](RUNTIME_BOUNDARIES.md). Allocation measurements are reported separately in
+[Performance](PERFORMANCE.md); architectural guarantees do not imply measured end-to-end costs.
+
 GPUI.NET is a semantic bridge between a managed application model and a native GPUI renderer. It
 does not expose Rust objects to C# or translate each fluent builder call through FFI. Managed code
 writes a compact render arena; Rust validates that arena, retains a decoded snapshot, and owns the

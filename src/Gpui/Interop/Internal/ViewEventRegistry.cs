@@ -371,11 +371,9 @@ internal sealed class ViewEventRegistry
         var entries = attachment.EventEntries ??= [];
         var scope = attachment.EventBindingScope;
         var pass = attachment.EventBindingPass;
-        var callbackVerified = false;
         for (var index = 0; index < entries.Count; index++)
         {
             var current = entries[index];
-            callbackVerified |= ReferenceEquals(current.Callback, callback);
             if (
                 current.BinderIndex == binderIndex
                 && IsEntryInScope(current.LastPass, scope)
@@ -392,9 +390,6 @@ internal sealed class ViewEventRegistry
             }
         }
 
-        // The same static callback can serve many row artifacts. Reuse its prior validation.
-        if (!callbackVerified)
-            SynchronousCallback.Validate(callback);
         if (attachment.NextEventId == DynamicEventEntryMask)
         {
             throw new InvalidOperationException(

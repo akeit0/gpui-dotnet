@@ -10,6 +10,7 @@ pub mod extension;
 mod input;
 mod materializer;
 mod overlay;
+mod pointer;
 mod popover_menu;
 mod presence;
 mod resources;
@@ -77,7 +78,7 @@ unsafe fn dispatch_extension_command_inner(
     const MAX_KEY_LENGTH: i32 = 4096;
     const MAX_PAYLOAD_LENGTH: i32 = 256 * 1024 * 1024;
 
-    let Some(command) = (unsafe { command.as_ref() }) else {
+    let Some(command) = (unsafe { crate::pointer::as_ref(command) }) else {
         return -83;
     };
     if view_id == 0
@@ -103,15 +104,15 @@ unsafe fn dispatch_extension_command_inner(
     }
 
     let extension_id_bytes = unsafe {
-        std::slice::from_raw_parts(command.extension_id, command.extension_id_length as usize)
+        crate::pointer::slice(command.extension_id, command.extension_id_length as usize)
     };
     let component_kind_bytes = unsafe {
-        std::slice::from_raw_parts(
+        crate::pointer::slice(
             command.component_kind,
             command.component_kind_length as usize,
         )
     };
-    let key_bytes = unsafe { std::slice::from_raw_parts(command.key, command.key_length as usize) };
+    let key_bytes = unsafe { crate::pointer::slice(command.key, command.key_length as usize) };
     let (Ok(extension_id), Ok(component_kind), Ok(key)) = (
         std::str::from_utf8(extension_id_bytes),
         std::str::from_utf8(component_kind_bytes),
@@ -135,7 +136,7 @@ unsafe fn dispatch_extension_command_inner(
         std::sync::Arc::<[u8]>::from([])
     } else {
         let bytes =
-            unsafe { std::slice::from_raw_parts(command.payload, command.payload_length as usize) };
+            unsafe { crate::pointer::slice(command.payload, command.payload_length as usize) };
         std::sync::Arc::<[u8]>::from(bytes)
     };
     let command = extension::NativeExtensionCommand {
@@ -170,7 +171,7 @@ unsafe extern "C" fn supports_extension(
         if id_length <= 0 || id_length > 127 || id.is_null() || version == 0 || schema_hash == 0 {
             return -80;
         }
-        let bytes = unsafe { std::slice::from_raw_parts(id, id_length as usize) };
+        let bytes = unsafe { crate::pointer::slice(id, id_length as usize) };
         let Ok(id) = std::str::from_utf8(bytes) else {
             return -80;
         };
@@ -186,7 +187,7 @@ unsafe extern "C" fn validate_render(arena: *const RenderArena, root: u32) -> i3
 }
 
 fn validate_render_inner(arena: *const RenderArena, root: u32) -> i32 {
-    let Some(arena) = (unsafe { arena.as_ref() }) else {
+    let Some(arena) = (unsafe { crate::pointer::as_ref(arena) }) else {
         return -1;
     };
     snapshot::validate(arena, root).map_or_else(|status| status, |()| 0)
@@ -208,7 +209,7 @@ unsafe extern "C" fn invalidate_artifacts(
         {
             return -1;
         }
-        let keys = unsafe { std::slice::from_raw_parts(keys, count as usize) };
+        let keys = unsafe { crate::pointer::slice(keys, count as usize) };
         if keys.iter().any(|key| key.source == 0 || key.artifact == 0) {
             return -2;
         }
@@ -225,7 +226,7 @@ unsafe extern "C" fn dispatch_command(view_id: u64, command: *const NativeResour
 }
 
 unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCommand) -> i32 {
-    let Some(command) = (unsafe { command.as_ref() }) else {
+    let Some(command) = (unsafe { crate::pointer::as_ref(command) }) else {
         return -50;
     };
     if command.reserved != 0
@@ -322,15 +323,14 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
     if !payload_valid {
         return -54;
     }
-    let key = unsafe { std::slice::from_raw_parts(command.key, command.key_length as usize) };
+    let key = unsafe { crate::pointer::slice(command.key, command.key_length as usize) };
     let Ok(key) = std::str::from_utf8(key) else {
         return -52;
     };
     let data = if command.data_length == 0 {
         ""
     } else {
-        let bytes =
-            unsafe { std::slice::from_raw_parts(command.data, command.data_length as usize) };
+        let bytes = unsafe { crate::pointer::slice(command.data, command.data_length as usize) };
         let Ok(data) = std::str::from_utf8(bytes) else {
             return -55;
         };
@@ -362,7 +362,7 @@ unsafe fn dispatch_application_command_inner(
     application_id: u64,
     command: *const NativeApplicationCommand,
 ) -> i32 {
-    let Some(command) = (unsafe { command.as_ref() }) else {
+    let Some(command) = (unsafe { crate::pointer::as_ref(command) }) else {
         return -60;
     };
     let is_theme = command.command == 8;
@@ -440,8 +440,7 @@ unsafe fn dispatch_application_command_inner(
     let title = if no_title {
         None
     } else {
-        let bytes =
-            unsafe { std::slice::from_raw_parts(command.title, command.title_length as usize) };
+        let bytes = unsafe { crate::pointer::slice(command.title, command.title_length as usize) };
         let Ok(title) = std::str::from_utf8(bytes) else {
             return -63;
         };
@@ -502,7 +501,7 @@ unsafe fn dispatch_application_menu_inner(
     const MAX_MENU_RECORDS: usize = 4096;
     const NO_PARENT: u32 = u32::MAX;
 
-    let Some(command) = (unsafe { command.as_ref() }) else {
+    let Some(command) = (unsafe { crate::pointer::as_ref(command) }) else {
         return -64;
     };
     if application_id == 0
@@ -518,7 +517,7 @@ unsafe fn dispatch_application_menu_inner(
     let records = if command.item_length == 0 {
         &[]
     } else {
-        unsafe { std::slice::from_raw_parts(command.items, command.item_length as usize) }
+        unsafe { crate::pointer::slice(command.items, command.item_length as usize) }
     };
     let mut children = vec![Vec::new(); records.len()];
     let mut roots = Vec::new();
@@ -538,7 +537,7 @@ unsafe fn dispatch_application_menu_inner(
             String::new()
         } else {
             let bytes =
-                unsafe { std::slice::from_raw_parts(record.title, record.title_length as usize) };
+                unsafe { crate::pointer::slice(record.title, record.title_length as usize) };
             let Ok(title) = std::str::from_utf8(bytes) else {
                 return -67;
             };
@@ -604,14 +603,15 @@ unsafe extern "C" fn run_application(
     application_id: u64,
     callbacks: *const ManagedCallbacks,
 ) -> i32 {
-    if application_id == 0 || callbacks.is_null() {
+    if application_id == 0 || !crate::pointer::valid(callbacks.cast::<u32>(), 1) {
         return -20;
     }
 
     // Read the declared size before trusting the full structure: a caller that only supplies a
     // prefix must not make us read past its allocation.
     let declared_size = unsafe { callbacks.cast::<u32>().read() };
-    if declared_size < size_of::<ManagedCallbacks>() as u32 {
+    if declared_size < size_of::<ManagedCallbacks>() as u32 || !crate::pointer::valid(callbacks, 1)
+    {
         return -21;
     }
 

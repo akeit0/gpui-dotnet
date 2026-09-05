@@ -21,6 +21,13 @@ internal sealed class ApplicationExecution
     private HashSet<Session.ManagedSession>? _reactiveSessions;
     internal ExecutionPhase Phase { get; private set; }
 
+    internal static void AssertEffectsAllowed()
+    {
+        // Current is thread-local: worker ingress remains valid while the UI thread renders.
+        if (Current?.Phase is ExecutionPhase.Render or ExecutionPhase.DemandRender)
+            throw new InvalidOperationException("Framework effects are not allowed during rendering.");
+    }
+
     internal void BindThread()
     {
         var current = Environment.CurrentManagedThreadId;

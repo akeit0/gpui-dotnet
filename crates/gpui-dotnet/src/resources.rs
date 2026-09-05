@@ -661,6 +661,7 @@ pub(crate) struct ManagedListResource {
     batches: HashMap<u32, CachedBatch>,
     pending_commands: Vec<ResourceCommand>,
     use_clock: u64,
+    frame_start: u64,
     last_batch: Option<u32>,
     telemetry: ListTelemetry,
 }
@@ -695,6 +696,7 @@ impl ManagedListResource {
             batches: HashMap::new(),
             pending_commands: Vec::new(),
             use_clock: 0,
+            frame_start: 0,
             last_batch: None,
             telemetry: ListTelemetry::default(),
         }
@@ -931,7 +933,13 @@ impl ManagedListResource {
     /// GPUI invalidates every cached height and size hint when the list width changes. The
     /// maintenance canvas runs after list prepaint, detects that width transition, and restores
     /// uniform hints before the sibling foundation scrollbar reads the native range.
+    pub(crate) fn begin_frame(&mut self) {
+        self.frame_start = self.use_clock;
+    }
+
     pub(crate) fn maintain_height_hints(&mut self) {
+        // All viewport and overdraw rows have been requested by list prepaint.
+        self.trim_batches();
         let width = self.state.viewport_bounds().size.width;
         if width <= px(0.) || self.hinted_viewport_width == Some(width) {
             return;
@@ -976,7 +984,6 @@ impl ManagedListResource {
                     ))
                     .into_any_element();
             }
-            self.trim_batches();
         } else {
             self.telemetry.batch_cache_hits += 1;
         }
@@ -1083,13 +1090,23 @@ impl ManagedListResource {
 
     fn trim_batches(&mut self) {
         const MAX_BATCHES: usize = 4;
-        while self.batches.len() > MAX_BATCHES {
-            let Some((&oldest, _)) = self.batches.iter().min_by_key(|(_, batch)| batch.last_used)
+        let mut idle_count = self
+            .batches
+            .values()
+            .filter(|batch| batch.last_used <= self.frame_start)
+            .count();
+        while idle_count > MAX_BATCHES {
+            let Some((&oldest, _)) = self
+                .batches
+                .iter()
+                .filter(|(_, batch)| batch.last_used <= self.frame_start)
+                .min_by_key(|(_, batch)| batch.last_used)
             else {
                 break;
             };
             self.batches.remove(&oldest);
             self.telemetry.batch_evictions += 1;
+            idle_count -= 1;
         }
     }
 
@@ -1465,6 +1482,10 @@ mod tests {
     struct ArtifactCapture {
         nodes: Vec<crate::abi::NodeRecord>,
         children: Vec<crate::abi::ChildRecord>,
+        ops: Vec<crate::abi::OpRecord>,
+        clickable: bool,
+        clicked: Vec<u64>,
+        click_status: i32,
         next_id: u64,
         requests: Vec<(u64, u64)>,
         accepts: Vec<(u64, u64)>,
@@ -1519,8 +1540,47 @@ mod tests {
             }
             capture.next_id += 1;
             let id = capture.next_id;
+            capture.ops.clear();
+            if capture.clickable {
+                use crate::semantic::{OP_HEIGHT_PX, OP_ON_CLICK, OP_WIDTH_PX, ValueKind};
+                for index in 0..rows {
+                    capture.nodes[index as usize + 1].component = crate::semantic::COMPONENT_BUTTON;
+                    capture.nodes[index as usize + 1].data_length = 3;
+                    capture.ops.extend([
+                        crate::abi::OpRecord {
+                            node: index + 1,
+                            code: OP_WIDTH_PX,
+                            value_kind: ValueKind::F32 as u16,
+                            a: 200f32.to_bits() as u64,
+                            b: 0,
+                        },
+                        crate::abi::OpRecord {
+                            node: index + 1,
+                            code: OP_ON_CLICK,
+                            value_kind: ValueKind::Callback as u16,
+                            a: id,
+                            b: 0,
+                        },
+                        crate::abi::OpRecord {
+                            node: index + 1,
+                            code: OP_HEIGHT_PX,
+                            value_kind: ValueKind::F32 as u16,
+                            a: 30f32.to_bits() as u64,
+                            b: 0,
+                        },
+                    ]);
+                }
+            }
             capture.requests.push((source, id));
             unsafe {
+                if capture.clickable {
+                    (*arena).utf8 = b"row".as_ptr().cast_mut();
+                    (*arena).utf8_length = 3;
+                    (*arena).utf8_capacity = 3;
+                }
+                (*arena).ops = capture.ops.as_mut_ptr();
+                (*arena).op_length = capture.ops.len() as i32;
+                (*arena).op_capacity = capture.ops.capacity() as i32;
                 (*arena).nodes = capture.nodes.as_mut_ptr();
                 (*arena).node_length = capture.nodes.len() as i32;
                 (*arena).node_capacity = capture.nodes.capacity() as i32;
@@ -1552,11 +1612,107 @@ mod tests {
 
     fn artifact_callbacks() -> ManagedCallbacks {
         ManagedCallbacks {
+            click: Some(click_test_row),
             accept_artifact: Some(accept_test_artifact),
             list_render_range: Some(publish_test_range),
             release_artifact: Some(release_test_artifact),
             ..callbacks()
         }
+    }
+
+    unsafe extern "C" fn click_test_row(
+        _: u64,
+        token: u64,
+        _: u64,
+        _: *const crate::abi::NativeClickEvent,
+    ) -> i32 {
+        ARTIFACTS.with(|capture| {
+            let mut capture = capture.borrow_mut();
+            if !capture
+                .releases
+                .iter()
+                .any(|(_, artifact, _)| *artifact == token)
+            {
+                capture.clicked.push(token);
+            }
+            capture.click_status
+        })
+    }
+
+    struct VisibleRows {
+        store: Rc<ResourceStore>,
+        resource: Rc<RefCell<ManagedListResource>>,
+    }
+
+    impl gpui::Render for VisibleRows {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            use gpui::Styled;
+            self.resource.borrow_mut().begin_frame();
+            let key = ResourceKey::new(1, "rows".into());
+            let state = self.resource.borrow().state.clone();
+            let rows_resource = self.resource.clone();
+            let store = self.store.clone();
+            let rows = div().flex().flex_col().w(px(200.)).h(px(240.)).child(
+                gpui::list(state, move |index, _, _| {
+                    rows_resource.borrow_mut().render_item(index, &store, &key)
+                })
+                .size_full(),
+            );
+            let resource = self.resource.clone();
+            rows.child(gpui::canvas(
+                move |_, _, _| resource.borrow_mut().trim_batches(),
+                |_, _, _, _| {},
+            ))
+        }
+    }
+
+    #[gpui::test]
+    fn displayed_rows_keep_artifacts_after_prepaint(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_base::init);
+        ARTIFACTS.with(|capture| {
+            *capture.borrow_mut() = ArtifactCapture {
+                clickable: true,
+                ..Default::default()
+            }
+        });
+        let store = Rc::new(ResourceStore::new(1, artifact_callbacks(), theme()));
+        let mut config = configuration(Some(1));
+        config.item_count = 8;
+        config.batch_size = 1;
+        config.overdraw = px(0.);
+        config.estimated_item_height = px(30.);
+        let resource = Rc::new(RefCell::new(ManagedListResource::new(
+            1,
+            artifact_callbacks(),
+            &config,
+            1,
+        )));
+        let (_, cx) = cx.add_window_view(|_, _| VisibleRows {
+            store,
+            resource: resource.clone(),
+        });
+        cx.update(|window, cx| {
+            window.draw(cx).clear(cx);
+        });
+        ARTIFACTS.with(|capture| {
+            assert_eq!(
+                resource.borrow().batches.len(),
+                8,
+                "requests={:?}, releases={:?}",
+                capture.borrow().requests,
+                capture.borrow().releases
+            )
+        });
+        ARTIFACTS.with(|capture| assert!(capture.borrow().releases.is_empty()));
+        cx.simulate_click(point(px(10.), px(15.)), Default::default());
+        cx.simulate_click(point(px(10.), px(225.)), Default::default());
+        ARTIFACTS.with(|capture| assert_eq!(capture.borrow().clicked, [1, 8]));
+        // Once no frame needs these batches, only four idle batches remain cached.
+        resource.borrow_mut().begin_frame();
+        resource.borrow_mut().trim_batches();
+        assert_eq!(resource.borrow().batches.len(), 4);
+        resource.borrow_mut().clear_batches();
+        ARTIFACTS.with(|capture| assert_eq!(capture.borrow().releases.len(), 8));
     }
 
     unsafe extern "C" fn accept_test_artifact(_: u64, source: u64, artifact: u64) -> i32 {
@@ -1631,6 +1787,7 @@ mod tests {
         for start in 0..5 {
             resource.use_clock += 1;
             resource.load_batch(start).unwrap();
+            resource.begin_frame();
             resource.trim_batches();
         }
         ARTIFACTS.with(|capture| {

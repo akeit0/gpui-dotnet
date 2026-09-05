@@ -3,47 +3,6 @@ namespace Gpui.Tests;
 public sealed partial class RuntimeExecutionTests
 {
     [Theory]
-    [InlineData("complete", false)]
-    [InlineData("complete", true)]
-    [InlineData("failed", false)]
-    [InlineData("failed", true)]
-    [InlineData("cancelled", false)]
-    [InlineData("cancelled", true)]
-    public void WorkRejectsIndirectAsyncCallbacksBeforeProduction(string kind, bool multicast)
-    {
-        using var fixture = new SessionFixture(new ProbeView());
-        fixture.Render();
-        var scope = fixture.View.Runtime.GetWorkScope();
-        var calls = new List<string>();
-        Action<List<string>, int> complete = static (_, _) => { };
-        Action<List<string>, Exception> failed = static (_, _) => { };
-        Action<List<string>> cancelled = static _ => { };
-        if (kind == "complete")
-        {
-            complete = static async (state, _) => { state.Add("async"); await Task.Yield(); };
-            if (multicast)
-                complete = ((Action<List<string>, int>)((state, _) => state.Add("sync"))) + complete;
-        }
-        else if (kind == "failed")
-        {
-            failed = static async (state, _) => { state.Add("async"); await Task.Yield(); };
-            if (multicast)
-                failed = ((Action<List<string>, Exception>)((state, _) => state.Add("sync"))) + failed;
-        }
-        else
-        {
-            cancelled = static async state => { state.Add("async"); await Task.Yield(); };
-            if (multicast)
-                cancelled = ((Action<List<string>>)(state => state.Add("sync"))) + cancelled;
-        }
-        var error = Assert.Throws<InvalidOperationException>(() => scope.Start(calls, calls,
-            static (state, _) => { state.Add("producer"); return Task.FromResult(1); },
-            complete, failed, cancelled));
-        Assert.Contains("synchronous", error.Message);
-        Assert.Empty(calls);
-    }
-
-    [Theory]
     [InlineData("completed", false)]
     [InlineData("completed", true)]
     [InlineData("pending", false)]

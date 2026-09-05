@@ -488,7 +488,9 @@ internal static unsafe class ManagedValidator
 
     private static uint FindDockAreaAncestor(RenderArena* arena, uint node)
     {
-        while (true)
+        // Native acceptance validates the complete graph. Bound this diagnostic walk so
+        // malformed disconnected Dock cycles cannot stall managed publication first.
+        for (var depth = 0; depth < arena->NodeLength; depth++)
         {
             var parent = uint.MaxValue;
             for (var index = 0; index < arena->ChildLength; index++)
@@ -509,6 +511,7 @@ internal static unsafe class ManagedValidator
             }
             node = parent;
         }
+        throw new InvalidOperationException("Dock ancestry contains a cycle.");
     }
 
     private static ReadOnlySpan<byte> DockPanelId(RenderArena* arena, int nodeIndex)

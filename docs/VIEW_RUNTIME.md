@@ -44,6 +44,12 @@ and avoids a caller closure; `Post(Action)` remains available for already-create
 forms defer execution and recheck the original route, including when posted from another thread.
 This is an explicit application dispatch API; it does not choose where producers run.
 
+Command admission checks the caller's thread-local render phase before queueing effects.
+Synchronous callbacks are enforced through API contracts and compile-time diagnostics, without
+runtime delegate reflection. Failed detached row callbacks wake the existing native refresh path
+to display the terminal managed failure. Successful callbacks need no host lookup or extra
+captured host handle. See [Runtime boundaries](RUNTIME_BOUNDARIES.md).
+
 Reactive consumers may retain at most eight cleared, detached edge records for their own future
 reads. Reuse begins only after acceptance or rejection has removed an edge from its Signal and the
 consumer's active storage. A spare record has no Signal reference. This storage stays with its

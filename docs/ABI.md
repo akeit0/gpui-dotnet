@@ -220,8 +220,9 @@ Canonical payload rules:
   `b`;
 - all floats must satisfy the operation's finite/range constraints;
 - UTF-8 ranges must be valid and in bounds;
-- components, child counts, operation capabilities, uniqueness, and resource-key conflicts are
-  validated on both sides.
+- components, child counts, and operation capabilities receive managed diagnostics and
+  authoritative native validation. Full graph connectivity and retained resource-key conflicts
+  are enforced at native acceptance without a second managed pass.
 
 The managed validator catches builder/runtime errors before FFI. Native validation remains
 authoritative because a custom or mismatched managed host must not create invalid GPUI state.
@@ -441,18 +442,26 @@ nodes; each panel has a unique string ID across the area, a title, and exactly o
 subtree. Initial center/region declarations, placement, open/collapsible state, and panel options
 use generated semantic operations; they change the base schema hash without changing any C record
 layout. Native pointer dragging, split and region resizing, region collapse, focus,
-and tab activation require no managed callback. There is no Dock resource-command or retained-
-control-event packet in the current slice.
+and tab activation require no per-frame managed callback. Dock controllers and retained control
+events use the Dock commands and event payloads described above.
 
 ## Error handling and teardown
 
-Zero is success, positive statuses are protocol-defined control flow such as arena growth, and
-negative statuses are validation/runtime failures. Managed exceptions are captured by the affected
+Zero is success; nonzero statuses have entry-point-specific meanings and negative statuses report
+validation/runtime failures. Render output has no capacity-retry status. Managed exceptions are captured by the affected
 window session and never unwind through native code. Normal late notifications or commands racing a
 closed session are ignored only for documented closed-session statuses.
 
 All exported Rust FFI functions must validate pointer/length pairs before dereference and prevent
 panics from crossing the C boundary.
+
+Typed buffers must be aligned, their byte counts must fit Rust's slice limits, and their address
+ranges must not wrap. Structural checks precede typed borrows. They cannot prove that an arbitrary
+address belongs to a live allocation: the caller must provide initialized, sufficiently large
+buffers and keep them alive and free of concurrent mutation for the entire native borrow. Owners
+must also survive raw function-table calls; GC lifetime protection does not synchronize explicit
+concurrent disposal. Fuzz malformed records inside valid allocations; arbitrary-address fuzzing
+requires process isolation.
 
 ## Changing the ABI
 

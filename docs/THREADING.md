@@ -108,6 +108,11 @@ to compute or perform I/O and apply live results through foreground ingress. Can
 does not establish ownership: producers may ignore their token, so completion must recheck the
 original View's route. `Dispatcher.Post` provides that check for manually posted synchronous work.
 
+Any-thread effect APIs reject calls made by the thread currently executing Render or DemandRender.
+The check uses thread-local execution state: a worker may still enqueue while the application
+thread renders. Dispatcher callbacks must be synchronous. Events, menus, and WorkScope completions have the same contract;
+compile-time diagnostics catch visible async callbacks without runtime delegate inspection.
+
 Retained-resource commands also require an accepted declaration. Native ingress reads a small
 thread-safe presence index and stamps the queued command with its generation. Delivery rechecks
 the generation on the application thread; removal and reappearance cannot revive queued commands.

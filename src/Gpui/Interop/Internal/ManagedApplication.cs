@@ -86,6 +86,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     public void SetMenuBar(IReadOnlyList<GpuiMenu> menus)
     {
+        ApplicationExecution.AssertEffectsAllowed();
         ArgumentNullException.ThrowIfNull(menus);
 
         var records = new List<NativeMenuRecord>();
@@ -117,6 +118,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
                     reserved2 = 0,
                 };
                 var status = _runtime.Api->dispatch_application_menu(_applicationId, &native);
+            GC.KeepAlive(_runtime);
                 if (status != 0)
                 {
                     throw new InvalidOperationException(
@@ -129,6 +131,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     public void SetTheme(GpuiTheme theme)
     {
+        ApplicationExecution.AssertEffectsAllowed();
         ArgumentNullException.ThrowIfNull(theme);
         var payload = NativeThemePayload.From(theme);
         unsafe
@@ -149,6 +152,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
                 height = 0,
             };
             var status = _runtime.Api->dispatch_application_command(_applicationId, &native);
+            GC.KeepAlive(_runtime);
             if (status != 0)
             {
                 throw new InvalidOperationException(
@@ -245,6 +249,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     public void OpenWindow(GpuiWindow window, GpuiWindowSnapshot snapshot)
     {
+        ApplicationExecution.AssertEffectsAllowed();
         if (Volatile.Read(ref _stopped) != 0)
         {
             throw new InvalidOperationException("The GPUI application is stopping.");
@@ -378,6 +383,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
         ushort flags = 0
     )
     {
+        ApplicationExecution.AssertEffectsAllowed();
         if (Volatile.Read(ref _stopped) != 0)
         {
             throw new InvalidOperationException("The GPUI application is stopping.");
@@ -401,6 +407,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
                 height = height,
             };
             var status = _runtime.Api->dispatch_application_command(_applicationId, &native);
+            GC.KeepAlive(_runtime);
             if (status != 0)
             {
                 throw new InvalidOperationException(

@@ -57,12 +57,6 @@ public sealed class WorkScope
             throw new InvalidOperationException("Asynchronous work cannot start during rendering.");
         route.EnsureAvailable();
 
-        SynchronousCallback.Validate(complete);
-        if (failed is not null)
-            SynchronousCallback.Validate(failed);
-        if (cancelled is not null)
-            SynchronousCallback.Validate(cancelled);
-
         var work = new PendingWork<TState, TResult>(state, complete, failed, cancelled);
         var pending = _pendingWork ??= [];
         work.Attach(this, pending.Count);

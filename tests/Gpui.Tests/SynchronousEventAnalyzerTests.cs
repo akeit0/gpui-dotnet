@@ -9,6 +9,10 @@ namespace Gpui.Tests;
 public sealed class SynchronousEventAnalyzerTests
 {
     [Theory]
+    [InlineData("GpuiMenuItem.Command(\"Save\", async () => { await Task.Yield(); });", true)]
+    [InlineData("Dispatcher.Post(async () => { await Task.Yield(); });", true)]
+    [InlineData("Dispatcher.Post(this, async view => { await Task.Yield(); });", true)]
+    [InlineData("Action callback = async () => { await Task.Yield(); }; GpuiMenuItem.Command(\"Save\", callback);", false)]
     [InlineData("ui.Button(\"b\", \"B\").OnClick(this, async (view, e) => { await Task.Yield(); });", true)]
     [InlineData("ui.Button(\"b\", \"B\").OnClick(this, AsyncClick);", true)]
     [InlineData("ui.Button(\"b\", \"B\").OnClick(this, (view, e) => GetData());", true)]

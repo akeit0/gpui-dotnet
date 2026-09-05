@@ -59,6 +59,11 @@ and acceptance, acceptance installs the dependency and immediately invalidates t
 This closes the subscription gap without subscribing speculative output. Signal revisions detect
 this gap; they do not replace the retained tree's dirty flags. Revisions never wrap.
 
+While root acceptance is pending, accepted View consumers enqueue coalesced invalidations for
+the next ingress drain. This includes clean descendants reused beneath a staged ancestor.
+Acceptance may clear that ancestor; replay afterwards restores the complete dirty path. No extra
+reactive scheduler or per-View epoch is needed.
+
 ## Demand artifacts and native transport
 
 ABI 7 adds required `accept_artifact(session, source, artifact)` after native range decoding and

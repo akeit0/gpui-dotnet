@@ -52,6 +52,15 @@ Until acknowledgement, reject new root/range rendering and user dispatch. Commit
 props and composition before parent-first mounting. Invalidation from mounting queues a later
 frame; it never changes the accepted snapshot in place. The acknowledgement is a required ABI callback.
 
+Signal updates while publication awaits acknowledgement must survive clearing staged ancestors.
+Those View invalidations enter the existing coalesced ingress queue. During acceptance itself,
+consumers commit parent-before-child, so revision-gap invalidations can mark their already-committed
+ancestor path immediately. Mount hooks run after the entire tree commits.
+
+Native row cache ownership also follows the frame: layout/prepaint pins requested batches, and
+post-prepaint trimming evicts only idle batches. This does not delay explicit source or owner
+revocation. See [Runtime boundaries](RUNTIME_BOUNDARIES.md).
+
 A resource has a stable controller identity and a separate presence generation.
 Commands require a mounted owner and an accepted declaration, capture that generation,
 and are discarded when it ends. Native materialization may defer a command only within

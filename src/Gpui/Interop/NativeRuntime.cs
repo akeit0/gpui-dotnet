@@ -26,7 +26,6 @@ public sealed unsafe class NativeRuntime
     {
         get
         {
-            GC.KeepAlive(_libraryHandle);
             return _api;
         }
     }
@@ -176,6 +175,7 @@ public sealed unsafe class NativeRuntime
     public void Validate(RenderArenaOwner owner, Element root)
     {
         ArgumentNullException.ThrowIfNull(owner);
+        ObjectDisposedException.ThrowIf(owner.NativeArena == null, owner);
         // Without this check, a root element from another arena could validate an unrelated
         // node index in the owner's arena.
         if (root.Arena != owner.NativeArena || root.Generation != owner.NativeArena->Generation)
@@ -184,7 +184,13 @@ public sealed unsafe class NativeRuntime
                 "Root does not belong to the owner's active render generation."
             );
         }
-        var status = _api->validate_render(owner.NativeArena, root.Node);
+        int status;
+        try { status = _api->validate_render(owner.NativeArena, root.Node); }
+        finally
+        {
+            GC.KeepAlive(owner);
+            GC.KeepAlive(this);
+        }
         if (status != 0)
         {
             throw new InvalidOperationException(
@@ -248,7 +254,9 @@ public sealed unsafe class NativeRuntime
 
     internal void NotifyView(ulong sessionId)
     {
-        var status = _api->notify_view(sessionId);
+        int status;
+        try { status = _api->notify_view(sessionId); }
+        finally { GC.KeepAlive(this); }
         if (status is -30 or -31)
         {
             // A late continuation may race normal native teardown.

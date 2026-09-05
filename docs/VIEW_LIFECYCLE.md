@@ -248,7 +248,9 @@ A virtual List/Table row is a cached element snapshot produced by its owning Vie
 View. It has no `OnMounted`, `OnUnmounted`, child slots, or independent controller lifetime.
 
 Row cache eviction is a virtualization concern. Stable `.ItemId` values preserve native element
-identity across datasource splices; they do not create managed row objects.
+identity across datasource splices when combined with the required row-local control keys.
+Batch node offsets and control labels do not identify controls. ItemIds do not create managed
+row objects.
 
 Each cached range owns an independent event-binding artifact. Rendering another range or rerendering
 the owning View does not retire it. Eviction, datasource revision/theme invalidation, or source

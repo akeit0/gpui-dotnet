@@ -43,6 +43,7 @@ internal sealed class ViewCommandRoute
 
     internal bool TryPost(IIngressWork work)
     {
+        ApplicationExecution.AssertEffectsAllowed();
         lock (_gate)
         {
             if (!_active)
@@ -74,6 +75,7 @@ internal sealed class ViewCommandRoute
 
     internal bool TryInvalidate(ViewBase owner)
     {
+        ApplicationExecution.AssertEffectsAllowed();
         lock (_gate)
         {
             if (!_active)
@@ -87,6 +89,7 @@ internal sealed class ViewCommandRoute
 
     internal bool TryResourceCommand(ResourceCommand command)
     {
+        ApplicationExecution.AssertEffectsAllowed();
         lock (_gate)
         {
             if (!_active)
@@ -100,6 +103,7 @@ internal sealed class ViewCommandRoute
 
     internal bool TryUtf8InputValue(ReadOnlySpan<byte> utf8Key, ReadOnlySpan<byte> utf8Value)
     {
+        ApplicationExecution.AssertEffectsAllowed();
         lock (_gate)
         {
             if (!_active)
@@ -123,6 +127,7 @@ internal sealed class ViewCommandRoute
         ReadOnlySpan<byte> payload
     )
     {
+        ApplicationExecution.AssertEffectsAllowed();
         lock (_gate)
         {
             if (!_active)

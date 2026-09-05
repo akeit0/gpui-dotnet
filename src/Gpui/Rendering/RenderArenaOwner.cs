@@ -118,7 +118,8 @@ public sealed unsafe class RenderArenaOwner : IDisposable
     public void Validate(Element root)
     {
         ObjectDisposedException.ThrowIf(_arena == null, this);
-        ManagedValidator.Validate(_arena, root);
+        try { ManagedValidator.Validate(_arena, root); }
+        finally { GC.KeepAlive(this); }
     }
 
     public string Dump(Element root)
@@ -170,6 +171,7 @@ public sealed unsafe class RenderArenaOwner : IDisposable
                 .AppendLine();
         }
 
+        GC.KeepAlive(this);
         return sb.ToString();
     }
 

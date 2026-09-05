@@ -461,7 +461,7 @@ impl ManagedView {
     }
 
     pub(crate) fn after_click(&mut self, status: i32, cx: &mut Context<Self>) {
-        if status != 0 {
+        if status != 0 && self.error.is_none() {
             self.error = Some(format!(
                 "Managed click callback failed with status {status}."
             ));
@@ -499,6 +499,14 @@ impl ManagedView {
             ("cross", sums[5]),
             ("rows", sums[6]),
         ]
+    }
+}
+
+pub(crate) fn after_detached_callback(session_id: u64, status: i32) {
+    if status != 0 {
+        // Managed callback failure is terminal and preserves its exception. Wake the normal
+        // refresh path to display that failure; successful row events need no host lookup.
+        let _ = notify(session_id);
     }
 }
 
@@ -1252,6 +1260,14 @@ mod tests {
             },
         )
         .unwrap();
+
+        after_detached_callback(view_id, 0);
+        assert!(receiver.try_recv().is_err());
+        after_detached_callback(view_id, -111);
+        after_detached_callback(view_id, -111);
+        assert!(matches!(receiver.try_recv(), Ok(ViewMessage::Invalidate)));
+        assert!(receiver.try_recv().is_err());
+        pending.store(false, Ordering::Release);
 
         assert_eq!(notify(view_id), 0);
         assert_eq!(notify(view_id), 0);

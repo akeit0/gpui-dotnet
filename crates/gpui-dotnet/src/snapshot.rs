@@ -1,4 +1,4 @@
-use std::{collections::HashSet, slice, sync::Arc};
+use std::{collections::HashSet, sync::Arc};
 
 use gpui::{FontFallbacks, FontFeatures, SharedString};
 
@@ -8,8 +8,8 @@ use crate::{
         COMPONENT_CONTEXT_MENU, COMPONENT_DOCK_AREA, COMPONENT_DOCK_PANEL, COMPONENT_DOCK_REGION,
         COMPONENT_DOCK_SPLIT, COMPONENT_DOCK_TABS, COMPONENT_DRAWING, COMPONENT_DYNAMIC,
         COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_NATIVE_EXTENSION, COMPONENT_OVERLAY,
-        COMPONENT_PATH, COMPONENT_POPOVER_MENU, COMPONENT_SLIDER, COMPONENT_TABLE,
-        COMPONENT_TOOLTIP, DataKind, OP_DOCK_ACTIVE_INDEX, OP_DOCK_REGION_SIDE,
+        COMPONENT_PATH, COMPONENT_POPOVER_MENU, COMPONENT_SCROLL, COMPONENT_SLIDER,
+        COMPONENT_TABLE, COMPONENT_TOOLTIP, DataKind, OP_DOCK_ACTIVE_INDEX, OP_DOCK_REGION_SIDE,
         OP_DRAWING_VIEW_BOX_SIZE, OP_FONT_FALLBACKS, OP_FONT_FEATURES, OP_PATH_ARC_RADII,
         OP_RESOURCE_OWNER, ValueKind, allows_payload, component_metadata, operation_metadata,
         payload_error,
@@ -267,6 +267,26 @@ fn validate_resource_key_uniqueness(
         // key is the whole payload. The kind keeps Slider's separate resource namespace apart.
         let (kind, key_length) = match node.component {
             COMPONENT_LIST => (2, node.data_length),
+            COMPONENT_SCROLL => (1, node.data_length),
+            COMPONENT_INPUT => (
+                3,
+                utf8[node.data_offset as usize
+                    ..node.data_offset as usize + node.data_length as usize]
+                    .iter()
+                    .position(|byte| *byte == 0)
+                    .unwrap() as u32,
+            ),
+            COMPONENT_NATIVE_EXTENSION => (
+                6,
+                utf8[node.data_offset as usize
+                    ..node.data_offset as usize + node.data_length as usize]
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, byte)| **byte == 0)
+                    .nth(2)
+                    .unwrap()
+                    .0 as u32,
+            ),
             COMPONENT_TABLE => (
                 2,
                 utf8[node.data_offset as usize
@@ -329,6 +349,13 @@ fn validate_with_scratch(
         return Err(-4);
     }
 
+    if !crate::pointer::valid(arena.nodes, node_len)
+        || !crate::pointer::valid(arena.ops, op_len)
+        || !crate::pointer::valid(arena.children, child_len)
+        || !crate::pointer::valid(arena.utf8, utf8_len)
+    {
+        return Err(-4);
+    }
     let nodes = unsafe { slice_or_empty(arena.nodes, node_len) };
     let ops = unsafe { slice_or_empty(arena.ops, op_len) };
     let children = unsafe { slice_or_empty(arena.children, child_len) };
@@ -594,22 +621,6 @@ fn validate_with_scratch(
         return Err(-11);
     }
 
-    for left in 0..nodes.len() {
-        if nodes[left].component != COMPONENT_DOCK_PANEL {
-            continue;
-        }
-        let left_area = dock_area_ancestor(left, nodes, &scratch.parents);
-        let left_id = dock_panel_id(&nodes[left], utf8);
-        for right in left + 1..nodes.len() {
-            if nodes[right].component == COMPONENT_DOCK_PANEL
-                && dock_area_ancestor(right, nodes, &scratch.parents) == left_area
-                && dock_panel_id(&nodes[right], utf8) == left_id
-            {
-                return Err(-61);
-            }
-        }
-    }
-
     prefix_offsets(&scratch.child_counts, &mut scratch.child_offsets);
     scratch
         .child_cursor
@@ -640,6 +651,22 @@ fn validate_with_scratch(
     }
 
     validate_resource_key_uniqueness(nodes, ops, utf8, scratch)?;
+
+    for left in 0..nodes.len() {
+        if nodes[left].component != COMPONENT_DOCK_PANEL {
+            continue;
+        }
+        let left_area = dock_area_ancestor(left, nodes, &scratch.parents);
+        let left_id = dock_panel_id(&nodes[left], utf8);
+        for right in left + 1..nodes.len() {
+            if nodes[right].component == COMPONENT_DOCK_PANEL
+                && dock_area_ancestor(right, nodes, &scratch.parents) == left_area
+                && dock_panel_id(&nodes[right], utf8) == left_id
+            {
+                return Err(-61);
+            }
+        }
+    }
 
     Ok(())
 }
@@ -685,7 +712,7 @@ unsafe fn slice_or_empty<'a, T>(pointer: *const T, len: usize) -> &'a [T] {
     if len == 0 {
         &[]
     } else {
-        unsafe { slice::from_raw_parts(pointer, len) }
+        unsafe { std::slice::from_raw_parts(pointer, len) }
     }
 }
 
@@ -1501,6 +1528,104 @@ mod tests {
             required_utf8_capacity: 0,
         };
         (arena, children)
+    }
+
+    #[test]
+    fn disconnected_dock_cycles_fail_before_ancestor_queries() {
+        for two_nodes in [false, true] {
+            let mut nodes = [
+                COMPONENT_DIV,
+                COMPONENT_DOCK_SPLIT,
+                COMPONENT_DOCK_TABS,
+                COMPONENT_DOCK_PANEL,
+                COMPONENT_DIV,
+                COMPONENT_DOCK_SPLIT,
+            ]
+            .map(|component| NodeRecord {
+                component,
+                ..Default::default()
+            });
+            let mut data = *b"p\0Panel\0";
+            nodes[3].data_length = data.len() as u32;
+            let mut arena = arena_with(&mut nodes[0], None);
+            let mut children = vec![
+                ChildRecord {
+                    parent: 1,
+                    child: 2,
+                },
+                ChildRecord {
+                    parent: 2,
+                    child: 3,
+                },
+                ChildRecord {
+                    parent: 3,
+                    child: 4,
+                },
+            ];
+            if two_nodes {
+                children.extend([
+                    ChildRecord {
+                        parent: 1,
+                        child: 5,
+                    },
+                    ChildRecord {
+                        parent: 5,
+                        child: 1,
+                    },
+                ]);
+            } else {
+                children.push(ChildRecord {
+                    parent: 1,
+                    child: 1,
+                });
+            }
+            arena.nodes = nodes.as_mut_ptr();
+            arena.node_length = if two_nodes { 6 } else { 5 };
+            arena.node_capacity = 6;
+            arena.children = children.as_mut_ptr();
+            arena.child_length = children.len() as i32;
+            arena.child_capacity = children.capacity() as i32;
+            arena.utf8 = data.as_mut_ptr();
+            arena.utf8_length = data.len() as i32;
+            arena.utf8_capacity = data.len() as i32;
+            assert_eq!(validate(&arena, 0), Err(-13));
+        }
+    }
+
+    #[test]
+    fn input_scroll_and_extension_keys_are_unique_per_owner() {
+        for (component, data) in [
+            (COMPONENT_INPUT, "key\0value\0placeholder"),
+            (COMPONENT_SCROLL, "key"),
+            (
+                COMPONENT_NATIVE_EXTENSION,
+                "editor\0document\0key\x001\x000000000000000001\0config",
+            ),
+        ] {
+            let mut utf8 = data.as_bytes().to_vec();
+            let mut nodes = [
+                NodeRecord {
+                    component: COMPONENT_DIV,
+                    ..Default::default()
+                },
+                NodeRecord {
+                    component,
+                    data_length: utf8.len() as u32,
+                    ..Default::default()
+                },
+                NodeRecord {
+                    component,
+                    data_length: utf8.len() as u32,
+                    ..Default::default()
+                },
+            ];
+            let mut owners = [OpRecord::default(); 2];
+            let (arena, _children) = resource_collision_arena(&mut nodes, &mut utf8, &mut owners);
+            assert_eq!(validate(&arena, 0), Err(-56));
+            owners[1].a = 5;
+            std::hint::black_box(&owners);
+            assert_eq!(validate(&arena, 0), Ok(()));
+        }
     }
 
     #[test]

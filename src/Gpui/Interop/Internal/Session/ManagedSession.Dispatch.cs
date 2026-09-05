@@ -47,6 +47,7 @@ internal sealed unsafe partial class ManagedSession
                 payload_length = payload.Length,
             };
             var status = _runtime.Api->dispatch_extension_command(_sessionId, &native);
+            GC.KeepAlive(_runtime);
             if (status is -30 or -31)
             {
                 return;
@@ -94,6 +95,7 @@ internal sealed unsafe partial class ManagedSession
                 b = command.B,
             };
             var status = _runtime.Api->dispatch_command(_sessionId, &native);
+            GC.KeepAlive(_runtime);
             if (status is -30 or -31)
             {
                 return;
@@ -141,6 +143,7 @@ internal sealed unsafe partial class ManagedSession
                 b = 0,
             };
             var status = _runtime.Api->dispatch_command(_sessionId, &native);
+            GC.KeepAlive(_runtime);
             if (status is -30 or -31)
             {
                 return;

@@ -14,6 +14,13 @@ internal sealed unsafe partial class ManagedSession
             return;
         if (consumer.Artifact == 0)
         {
+            if (_pendingRenderRevision != 0 && Execution.Phase != ExecutionPhase.Acceptance)
+            {
+                // Acceptance may clear an ancestor that reused this consumer's fragment.
+                // Replay through ingress after the entire staged tree commits.
+                Invalidate(consumer.Owner);
+                return;
+            }
             MarkDirty(consumer.Owner);
             NotifyRenderPending();
         }
@@ -35,6 +42,7 @@ internal sealed unsafe partial class ManagedSession
             fixed (NativeArtifactKey* pointer = CollectionsMarshal.AsSpan(keys))
             {
                 var status = _runtime.Api->invalidate_artifacts(_sessionId, pointer, keys.Count);
+                GC.KeepAlive(_runtime);
                 if (status is not (0 or -30 or -31))
                     throw new InvalidOperationException($"Native artifact invalidation failed with status {status}.");
             }

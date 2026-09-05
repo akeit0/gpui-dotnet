@@ -17,11 +17,10 @@ The producer must be a static lambda or static method supplied directly at the c
 verified. Producers must not reach a View, a bound Signal, or a controller through requests or
 static state. The diagnostic cannot prove deep immutability or the absence of UI references inside
 application objects. `GPUI017` rejects directly supplied async success/failure/cancellation handlers;
-all completion handlers must be synchronous, including delegates supplied indirectly. Runtime
-validation checks every success, failure, and cancellation handler before invoking the producer,
-including handlers inside multicast delegates. Validation caches method metadata without retaining
-delegate targets; reused delegates do not repeat reflection or allocate validation records after
-warmup. A fresh delegate can still allocate runtime method metadata when its method is inspected.
+all completion handlers must be synchronous, including delegates supplied indirectly. This is a
+compile-time API contract and caller obligation: the runtime does not inspect delegate methods,
+attributes, or multicast members. Runtime admission still enforces thread, phase, null arguments,
+and owner lifetime before starting work.
 
 Completion state is always explicit; prefer static completion callbacks.
 For example, `_work.Start(this, request, static (input, token) => Produce(input, token),
@@ -83,9 +82,12 @@ is no event task or session-bound continuation observer. Start production from a
 with `WorkScope.Start`, as in the counter sample.
 
 `GPUI018` rejects async event lambdas, async-void method groups, and discarded task results inside
-event lambdas. View-bound runtime registration also rejects async-void delegates, including delegates passed
-indirectly or inside a multicast delegate, before any handler runs. Runtime checks cannot inspect
-ordinary method bodies for manually detached work; application code must preserve this boundary.
+event, menu, and dispatcher lambdas. Indirect or multicast delegates are still required to be
+synchronous, but are not inspected at runtime. The analyzer does not prove arbitrary method bodies
+or external delegate origins; application code must preserve this boundary.
+
+An application-global menu that starts View-owned work explicitly chooses a live View's WorkScope.
+There is no implicit application async scope.
 
 Regressions exercise producer invocation on the calling thread, preserved caller context,
 foreground delivery, mount-time start, producer failures, retirement before and after completion

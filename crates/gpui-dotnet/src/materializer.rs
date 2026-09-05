@@ -555,6 +555,7 @@ impl ManagedView {
         let resource = self
             .resources
             .list_resource(&key, &configuration, self.snapshot_revision);
+        resource.borrow_mut().begin_frame();
         let state = resource.borrow().state.clone();
         let focus_state = window.use_keyed_state(
             collection_focus_id("managed-list-focus", &key),
@@ -650,6 +651,7 @@ impl ManagedView {
             .list_resource(&key, &configuration, self.snapshot_revision);
         self.resources
             .bind_table_spec(&key, spec.clone(), &resource);
+        resource.borrow_mut().begin_frame();
         let state = resource.borrow().state.clone();
         let focus_state = window.use_keyed_state(
             collection_focus_id("managed-table-focus", &key),
@@ -1179,7 +1181,6 @@ pub(crate) fn materialize_snapshot_node_detached(
     let theme = resources.theme();
     if let Some(control) = materialize_detached_foundation_control(
         metadata.adapter,
-        node_id,
         node,
         snapshot,
         session_id,
@@ -1220,7 +1221,7 @@ pub(crate) fn materialize_snapshot_node_detached(
             // list identity, row identity, and node identity — so the virtualized-row hot path
             // performs no string formatting or allocation. The stable model ID is preferred so
             // state survives splices; without one, the positional index keeps prior behavior.
-            let state_id = row_state_id(list_key, item_index, item_id, node_id, &node.data);
+            let state_id = row_state_id(list_key, item_index, item_id, &node.data);
             let element = element.id(("managed-list-row", state_id));
             let element = if use_default_cursor(node, snapshot) {
                 element.cursor_pointer()
@@ -1230,7 +1231,10 @@ pub(crate) fn materialize_snapshot_node_detached(
             let element = apply_interaction_styles(element, node, snapshot, theme);
             return element
                 .on_click(move |event: &ClickEvent, _, _| {
-                    let _ = invoke_click(callbacks, session_id, event_token, event_payload, event);
+                    crate::app_host::after_detached_callback(
+                        session_id,
+                        invoke_click(callbacks, session_id, event_token, event_payload, event),
+                    );
                 })
                 .into_any_element();
         }
@@ -1241,7 +1245,6 @@ pub(crate) fn materialize_snapshot_node_detached(
 #[allow(clippy::too_many_arguments)]
 fn materialize_detached_foundation_control(
     adapter: NativeAdapter,
-    node_id: u32,
     node: &SnapshotNode,
     snapshot: &ValidatedSnapshot,
     session_id: u64,
@@ -1268,7 +1271,7 @@ fn materialize_detached_foundation_control(
             )
         })
         .collect::<Vec<_>>();
-    let state_id = row_state_id(list_key, item_index, item_id, node_id, &node.data);
+    let state_id = row_state_id(list_key, item_index, item_id, &node.data);
     let element_id: ElementId = ("managed-list-row", state_id).into();
     let disabled = components::has_u32_flag(node, snapshot, OP_DISABLED);
     let label = accessibility_label(node, snapshot);
@@ -1300,7 +1303,10 @@ fn materialize_detached_foundation_control(
             }
             if let Some((event_token, event_payload)) = binding {
                 element = element.on_click(move |event: &ClickEvent, _, _| {
-                    let _ = invoke_click(callbacks, session_id, event_token, event_payload, event);
+                    crate::app_host::after_detached_callback(
+                        session_id,
+                        invoke_click(callbacks, session_id, event_token, event_payload, event),
+                    );
                 });
             }
             element.into_any_element()
@@ -1323,7 +1329,10 @@ fn materialize_detached_foundation_control(
             }
             if let Some((event_token, event_payload)) = binding {
                 element = element.on_change(move |_, event, _, _| {
-                    let _ = invoke_click(callbacks, session_id, event_token, event_payload, event);
+                    crate::app_host::after_detached_callback(
+                        session_id,
+                        invoke_click(callbacks, session_id, event_token, event_payload, event),
+                    );
                 });
             }
             element.into_any_element()
@@ -1346,7 +1355,10 @@ fn materialize_detached_foundation_control(
             }
             if let Some((event_token, event_payload)) = binding {
                 element = element.on_change(move |_, event, _, _| {
-                    let _ = invoke_click(callbacks, session_id, event_token, event_payload, event);
+                    crate::app_host::after_detached_callback(
+                        session_id,
+                        invoke_click(callbacks, session_id, event_token, event_payload, event),
+                    );
                 });
             }
             element.into_any_element()
@@ -2417,17 +2429,16 @@ fn row_state_id(
     list_key: &crate::resources::ResourceKey,
     item_index: usize,
     item_id: Option<u64>,
-    node_id: u32,
     node_data: &str,
 ) -> u64 {
     let identity = item_id.unwrap_or(item_index as u64).to_le_bytes();
     let owner = list_key.owner_view.to_le_bytes();
-    let node_tag = node_id.to_le_bytes();
+    let identity_kind = [u8::from(item_id.is_some())];
     stable_hash(&[
         &owner,
         list_key.key.as_bytes(),
+        &identity_kind,
         &identity,
-        &node_tag,
         node_data.as_bytes(),
     ])
 }
@@ -2983,20 +2994,136 @@ mod tests {
 
     #[test]
     fn row_state_ids_are_deterministic_for_identical_inputs() {
-        let a = row_state_id(&key(), 12, Some(7), 40, "service-row");
-        let b = row_state_id(&key(), 12, Some(7), 40, "service-row");
+        let a = row_state_id(&key(), 12, Some(7), "service-row");
+        let b = row_state_id(&key(), 12, Some(7), "service-row");
         assert_eq!(a, b);
     }
 
     #[test]
+    fn keyed_row_identity_survives_rebatching_and_preceding_content_changes() {
+        use crate::semantic::COMPONENT_DIV;
+        fn decode(preceding_nodes: usize, label: &str) -> (ValidatedSnapshot, u32, u32) {
+            let mut nodes = vec![NodeRecord {
+                component: COMPONENT_DIV,
+                ..Default::default()
+            }];
+            let mut children = Vec::new();
+            for _ in 0..preceding_nodes {
+                children.push(ChildRecord {
+                    parent: 0,
+                    child: nodes.len() as u32,
+                });
+                nodes.push(NodeRecord {
+                    component: COMPONENT_TEXT,
+                    ..Default::default()
+                });
+            }
+            let row = nodes.len() as u32;
+            nodes.push(NodeRecord {
+                component: COMPONENT_DIV,
+                ..Default::default()
+            });
+            nodes.push(NodeRecord {
+                component: crate::semantic::COMPONENT_BUTTON,
+                data_length: 3,
+                ..Default::default()
+            });
+            nodes.push(NodeRecord {
+                component: COMPONENT_TEXT,
+                data_offset: 3,
+                data_length: label.len() as u32,
+                ..Default::default()
+            });
+            children.extend([
+                ChildRecord {
+                    parent: 0,
+                    child: row,
+                },
+                ChildRecord {
+                    parent: row,
+                    child: row + 1,
+                },
+                ChildRecord {
+                    parent: row + 1,
+                    child: row + 2,
+                },
+            ]);
+            let mut data = format!("key{label}").into_bytes();
+            let mut ops = [OpRecord {
+                node: row,
+                code: crate::semantic::OP_LIST_ITEM_ID,
+                value_kind: crate::semantic::ValueKind::U64 as u16,
+                a: 7,
+                b: 0,
+            }];
+            let arena = RenderArena {
+                nodes: nodes.as_mut_ptr(),
+                node_length: nodes.len() as i32,
+                node_capacity: nodes.len() as i32,
+                children: children.as_mut_ptr(),
+                child_length: children.len() as i32,
+                child_capacity: children.len() as i32,
+                ops: ops.as_mut_ptr(),
+                op_length: 1,
+                op_capacity: 1,
+                utf8: data.as_mut_ptr(),
+                utf8_length: data.len() as i32,
+                utf8_capacity: data.len() as i32,
+                generation: 1,
+                flags: 0,
+                required_node_capacity: 0,
+                required_op_capacity: 0,
+                required_child_capacity: 0,
+                required_utf8_capacity: 0,
+            };
+            let mut snapshot = ValidatedSnapshot::default();
+            snapshot
+                .decode_into(
+                    &arena,
+                    0,
+                    &mut RetainedStrings::default(),
+                    &mut SnapshotScratch::default(),
+                )
+                .unwrap();
+            (snapshot, row, row + 1)
+        }
+        let (before, row_before, control_before) = decode(1, "old label");
+        let (after, row_after, control_after) = decode(9, "new label");
+        assert_ne!(control_before, control_after);
+        let identity = |snapshot: &ValidatedSnapshot, row, control: u32, position| {
+            let model = last_op(
+                snapshot,
+                &snapshot.nodes[row as usize],
+                crate::semantic::OP_LIST_ITEM_ID,
+            )
+            .unwrap()
+            .a;
+            row_state_id(
+                &key(),
+                position,
+                Some(model),
+                &snapshot.nodes[control as usize].data,
+            )
+        };
+        assert_eq!(
+            identity(&before, row_before, control_before, 1),
+            identity(&after, row_after, control_after, 9)
+        );
+        assert_ne!(
+            row_state_id(&key(), 7, Some(7), "key"),
+            row_state_id(&key(), 7, None, "key")
+        );
+    }
+
+    #[test]
     fn row_state_ids_distinguish_identity_inputs() {
-        let base = row_state_id(&key(), 12, Some(7), 40, "service-row");
+        let base = row_state_id(&key(), 12, Some(7), "service-row");
         // Different row identity (model ID vs positional fallback).
-        assert_ne!(base, row_state_id(&key(), 12, Some(8), 40, "service-row"));
-        assert_ne!(base, row_state_id(&key(), 12, None, 40, "service-row"));
+        assert_ne!(base, row_state_id(&key(), 12, Some(8), "service-row"));
+        assert_ne!(base, row_state_id(&key(), 12, None, "service-row"));
         // Different node within the row subtree.
-        assert_ne!(base, row_state_id(&key(), 12, Some(7), 41, "service-row"));
-        assert_ne!(base, row_state_id(&key(), 12, Some(7), 40, "chevron"));
+        assert_eq!(base, row_state_id(&key(), 12, Some(7), "service-row"));
+        assert_ne!(base, row_state_id(&key(), 12, Some(7), "chevron"));
         // Different list identity.
         assert_ne!(
             base,
@@ -3004,7 +3131,6 @@ mod tests {
                 &ResourceKey::new(5, "service-grid".into()),
                 12,
                 Some(7),
-                40,
                 "service-row"
             )
         );
@@ -3014,7 +3140,6 @@ mod tests {
                 &ResourceKey::new(4, "other-grid".into()),
                 12,
                 Some(7),
-                40,
                 "service-row"
             )
         );

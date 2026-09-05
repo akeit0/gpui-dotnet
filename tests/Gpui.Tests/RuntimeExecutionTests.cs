@@ -813,7 +813,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         var child = fixture.Child;
         var ran = false;
         // Queue during root rendering, after ingress has drained but before slot retirement.
-        fixture.View.DuringRender = () => child.Runtime.Post(() => ran = true);
+        fixture.View.DuringRender = () => RunWorker(() => child.Runtime.Post(() => ran = true));
         ((ParentView)fixture.View).ShowChild = false;
         fixture.Render();
         fixture.View.DuringRender = null;
