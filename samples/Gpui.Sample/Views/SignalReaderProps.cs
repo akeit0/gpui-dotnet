@@ -1,7 +1,7 @@
 using Gpui;
 
 internal readonly record struct SignalReaderProps(
-    Signal<int> Count,
+    IReadOnlySignal<int> Count,
     string Title,
     int Multiplier,
     bool CanPause

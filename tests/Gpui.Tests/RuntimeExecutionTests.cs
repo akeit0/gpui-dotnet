@@ -396,11 +396,13 @@ public sealed unsafe partial class RuntimeExecutionTests
     public void BoundSignalRejectsReadsAndWritesOnAWorker()
     {
         var signal = new Signal<int>(0);
+        IReadOnlySignal<int> readOnly = signal;
         using var fixture = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value });
         fixture.Render();
         RunWorker(() =>
         {
             Assert.Throws<InvalidOperationException>(() => signal.Value);
+            Assert.Throws<InvalidOperationException>(() => readOnly.Value);
             Assert.Throws<InvalidOperationException>(() => signal.Set(1));
         });
     }
@@ -1280,7 +1282,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             ui.Div(base.Render(ref ui), ui.Child<BranchView>("branch"), ui.Child<ChildView>("unaffected"));
     }
 
-    private readonly record struct SharedSignalReaderProps(Signal<int> Count, bool CanPause);
+    private readonly record struct SharedSignalReaderProps(IReadOnlySignal<int> Count, bool CanPause);
 
     private sealed class SharedSignalReaderView : View<SharedSignalReaderProps>, IGeneratedViewFactory<SharedSignalReaderView>
     {

@@ -14,6 +14,7 @@ public sealed partial class RuntimeExecutionTests
     [InlineData("view-with-props")]
     [InlineData("view-with-lifetime")]
     [InlineData("signal-int")]
+    [InlineData("readonly-signal-int")]
     public void ViewAndSignalCreationAllocations(string pattern)
     {
         var instances = new object[AllocationBatchSize];
@@ -28,6 +29,7 @@ public sealed partial class RuntimeExecutionTests
                     "view-with-props" => new AllocationPropsView(),
                     "view-with-lifetime" => CreateViewWithLifetime(),
                     "signal-int" => new Signal<int>(0),
+                    "readonly-signal-int" => (IReadOnlySignal<int>)new Signal<int>(0),
                     _ => new AllocationEmptyView()
                 };
             }
@@ -98,10 +100,14 @@ public sealed partial class RuntimeExecutionTests
     [InlineData("first-dependencies", 8)]
     [InlineData("first-dependencies", 32)]
     [InlineData("first-dependencies", 65)]
+    [InlineData("readonly-first-dependencies", 1)]
+    [InlineData("readonly-first-dependencies", 8)]
     [InlineData("stable-dependencies", 1)]
     [InlineData("stable-dependencies", 8)]
     [InlineData("stable-dependencies", 32)]
     [InlineData("stable-dependencies", 128)]
+    [InlineData("readonly-stable-dependencies", 1)]
+    [InlineData("readonly-stable-dependencies", 8)]
     [InlineData("repeated-same-signal", 32)]
     [InlineData("conditional-switch", 1)]
     [InlineData("conditional-switch", 8)]
@@ -115,12 +121,15 @@ public sealed partial class RuntimeExecutionTests
         var signals = Enumerable.Range(0, Math.Max(2, pattern == "conditional-switch" ? 2 * dependencyCount : dependencyCount))
             .Select(static _ => new Signal<int>(0)).ToArray();
         var consumer = new ReactiveConsumer(fixture.Session, fixture.View);
+        IReadOnlySignal<int>[] readOnly = signals;
+        var firstDependencies = pattern is "first-dependencies" or "readonly-first-dependencies";
+        var throughInterface = pattern.StartsWith("readonly-", StringComparison.Ordinal);
         try
         {
             for (var batch = 0; batch < AllocationWarmups + AllocationMeasurements; batch++)
             {
                 // This isolates tracking/acceptance from consumer and render-arena creation.
-                var fresh = pattern == "first-dependencies" ? new ReactiveConsumer[AllocationBatchSize] : [];
+                var fresh = firstDependencies ? new ReactiveConsumer[AllocationBatchSize] : [];
                 for (var index = 0; index < fresh.Length; index++)
                     fresh[index] = new ReactiveConsumer(fixture.Session, fixture.View);
                 var before = GC.GetAllocatedBytesForCurrentThread();
@@ -135,14 +144,17 @@ public sealed partial class RuntimeExecutionTests
                     using (current.Begin())
                     {
                         for (var dependency = 0; dependency < dependencyCount; dependency++)
-                            _ = signals[pattern == "conditional-switch" ? (index % 2) * dependencyCount + dependency
-                                : pattern is "repeated-same-signal" or "detach-resubscribe-pair" ? 0 : dependency].Value;
+                        {
+                            var slot = pattern == "conditional-switch" ? (index % 2) * dependencyCount + dependency
+                                : pattern is "repeated-same-signal" or "detach-resubscribe-pair" ? 0 : dependency;
+                            _ = throughInterface ? readOnly[slot].Value : signals[slot].Value;
+                        }
                     }
                     current.Commit();
                 }
                 var bytes = GC.GetAllocatedBytesForCurrentThread() - before;
                 ReportAllocation($"{pattern}-{dependencyCount}", batch, bytes);
-                if (batch >= AllocationWarmups && pattern != "first-dependencies"
+                if (batch >= AllocationWarmups && !firstDependencies
                     && !(pattern == "conditional-switch" && dependencyCount > 8))
                     Assert.Equal(0, bytes);
                 foreach (var item in fresh)

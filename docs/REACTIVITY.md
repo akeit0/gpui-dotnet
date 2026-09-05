@@ -9,6 +9,14 @@ object inside a Signal does not notify; comparers must be stable and side-effect
 values, effects, deep observation, and public subscription callbacks are separate concerns and
 are outside this primitive.
 
+Pass `IReadOnlySignal<out T>` to readers and keep `Signal<T>` where replacement is authorized.
+The read-only contract exposes only `T Value { get; }`; interface reads use the same tracking and
+access checks as concrete Signal reads. Covariance permits reference-type values to be exposed
+through a base type. The interface references the original Signal, with no wrapper allocation.
+It prevents accidental replacement through reader props, not mutation inside a mutable `T` or an
+explicit cast back to the concrete Signal. `Peek()` is not part of this API: reads outside rendering
+already do not subscribe, while values used in rendering normally belong in its dependencies.
+
 The existing runtime supplies application-thread entry, terminal session faults, retained dirty
 flags, root acceptance, and explicit demand artifacts. These are sufficient for a small graph,
 but two gaps require explicit treatment: observations precede acceptance, and native row caches

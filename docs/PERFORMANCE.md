@@ -34,6 +34,7 @@ Release measurements on Windows x64 / .NET 10.0.11:
 | Empty View followed by its first `Lifetime` access | 168 |
 | View containing one initialized `Signal<int>` field | 184 |
 | `new Signal<int>(0)` | 56 |
+| `new Signal<int>(0)` exposed as `IReadOnlySignal<int>` | 56 |
 
 The empty View includes its runtime identity and lifecycle lock. Dispatcher is a value handle,
 so it adds no separate allocation or stored runtime field. No mounted
@@ -72,13 +73,17 @@ included. These numbers are per complete pass, not per Signal:
 | First read/accept of 65 distinct Signals, including dictionary conversion | 7,912 |
 | Stable read/accept of 1, 8, 32, or 128 Signals | 0 |
 | Read the same Signal 32 times, then accept, after warmup | 0 |
+| First read/accept of 1 / 8 Signals through `IReadOnlySignal<int>` | 128 / 720 |
+| Stable read/accept of 1 or 8 Signals through `IReadOnlySignal<int>` | 0 |
 | Alternate between disjoint sets of 1 or 8 dependencies, after warmup | 0 |
 | Alternate between disjoint sets of 32 dependencies, after warmup | 1,728 |
 | Alternate between disjoint sets of 128 dependencies, after warmup | 8,640 |
 | Accept no dependencies, then read/accept the previous Signal again | 0 per detach/resubscribe pair after warmup |
 
 Unbound reads, equal-value writes, and changed writes without subscribers each measure **0 B/op**
-after warmup. The first-dependency costs include array creation/growth and dictionary conversion
+after warmup. Exposing a Signal through the read-only interface introduces no wrapper and does
+not change these allocation costs or the underlying dependency identity. The first-dependency
+costs include array creation/growth and dictionary conversion
 for large sets, as well as edges;
 each edge is 72 bytes in this runtime. Each consumer retains at most eight spare records (576 bytes)
 after removing their Signal references. It releases that storage on retirement. This bounds the
