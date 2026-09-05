@@ -176,8 +176,8 @@ as render-session IDs.
 Window and resource commands may originate from managed threads, but all GPUI mutations occur on
 the native event-loop thread. The application exits after its final registered window closes. A
 failure is recorded against its managed session; other windows continue until normal shutdown.
-See [THREADING.md](THREADING.md) for GPUI entity release, managed callback serialization, async
-continuations, and the binding's any-thread ingress contract.
+See [THREADING.md](THREADING.md) for GPUI entity release, managed callback serialization,
+owned-work completion, and the binding's any-thread ingress contract.
 
 ## Themes and styles
 

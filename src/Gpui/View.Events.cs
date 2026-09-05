@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Gpui;
 
 internal enum ViewEventBindingScope
@@ -24,7 +26,7 @@ public abstract partial class ViewBase
         set => _currentEventBindingOwner = value;
     }
 
-    private delegate ValueTask EventBinder(
+    private delegate void EventBinder(
         object target,
         Delegate callback,
         in EventDispatch dispatch
@@ -248,129 +250,49 @@ public abstract partial class ViewBase
     internal ulong BindClick<TView>(Action<TView, ClickEvent> callback)
         where TView : ViewBase => BindDynamicEvent(this, callback, ClickEventBinder<TView>.Index);
 
-    internal ulong BindClick<TView>(Func<TView, ClickEvent, ValueTask> callback)
-        where TView : ViewBase =>
-        BindDynamicEvent(this, callback, ClickEventAsyncBinder<TView>.Index);
-
-    internal ulong BindClick<TView>(Func<TView, ClickEvent, Task> callback)
-        where TView : ViewBase =>
-        BindDynamicEvent(this, callback, ClickEventTaskBinder<TView>.Index);
-
     /// <summary>Registers a typed input callback on this mounted View.</summary>
     internal ulong BindInput<TView>(Action<TView, InputEvent> callback)
         where TView : ViewBase => BindDynamicEvent(this, callback, InputBinder<TView>.Index);
 
-    internal ulong BindInput<TView>(Func<TView, InputEvent, ValueTask> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, InputAsyncBinder<TView>.Index);
-
-    internal ulong BindInput<TView>(Func<TView, InputEvent, Task> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, InputTaskBinder<TView>.Index);
-
     internal ulong BindSlider<TView>(Action<TView, SliderEvent> callback)
         where TView : ViewBase => BindDynamicEvent(this, callback, SliderBinder<TView>.Index);
-
-    internal ulong BindSlider<TView>(Func<TView, SliderEvent, ValueTask> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, SliderAsyncBinder<TView>.Index);
-
-    internal ulong BindSlider<TView>(Func<TView, SliderEvent, Task> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, SliderTaskBinder<TView>.Index);
 
     /// <summary>Registers a typed Dock area callback on this mounted View.</summary>
     internal ulong BindDock<TView>(Action<TView, DockEvent> callback)
         where TView : ViewBase => BindDynamicEvent(this, callback, DockBinder<TView>.Index);
 
-    internal ulong BindDock<TView>(Func<TView, DockEvent, ValueTask> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, DockAsyncBinder<TView>.Index);
-
-    internal ulong BindDock<TView>(Func<TView, DockEvent, Task> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, DockTaskBinder<TView>.Index);
-
     /// <summary>Registers a typed key-event callback on this mounted View.</summary>
     internal ulong BindKey<TView>(Action<TView, KeyEvent> callback)
         where TView : ViewBase => BindDynamicEvent(this, callback, KeyBinder<TView>.Index);
-
-    internal ulong BindKey<TView>(Func<TView, KeyEvent, ValueTask> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, KeyAsyncBinder<TView>.Index);
-
-    internal ulong BindKey<TView>(Func<TView, KeyEvent, Task> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, KeyTaskBinder<TView>.Index);
 
     /// <summary>Registers a typed mouse-event callback on this mounted View.</summary>
     internal ulong BindMouse<TView>(Action<TView, MouseEvent> callback)
         where TView : ViewBase => BindDynamicEvent(this, callback, MouseBinder<TView>.Index);
 
-    internal ulong BindMouse<TView>(Func<TView, MouseEvent, ValueTask> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, MouseAsyncBinder<TView>.Index);
-
-    internal ulong BindMouse<TView>(Func<TView, MouseEvent, Task> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, MouseTaskBinder<TView>.Index);
-
     /// <summary>Registers a typed modifier-key callback on this mounted View.</summary>
     internal ulong BindModifiers<TView>(Action<TView, ModifiersEvent> callback)
         where TView : ViewBase => BindDynamicEvent(this, callback, ModifiersBinder<TView>.Index);
-
-    internal ulong BindModifiers<TView>(Func<TView, ModifiersEvent, ValueTask> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, ModifiersAsyncBinder<TView>.Index);
-
-    internal ulong BindModifiers<TView>(Func<TView, ModifiersEvent, Task> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, ModifiersTaskBinder<TView>.Index);
 
     /// <summary>Registers a typed hover-state callback on this mounted View.</summary>
     internal ulong BindHover<TView>(Action<TView, HoverEvent> callback)
         where TView : ViewBase => BindDynamicEvent(this, callback, HoverBinder<TView>.Index);
 
-    internal ulong BindHover<TView>(Func<TView, HoverEvent, ValueTask> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, HoverAsyncBinder<TView>.Index);
-
-    internal ulong BindHover<TView>(Func<TView, HoverEvent, Task> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, HoverTaskBinder<TView>.Index);
-
     /// <summary>Registers a typed mouse-move callback on this mounted View.</summary>
     internal ulong BindMouseMove<TView>(Action<TView, MouseMoveEvent> callback)
         where TView : ViewBase => BindDynamicEvent(this, callback, MouseMoveBinder<TView>.Index);
-
-    internal ulong BindMouseMove<TView>(Func<TView, MouseMoveEvent, ValueTask> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, MouseMoveAsyncBinder<TView>.Index);
-
-    internal ulong BindMouseMove<TView>(Func<TView, MouseMoveEvent, Task> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, MouseMoveTaskBinder<TView>.Index);
 
     /// <summary>Registers a typed scroll-wheel callback on this mounted View.</summary>
     internal ulong BindScrollWheel<TView>(Action<TView, ScrollWheelEvent> callback)
         where TView : ViewBase => BindDynamicEvent(this, callback, ScrollWheelBinder<TView>.Index);
 
-    internal ulong BindScrollWheel<TView>(Func<TView, ScrollWheelEvent, ValueTask> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, ScrollWheelAsyncBinder<TView>.Index);
-
-    internal ulong BindScrollWheel<TView>(Func<TView, ScrollWheelEvent, Task> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, ScrollWheelTaskBinder<TView>.Index);
-
     /// <summary>Registers a typed file-drop callback on this mounted View.</summary>
     internal ulong BindFileDrop<TView>(Action<TView, FileDropEvent> callback)
         where TView : ViewBase => BindDynamicEvent(this, callback, FileDropBinder<TView>.Index);
-
-    internal ulong BindFileDrop<TView>(Func<TView, FileDropEvent, ValueTask> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, FileDropAsyncBinder<TView>.Index);
-
-    internal ulong BindFileDrop<TView>(Func<TView, FileDropEvent, Task> callback)
-        where TView : ViewBase => BindDynamicEvent(this, callback, FileDropTaskBinder<TView>.Index);
 
     internal ulong BindNativeExtensionEvent<TView, TEvent>(Action<TView, TEvent> callback)
         where TView : ViewBase
         where TEvent : INativeExtensionEvent<TEvent> =>
         BindDynamicEvent(this, callback, NativeExtensionBinder<TView, TEvent>.Index);
-
-    internal ulong BindNativeExtensionEvent<TView, TEvent>(
-        Func<TView, TEvent, ValueTask> callback
-    )
-        where TView : ViewBase
-        where TEvent : INativeExtensionEvent<TEvent> =>
-        BindDynamicEvent(this, callback, NativeExtensionAsyncBinder<TView, TEvent>.Index);
-
-    internal ulong BindNativeExtensionEvent<TView, TEvent>(Func<TView, TEvent, Task> callback)
-        where TView : ViewBase
-        where TEvent : INativeExtensionEvent<TEvent> =>
-        BindDynamicEvent(this, callback, NativeExtensionTaskBinder<TView, TEvent>.Index);
 
     private ulong BindDynamicEvent(ViewBase target, Delegate callback, int binderIndex)
     {
@@ -389,9 +311,11 @@ public abstract partial class ViewBase
         var entries = attachment.EventEntries ??= [];
         var scope = attachment.EventBindingScope;
         var pass = attachment.EventBindingPass;
+        var callbackVerified = false;
         for (var index = 0; index < entries.Count; index++)
         {
             var current = entries[index];
+            callbackVerified |= ReferenceEquals(current.Callback, callback);
             if (
                 current.BinderIndex == binderIndex
                 && IsEntryInScope(current.LastPass, scope)
@@ -408,6 +332,9 @@ public abstract partial class ViewBase
             }
         }
 
+        // The same static callback can serve many row artifacts. Reuse its prior validation.
+        if (!callbackVerified)
+            ValidateSynchronousEvent(callback);
         if (attachment.NextEventId == DynamicEventEntryMask)
         {
             throw new InvalidOperationException(
@@ -446,6 +373,20 @@ public abstract partial class ViewBase
             slots.Add(entryIndex);
         }
         return DynamicEventToken(attachment.ViewHandle, id);
+    }
+
+    private static void ValidateSynchronousEvent(Delegate callback)
+    {
+        if (!callback.HasSingleTarget)
+        {
+            foreach (var handler in callback.GetInvocationList())
+                ValidateSynchronousEvent(handler);
+            return;
+        }
+        if (callback.Method.IsDefined(typeof(AsyncStateMachineAttribute), inherit: false))
+            throw new InvalidOperationException(
+                "Event callbacks must be synchronous. Use StartWork for asynchronous production."
+            );
     }
 
     internal void BeginEventBindingPass(ViewEventBindingScope scope, ulong artifact = 0)
@@ -537,165 +478,176 @@ public abstract partial class ViewBase
     private static ulong DynamicEventToken(uint viewHandle, uint id) =>
         ((ulong)viewHandle << 32) | DynamicEventBit | id;
 
-    private ValueTask DispatchDynamicClickAsync(uint eventId, ClickEvent clickEvent)
+    private void DispatchDynamicClick(uint eventId, ClickEvent clickEvent)
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
         {
-            return MissingDynamicEvent(eventId, "click");
+            MissingDynamicEvent(eventId, "click");
+            return;
         }
 
         var dispatch = new EventDispatch(clickEvent);
-        return EventBinderRegistry.Get(entry.BinderIndex)(
+        EventBinderRegistry.Get(entry.BinderIndex)(
             entry.Target!,
             entry.Callback!,
             in dispatch
         );
     }
 
-    private ValueTask DispatchDynamicInputAsync(uint eventId, InputEvent inputEvent)
+    private void DispatchDynamicInput(uint eventId, InputEvent inputEvent)
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
         {
-            return MissingDynamicEvent(eventId, "input");
+            MissingDynamicEvent(eventId, "input");
+            return;
         }
 
         var dispatch = new EventDispatch(inputEvent);
-        return EventBinderRegistry.Get(entry.BinderIndex)(
+        EventBinderRegistry.Get(entry.BinderIndex)(
             entry.Target!,
             entry.Callback!,
             in dispatch
         );
     }
 
-    private ValueTask DispatchDynamicSliderAsync(uint eventId, SliderEvent sliderEvent)
+    private void DispatchDynamicSlider(uint eventId, SliderEvent sliderEvent)
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
         {
-            return MissingDynamicEvent(eventId, "slider");
+            MissingDynamicEvent(eventId, "slider");
+            return;
         }
 
         var dispatch = new EventDispatch(sliderEvent);
-        return EventBinderRegistry.Get(entry.BinderIndex)(
+        EventBinderRegistry.Get(entry.BinderIndex)(
             entry.Target!,
             entry.Callback!,
             in dispatch
         );
     }
 
-    private ValueTask DispatchDynamicDockAsync(uint eventId, DockEvent dockEvent)
+    private void DispatchDynamicDock(uint eventId, DockEvent dockEvent)
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
         {
-            return MissingDynamicEvent(eventId, "dock");
+            MissingDynamicEvent(eventId, "dock");
+            return;
         }
 
         var dispatch = new EventDispatch(dockEvent);
-        return EventBinderRegistry.Get(entry.BinderIndex)(
+        EventBinderRegistry.Get(entry.BinderIndex)(
             entry.Target!,
             entry.Callback!,
             in dispatch
         );
     }
 
-    private ValueTask DispatchDynamicKeyAsync(uint eventId, KeyEvent keyEvent)
+    private void DispatchDynamicKey(uint eventId, KeyEvent keyEvent)
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
         {
-            return MissingDynamicEvent(eventId, "key");
+            MissingDynamicEvent(eventId, "key");
+            return;
         }
 
         var dispatch = new EventDispatch(keyEvent);
-        return EventBinderRegistry.Get(entry.BinderIndex)(
+        EventBinderRegistry.Get(entry.BinderIndex)(
             entry.Target!,
             entry.Callback!,
             in dispatch
         );
     }
 
-    private ValueTask DispatchDynamicMouseAsync(uint eventId, MouseEvent mouseEvent)
+    private void DispatchDynamicMouse(uint eventId, MouseEvent mouseEvent)
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
         {
-            return MissingDynamicEvent(eventId, "mouse");
+            MissingDynamicEvent(eventId, "mouse");
+            return;
         }
 
         var dispatch = new EventDispatch(mouseEvent);
-        return EventBinderRegistry.Get(entry.BinderIndex)(
+        EventBinderRegistry.Get(entry.BinderIndex)(
             entry.Target!,
             entry.Callback!,
             in dispatch
         );
     }
 
-    private ValueTask DispatchDynamicModifiersAsync(uint eventId, ModifiersEvent modifiersEvent)
+    private void DispatchDynamicModifiers(uint eventId, ModifiersEvent modifiersEvent)
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
         {
-            return MissingDynamicEvent(eventId, "modifiers");
+            MissingDynamicEvent(eventId, "modifiers");
+            return;
         }
 
         var dispatch = new EventDispatch(modifiersEvent);
-        return EventBinderRegistry.Get(entry.BinderIndex)(
+        EventBinderRegistry.Get(entry.BinderIndex)(
             entry.Target!,
             entry.Callback!,
             in dispatch
         );
     }
 
-    private ValueTask DispatchDynamicHoverAsync(uint eventId, HoverEvent hoverEvent)
+    private void DispatchDynamicHover(uint eventId, HoverEvent hoverEvent)
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
         {
-            return MissingDynamicEvent(eventId, "hover");
+            MissingDynamicEvent(eventId, "hover");
+            return;
         }
 
         var dispatch = new EventDispatch(hoverEvent);
-        return EventBinderRegistry.Get(entry.BinderIndex)(
+        EventBinderRegistry.Get(entry.BinderIndex)(
             entry.Target!,
             entry.Callback!,
             in dispatch
         );
     }
 
-    private ValueTask DispatchDynamicMouseMoveAsync(uint eventId, MouseMoveEvent mouseMoveEvent)
+    private void DispatchDynamicMouseMove(uint eventId, MouseMoveEvent mouseMoveEvent)
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
         {
-            return MissingDynamicEvent(eventId, "mouse move");
+            MissingDynamicEvent(eventId, "mouse move");
+            return;
         }
 
         var dispatch = new EventDispatch(mouseMoveEvent);
-        return EventBinderRegistry.Get(entry.BinderIndex)(
+        EventBinderRegistry.Get(entry.BinderIndex)(
             entry.Target!,
             entry.Callback!,
             in dispatch
         );
     }
 
-    private ValueTask DispatchDynamicScrollWheelAsync(uint eventId, ScrollWheelEvent scrollWheelEvent)
+    private void DispatchDynamicScrollWheel(uint eventId, ScrollWheelEvent scrollWheelEvent)
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
         {
-            return MissingDynamicEvent(eventId, "scroll wheel");
+            MissingDynamicEvent(eventId, "scroll wheel");
+            return;
         }
 
         var dispatch = new EventDispatch(scrollWheelEvent);
-        return EventBinderRegistry.Get(entry.BinderIndex)(
+        EventBinderRegistry.Get(entry.BinderIndex)(
             entry.Target!,
             entry.Callback!,
             in dispatch
         );
     }
 
-    private ValueTask DispatchDynamicFileDropAsync(uint eventId, FileDropEvent fileDropEvent)
+    private void DispatchDynamicFileDrop(uint eventId, FileDropEvent fileDropEvent)
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
         {
-            return MissingDynamicEvent(eventId, "file drop");
+            MissingDynamicEvent(eventId, "file drop");
+            return;
         }
 
         var dispatch = new EventDispatch(fileDropEvent);
-        return EventBinderRegistry.Get(entry.BinderIndex)(
+        EventBinderRegistry.Get(entry.BinderIndex)(
             entry.Target!,
             entry.Callback!,
             in dispatch
@@ -741,17 +693,15 @@ public abstract partial class ViewBase
         return entry.BinderIndex != 0 && entry.Target is ViewBase { IsMountedCore: true };
     }
 
-    private ValueTask MissingDynamicEvent(uint eventId, string eventType)
+    private void MissingDynamicEvent(uint eventId, string eventType)
     {
         if (IsWellFormedEventId(eventId)
             && (_uiAttachment is null || (eventId & DynamicEventEntryMask) <= _uiAttachment.NextEventId))
         {
-            return ValueTask.CompletedTask;
+            return;
         }
-        return ValueTask.FromException(
-            new InvalidOperationException(
-                $"Dynamic {eventType} event entry {eventId & DynamicEventEntryMask} has no callback."
-            )
+        throw new InvalidOperationException(
+            $"Dynamic {eventType} event entry {eventId & DynamicEventEntryMask} has no callback."
         );
     }
 
@@ -764,51 +714,52 @@ public abstract partial class ViewBase
             _ => false,
         };
 
-    internal ValueTask DispatchClickCore(uint eventId, ClickEvent clickEvent) =>
-        DispatchDynamicClickAsync(eventId, clickEvent);
+    internal void DispatchClickCore(uint eventId, ClickEvent clickEvent) =>
+        DispatchDynamicClick(eventId, clickEvent);
 
-    internal ValueTask DispatchInputCore(uint eventId, InputEvent inputEvent) =>
-        DispatchDynamicInputAsync(eventId, inputEvent);
+    internal void DispatchInputCore(uint eventId, InputEvent inputEvent) =>
+        DispatchDynamicInput(eventId, inputEvent);
 
-    internal ValueTask DispatchSliderCore(uint eventId, SliderEvent sliderEvent) =>
-        DispatchDynamicSliderAsync(eventId, sliderEvent);
+    internal void DispatchSliderCore(uint eventId, SliderEvent sliderEvent) =>
+        DispatchDynamicSlider(eventId, sliderEvent);
 
-    internal ValueTask DispatchDockCore(uint eventId, DockEvent dockEvent) =>
-        DispatchDynamicDockAsync(eventId, dockEvent);
+    internal void DispatchDockCore(uint eventId, DockEvent dockEvent) =>
+        DispatchDynamicDock(eventId, dockEvent);
 
-    internal ValueTask DispatchKeyCore(uint eventId, KeyEvent keyEvent) =>
-        DispatchDynamicKeyAsync(eventId, keyEvent);
+    internal void DispatchKeyCore(uint eventId, KeyEvent keyEvent) =>
+        DispatchDynamicKey(eventId, keyEvent);
 
-    internal ValueTask DispatchMouseCore(uint eventId, MouseEvent mouseEvent) =>
-        DispatchDynamicMouseAsync(eventId, mouseEvent);
+    internal void DispatchMouseCore(uint eventId, MouseEvent mouseEvent) =>
+        DispatchDynamicMouse(eventId, mouseEvent);
 
-    internal ValueTask DispatchModifiersCore(uint eventId, ModifiersEvent modifiersEvent) =>
-        DispatchDynamicModifiersAsync(eventId, modifiersEvent);
+    internal void DispatchModifiersCore(uint eventId, ModifiersEvent modifiersEvent) =>
+        DispatchDynamicModifiers(eventId, modifiersEvent);
 
-    internal ValueTask DispatchHoverCore(uint eventId, HoverEvent hoverEvent) =>
-        DispatchDynamicHoverAsync(eventId, hoverEvent);
+    internal void DispatchHoverCore(uint eventId, HoverEvent hoverEvent) =>
+        DispatchDynamicHover(eventId, hoverEvent);
 
-    internal ValueTask DispatchMouseMoveCore(uint eventId, MouseMoveEvent mouseMoveEvent) =>
-        DispatchDynamicMouseMoveAsync(eventId, mouseMoveEvent);
+    internal void DispatchMouseMoveCore(uint eventId, MouseMoveEvent mouseMoveEvent) =>
+        DispatchDynamicMouseMove(eventId, mouseMoveEvent);
 
-    internal ValueTask DispatchScrollWheelCore(uint eventId, ScrollWheelEvent scrollWheelEvent) =>
-        DispatchDynamicScrollWheelAsync(eventId, scrollWheelEvent);
+    internal void DispatchScrollWheelCore(uint eventId, ScrollWheelEvent scrollWheelEvent) =>
+        DispatchDynamicScrollWheel(eventId, scrollWheelEvent);
 
-    internal ValueTask DispatchFileDropCore(uint eventId, FileDropEvent fileDropEvent) =>
-        DispatchDynamicFileDropAsync(eventId, fileDropEvent);
+    internal void DispatchFileDropCore(uint eventId, FileDropEvent fileDropEvent) =>
+        DispatchDynamicFileDrop(eventId, fileDropEvent);
 
-    internal ValueTask DispatchNativeExtensionCore(
+    internal void DispatchNativeExtensionCore(
         uint eventId,
         NativeExtensionEvent nativeExtensionEvent
     )
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
         {
-            return MissingDynamicEvent(eventId, "native extension");
+            MissingDynamicEvent(eventId, "native extension");
+            return;
         }
 
         var dispatch = new EventDispatch(nativeExtensionEvent);
-        return EventBinderRegistry.Get(entry.BinderIndex)(
+        EventBinderRegistry.Get(entry.BinderIndex)(
             entry.Target!,
             entry.Callback!,
             in dispatch
@@ -871,71 +822,22 @@ public abstract partial class ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
             if (dispatch.Kind != EventDispatchKind.Click)
             {
-                return WrongDispatchKind("click");
+                throw WrongDispatchKind("click");
             }
             if (target is not TView typedTarget)
             {
-                return WrongTarget<TView>(target, "click");
+                throw WrongTarget<TView>(target, "click");
             }
             if (callback is not Action<TView, ClickEvent> typedCallback)
             {
-                return WrongCallback("Action<TView, ClickEvent>", "click");
+                throw WrongCallback("Action<TView, ClickEvent>", "click");
             }
 
             typedCallback(typedTarget, dispatch.Click);
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private static class ClickEventAsyncBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Click)
-            {
-                return WrongDispatchKind("click");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "click");
-            }
-            if (callback is not Func<TView, ClickEvent, ValueTask> typedCallback)
-            {
-                return WrongCallback("Func<TView, ClickEvent, ValueTask>", "click");
-            }
-
-            return typedCallback(typedTarget, dispatch.Click);
-        }
-    }
-
-    private static class ClickEventTaskBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Click)
-            {
-                return WrongDispatchKind("click");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "click");
-            }
-            if (callback is not Func<TView, ClickEvent, Task> typedCallback)
-            {
-                return WrongCallback("Func<TView, ClickEvent, Task>", "click");
-            }
-
-            return new ValueTask(typedCallback(typedTarget, dispatch.Click));
         }
     }
 
@@ -944,71 +846,22 @@ public abstract partial class ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
             if (dispatch.Kind != EventDispatchKind.Input || dispatch.Input is not { } input)
             {
-                return WrongDispatchKind("input");
+                throw WrongDispatchKind("input");
             }
             if (target is not TView typedTarget)
             {
-                return WrongTarget<TView>(target, "input");
+                throw WrongTarget<TView>(target, "input");
             }
             if (callback is not Action<TView, InputEvent> typedCallback)
             {
-                return WrongCallback("Action<TView, InputEvent>", "input");
+                throw WrongCallback("Action<TView, InputEvent>", "input");
             }
 
             typedCallback(typedTarget, input);
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private static class InputAsyncBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Input || dispatch.Input is not { } input)
-            {
-                return WrongDispatchKind("input");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "input");
-            }
-            if (callback is not Func<TView, InputEvent, ValueTask> typedCallback)
-            {
-                return WrongCallback("Func<TView, InputEvent, ValueTask>", "input");
-            }
-
-            return typedCallback(typedTarget, input);
-        }
-    }
-
-    private static class InputTaskBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Input || dispatch.Input is not { } input)
-            {
-                return WrongDispatchKind("input");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "input");
-            }
-            if (callback is not Func<TView, InputEvent, Task> typedCallback)
-            {
-                return WrongCallback("Func<TView, InputEvent, Task>", "input");
-            }
-
-            return new ValueTask(typedCallback(typedTarget, input));
         }
     }
 
@@ -1017,71 +870,22 @@ public abstract partial class ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
             if (dispatch.Kind != EventDispatchKind.Slider)
             {
-                return WrongDispatchKind("slider");
+                throw WrongDispatchKind("slider");
             }
             if (target is not TView typedTarget)
             {
-                return WrongTarget<TView>(target, "slider");
+                throw WrongTarget<TView>(target, "slider");
             }
             if (callback is not Action<TView, SliderEvent> typedCallback)
             {
-                return WrongCallback("Action<TView, SliderEvent>", "slider");
+                throw WrongCallback("Action<TView, SliderEvent>", "slider");
             }
 
             typedCallback(typedTarget, dispatch.Slider);
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private static class SliderAsyncBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Slider)
-            {
-                return WrongDispatchKind("slider");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "slider");
-            }
-            if (callback is not Func<TView, SliderEvent, ValueTask> typedCallback)
-            {
-                return WrongCallback("Func<TView, SliderEvent, ValueTask>", "slider");
-            }
-
-            return typedCallback(typedTarget, dispatch.Slider);
-        }
-    }
-
-    private static class SliderTaskBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Slider)
-            {
-                return WrongDispatchKind("slider");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "slider");
-            }
-            if (callback is not Func<TView, SliderEvent, Task> typedCallback)
-            {
-                return WrongCallback("Func<TView, SliderEvent, Task>", "slider");
-            }
-
-            return new ValueTask(typedCallback(typedTarget, dispatch.Slider));
         }
     }
 
@@ -1090,71 +894,22 @@ public abstract partial class ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
             if (dispatch.Kind != EventDispatchKind.Dock)
             {
-                return WrongDispatchKind("dock");
+                throw WrongDispatchKind("dock");
             }
             if (target is not TView typedTarget)
             {
-                return WrongTarget<TView>(target, "dock");
+                throw WrongTarget<TView>(target, "dock");
             }
             if (callback is not Action<TView, DockEvent> typedCallback)
             {
-                return WrongCallback("Action<TView, DockEvent>", "dock");
+                throw WrongCallback("Action<TView, DockEvent>", "dock");
             }
 
             typedCallback(typedTarget, dispatch.Dock);
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private static class DockAsyncBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Dock)
-            {
-                return WrongDispatchKind("dock");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "dock");
-            }
-            if (callback is not Func<TView, DockEvent, ValueTask> typedCallback)
-            {
-                return WrongCallback("Func<TView, DockEvent, ValueTask>", "dock");
-            }
-
-            return typedCallback(typedTarget, dispatch.Dock);
-        }
-    }
-
-    private static class DockTaskBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Dock)
-            {
-                return WrongDispatchKind("dock");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "dock");
-            }
-            if (callback is not Func<TView, DockEvent, Task> typedCallback)
-            {
-                return WrongCallback("Func<TView, DockEvent, Task>", "dock");
-            }
-
-            return new ValueTask(typedCallback(typedTarget, dispatch.Dock));
         }
     }
 
@@ -1163,71 +918,22 @@ public abstract partial class ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
             if (dispatch.Kind != EventDispatchKind.Key || dispatch.Key is not { } key)
             {
-                return WrongDispatchKind("key");
+                throw WrongDispatchKind("key");
             }
             if (target is not TView typedTarget)
             {
-                return WrongTarget<TView>(target, "key");
+                throw WrongTarget<TView>(target, "key");
             }
             if (callback is not Action<TView, KeyEvent> typedCallback)
             {
-                return WrongCallback("Action<TView, KeyEvent>", "key");
+                throw WrongCallback("Action<TView, KeyEvent>", "key");
             }
 
             typedCallback(typedTarget, key);
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private static class KeyAsyncBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Key || dispatch.Key is not { } key)
-            {
-                return WrongDispatchKind("key");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "key");
-            }
-            if (callback is not Func<TView, KeyEvent, ValueTask> typedCallback)
-            {
-                return WrongCallback("Func<TView, KeyEvent, ValueTask>", "key");
-            }
-
-            return typedCallback(typedTarget, key);
-        }
-    }
-
-    private static class KeyTaskBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Key || dispatch.Key is not { } key)
-            {
-                return WrongDispatchKind("key");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "key");
-            }
-            if (callback is not Func<TView, KeyEvent, Task> typedCallback)
-            {
-                return WrongCallback("Func<TView, KeyEvent, Task>", "key");
-            }
-
-            return new ValueTask(typedCallback(typedTarget, key));
         }
     }
 
@@ -1236,71 +942,22 @@ public abstract partial class ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
             if (dispatch.Kind != EventDispatchKind.Mouse)
             {
-                return WrongDispatchKind("mouse");
+                throw WrongDispatchKind("mouse");
             }
             if (target is not TView typedTarget)
             {
-                return WrongTarget<TView>(target, "mouse");
+                throw WrongTarget<TView>(target, "mouse");
             }
             if (callback is not Action<TView, MouseEvent> typedCallback)
             {
-                return WrongCallback("Action<TView, MouseEvent>", "mouse");
+                throw WrongCallback("Action<TView, MouseEvent>", "mouse");
             }
 
             typedCallback(typedTarget, dispatch.Mouse);
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private static class MouseAsyncBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Mouse)
-            {
-                return WrongDispatchKind("mouse");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "mouse");
-            }
-            if (callback is not Func<TView, MouseEvent, ValueTask> typedCallback)
-            {
-                return WrongCallback("Func<TView, MouseEvent, ValueTask>", "mouse");
-            }
-
-            return typedCallback(typedTarget, dispatch.Mouse);
-        }
-    }
-
-    private static class MouseTaskBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Mouse)
-            {
-                return WrongDispatchKind("mouse");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "mouse");
-            }
-            if (callback is not Func<TView, MouseEvent, Task> typedCallback)
-            {
-                return WrongCallback("Func<TView, MouseEvent, Task>", "mouse");
-            }
-
-            return new ValueTask(typedCallback(typedTarget, dispatch.Mouse));
         }
     }
 
@@ -1309,71 +966,22 @@ public abstract partial class ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
             if (dispatch.Kind != EventDispatchKind.Modifiers)
             {
-                return WrongDispatchKind("modifiers");
+                throw WrongDispatchKind("modifiers");
             }
             if (target is not TView typedTarget)
             {
-                return WrongTarget<TView>(target, "modifiers");
+                throw WrongTarget<TView>(target, "modifiers");
             }
             if (callback is not Action<TView, ModifiersEvent> typedCallback)
             {
-                return WrongCallback("Action<TView, ModifiersEvent>", "modifiers");
+                throw WrongCallback("Action<TView, ModifiersEvent>", "modifiers");
             }
 
             typedCallback(typedTarget, dispatch.Modifiers);
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private static class ModifiersAsyncBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Modifiers)
-            {
-                return WrongDispatchKind("modifiers");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "modifiers");
-            }
-            if (callback is not Func<TView, ModifiersEvent, ValueTask> typedCallback)
-            {
-                return WrongCallback("Func<TView, ModifiersEvent, ValueTask>", "modifiers");
-            }
-
-            return typedCallback(typedTarget, dispatch.Modifiers);
-        }
-    }
-
-    private static class ModifiersTaskBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Modifiers)
-            {
-                return WrongDispatchKind("modifiers");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "modifiers");
-            }
-            if (callback is not Func<TView, ModifiersEvent, Task> typedCallback)
-            {
-                return WrongCallback("Func<TView, ModifiersEvent, Task>", "modifiers");
-            }
-
-            return new ValueTask(typedCallback(typedTarget, dispatch.Modifiers));
         }
     }
 
@@ -1382,71 +990,22 @@ public abstract partial class ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
             if (dispatch.Kind != EventDispatchKind.Hover)
             {
-                return WrongDispatchKind("hover");
+                throw WrongDispatchKind("hover");
             }
             if (target is not TView typedTarget)
             {
-                return WrongTarget<TView>(target, "hover");
+                throw WrongTarget<TView>(target, "hover");
             }
             if (callback is not Action<TView, HoverEvent> typedCallback)
             {
-                return WrongCallback("Action<TView, HoverEvent>", "hover");
+                throw WrongCallback("Action<TView, HoverEvent>", "hover");
             }
 
             typedCallback(typedTarget, dispatch.Hover);
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private static class HoverAsyncBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Hover)
-            {
-                return WrongDispatchKind("hover");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "hover");
-            }
-            if (callback is not Func<TView, HoverEvent, ValueTask> typedCallback)
-            {
-                return WrongCallback("Func<TView, HoverEvent, ValueTask>", "hover");
-            }
-
-            return typedCallback(typedTarget, dispatch.Hover);
-        }
-    }
-
-    private static class HoverTaskBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Hover)
-            {
-                return WrongDispatchKind("hover");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "hover");
-            }
-            if (callback is not Func<TView, HoverEvent, Task> typedCallback)
-            {
-                return WrongCallback("Func<TView, HoverEvent, Task>", "hover");
-            }
-
-            return new ValueTask(typedCallback(typedTarget, dispatch.Hover));
         }
     }
 
@@ -1455,71 +1014,22 @@ public abstract partial class ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
             if (dispatch.Kind != EventDispatchKind.MouseMove)
             {
-                return WrongDispatchKind("mouse move");
+                throw WrongDispatchKind("mouse move");
             }
             if (target is not TView typedTarget)
             {
-                return WrongTarget<TView>(target, "mouse move");
+                throw WrongTarget<TView>(target, "mouse move");
             }
             if (callback is not Action<TView, MouseMoveEvent> typedCallback)
             {
-                return WrongCallback("Action<TView, MouseMoveEvent>", "mouse move");
+                throw WrongCallback("Action<TView, MouseMoveEvent>", "mouse move");
             }
 
             typedCallback(typedTarget, dispatch.MouseMove);
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private static class MouseMoveAsyncBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.MouseMove)
-            {
-                return WrongDispatchKind("mouse move");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "mouse move");
-            }
-            if (callback is not Func<TView, MouseMoveEvent, ValueTask> typedCallback)
-            {
-                return WrongCallback("Func<TView, MouseMoveEvent, ValueTask>", "mouse move");
-            }
-
-            return typedCallback(typedTarget, dispatch.MouseMove);
-        }
-    }
-
-    private static class MouseMoveTaskBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.MouseMove)
-            {
-                return WrongDispatchKind("mouse move");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "mouse move");
-            }
-            if (callback is not Func<TView, MouseMoveEvent, Task> typedCallback)
-            {
-                return WrongCallback("Func<TView, MouseMoveEvent, Task>", "mouse move");
-            }
-
-            return new ValueTask(typedCallback(typedTarget, dispatch.MouseMove));
         }
     }
 
@@ -1528,71 +1038,22 @@ public abstract partial class ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
             if (dispatch.Kind != EventDispatchKind.ScrollWheel)
             {
-                return WrongDispatchKind("scroll wheel");
+                throw WrongDispatchKind("scroll wheel");
             }
             if (target is not TView typedTarget)
             {
-                return WrongTarget<TView>(target, "scroll wheel");
+                throw WrongTarget<TView>(target, "scroll wheel");
             }
             if (callback is not Action<TView, ScrollWheelEvent> typedCallback)
             {
-                return WrongCallback("Action<TView, ScrollWheelEvent>", "scroll wheel");
+                throw WrongCallback("Action<TView, ScrollWheelEvent>", "scroll wheel");
             }
 
             typedCallback(typedTarget, dispatch.ScrollWheel);
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private static class ScrollWheelAsyncBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.ScrollWheel)
-            {
-                return WrongDispatchKind("scroll wheel");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "scroll wheel");
-            }
-            if (callback is not Func<TView, ScrollWheelEvent, ValueTask> typedCallback)
-            {
-                return WrongCallback("Func<TView, ScrollWheelEvent, ValueTask>", "scroll wheel");
-            }
-
-            return typedCallback(typedTarget, dispatch.ScrollWheel);
-        }
-    }
-
-    private static class ScrollWheelTaskBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.ScrollWheel)
-            {
-                return WrongDispatchKind("scroll wheel");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "scroll wheel");
-            }
-            if (callback is not Func<TView, ScrollWheelEvent, Task> typedCallback)
-            {
-                return WrongCallback("Func<TView, ScrollWheelEvent, Task>", "scroll wheel");
-            }
-
-            return new ValueTask(typedCallback(typedTarget, dispatch.ScrollWheel));
         }
     }
 
@@ -1601,71 +1062,22 @@ public abstract partial class ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
             if (dispatch.Kind != EventDispatchKind.FileDrop || dispatch.FileDrop is not { } fileDrop)
             {
-                return WrongDispatchKind("file drop");
+                throw WrongDispatchKind("file drop");
             }
             if (target is not TView typedTarget)
             {
-                return WrongTarget<TView>(target, "file drop");
+                throw WrongTarget<TView>(target, "file drop");
             }
             if (callback is not Action<TView, FileDropEvent> typedCallback)
             {
-                return WrongCallback("Action<TView, FileDropEvent>", "file drop");
+                throw WrongCallback("Action<TView, FileDropEvent>", "file drop");
             }
 
             typedCallback(typedTarget, fileDrop);
-            return ValueTask.CompletedTask;
-        }
-    }
-
-    private static class FileDropAsyncBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.FileDrop || dispatch.FileDrop is not { } fileDrop)
-            {
-                return WrongDispatchKind("file drop");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "file drop");
-            }
-            if (callback is not Func<TView, FileDropEvent, ValueTask> typedCallback)
-            {
-                return WrongCallback("Func<TView, FileDropEvent, ValueTask>", "file drop");
-            }
-
-            return typedCallback(typedTarget, fileDrop);
-        }
-    }
-
-    private static class FileDropTaskBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.FileDrop || dispatch.FileDrop is not { } fileDrop)
-            {
-                return WrongDispatchKind("file drop");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "file drop");
-            }
-            if (callback is not Func<TView, FileDropEvent, Task> typedCallback)
-            {
-                return WrongCallback("Func<TView, FileDropEvent, Task>", "file drop");
-            }
-
-            return new ValueTask(typedCallback(typedTarget, fileDrop));
         }
     }
 
@@ -1675,109 +1087,40 @@ public abstract partial class ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
 
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
             if (
                 dispatch.Kind != EventDispatchKind.NativeExtension
                 || dispatch.NativeExtension is not { } nativeExtensionEvent
             )
             {
-                return WrongDispatchKind("native extension");
+                throw WrongDispatchKind("native extension");
             }
             if (target is not TView typedTarget)
             {
-                return WrongTarget<TView>(target, "native extension");
+                throw WrongTarget<TView>(target, "native extension");
             }
             if (callback is not Action<TView, TEvent> typedCallback)
             {
-                return WrongCallback($"Action<TView, {typeof(TEvent).Name}>", "native extension");
+                throw WrongCallback($"Action<TView, {typeof(TEvent).Name}>", "native extension");
             }
 
             typedCallback(typedTarget, TEvent.Decode(nativeExtensionEvent));
-            return ValueTask.CompletedTask;
         }
     }
 
-    private static class NativeExtensionAsyncBinder<TView, TEvent>
-        where TView : ViewBase
-        where TEvent : INativeExtensionEvent<TEvent>
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+    private static Exception WrongDispatchKind(string eventType) =>
+        new InvalidOperationException($"The event binder cannot dispatch a {eventType} event.");
 
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (
-                dispatch.Kind != EventDispatchKind.NativeExtension
-                || dispatch.NativeExtension is not { } nativeExtensionEvent
-            )
-            {
-                return WrongDispatchKind("native extension");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "native extension");
-            }
-            if (callback is not Func<TView, TEvent, ValueTask> typedCallback)
-            {
-                return WrongCallback(
-                    $"Func<TView, {typeof(TEvent).Name}, ValueTask>",
-                    "native extension"
-                );
-            }
-
-            return typedCallback(typedTarget, TEvent.Decode(nativeExtensionEvent));
-        }
-    }
-
-    private static class NativeExtensionTaskBinder<TView, TEvent>
-        where TView : ViewBase
-        where TEvent : INativeExtensionEvent<TEvent>
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static ValueTask Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (
-                dispatch.Kind != EventDispatchKind.NativeExtension
-                || dispatch.NativeExtension is not { } nativeExtensionEvent
-            )
-            {
-                return WrongDispatchKind("native extension");
-            }
-            if (target is not TView typedTarget)
-            {
-                return WrongTarget<TView>(target, "native extension");
-            }
-            if (callback is not Func<TView, TEvent, Task> typedCallback)
-            {
-                return WrongCallback(
-                    $"Func<TView, {typeof(TEvent).Name}, Task>",
-                    "native extension"
-                );
-            }
-
-            return new ValueTask(typedCallback(typedTarget, TEvent.Decode(nativeExtensionEvent)));
-        }
-    }
-
-    private static ValueTask WrongDispatchKind(string eventType) =>
-        ValueTask.FromException(
-            new InvalidOperationException($"The event binder cannot dispatch a {eventType} event.")
-        );
-
-    private static ValueTask WrongTarget<TView>(object target, string eventType)
+    private static Exception WrongTarget<TView>(object target, string eventType)
         where TView : ViewBase =>
-        ValueTask.FromException(
-            new InvalidOperationException(
-                $"The {eventType} callback requires target type {typeof(TView).FullName}, "
-                    + $"but received {target.GetType().FullName}."
-            )
+        new InvalidOperationException(
+            $"The {eventType} callback requires target type {typeof(TView).FullName}, "
+                + $"but received {target.GetType().FullName}."
         );
 
-    private static ValueTask WrongCallback(string callbackType, string eventType) =>
-        ValueTask.FromException(
-            new InvalidOperationException(
-                $"The {eventType} callback has an incompatible delegate type; expected {callbackType}."
-            )
+    private static Exception WrongCallback(string callbackType, string eventType) =>
+        new InvalidOperationException(
+            $"The {eventType} callback has an incompatible delegate type; expected {callbackType}."
         );
 }

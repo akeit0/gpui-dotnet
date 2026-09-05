@@ -44,7 +44,8 @@ public abstract partial class ViewBase
             Action<ViewBase> invalidate,
             Action<uint, ResourceCommand> resourceCommand,
             Utf8InputValueDispatcher utf8InputValue,
-            NativeExtensionCommandDispatcher nativeExtensionCommand
+            NativeExtensionCommandDispatcher nativeExtensionCommand,
+            Action ensureAvailable
         )
         {
             ViewHandle = viewHandle;
@@ -53,6 +54,7 @@ public abstract partial class ViewBase
             ResourceCommand = resourceCommand;
             Utf8InputValue = utf8InputValue;
             NativeExtensionCommand = nativeExtensionCommand;
+            EnsureAvailable = ensureAvailable;
         }
 
         internal uint ViewHandle { get; }
@@ -61,6 +63,7 @@ public abstract partial class ViewBase
         internal Action<uint, ResourceCommand> ResourceCommand { get; }
         internal Utf8InputValueDispatcher Utf8InputValue { get; }
         internal NativeExtensionCommandDispatcher NativeExtensionCommand { get; }
+        internal Action EnsureAvailable { get; }
 
         internal bool TryPost(Action callback)
         {
@@ -362,7 +365,8 @@ public abstract partial class ViewBase
         Action<ViewBase> invalidate,
         Action<uint, ResourceCommand> resourceCommand,
         Utf8InputValueDispatcher utf8InputValue,
-        NativeExtensionCommandDispatcher nativeExtensionCommand
+        NativeExtensionCommandDispatcher nativeExtensionCommand,
+        Action ensureAvailable
     )
     {
         if (viewHandle == 0)
@@ -374,6 +378,7 @@ public abstract partial class ViewBase
         ArgumentNullException.ThrowIfNull(resourceCommand);
         ArgumentNullException.ThrowIfNull(utf8InputValue);
         ArgumentNullException.ThrowIfNull(nativeExtensionCommand);
+        ArgumentNullException.ThrowIfNull(ensureAvailable);
 
         lock (_lifecycleGate)
         {
@@ -397,7 +402,8 @@ public abstract partial class ViewBase
                     invalidate,
                     resourceCommand,
                     utf8InputValue,
-                    nativeExtensionCommand
+                    nativeExtensionCommand,
+                    ensureAvailable
                 )
             );
             _uiAttachment = RentUiAttachment(viewHandle);
@@ -483,6 +489,7 @@ public abstract partial class ViewBase
         }
 
         commandRoute?.Deactivate();
+        _pendingWork = null;
         if (uiAttachment is not null)
         {
             ReturnUiAttachment(uiAttachment);

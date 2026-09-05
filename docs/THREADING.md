@@ -40,10 +40,15 @@ cleanup before they access retained state. External callback entry cannot reente
 callback, including through another window. Internal child rendering remains part of the root
 callback. Synchronous synchronization-context dispatch cannot bypass this guard.
 
-During native callbacks, the binding installs a per-window `GpuiSynchronizationContext`. Normal
-`await` continuations from an event handler are posted to that session and drained at the start of
-a later root-render callback. `ConfigureAwait(false)` deliberately leaves this context; code
-running there must use one of the any-thread entry points to return to the View.
+During native callbacks, the binding installs a per-window `GpuiSynchronizationContext` for
+foreground dispatch. Events are synchronous and do not return `Task` or `ValueTask`. The context
+does not confer View ownership on manually detached work; use the explicit owned-work boundary.
+
+Use `StartWork` for View-owned production. It schedules a static producer with an explicit request
+and lifetime token on the thread pool, suppressing execution-context flow. The worker holds weak
+UI references; the View owns completion callbacks. Results return through the stable command route
+and are applied only while that owner remains mounted. Retirement drops pending callbacks before
+cancellation, even when a producer ignores its token. See [Asynchronous work](ASYNC_WORK.md).
 
 `OnMounted` means that Rust accepted the View's snapshot and the reachable managed tree and props
 have committed. It runs outside rendering, parent-before-child, before native materialization.
@@ -91,10 +96,10 @@ deactivation linear with any command already entering from another thread.
 | Window and retained-resource controller commands | Any thread while mounted; GPUI mutation runs on the GPUI application thread |
 | `Lifetime` cancellation observation | Any thread |
 
-Any-thread support is an ingress guarantee, not general thread safety for a View. A worker should
-compute or perform I/O, then use `Dispatcher.Post` or a captured synchronization-context
-continuation to modify View state. Passing `Lifetime` to the work prevents a continuation from
-treating a terminal View as mounted.
+Any-thread support is an ingress guarantee, not general thread safety for a View. Use `StartWork`
+to compute or perform I/O and apply live results through foreground ingress. Cancellation alone
+does not establish ownership: producers may ignore their token, so completion must recheck the
+original View's route. `Dispatcher.Post` provides that check for manually posted synchronous work.
 
 Retained-resource commands also require an accepted declaration. Native ingress reads a small
 thread-safe presence index and stamps the queued command with its generation. Delivery rechecks
@@ -131,9 +136,9 @@ staged compositions it commits. Requests arriving during rendering or pending ac
 on a later render. Theme and metadata updates likewise enqueue full-tree invalidation. Native
 wakeups coalesce per session.
 
-View-bound posted callbacks recheck their stable command route when consumed and are discarded
-after owner retirement. Legacy async event continuations remain session-bound; they still need
-the lifetime checks described in [View lifecycle](VIEW_LIFECYCLE.md).
+View-bound posted callbacks and owned-work completions recheck their stable command route when
+consumed and are discarded after owner retirement. Event dispatch does not retain pending tasks
+or install task-completion observers.
 
 The first unexpected render, demand-render, event, lifecycle, or posted-callback failure is
 terminal for normal session execution. Later render/event callbacks fail without invoking user

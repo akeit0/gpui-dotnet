@@ -230,7 +230,7 @@ authoritative because a custom or mismatched managed host must not create invali
 
 Retained controls emit a typed `NativeControlEvent` containing event kind, flags, native revision,
 and a borrowed byte range. Managed code validates and copies the payload before returning through
-FFI, so asynchronous event handlers never retain native borrowed memory.
+FFI, so application code can retain event data without retaining native borrowed memory.
 
 Input events carry UTF-8 data for Changed, Submitted, and FocusChanged transitions. Slider Changed
 and Released events carry one little-endian `f32`, or two ordered values when the range flag is set.

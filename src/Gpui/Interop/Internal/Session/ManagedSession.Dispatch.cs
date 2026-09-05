@@ -195,7 +195,7 @@ internal sealed unsafe partial class ManagedSession
     private void DispatchEvent<TEvent>(
         ulong eventToken,
         TEvent value,
-        Func<ViewBase, uint, TEvent, ValueTask> dispatch
+        Action<ViewBase, uint, TEvent> dispatch
     )
     {
         ThrowIfUnavailable();
@@ -220,62 +220,13 @@ internal sealed unsafe partial class ManagedSession
                 );
             }
 
-            var pending = dispatch(owner, handlerId, value);
-            if (pending.IsCompletedSuccessfully)
-            {
-                pending.GetAwaiter().GetResult();
-            }
-            else if (pending.IsCompleted)
-            {
-                // Preserve cancellation as a normal outcome for the legacy async event API.
-                try
-                {
-                    pending.GetAwaiter().GetResult();
-                }
-                catch (OperationCanceledException) { }
-            }
-            else
-            {
-                ObserveEventTask(pending);
-            }
+            dispatch(owner, handlerId, value);
             ThrowIfUnavailable();
         }
         catch (Exception exception)
         {
             RecordFailure(exception);
             throw;
-        }
-    }
-
-    private void ObserveEventTask(ValueTask pending)
-    {
-        _ = pending.AsTask().ContinueWith(
-            static (completed, state) => ((ManagedSession)state!).ObserveEventCompletion(completed),
-            this,
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default
-        );
-    }
-
-    private void ObserveEventCompletion(Task pending)
-    {
-        try
-        {
-            pending.GetAwaiter().GetResult();
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception exception)
-        {
-            RecordFailure(exception);
-            try
-            {
-                NotifyRenderPending();
-            }
-            catch (Exception notifyFailure)
-            {
-                RecordFailure(notifyFailure);
-            }
         }
     }
 }

@@ -665,7 +665,7 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
-    public async Task SliderConfigurationAndEventsPassManagedValidation()
+    public void SliderConfigurationAndEventsPassManagedValidation()
     {
         var view = new ProbeView();
         Attach(view);
@@ -694,11 +694,11 @@ public sealed class SemanticRenderTests
 
             var changed = ReadCallbackEventId(arena, OpCode.SliderOnChanged);
             var released = ReadCallbackEventId(arena, OpCode.SliderOnReleased);
-            await view.DispatchSliderCore(
+            view.DispatchSliderCore(
                 changed,
                 new SliderEvent(SliderEventKind.Changed, 50, 50, false, 4)
             );
-            await view.DispatchSliderCore(
+            view.DispatchSliderCore(
                 released,
                 new SliderEvent(SliderEventKind.Released, 55, 55, false, 5)
             );
@@ -1143,7 +1143,7 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
-    public async Task ViewBoundClickCallbackReusesAndUnregistersItsEntry()
+    public void ViewBoundClickCallbackReusesAndUnregistersItsEntry()
     {
         var view = new DynamicCallbackView();
         Attach(view);
@@ -1162,7 +1162,7 @@ public sealed class SemanticRenderTests
             var secondEventId = ReadCallbackEventId(arena);
 
             Assert.Equal(firstEventId, secondEventId);
-            await view.DispatchClickCore(firstEventId, default);
+            view.DispatchClickCore(firstEventId, default);
             Assert.Equal(1, view.ClickCount);
 
             view.BindCallback = false;
@@ -1170,7 +1170,7 @@ public sealed class SemanticRenderTests
             var third = view.RenderCore(ref thirdUi);
             arena.Validate(third);
 
-            await view.DispatchClickCore(firstEventId, default);
+            view.DispatchClickCore(firstEventId, default);
             Assert.Equal(1, view.ClickCount);
 
             view.BindCallback = true;
@@ -1179,9 +1179,9 @@ public sealed class SemanticRenderTests
             arena.Validate(fourth);
             var reboundEventId = ReadCallbackEventId(arena);
             Assert.NotEqual(firstEventId, reboundEventId);
-            await view.DispatchClickCore(firstEventId, default);
+            view.DispatchClickCore(firstEventId, default);
             Assert.Equal(1, view.ClickCount);
-            await view.DispatchClickCore(reboundEventId, default);
+            view.DispatchClickCore(reboundEventId, default);
             Assert.Equal(2, view.ClickCount);
         }
         finally
@@ -1191,7 +1191,7 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
-    public async Task ViewBoundCallbackCanTargetAnotherMountedView()
+    public void ViewBoundCallbackCanTargetAnotherMountedView()
     {
         var owner = new DynamicCallbackView();
         var target = new CallbackTargetView();
@@ -1206,7 +1206,7 @@ public sealed class SemanticRenderTests
             arena.Validate(button);
 
             var eventId = ReadCallbackEventId(arena);
-            await owner.DispatchClickCore(eventId, default);
+            owner.DispatchClickCore(eventId, default);
             Assert.Equal(1, target.ClickCount);
         }
         finally
@@ -1836,7 +1836,7 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
-    public async Task DockEventsBindAndDispatch()
+    public void DockEventsBindAndDispatch()
     {
         var view = new ProbeView();
         Attach(view, 17);
@@ -1855,15 +1855,15 @@ public sealed class SemanticRenderTests
 
             var layout = ReadCallbackEventId(arena, OpCode.DockOnLayout);
             var closed = ReadCallbackEventId(arena, OpCode.DockOnClosed);
-            await view.DispatchDockCore(
+            view.DispatchDockCore(
                 layout,
                 new DockEvent(DockEventKind.LayoutChanged, string.Empty, string.Empty, 1)
             );
-            await view.DispatchDockCore(
+            view.DispatchDockCore(
                 closed,
                 new DockEvent(DockEventKind.PanelClosed, "editor", string.Empty, 2)
             );
-            await view.DispatchDockCore(
+            view.DispatchDockCore(
                 layout,
                 new DockEvent(DockEventKind.LayoutExported, string.Empty, """{"v":1}""", 3)
             );
@@ -1881,7 +1881,7 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
-    public async Task KeyAndMouseObserverBindingsPassValidationAndDispatch()
+    public void KeyAndMouseObserverBindingsPassValidationAndDispatch()
     {
         var view = new ProbeView();
         Attach(view, 17);
@@ -1916,32 +1916,32 @@ public sealed class SemanticRenderTests
             var scrollWheel = ReadCallbackEventId(arena, OpCode.OnScrollWheel);
             var fileDrop = ReadCallbackEventId(arena, OpCode.OnFileDrop);
 
-            await view.DispatchKeyCore(keyDown, new KeyEvent(KeyEventKind.Down, "s", 1, false));
-            await view.DispatchKeyCore(keyUp, new KeyEvent(KeyEventKind.Up, "s", 1, false));
-            await view.DispatchMouseCore(
+            view.DispatchKeyCore(keyDown, new KeyEvent(KeyEventKind.Down, "s", 1, false));
+            view.DispatchKeyCore(keyUp, new KeyEvent(KeyEventKind.Up, "s", 1, false));
+            view.DispatchMouseCore(
                 mouseDown,
                 new MouseEvent(MouseEventKind.Down, 12, 34, MouseButton.Right, 1, 1)
             );
-            await view.DispatchMouseCore(
+            view.DispatchMouseCore(
                 mouseUp,
                 new MouseEvent(MouseEventKind.Up, 12, 34, MouseButton.Right, 1, 1)
             );
-            await view.DispatchModifiersCore(modifiersChanged, new ModifiersEvent(1));
-            await view.DispatchHoverCore(hover, new HoverEvent(true));
-            await view.DispatchMouseCore(
+            view.DispatchModifiersCore(modifiersChanged, new ModifiersEvent(1));
+            view.DispatchHoverCore(hover, new HoverEvent(true));
+            view.DispatchMouseCore(
                 mouseDownOut,
                 new MouseEvent(MouseEventKind.DownOut, 1, 2, MouseButton.Left, 1, 0)
             );
-            await view.DispatchMouseCore(
+            view.DispatchMouseCore(
                 mouseUpOut,
                 new MouseEvent(MouseEventKind.UpOut, 1, 2, MouseButton.Left, 1, 0)
             );
-            await view.DispatchMouseMoveCore(mouseMove, new MouseMoveEvent(3, 4, null, 0));
-            await view.DispatchScrollWheelCore(
+            view.DispatchMouseMoveCore(mouseMove, new MouseMoveEvent(3, 4, null, 0));
+            view.DispatchScrollWheelCore(
                 scrollWheel,
                 new ScrollWheelEvent(5, 6, 0, -3, ScrollDeltaUnits.Lines, 0)
             );
-            await view.DispatchFileDropCore(
+            view.DispatchFileDropCore(
                 fileDrop,
                 new FileDropEvent(7, 8, ["/tmp/a.txt", "/tmp/b.txt"], 0)
             );
@@ -1991,7 +1991,8 @@ public sealed class SemanticRenderTests
             static _ => { },
             static (_, _) => { },
             static (_, _, _) => { },
-            static (_, _, _, _, _, _, _, _, _, _) => { }
+            static (_, _, _, _, _, _, _, _, _, _) => { },
+            static () => { }
         );
         view.MountRuntime();
     }

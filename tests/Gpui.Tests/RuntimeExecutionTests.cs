@@ -8,8 +8,18 @@ using Gpui.Interop.Internal.Session;
 
 namespace Gpui.Tests;
 
-public sealed unsafe class RuntimeExecutionTests
+public sealed unsafe partial class RuntimeExecutionTests
 {
+    [Fact]
+    public void SynchronousEventCancellationFaultsTheSession()
+    {
+        var failure = new OperationCanceledException("synchronous event failed");
+        using var fixture = new SessionFixture(new ProbeView { OnClick = () => throw failure });
+        fixture.Render();
+        Assert.Equal(-111, fixture.Click());
+        Assert.Same(failure, fixture.Session.Failure);
+    }
+
     [Fact]
     public void RowSignalsInvalidateOnlyTheirAcceptedArtifactsAndBatchAtCallbackExit()
     {

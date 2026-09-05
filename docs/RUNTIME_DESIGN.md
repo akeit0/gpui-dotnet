@@ -20,8 +20,8 @@ the next one. Requests arriving during rendering belong to a later render. Ambie
 theme and metadata invalidations use the same queued principle. Keep queues scoped
 to windows so one faulted window cannot retain or execute another window's work.
 
-A session retains its first exception, including rendering and asynchronous event
-failures. Once faulted, it rejects normal callback entry and discards queued user
+A session retains its first exception, including rendering, event dispatch, and unhandled
+owned-work completion failures. Once faulted, it rejects normal callback entry and discards queued user
 work. Cleanup is still admitted and visits the entire owned tree, even when a cleanup
 callback throws. The application's final error report may retain a session's failure;
 it does not act as an independent recovery mechanism. Metadata updates invalidate
@@ -127,12 +127,14 @@ retaining the application. Both reads and writes then assert the owner thread.
 Accept dependency edges with their consumer and detach them on retirement. Reuse
 unchanged edges; a row-only dependency invalidates its artifact rather than its View.
 
-Keep event callbacks synchronous. A View-owned asynchronous operation receives an
+Event callbacks are synchronous. A View-owned asynchronous operation receives an
 explicit request snapshot and cancellation token, then posts success or failure
 through ingress. Check the one-shot owner lifetime when consuming the completion,
 even if production ignored cancellation. Only a live owner may run the apply callback.
-Capture diagnostics should flag View/controller/dispatcher captures, without claiming
-that arbitrary request objects can be proven deeply immutable.
+Producer diagnostics require directly supplied static lambdas or methods, without claiming
+that arbitrary request objects can be proven deeply immutable. Event diagnostics reject
+async handlers and discarded tasks; View-bound registration also rejects indirect async-void
+delegates. See [Asynchronous work](ASYNC_WORK.md) for the ownership and diagnostic contracts.
 
 ## Verification gates
 

@@ -107,6 +107,6 @@ gap, rejection, teardown retention, independent sources, and row-only invalidati
 cover acceptance after decoding, selective eviction, stale keys, and repaint without root dirtiness.
 Allocation checks cover warm tracking and repeated writes with an already-pending notification.
 
-Structured async remains a separate ownership change. Producers receive an explicit snapshot;
-they cannot access bound Signals from workers. Their eventual live completion may replace Signal
-values through application-thread ingress.
+View-owned [asynchronous work](ASYNC_WORK.md) receives an explicit snapshot; producers cannot
+access bound Signals from workers. Their eventual live completion may replace Signal values
+through application-thread ingress. Event handlers remain synchronous.

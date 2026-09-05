@@ -96,7 +96,8 @@ internal sealed unsafe partial class ManagedSession
                 Invalidate,
                 DispatchResourceCommand,
                 DispatchUtf8InputValue,
-                DispatchNativeExtensionCommand
+                DispatchNativeExtensionCommand,
+                ThrowIfUnavailable
             );
         }
         catch

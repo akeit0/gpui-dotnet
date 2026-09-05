@@ -161,7 +161,7 @@ public sealed class ViewLifetimeTests
     }
 
     [Fact]
-    public async Task ReusedUiAttachmentDoesNotRetainEventEntries()
+    public void ReusedUiAttachmentDoesNotRetainEventEntries()
     {
         var first = new LifecycleView();
         Attach(first, 1);
@@ -175,8 +175,8 @@ public sealed class ViewLifetimeTests
         try
         {
             Assert.Equal(1ul, second.AllocateResourceKey());
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                second.DispatchClickCore(staleEventId, default).AsTask()
+            Assert.Throws<InvalidOperationException>(() =>
+                second.DispatchClickCore(staleEventId, default)
             );
         }
         finally
@@ -199,7 +199,8 @@ public sealed class ViewLifetimeTests
             invalidate ?? (static _ => { }),
             resourceCommand ?? (static (_, _) => { }),
             static (_, _, _) => { },
-            static (_, _, _, _, _, _, _, _, _, _) => { }
+            static (_, _, _, _, _, _, _, _, _, _) => { },
+            static () => { }
         );
         view.MountRuntime();
     }

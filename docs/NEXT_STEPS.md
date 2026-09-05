@@ -102,7 +102,7 @@ proven large-dataset behavior.
 
 ## Runtime
 
-Structured async ownership and runtime performance verification are tracked in
+Runtime performance and platform verification are tracked in
 [RUNTIME_PLAN.md](RUNTIME_PLAN.md).
 
 ## ABI, diagnostics, and CI

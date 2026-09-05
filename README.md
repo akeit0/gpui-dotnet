@@ -213,7 +213,8 @@ ui.Button("save", "Save").OnClick(this, (view, _) => view.Save());
 ui.Input("search"u8).OnChanged(this, (view, e) => view.Search(e));
 ```
 
-`Task` and `ValueTask` handlers are observed by the session. View lifetime follows UI ownership: a
+Event handlers are synchronous `Action` callbacks. Use [StartWork](docs/ASYNC_WORK.md) for
+asynchronous production; async-void handlers are rejected. View lifetime follows UI ownership: a
 window owns its root and a committed slot owns its child; an ordinary C# reference owns neither.
 Each View has one lazily allocated, stable `Lifetime` token, cancelled before terminal
 `OnUnmounted()` cleanup. An unmounted instance cannot be reused. See
@@ -432,6 +433,7 @@ Do not edit generated semantic or extension schema files by hand.
 - [Optional editor extension](docs/EDITOR.md)
 - [View lifecycle](docs/VIEW_LIFECYCLE.md)
 - [Lifecycle and threading](docs/THREADING.md)
+- [View-owned asynchronous work](docs/ASYNC_WORK.md)
 - [Signal reactivity and ownership](docs/REACTIVITY.md)
 - [Managed renderer Hot Reload](docs/HOT_RELOAD.md)
 - [ABI contract](docs/ABI.md)

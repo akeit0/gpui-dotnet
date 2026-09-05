@@ -6,11 +6,16 @@ internal sealed partial class CounterCardView : View<CounterCardProps>
 {
     private readonly Signal<int> _count = new(0);
 
-    private async ValueTask Increment()
-    {
-        await Task.Delay(100, Lifetime);
-        _count.Value++;
-    }
+    private void Increment() =>
+        StartWork(
+            100,
+            static async (delay, lifetime) =>
+            {
+                await Task.Delay(delay, lifetime).ConfigureAwait(false);
+                return 1;
+            },
+            increment => _count.Value += increment
+        );
 
     protected override Element Render(ref RenderContext ui) =>
         ui.VStack(

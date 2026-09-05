@@ -9,7 +9,7 @@ namespace Gpui.Tests;
 public sealed class NativeExtensionTests
 {
     [Fact]
-    public async Task GenericExtensionEventBindingDecodesTypedEvent()
+    public void GenericExtensionEventBindingDecodesTypedEvent()
     {
         var view = new ExtensionProbeView();
         Attach(view, 41);
@@ -22,7 +22,7 @@ public sealed class NativeExtensionTests
                 static (target, extensionEvent) => target.ExtensionEventValue = extensionEvent.Value
             );
 
-            await view.DispatchNativeExtensionCore(
+            view.DispatchNativeExtensionCore(
                 unchecked((uint)binding.Token),
                 new NativeExtensionEvent(7, 0, 3, [42])
             );
@@ -428,7 +428,8 @@ public sealed class NativeExtensionTests
         view.PrepareRuntime(
             42, static callback => callback(), static _ => { },
             static (_, _) => { }, static (_, _, _) => { },
-            static (_, _, _, _, _, _, _, _, _, _) => { }
+            static (_, _, _, _, _, _, _, _, _, _) => { },
+            static () => { }
         );
         try
         {
@@ -499,7 +500,8 @@ public sealed class NativeExtensionTests
             static _ => { },
             static (_, _) => { },
             static (_, _, _) => { },
-            extensionCommand ?? (static (_, _, _, _, _, _, _, _, _, _) => { })
+            extensionCommand ?? (static (_, _, _, _, _, _, _, _, _, _) => { }),
+            static () => { }
         );
         view.MountRuntime();
     }

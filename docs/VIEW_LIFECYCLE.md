@@ -210,30 +210,28 @@ the same theme. A theme change invalidates every fragment in each window because
 input is not represented by props.
 
 Event handlers run against mounted View targets and may change state, call controllers, and request
-rerender. `Task` and `ValueTask` handlers are observed by the session.
-
-Pass `Lifetime` to asynchronous work that must not outlive route replacement or window closure:
+rerender. Use a synchronous event to start View-owned production with `StartWork`:
 
 ```csharp
-private async ValueTask LoadAsync()
-{
-    try
-    {
-        var data = await service.LoadAsync(Lifetime);
-        if (!IsMounted)
+private void IncrementLater() =>
+    StartWork(
+        100,
+        static async (delay, lifetime) =>
         {
-            return; // Protect against APIs that complete despite cancellation.
-        }
-
-        _data = data;
-        Invalidate();
-    }
-    catch (OperationCanceledException) when (Lifetime.IsCancellationRequested)
-    {
-        // Normal View teardown.
-    }
-}
+            await Task.Delay(delay, lifetime).ConfigureAwait(false);
+            return 1;
+        },
+        increment => _count.Value += increment
+    );
 ```
+
+Here `_count` is a `Signal<int>`. Production receives an explicit snapshot and token; the View
+owns the completion callback. Retirement releases callback captures and discards late results and
+failures even if production ignores cancellation. Completion runs through application ingress.
+See [Asynchronous work](ASYNC_WORK.md) for failure handling and capture diagnostics.
+
+Event bindings accept only synchronous `Action` callbacks. Async-void handlers are rejected by
+diagnostics and runtime registration; use `StartWork` instead of detaching an event continuation.
 
 Avoid retaining View and controller references beyond their owner's lifetime. Such references keep
 ordinary managed objects reachable, but they neither keep the UI mounted nor make runtime methods
