@@ -99,7 +99,7 @@ them, so event handlers continue to observe the last committed value.
 The implementation retains two `TProps` payloads, not three: the committed value observed outside
 rendering and the latest declaration used during rendering and for fragment comparison. The
 fragment's required/rendered versions determine whether that latest declaration produced valid
-cached output, including after a failed render or arena-growth retry.
+cached output, including across render attempts.
 
 `TProps` must implement `IEquatable<TProps>`, enforced by the `View<TProps>` generic constraint, so
 `EqualityComparer<TProps>.Default` has a strongly typed comparison path. Records and record structs
@@ -149,7 +149,7 @@ semantic declaration is committed.
 
 ## Transactional rendering
 
-The native host may retry a render after growing its arena. `Render()` must not:
+Buffers grow before writes without rerunning user rendering. `Render()` must not:
 
 - mutate application or View state;
 - perform I/O;
@@ -160,13 +160,13 @@ The native host may retry a render after growing its arena. `Render()` must not:
 
 Declaring event bindings and allowing a ref-bound framework controller to initialize its stable key
 are supported render-time operations. Event bindings are render-pass state rather than a separately
-committed managed tree. Arena-growth retries reuse the declared bindings; if a render fails, the
-native host presents its managed-render error surface and the failed snapshot does not become
+committed managed tree. If a render fails, the native host presents its managed-render error
+surface and the failed snapshot does not become
 interactive. `[GpuiListItem]` renderers follow the same purity rule.
 
 A newly requested child is attached before its first render so its callbacks and controllers have
-a stable owner identity. It is a session-owned candidate until the complete tree commits and can
-survive an arena-growth retry. The previously committed tree remains active during that attempt.
+a stable owner identity. It is a session-owned candidate until the complete tree commits.
+The previously committed tree remains active during that attempt.
 After success, the candidate becomes the slot's committed child and the replaced subtree unmounts;
 an abandoned candidate is unmounted during reconciliation or session shutdown.
 

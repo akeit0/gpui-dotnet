@@ -65,7 +65,7 @@ changes, refreshes, splices, and table column changes.
 
 ## Render and lifecycle rules
 
-`Render()` and `[GpuiListItem]` methods may be retried. They must not mutate application state,
+`Render()` and `[GpuiListItem]` methods do not retry for arena capacity. They must not mutate application state,
 perform I/O, start tasks, invoke controllers, or call `Invalidate()`. Ref-bound framework
 controllers may acquire their stable key during rendering.
 

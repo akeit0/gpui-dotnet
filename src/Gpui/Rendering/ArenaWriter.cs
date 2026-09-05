@@ -761,6 +761,10 @@ internal static unsafe class ArenaWriter
         uint sourceRoot
     )
     {
+        if (source == destination)
+        {
+            throw new InvalidOperationException("A render arena cannot append itself.");
+        }
         if (sourceRoot >= (uint)source->NodeLength)
         {
             throw new InvalidOperationException("The retained fragment root is invalid.");
@@ -914,11 +918,6 @@ internal static unsafe class ArenaWriter
             return;
         }
 
-        RequestNativeGrowth(
-            arena,
-            RenderArenaBuffer.Nodes,
-            checked(arena->NodeLength + additional)
-        );
         arena->Nodes = Grow(arena->Nodes, ref arena->node_capacity, arena->NodeLength, additional);
     }
 
@@ -929,11 +928,6 @@ internal static unsafe class ArenaWriter
             return;
         }
 
-        RequestNativeGrowth(
-            arena,
-            RenderArenaBuffer.Operations,
-            checked(arena->OpLength + additional)
-        );
         arena->Ops = Grow(arena->Ops, ref arena->op_capacity, arena->OpLength, additional);
     }
 
@@ -944,11 +938,6 @@ internal static unsafe class ArenaWriter
             return;
         }
 
-        RequestNativeGrowth(
-            arena,
-            RenderArenaBuffer.Children,
-            checked(arena->ChildLength + additional)
-        );
         arena->Children = Grow(
             arena->Children,
             ref arena->child_capacity,
@@ -964,60 +953,14 @@ internal static unsafe class ArenaWriter
             return;
         }
 
-        RequestNativeGrowth(arena, RenderArenaBuffer.Utf8, checked(arena->Utf8Length + additional));
         arena->Utf8 = Grow(arena->Utf8, ref arena->utf8_capacity, arena->Utf8Length, additional);
-    }
-
-    private static void RequestNativeGrowth(
-        RenderArena* arena,
-        RenderArenaBuffer buffer,
-        int requiredCapacity
-    )
-    {
-        if ((arena->Flags & NativeConstants.ArenaFlagNativeOwned) == 0)
-        {
-            return;
-        }
-
-        switch (buffer)
-        {
-            case RenderArenaBuffer.Nodes:
-                arena->RequiredNodeCapacity = Math.Max(
-                    arena->RequiredNodeCapacity,
-                    requiredCapacity
-                );
-                break;
-            case RenderArenaBuffer.Operations:
-                arena->RequiredOpCapacity = Math.Max(arena->RequiredOpCapacity, requiredCapacity);
-                break;
-            case RenderArenaBuffer.Children:
-                arena->RequiredChildCapacity = Math.Max(
-                    arena->RequiredChildCapacity,
-                    requiredCapacity
-                );
-                break;
-            case RenderArenaBuffer.Utf8:
-                arena->RequiredUtf8Capacity = Math.Max(
-                    arena->RequiredUtf8Capacity,
-                    requiredCapacity
-                );
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(buffer));
-        }
-
-        throw new RenderArenaGrowthRequiredException();
     }
 
     private static T* Grow<T>(T* pointer, ref int capacity, int length, int additional)
         where T : unmanaged
     {
         var required = checked(length + additional);
-        var newCapacity = capacity;
-        while (newCapacity < required)
-        {
-            newCapacity = checked(newCapacity * 2);
-        }
+        var newCapacity = ArenaCapacity.GrowTo(capacity, required);
 
         var newPointer = (T*)
             NativeMemory.Realloc(pointer, checked((nuint)newCapacity * (nuint)sizeof(T)));
@@ -1031,13 +974,3 @@ internal static unsafe class ArenaWriter
         return newPointer;
     }
 }
-
-internal enum RenderArenaBuffer
-{
-    Nodes,
-    Operations,
-    Children,
-    Utf8,
-}
-
-internal sealed class RenderArenaGrowthRequiredException : Exception { }

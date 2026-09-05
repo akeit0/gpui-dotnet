@@ -5,16 +5,34 @@ using Gpui.Interop;
 namespace Gpui;
 
 /// <summary>
-/// Managed test/benchmark owner for the unmanaged render arena.
-///
-/// Production rendering uses a Rust-owned arena lent to managed Render(). This
-/// owner remains useful for isolated builder tests and allocation measurements.
+/// Owns reusable unmanaged render buffers allocated and resized by managed code.
+/// Rust borrows completed output only while synchronously decoding an owned snapshot.
 /// </summary>
 public sealed unsafe class RenderArenaOwner : IDisposable
 {
     private RenderArena* _arena;
 
     internal RenderArena* NativeArena => _arena;
+
+    /// <summary>
+    /// Publishes a descriptor, not a second copy of the buffers. The receiver must finish
+    /// decoding before this owner is reset, written again, or disposed.
+    /// </summary>
+    internal void PublishTo(RenderArena* output, Element root)
+    {
+        ObjectDisposedException.ThrowIf(_arena == null, this);
+        if (output == null || output == _arena)
+        {
+            throw new ArgumentException("Output must be a separate writable descriptor.", nameof(output));
+        }
+        if (root.Arena != _arena || root.Generation != _arena->Generation
+            || root.Node >= (uint)_arena->NodeLength)
+        {
+            throw new InvalidOperationException("Cannot publish a foreign or stale render root.");
+        }
+
+        *output = *_arena;
+    }
 
     public RenderArenaOwner(
         int nodeCapacity = 256,

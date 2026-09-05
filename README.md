@@ -149,8 +149,9 @@ internal sealed partial class MainView : View
 ```
 
 `[GpuiView]` generates the factory used for framework-owned child views and NativeAOT. `Render()`
-describes UI into a native-owned arena and may be retried when that arena grows, so state changes,
-I/O, and task creation belong in events or lifecycle methods rather than in `Render()`.
+describes UI into a reusable managed-owned arena that grows before writes without rerunning user
+rendering. State changes, I/O, and task creation still belong in events or lifecycle methods rather
+than in `Render()`. Rust synchronously decodes completed output into an owned snapshot.
 
 On Windows, the application executable must embed a Common Controls v6 manifest because the native
 host uses Windows common-control APIs. Set `ApplicationManifest` in the project file and use

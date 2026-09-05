@@ -128,6 +128,8 @@ internal readonly struct ChildSlot : IEquatable<ChildSlot>
 
     internal bool IsAuto => _kind == ChildSlotKind.Auto;
 
+    internal bool IsPositional => _kind == ChildSlotKind.Positional;
+
     public bool Equals(ChildSlot other) =>
         _kind == other._kind
         && (_kind == ChildSlotKind.Keyed ? _key.Equals(other._key) : _position == other._position);

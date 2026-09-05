@@ -90,7 +90,7 @@ Element Row(int index, ref RenderContext ui)
 - direct switch-based dispatch on the owning mounted View;
 - diagnostics for invalid signatures, duplicate names, reserved members, and ID collisions.
 
-A row renderer may be retried after native arena growth and follows the same purity rules as
+A row renderer grows output before writes, without capacity retry, and follows the same purity rules as
 `View.Render()`.
 
 ## Native C-layout generation

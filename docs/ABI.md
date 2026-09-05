@@ -1,6 +1,6 @@
 # Native ABI
 
-GPUI.NET currently uses ABI version 3. Managed startup requires an exact ABI version, a compatible
+GPUI.NET currently uses ABI version 4. Managed startup requires an exact ABI version, a compatible
 API-table prefix, all required function entries, and the semantic schema hash generated from
 `bindings/schema.json`.
 
@@ -34,10 +34,14 @@ checks that tuple before application startup. Extension-specific definitions nev
 schema; the generic NativeExtension node carries the tuple, component kind, retained key, and an
 opaque UTF-8 configuration owned by the extension schema.
 
-ABI version 3 adds extension commands without putting extension-specific IDs or payload layouts in
-Core. A command contains its extension ID, component kind, version, schema hash, owner View, key,
+The extension-command envelope keeps extension-specific IDs and payload layouts out of Core. A command contains its extension ID, component kind, version, schema hash, owner View, key,
 numeric command and flags, expected revision, and opaque byte payload. Native code validates the
 envelope and provider compatibility and copies the payload before the FFI call returns.
+
+ABI 4 changes render-buffer ownership and is intentionally incompatible with ABI 3 even though
+record layouts do not change. The API-table layout keeps the historical `GpuiDotnetApiV3` name;
+its `abi_version` value and the requested version, not that type name, negotiate this protocol.
+Generated layouts remain unchanged. Old and new managed/native hosts must not be mixed.
 
 ## Application and callbacks
 
@@ -72,8 +76,21 @@ int32_t render(
     uint32_t* root);
 ```
 
-Status `1` means the native-owned arena needs growth. Rust grows the requested capacities and
-retries managed rendering. `Render()` must therefore be deterministic and side-effect-free.
+`arena` is an output descriptor, not writable Rust-owned storage. Managed code resets a reusable
+managed-owned arena, reserves capacity before every write, invokes user rendering once, and
+publishes the descriptor only after managed rendering and validation succeed. Growth preserves
+written contents and does not change the current render generation or rerun user code.
+
+Status `0` means success; every nonzero status is an error, including the old value `1`.
+Rust immediately validates and decodes the borrowed buffers into an owned `ValidatedSnapshot`.
+It must finish decoding before any further managed callback or session teardown, and must not
+retain or free a buffer pointer. Root and range rendering use separate reusable managed owners.
+Cached native row batches own decoded snapshots, never borrowed output arenas.
+
+The output descriptor's `flags` and all four legacy `required_*_capacity` fields are reserved and
+must be zero. They remain in the layout to avoid needless generated-record churn. A failed
+callback publishes no consumable descriptor. `Render()` remains deterministic and side-effect-free;
+removing capacity retry does not relax the declarative contract.
 
 Virtual rows use:
 
@@ -88,7 +105,8 @@ int32_t list_render_range(
 ```
 
 The returned root must contain exactly `count` direct row children. `count` is limited to 512. Range
-rendering uses the same arena-growth retry contract as root rendering.
+rendering uses the same single-call, borrowed-output contract as root rendering. Each requested
+row is rendered once per range request; later cache misses can request that range again.
 
 An active `Dynamic` wrapper asks native GPUI for another display frame. Before the corresponding
 root render, native invokes `dynamic_frame(session_id, owner_view)` so managed retained fragments

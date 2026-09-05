@@ -78,8 +78,8 @@ explicit component states and contrast.
 
 ## Managed View rules
 
-`Render()` and `[GpuiListItem]` methods may be retried after native arena growth. They must be
-deterministic and must not mutate application state, perform I/O, start tasks, call controllers, or
+`Render()` and `[GpuiListItem]` methods use grow-before-write managed arenas and are not retried
+for capacity. They must be deterministic and must not mutate application state, perform I/O, start tasks, call controllers, or
 invalidate the View.
 
 Event bindings and ref-bound controller key initialization are supported render-time declarations.

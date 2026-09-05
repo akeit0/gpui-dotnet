@@ -43,6 +43,10 @@ internal sealed unsafe partial class ManagedSession
         _unmountCandidates.Clear();
         _unmountStack.Clear();
         _unmountVisited.Clear();
+        _rootOutputArena?.Dispose();
+        _rootOutputArena = null;
+        _rangeOutputArena?.Dispose();
+        _rangeOutputArena = null;
     }
 
     private void AttachRoot()

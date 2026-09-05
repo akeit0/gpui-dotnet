@@ -26,18 +26,13 @@ internal static unsafe class NativeCallbacks
             SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
             try
             {
-                var element = session.RenderRoot(arena);
-                *root = element.Node;
+                *root = session.RenderRootOutput(arena);
                 return 0;
             }
             finally
             {
                 SynchronizationContext.SetSynchronizationContext(previousContext);
             }
-        }
-        catch (RenderArenaGrowthRequiredException)
-        {
-            return NativeConstants.RenderGrowRequired;
         }
         catch (Exception exception)
         {
@@ -73,18 +68,13 @@ internal static unsafe class NativeCallbacks
             SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
             try
             {
-                var element = session.RenderListRange(rendererToken, start, count, arena);
-                *root = element.Node;
+                *root = session.RenderListRangeOutput(rendererToken, start, count, arena);
                 return 0;
             }
             finally
             {
                 SynchronizationContext.SetSynchronizationContext(previousContext);
             }
-        }
-        catch (RenderArenaGrowthRequiredException)
-        {
-            return NativeConstants.RenderGrowRequired;
         }
         catch (Exception exception)
         {

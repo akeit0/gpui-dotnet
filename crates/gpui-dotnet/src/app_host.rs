@@ -17,7 +17,7 @@ use gpui::{
 
 use crate::{
     abi::ManagedCallbacks,
-    arena::OwnedRenderArena,
+    arena::with_render_output,
     extension::NativeExtensionCommand,
     overlay::OverlayStack,
     popover_menu::PopoverMenuGroup,
@@ -31,7 +31,6 @@ use crate::{
 pub(crate) struct ManagedView {
     pub(crate) view_id: u64,
     pub(crate) callbacks: ManagedCallbacks,
-    arena: OwnedRenderArena,
     retained_strings: RetainedStrings,
     pub(crate) snapshot: ValidatedSnapshot,
     snapshot_scratch: SnapshotScratch,
@@ -270,7 +269,6 @@ impl ManagedView {
         Self {
             view_id,
             callbacks,
-            arena: OwnedRenderArena::new(),
             retained_strings: RetainedStrings::default(),
             snapshot: ValidatedSnapshot::default(),
             snapshot_scratch: SnapshotScratch::default(),
@@ -292,33 +290,26 @@ impl ManagedView {
 
         self.dirty = false;
         self.error = None;
-        let mut root = 0;
         let render = self
             .callbacks
             .render
             .expect("callbacks were validated before application startup");
         let view_id = self.view_id;
-        let status = {
-            let _stage = trace::span(trace::Stage::ManagedRender);
-            self.arena
-                .render_with_growth_retry(|arena| unsafe { render(view_id, arena, &mut root) })
-                .unwrap_or_else(|status| status)
-        };
-
-        if status != 0 {
-            self.error = Some(format!("Managed render failed with status {status}."));
-            return;
-        }
-
-        let decode_result = {
-            let _stage = trace::span(trace::Stage::SnapshotDecode);
-            self.snapshot.decode_into(
-                self.arena.as_native(),
-                root,
-                &mut self.retained_strings,
-                &mut self.snapshot_scratch,
-            )
-        };
+        let decode_result = with_render_output(
+            |arena, root| {
+                let _stage = trace::span(trace::Stage::ManagedRender);
+                unsafe { render(view_id, arena, root) }
+            },
+            |arena, root| {
+                let _stage = trace::span(trace::Stage::SnapshotDecode);
+                self.snapshot.decode_into(
+                    arena,
+                    root,
+                    &mut self.retained_strings,
+                    &mut self.snapshot_scratch,
+                )
+            },
+        );
         match decode_result {
             Ok(()) => {
                 self.has_snapshot = true;
@@ -328,7 +319,7 @@ impl ManagedView {
             }
             Err(status) => {
                 self.error = Some(format!(
-                    "Render snapshot validation failed with status {status}."
+                    "Managed render or snapshot validation failed with status {status}."
                 ));
             }
         }

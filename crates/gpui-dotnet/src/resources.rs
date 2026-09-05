@@ -14,7 +14,7 @@ use gpui::{
 use crate::{
     abi::{ManagedCallbacks, NativeResourceCommand},
     app_host::ManagedView,
-    arena::OwnedRenderArena,
+    arena::with_render_output,
     dock::{DockConfiguration, ManagedDockResource, dock_configuration},
     extension::{
         NativeExtensionResourceKey, NativeExtensionStore, declaration as extension_declaration,
@@ -989,28 +989,25 @@ impl ManagedListResource {
             .callbacks
             .list_render_range
             .expect("callbacks were validated before application startup");
-        let mut root = 0u32;
-        let status = batch
-            .arena
-            .render_with_growth_retry(|arena| unsafe {
+        with_render_output(
+            |arena, root| unsafe {
                 callback(
                     self.session_id,
                     self.renderer_token,
                     start,
                     count,
                     arena,
-                    &mut root,
+                    root,
                 )
-            })
-            .unwrap_or_else(|status| status);
-        if status != 0 {
-            return Err(status);
-        }
-        batch.snapshot.decode_into(
-            batch.arena.as_native(),
-            root,
-            &mut batch.retained_strings,
-            &mut batch.scratch,
+            },
+            |arena, root| {
+                batch.snapshot.decode_into(
+                    arena,
+                    root,
+                    &mut batch.retained_strings,
+                    &mut batch.scratch,
+                )
+            },
         )?;
         let root_node = &batch.snapshot.nodes[batch.snapshot.root as usize];
         if batch.snapshot.children(root_node).len() != count as usize {
@@ -1049,7 +1046,6 @@ impl ManagedListResource {
 }
 
 struct CachedBatch {
-    arena: OwnedRenderArena,
     retained_strings: RetainedStrings,
     snapshot: ValidatedSnapshot,
     scratch: SnapshotScratch,
@@ -1059,7 +1055,6 @@ struct CachedBatch {
 impl CachedBatch {
     fn new() -> Self {
         Self {
-            arena: OwnedRenderArena::new(),
             retained_strings: RetainedStrings::default(),
             snapshot: ValidatedSnapshot::default(),
             scratch: SnapshotScratch::default(),

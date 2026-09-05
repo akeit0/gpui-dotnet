@@ -90,8 +90,8 @@ treating a terminal View as mounted.
 
 ## Render and teardown ordering
 
-Managed render and row callbacks are synchronous. Native arena growth can retry them, so they must
-remain deterministic and side-effect free. Posted callbacks are drained before root rendering;
+Managed render and row callbacks are synchronous. Their managed-owned buffers grow before writes
+without capacity retry. They must remain deterministic and side-effect free. Posted callbacks are drained before root rendering;
 their state changes are included in that render.
 
 Unmount proceeds child-first. For each View, the binding marks it unmounting, removes and

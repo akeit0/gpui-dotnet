@@ -136,6 +136,16 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     )
         where TView : ViewBase
     {
+        if (slot.IsPositional
+            && parentState.Children is not null
+            && parentState.Children.TryGetValue(slot, out var accepted)
+            && accepted.View.GetType() != typeof(TView))
+        {
+            throw new InvalidOperationException(
+                $"Accepted positional slot '{slot}' cannot change View type. Use an explicit key."
+            );
+        }
+
         if (
             parentState.Candidates is not null
             && parentState.Candidates.TryGetValue(slot, out entry)

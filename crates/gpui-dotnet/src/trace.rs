@@ -10,7 +10,7 @@ use std::time::Instant;
 #[derive(Clone, Copy)]
 pub(crate) enum Stage {
     /// The managed render callback (root tree + retained child fragments), including its
-    /// growth-retry attempts.
+    /// the single render callback (buffer growth does not replay it).
     ManagedRender = 0,
     /// Snapshot validation + decode on the native side.
     SnapshotDecode = 1,

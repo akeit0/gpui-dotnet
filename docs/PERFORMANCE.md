@@ -109,7 +109,7 @@ Track at least:
 - scroll-delta managed callback count (must be zero);
 - virtual row crossings, cache hits, evictions, and invalidations;
 - cache retention across unrelated renders;
-- arena high-water capacities and growth retries;
+- arena high-water capacities, growth counts, and bytes relocated (capacity rerenders must be zero);
 - Input UTF-8 allocation and decode-on-demand behavior;
 - list/table reset, splice, refresh, and theme-change behavior.
 

@@ -19,7 +19,7 @@ C# owns:
 Rust owns:
 
 - `gpui::Application`, native windows, and the event loop;
-- render-arena allocation, validation, and retained snapshots;
+- native validation and owned retained snapshots;
 - semantic component materialization;
 - scrolling, list/table viewport state, measurements, and row caches;
 - retained Input, Slider, and Dock entities;
@@ -51,9 +51,11 @@ native validation
 ValidatedSnapshot ──► semantic adapters ──► GPUI elements
 ```
 
-The native host owns the arena memory. A managed render may return `RenderGrowRequired`, after
-which Rust grows the arena and retries the render. This is why `Render()` and `[GpuiListItem]`
-methods must be deterministic and free of application-side effects.
+Managed code owns reusable root, retained-fragment, and range-output arenas. Buffers grow before
+writes without rerunning user rendering. Rust receives a borrowed completed descriptor and
+synchronously decodes it into an owned snapshot before any further managed callback. Native row
+caches retain decoded snapshots, not the borrowed buffers. `Render()` and `[GpuiListItem]` remain
+deterministic and free of application-side effects; this requirement is independent of capacity.
 
 The native `ManagedView` keeps the last valid snapshot. A clean GPUI repaint materializes or paints
 that snapshot without calling managed code. `View.Invalidate()` increments the managed retained
@@ -83,7 +85,7 @@ the current root arena. Staged props changes and child invalidation mark the nec
 its ancestors dirty. Application-wide theme changes invalidate every retained fragment because a
 theme is ambient render input rather than child props.
 
-New children are session-owned candidates while a transactional render is retried. Tree
+New children are session-owned candidates until a render commits. Tree
 replacement commits the new composition before terminally unmounting the old subtree; abandoned
 candidates are also unmounted during reconciliation. Unmount proceeds child-first. See
 [VIEW_LIFECYCLE.md](VIEW_LIFECYCLE.md).

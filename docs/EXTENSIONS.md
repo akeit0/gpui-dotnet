@@ -46,7 +46,7 @@ Every extension has:
 - a deterministic 64-bit schema hash;
 - one or more component-kind identifiers.
 
-`NativeRuntimeOptions.Extensions` lists the schemas required by an application. ABI version 3's
+`NativeRuntimeOptions.Extensions` lists the schemas required by an application. The native ABI's
 `supports_extension` entry verifies every ID/version/hash before the event loop starts. An extension
 node repeats that identity in its envelope, so a declaration cannot accidentally reach a provider
 built from another schema.

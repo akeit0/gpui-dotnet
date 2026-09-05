@@ -50,9 +50,9 @@ public abstract partial class ViewBase
 
     /// <summary>
     /// Renders the view tree into native IR. Rendering must be synchronous, repeatable, and free of
-    /// externally visible side effects: the framework may invoke it more than once per frame when
-    /// the render arena needs to grow before the final render is accepted, and list batch renderers
-    /// are invoked lazily whenever the viewport requires an uncached range.
+    /// externally visible side effects. Buffer growth never reruns user rendering. List batch
+    /// renderers are invoked lazily whenever the viewport requires an uncached range, which may
+    /// happen again after cache eviction or invalidation.
     /// </summary>
     protected abstract Element Render(ref RenderContext ui);
 

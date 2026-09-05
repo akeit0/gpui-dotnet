@@ -1,8 +1,6 @@
 use std::mem::size_of;
 
-pub const ABI_VERSION: u32 = 3;
-pub const ARENA_FLAG_NATIVE_OWNED: u32 = 1;
-pub const RENDER_GROW_REQUIRED: i32 = 1;
+pub const ABI_VERSION: u32 = 4;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -45,6 +43,7 @@ pub struct RenderArena {
     pub utf8_length: i32,
     pub utf8_capacity: i32,
     pub generation: u32,
+    // ABI 4: flags and the legacy growth-request fields are reserved and must be zero.
     pub flags: u32,
     pub required_node_capacity: i32,
     pub required_op_capacity: i32,
