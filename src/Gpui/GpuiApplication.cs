@@ -134,6 +134,8 @@ public sealed class NativeRuntimeOptions
 /// </summary>
 public sealed class GpuiApplication
 {
+    internal Interop.Internal.ApplicationExecution Execution { get; } = new();
+
     private static long _nextWindowId;
 
     private readonly object _gate = new();

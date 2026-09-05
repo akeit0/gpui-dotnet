@@ -9,12 +9,17 @@ internal sealed unsafe partial class ManagedSession
     // Both channels share a guard: a nested callback must not reset either output arena.
     private void EnterRenderOutput(RenderArena* output)
     {
+        Execution.BindThread();
+        ThrowIfUnavailable();
+        if (Execution.Phase != ExecutionPhase.Idle)
+        {
+            throw new InvalidOperationException("Nested managed render output is not supported.");
+        }
         if (output == null)
         {
             throw new ArgumentNullException(nameof(output));
         }
         *output = default;
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _stopped) != 0, this);
         if (_renderOutputActive)
         {
             throw new InvalidOperationException("Nested managed render output is not supported.");
@@ -32,6 +37,11 @@ internal sealed unsafe partial class ManagedSession
             var root = RenderRoot(storage.NativeArena);
             storage.PublishTo(output, root);
             return root.Node;
+        }
+        catch (Exception exception)
+        {
+            RecordFailure(exception);
+            throw;
         }
         finally
         {
@@ -54,6 +64,11 @@ internal sealed unsafe partial class ManagedSession
             var root = RenderListRange(rendererToken, start, count, storage.NativeArena);
             storage.PublishTo(output, root);
             return root.Node;
+        }
+        catch (Exception exception)
+        {
+            RecordFailure(exception);
+            throw;
         }
         finally
         {

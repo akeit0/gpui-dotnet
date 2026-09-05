@@ -7,12 +7,21 @@ internal sealed unsafe partial class ManagedSession
 {
     internal void Stop()
     {
+        if (Volatile.Read(ref _stopped) != 0)
+        {
+            return;
+        }
+        // A session that never entered a native callback owns no UI state and may be
+        // discarded on the window-opening thread if native registration fails.
+        using var execution = Volatile.Read(ref _renderingStarted) == 0
+            ? default(ApplicationExecution.Scope)
+            : Execution.Enter(ExecutionPhase.Cleanup);
         if (Interlocked.Exchange(ref _stopped, 1) != 0)
         {
             return;
         }
 
-        while (_posted.TryDequeue(out _)) { }
+        DiscardIngress();
         BuildUnmountOrder(includeCommittedTree: true);
         foreach (var view in _unmountCandidates)
         {
@@ -144,6 +153,7 @@ internal sealed unsafe partial class ManagedSession
 
     private RetainedViewState GetRenderState(ViewBase view)
     {
+        Execution.AssertAccess();
         lock (_renderStateGate)
         {
             if (!_renderStates.TryGetValue(view, out var state))
@@ -157,6 +167,7 @@ internal sealed unsafe partial class ManagedSession
 
     private void MarkDirty(ViewBase view)
     {
+        Execution.AssertAccess();
         lock (_renderStateGate)
         {
             if (Volatile.Read(ref _stopped) != 0)

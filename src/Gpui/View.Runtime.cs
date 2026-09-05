@@ -70,7 +70,13 @@ public abstract partial class ViewBase
                 {
                     return false;
                 }
-                Post(callback);
+                Post(() =>
+                {
+                    if (Volatile.Read(ref _active))
+                    {
+                        callback();
+                    }
+                });
                 return true;
             }
         }
@@ -152,7 +158,7 @@ public abstract partial class ViewBase
         {
             lock (_gate)
             {
-                _active = false;
+                Volatile.Write(ref _active, false);
             }
         }
     }
@@ -214,6 +220,13 @@ public abstract partial class ViewBase
     private ViewCommandRoute? _commandRoute;
     private MountedViewAttachment? _uiAttachment;
     private int _lifecycle;
+    // One-shot identity state: queued invalidation never reads a pooled UI attachment.
+    private int _invalidationPending;
+
+    internal bool TryQueueInvalidation() =>
+        Interlocked.CompareExchange(ref _invalidationPending, 1, 0) == 0;
+
+    internal void ConsumeInvalidation() => Volatile.Write(ref _invalidationPending, 0);
 
     private const int LifecycleCreated = 0;
     private const int LifecycleMounting = 1;

@@ -58,8 +58,9 @@ caches retain decoded snapshots, not the borrowed buffers. `Render()` and `[Gpui
 deterministic and free of application-side effects; this requirement is independent of capacity.
 
 The native `ManagedView` keeps the last valid snapshot. A clean GPUI repaint materializes or paints
-that snapshot without calling managed code. `View.Invalidate()` increments the managed retained
-version and sends a coalesced native notification.
+that snapshot without calling managed code. `View.Invalidate()` queues a coalesced request using
+stable View identity. The application thread consumes it before rendering, increments the managed
+retained version, and rerenders the required fragments.
 
 ## Managed view tree
 

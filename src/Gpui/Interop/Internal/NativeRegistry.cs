@@ -30,7 +30,7 @@ internal static class NativeRegistry
     {
         if (Sessions.TryGetValue(sessionId, out var session))
         {
-            session.RecordRenderFailure(exception);
+            session.RecordFailure(exception);
         }
     }
 }

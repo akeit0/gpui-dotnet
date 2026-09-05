@@ -6,6 +6,8 @@ internal sealed unsafe partial class ManagedSession
 {
     internal Element RenderRoot(RenderArena* arena)
     {
+        ThrowIfUnavailable();
+        using var execution = Execution.Enter(ExecutionPhase.Ingress);
         try
         {
             BeginRendering();
@@ -16,6 +18,7 @@ internal sealed unsafe partial class ManagedSession
             {
                 var ui = new RenderContext(arena, this, RootView, _application.Theme);
                 var element = RootView.RenderCore(ref ui);
+                ThrowIfUnavailable();
                 ManagedValidator.Validate(arena, element);
                 CompleteComposition(RootView);
                 completed = true;
@@ -32,6 +35,11 @@ internal sealed unsafe partial class ManagedSession
                 throw;
             }
         }
+        catch (Exception exception)
+        {
+            RecordFailure(exception);
+            throw;
+        }
         finally
         {
             EndRendering();
@@ -45,6 +53,8 @@ internal sealed unsafe partial class ManagedSession
         RenderArena* arena
     )
     {
+        ThrowIfUnavailable();
+        using var execution = Execution.Enter(ExecutionPhase.DemandRender);
         var viewHandle = unchecked((uint)(rendererToken >> 32));
         var rendererId = unchecked((uint)rendererToken);
         if (viewHandle == 0 || rendererId == 0)
@@ -84,8 +94,14 @@ internal sealed unsafe partial class ManagedSession
             }
 
             ManagedValidator.Validate(arena, batchRoot);
+            ThrowIfUnavailable();
             completed = true;
             return batchRoot;
+        }
+        catch (Exception exception)
+        {
+            RecordFailure(exception);
+            throw;
         }
         finally
         {
@@ -103,6 +119,7 @@ internal sealed unsafe partial class ManagedSession
 
     private Element RenderResolvedChild(ViewBase view, RenderArena* destination)
     {
+        ThrowIfUnavailable();
         var state = GetRenderState(view);
         long requiredVersion;
         lock (_renderStateGate)
@@ -118,6 +135,7 @@ internal sealed unsafe partial class ManagedSession
             {
                 var ui = state.Fragment.BeginRender(this, view, _application.Theme);
                 var element = view.RenderCore(ref ui);
+                ThrowIfUnavailable();
                 state.Fragment.Validate(element);
                 view.ValidateRenderInputs();
                 state.Root = element.Node;

@@ -98,8 +98,13 @@ Keep stacking and dismissal window-owned in Rust while product visuals remain ma
 A Tree should remain a managed flattened List unless hierarchy is required by accessibility or
 proven large-dataset behavior.
 
-## ABI, diagnostics, and CI
+## Runtime
 
+Single-pass render arenas (ABI 4) are landed. The remaining lifecycle, dispatch,
+reactivity, and async ownership work is tracked in
+[RUNTIME_PLAN.md](RUNTIME_PLAN.md).
+
+## ABI, diagnostics, and CI
 - generate and verify a public C header with `sizeof`/`offsetof` assertions per RID;
 - add symbolic native status diagnostics;
 - define coalescing policies for high-frequency window commands;

@@ -50,8 +50,8 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
         try
         {
-            // Managed state is dirty before native schedules the frame, so the callback cannot
-            // consume an unchanged retained fragment after this command.
+            // Invalidation is queued before native schedules the frame. The render callback
+            // consumes it on the application thread before using retained fragments.
             Dispatch(9, 0);
         }
         catch
@@ -68,6 +68,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     internal void Start()
     {
+        _application.Execution.BindThread();
         // Theme precedes every initial Open command, so native defaults are correct on the first
         // materialized frame instead of flashing the fallback light palette.
         SetTheme(_application.Theme);
@@ -164,6 +165,10 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     internal int MenuAction(ulong actionId)
     {
+        if (Failure is not null || Volatile.Read(ref _stopped) != 0)
+        {
+            return -65;
+        }
         if (!_menuActions.TryGetValue(actionId, out var callback))
         {
             return -64;
@@ -171,6 +176,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
         try
         {
+            using var execution = _application.Execution.Enter(ExecutionPhase.Event);
             callback();
             return 0;
         }

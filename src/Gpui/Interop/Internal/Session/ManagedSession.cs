@@ -12,7 +12,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     private readonly NativeRuntime _runtime;
     private readonly GpuiApplication _application;
     private readonly ulong _sessionId;
-    private readonly ConcurrentQueue<Action> _posted = new();
+    private readonly ConcurrentQueue<IngressWork> _ingress = new();
     private readonly HashSet<ViewBase> _attachedViews = new(ViewIdentity);
     private readonly Dictionary<uint, ViewBase> _viewsByHandle = [];
     private readonly object _renderStateGate = new();
@@ -23,14 +23,19 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     private readonly List<ViewBase> _unmountCandidates = [];
     private readonly Stack<(ViewBase View, bool Expanded)> _unmountStack = new();
     private readonly HashSet<ViewBase> _unmountVisited = new(ViewIdentity);
-    private ExceptionDispatchInfo? _pendingAsyncFailure;
-    private Exception? _failure;
+    private ExceptionDispatchInfo? _failure;
     private uint _nextViewHandle;
     private int _renderingStarted;
     private int _renderingManaged;
     private int _notifyAfterRender;
     private int _stopped;
-    private Exception? _renderFailure;
+    private int _allViewsPending;
+    private int _notificationPending;
+
+    private readonly record struct IngressWork(ViewBase? View, Action? Callback);
+    private ApplicationExecution Execution => _application.Execution;
+    private bool IsAcceptingWork => Volatile.Read(ref _stopped) == 0 && Failure is null;
+    private const int MaxIngressPerRender = 1024;
 
     internal ManagedSession(
         NativeRuntime runtime,
@@ -48,22 +53,39 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
 
     internal View RootView { get; }
     internal SynchronizationContext SynchronizationContext { get; }
-    internal Exception? Failure => Volatile.Read(ref _failure) ?? Volatile.Read(ref _renderFailure);
+    internal Exception? Failure => Volatile.Read(ref _failure)?.SourceException;
 
-    internal void RecordFailure(Exception exception) =>
-        Interlocked.CompareExchange(ref _failure, exception, null);
+    internal void RecordFailure(Exception exception)
+    {
+        if (Volatile.Read(ref _failure) is null)
+        {
+            Interlocked.CompareExchange(ref _failure, ExceptionDispatchInfo.Capture(exception), null);
+        }
+        DiscardIngress();
+    }
 
-    internal void RecordRenderFailure(Exception exception) =>
-        Interlocked.CompareExchange(ref _renderFailure, exception, null);
+    private void ThrowIfUnavailable()
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _stopped) != 0, this);
+        Volatile.Read(ref _failure)?.Throw();
+    }
+
+    private void DiscardIngress()
+    {
+        while (_ingress.TryDequeue(out var work))
+        {
+            work.View?.ConsumeInvalidation();
+        }
+        Volatile.Write(ref _allViewsPending, 0);
+    }
 
     internal void Invalidate(ViewBase view)
     {
-        if (Volatile.Read(ref _stopped) != 0)
+        if (!IsAcceptingWork || !view.TryQueueInvalidation())
         {
             return;
         }
-        MarkDirty(view);
-        NotifyRenderPending();
+        Enqueue(new IngressWork(view, null), notify: true);
     }
 
     /// <summary>
@@ -78,34 +100,25 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
 
     internal void PrepareManagedCodeUpdate()
     {
-        Volatile.Write(ref _renderFailure, null);
         InvalidateAllViews(notify: false);
     }
 
     private void InvalidateAllViews(bool notify)
     {
-        if (Volatile.Read(ref _stopped) != 0)
+        if (!IsAcceptingWork)
         {
             return;
         }
-
-        lock (_renderStateGate)
+        if (Interlocked.Exchange(ref _allViewsPending, 1) != 0)
         {
-            if (Volatile.Read(ref _stopped) != 0)
+            if (notify)
             {
-                return;
+                NotifyRenderPending();
             }
-
-            foreach (var state in _renderStates.Values)
-            {
-                state.RequiredVersion++;
-            }
+            return;
         }
 
-        if (notify)
-        {
-            NotifyRenderPending();
-        }
+        Enqueue(default, notify);
     }
 
     /// <summary>
@@ -114,7 +127,9 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     /// </summary>
     internal void PrepareDynamicFrame(uint ownerView)
     {
-        if (Volatile.Read(ref _stopped) != 0 || ownerView == 0)
+        ThrowIfUnavailable();
+        using var execution = Execution.Enter(ExecutionPhase.Ingress);
+        if (ownerView == 0)
         {
             return;
         }
@@ -126,18 +141,43 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
 
     internal void Post(Action callback)
     {
-        if (Volatile.Read(ref _stopped) != 0)
+        ArgumentNullException.ThrowIfNull(callback);
+        if (!IsAcceptingWork)
         {
             return;
         }
 
-        _posted.Enqueue(callback);
-        if (Volatile.Read(ref _stopped) != 0)
+        Enqueue(new IngressWork(null, callback), notify: true);
+    }
+
+    internal void Send(SendOrPostCallback callback, object? state)
+    {
+        ThrowIfUnavailable();
+        using var execution = Execution.Enter(ExecutionPhase.Event);
+        try
         {
-            while (_posted.TryDequeue(out _)) { }
+            callback(state);
+            ThrowIfUnavailable();
+        }
+        catch (Exception exception)
+        {
+            RecordFailure(exception);
+            throw;
+        }
+    }
+
+    private void Enqueue(IngressWork work, bool notify)
+    {
+        _ingress.Enqueue(work);
+        if (!IsAcceptingWork)
+        {
+            DiscardIngress();
             return;
         }
-        NotifyRenderPending();
+        if (notify)
+        {
+            NotifyRenderPending();
+        }
     }
 
     private void NotifyRenderPending()
@@ -153,7 +193,19 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
             return;
         }
 
-        _runtime.NotifyView(_sessionId);
+        if (Interlocked.Exchange(ref _notificationPending, 1) == 0)
+        {
+            try
+            {
+                _runtime.NotifyView(_sessionId);
+            }
+            catch (Exception exception)
+            {
+                Volatile.Write(ref _notificationPending, 0);
+                RecordFailure(exception);
+                throw;
+            }
+        }
     }
 
     private void BeginRendering()
@@ -161,25 +213,44 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         Volatile.Write(ref _renderingStarted, 1);
         Volatile.Write(ref _renderingManaged, 1);
         Volatile.Write(ref _notifyAfterRender, 0);
+        Volatile.Write(ref _notificationPending, 0);
 
-        var asyncFailure = Interlocked.Exchange(ref _pendingAsyncFailure, null);
-        asyncFailure?.Throw();
-
-        while (_posted.TryDequeue(out var callback))
+        // Bound each drain so self-posting producers cannot starve rendering indefinitely.
+        var remaining = MaxIngressPerRender;
+        while (remaining-- > 0 && _ingress.TryDequeue(out var work))
         {
-            callback();
+            ThrowIfUnavailable();
+            if (work.View is { } view)
+            {
+                view.ConsumeInvalidation();
+                MarkDirty(view);
+            }
+            else if (work.Callback is { } callback)
+            {
+                callback();
+            }
+            else
+            {
+                Volatile.Write(ref _allViewsPending, 0);
+                foreach (var state in _renderStates.Values)
+                {
+                    state.RequiredVersion++;
+                }
+            }
         }
+        ThrowIfUnavailable();
+        Execution.SetPhase(ExecutionPhase.Render);
     }
 
     private void EndRendering()
     {
         Volatile.Write(ref _renderingManaged, 0);
         if (
-            Volatile.Read(ref _stopped) == 0
-            && (Interlocked.Exchange(ref _notifyAfterRender, 0) != 0 || !_posted.IsEmpty)
+            IsAcceptingWork
+            && (Interlocked.Exchange(ref _notifyAfterRender, 0) != 0 || !_ingress.IsEmpty)
         )
         {
-            _runtime.NotifyView(_sessionId);
+            NotifyRenderPending();
         }
     }
 }

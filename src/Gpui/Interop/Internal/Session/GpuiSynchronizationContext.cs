@@ -15,7 +15,7 @@ internal sealed class GpuiSynchronizationContext(ManagedSession session) : Synch
         {
             throw new NotSupportedException("Synchronous cross-thread dispatch is not supported.");
         }
-        d(state);
+        session.Send(d, state);
     }
 
     public override SynchronizationContext CreateCopy() => this;

@@ -57,7 +57,7 @@ CLR updates methods and metadata in place
                  ▼
 GPUI.NET metadata-update handler
                  │
-                 ├── mark all managed View fragments dirty
+                 ├── enqueue full-tree managed invalidation
                  │
                  └── enqueue ManagedCodeUpdated to the native application
                                       │
@@ -69,10 +69,9 @@ GPUI.NET metadata-update handler
                          next GPUI frame calls updated C#
 ```
 
-The managed dirty state must be established before the native command is enqueued. When the native
-application processes the command and requests a frame, the following render is guaranteed to see
-the new required versions. An update racing an existing render may allow that render to finish, but
-the queued invalidation must produce another render afterward.
+Managed invalidation must be queued before the native command is enqueued. The next root-render
+callback consumes it on the application thread before reusing retained fragments. An update racing
+an existing render may allow that render to finish, but queued invalidation requests another frame.
 
 ## Metadata-update entry point
 
@@ -106,8 +105,9 @@ Reload state. Release rendering therefore has no per-frame Hot Reload branch or 
 
 ## Managed invalidation
 
-Each live `ManagedSession` increments `RequiredVersion` for every retained View fragment. The
-existing full-fragment invalidation used by application-wide theme changes is the right primitive.
+Each healthy `ManagedSession` queues full-fragment invalidation, the same primitive used by theme
+changes. The application thread consumes it and increments `RequiredVersion` for every retained
+View fragment. The metadata-update thread never traverses or mutates the retained tree.
 
 This preserves:
 
@@ -166,20 +166,15 @@ instead of introducing the virtual override during Hot Reload. Renderer ids rema
 stable method identity; changing that identity is allowed to produce a new token because native row
 batches are cleared for the update.
 
-## Render failure recovery
+## Fault behavior
 
 Compilation failures do not apply a metadata delta, so the running application should continue to
 show its last committed UI.
 
 A compiling edit can still throw or produce invalid semantic output. Native has a managed render
-error surface, and the managed session distinguishes between:
-
-- recoverable render/list-render failures; and
-- terminal event, lifecycle, interop, or native failures.
-
-A later metadata update clears only recoverable renderer failures and requests a new render. A
-successful render removes the native error surface. The update does not erase unrelated terminal
-failures.
+error surface, but unexpected render and list-render exceptions are terminal session faults, just
+like event and lifecycle failures. A later metadata update cannot revive that session. Fix the
+error and restart the application. Healthy windows continue to accept compatible metadata updates.
 
 ## Expected edit behavior
 
@@ -219,7 +214,7 @@ Broader framework tests should continue to cover:
 - updates racing rendering or shutdown are coalesced safely;
 - View instances, props, and mounted lifetime are preserved;
 - event bindings are refreshed by the next successful render;
-- recoverable renderer failures do not clear terminal failures.
+- renderer failures remain terminal after metadata updates.
 
 Native coverage should continue to verify that `ManagedCodeUpdated`:
 
@@ -230,7 +225,7 @@ Native coverage should continue to verify that `ManagedCodeUpdated`:
 
 Release acceptance should run a static, non-animated sample through `dotnet watch` on macOS and
 Windows. It should cover text/layout changes, event behavior, an unchanged-revision virtual list,
-child replacement, a compiling render failure followed by recovery, rapid saves, and window-close
+child replacement, terminal render-fault behavior followed by restart, rapid saves, and window-close
 races. The static screen is important: an animation or user event must not accidentally provide the
 invalidation that the Hot Reload integration is intended to prove.
 

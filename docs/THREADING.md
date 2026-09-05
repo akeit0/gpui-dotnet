@@ -34,6 +34,12 @@ reconciliation, and unmounting therefore stay serialized on that thread once a V
 mounting. A root retired before its first native render has never mounted, so neither lifecycle
 hook runs.
 
+One application-owned execution guard binds to the actual GPUI callback thread and is shared
+by every window. It checks root/range rendering, dynamic-frame callbacks, event dispatch, and
+cleanup before they access retained state. External callback entry cannot reenter an active
+callback, including through another window. Internal child rendering remains part of the root
+callback. Synchronous synchronization-context dispatch cannot bypass this guard.
+
 During native callbacks, the binding installs a per-window `GpuiSynchronizationContext`. Normal
 `await` continuations from an event handler are posted to that session and drained at the start of
 a later root-render callback. `ConfigureAwait(false)` deliberately leaves this context; code
@@ -78,7 +84,7 @@ deactivation linear with any command already entering from another thread.
 | `Render()`, `[GpuiListItem]`, lifecycle hooks, event callbacks | GPUI application thread |
 | Child reconciliation, props commit, event binding | GPUI application thread |
 | Read or mutate ordinary View fields | GPUI application thread unless the application adds its own synchronization |
-| `Invalidate()` | Any thread while mounted |
+| `Invalidate()` | Any thread while mounted; queues a coalesced request |
 | `Dispatcher.Post(...)` | Any thread while mounted; callback runs on the GPUI application thread |
 | Window and retained-resource controller commands | Any thread while mounted; GPUI mutation runs on the GPUI application thread |
 | `Lifetime` cancellation observation | Any thread |
@@ -92,7 +98,23 @@ treating a terminal View as mounted.
 
 Managed render and row callbacks are synchronous. Their managed-owned buffers grow before writes
 without capacity retry. They must remain deterministic and side-effect free. Posted callbacks are drained before root rendering;
-their state changes are included in that render.
+their state changes are included in that render. Each drain has a bounded work budget so a
+self-posting callback cannot prevent rendering indefinitely; excess work requests a later frame.
+
+Invalidation publishes a stable, never-pooled View identity with an atomic pending bit. Repeated
+requests coalesce before reaching the application thread. Only ingress consumption touches the
+retained tree; requests arriving during rendering apply on a later render. Theme and metadata
+updates likewise enqueue full-tree invalidation. Native wakeups coalesce per session.
+
+View-bound posted callbacks recheck their stable command route when consumed and are discarded
+after owner retirement. Legacy async event continuations remain session-bound; they still need
+the lifetime checks described in [View lifecycle](VIEW_LIFECYCLE.md).
+
+The first unexpected render, demand-render, event, lifecycle, or posted-callback failure is
+terminal for normal session execution. Later render/event callbacks fail without invoking user
+code, queued user work is discarded, and resource commands are no longer forwarded. Other windows
+remain usable. Metadata updates cannot clear a terminal fault. Cleanup still visits all owned
+Views and preserves the original failure even if cleanup also throws.
 
 Unmount proceeds child-first. For each View, the binding marks it unmounting, removes and
 deactivates runtime access, cancels `Lifetime`, invokes `OnUnmounted`, then releases retained props

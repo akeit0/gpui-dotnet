@@ -18,7 +18,7 @@ internal sealed unsafe partial class ManagedSession
         ReadOnlySpan<byte> payload
     )
     {
-        if (Volatile.Read(ref _stopped) != 0 || ownerView == 0)
+        if (!IsAcceptingWork || ownerView == 0)
         {
             return;
         }
@@ -62,7 +62,7 @@ internal sealed unsafe partial class ManagedSession
 
     internal void DispatchResourceCommand(uint ownerView, ResourceCommand command)
     {
-        if (Volatile.Read(ref _stopped) != 0 || ownerView == 0)
+        if (!IsAcceptingWork || ownerView == 0)
         {
             return;
         }
@@ -111,7 +111,7 @@ internal sealed unsafe partial class ManagedSession
         ReadOnlySpan<byte> utf8Value
     )
     {
-        if (Volatile.Read(ref _stopped) != 0 || ownerView == 0)
+        if (!IsAcceptingWork || ownerView == 0)
         {
             return;
         }
@@ -150,60 +150,101 @@ internal sealed unsafe partial class ManagedSession
         }
     }
 
-    internal void DispatchClick(ulong eventToken, ClickEvent clickEvent)
+    internal void DispatchClick(ulong eventToken, ClickEvent value) =>
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchClickCore(id, data));
+
+    internal void DispatchInput(ulong eventToken, InputEvent value) =>
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchInputCore(id, data));
+
+    internal void DispatchSlider(ulong eventToken, SliderEvent value) =>
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchSliderCore(id, data));
+
+    internal void DispatchDock(ulong eventToken, DockEvent value) =>
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchDockCore(id, data));
+
+    internal void DispatchKey(ulong eventToken, KeyEvent value) =>
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchKeyCore(id, data));
+
+    internal void DispatchMouse(ulong eventToken, MouseEvent value) =>
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchMouseCore(id, data));
+
+    internal void DispatchModifiers(ulong eventToken, ModifiersEvent value) =>
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchModifiersCore(id, data));
+
+    internal void DispatchHover(ulong eventToken, HoverEvent value) =>
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchHoverCore(id, data));
+
+    internal void DispatchMouseMove(ulong eventToken, MouseMoveEvent value) =>
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchMouseMoveCore(id, data));
+
+    internal void DispatchScrollWheel(ulong eventToken, ScrollWheelEvent value) =>
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchScrollWheelCore(id, data));
+
+    internal void DispatchFileDrop(ulong eventToken, FileDropEvent value) =>
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchFileDropCore(id, data));
+
+    internal void DispatchNativeExtension(ulong eventToken, NativeExtensionEvent value) =>
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.DispatchNativeExtensionCore(id, data));
+
+    private void DispatchEvent<TEvent>(
+        ulong eventToken,
+        TEvent value,
+        Func<ViewBase, uint, TEvent, ValueTask> dispatch
+    )
     {
-        var viewHandle = (uint)(eventToken >> 32);
-        var handlerId = (uint)eventToken;
-        if (viewHandle == 0 || handlerId == 0)
+        ThrowIfUnavailable();
+        using var execution = Execution.Enter(ExecutionPhase.Event);
+        try
         {
-            throw new InvalidOperationException("Malformed event token.");
-        }
-        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
-        {
-            throw new InvalidOperationException(
-                $"Event references unmounted or unknown view handle {viewHandle}."
-            );
-        }
+            var viewHandle = (uint)(eventToken >> 32);
+            var handlerId = (uint)eventToken;
+            if (viewHandle == 0 || handlerId == 0)
+            {
+                throw new InvalidOperationException("Malformed event token.");
+            }
+            if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
+            {
+                throw new InvalidOperationException(
+                    $"Event references unmounted or unknown view handle {viewHandle}."
+                );
+            }
 
-        var pending = owner.DispatchClickCore(handlerId, clickEvent);
-        if (!pending.IsCompletedSuccessfully)
-        {
-            ObserveEventTask(pending);
+            var pending = dispatch(owner, handlerId, value);
+            if (pending.IsCompletedSuccessfully)
+            {
+                pending.GetAwaiter().GetResult();
+            }
+            else if (pending.IsCompleted)
+            {
+                // Preserve cancellation as a normal outcome for the legacy async event API.
+                try
+                {
+                    pending.GetAwaiter().GetResult();
+                }
+                catch (OperationCanceledException) { }
+            }
+            else
+            {
+                ObserveEventTask(pending);
+            }
+            ThrowIfUnavailable();
         }
-    }
-
-    internal void DispatchInput(ulong eventToken, InputEvent inputEvent)
-    {
-        var viewHandle = (uint)(eventToken >> 32);
-        var handlerId = (uint)eventToken;
-        if (viewHandle == 0 || handlerId == 0)
+        catch (Exception exception)
         {
-            throw new InvalidOperationException("Malformed generated input event token.");
-        }
-        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
-        {
-            throw new InvalidOperationException(
-                $"Input event references unmounted or unknown view handle {viewHandle}."
-            );
-        }
-
-        var pending = owner.DispatchInputCore(handlerId, inputEvent);
-        if (!pending.IsCompletedSuccessfully)
-        {
-            ObserveEventTask(pending);
+            RecordFailure(exception);
+            throw;
         }
     }
 
     private void ObserveEventTask(ValueTask pending)
     {
-        _ = pending
-            .AsTask()
-            .ContinueWith(
-                completed => ObserveEventCompletion(completed),
-                CancellationToken.None,
-                TaskContinuationOptions.ExecuteSynchronously,
-                TaskScheduler.Default
-            );
+        _ = pending.AsTask().ContinueWith(
+            static (completed, state) => ((ManagedSession)state!).ObserveEventCompletion(completed),
+            this,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default
+        );
     }
 
     private void ObserveEventCompletion(Task pending)
@@ -216,11 +257,6 @@ internal sealed unsafe partial class ManagedSession
         catch (Exception exception)
         {
             RecordFailure(exception);
-            Interlocked.CompareExchange(
-                ref _pendingAsyncFailure,
-                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception),
-                null
-            );
             try
             {
                 NotifyRenderPending();
@@ -229,229 +265,6 @@ internal sealed unsafe partial class ManagedSession
             {
                 RecordFailure(notifyFailure);
             }
-        }
-    }
-
-    internal void DispatchSlider(ulong eventToken, SliderEvent sliderEvent)
-    {
-        var viewHandle = (uint)(eventToken >> 32);
-        var handlerId = (uint)eventToken;
-        if (viewHandle == 0 || handlerId == 0)
-        {
-            throw new InvalidOperationException("Malformed slider event token.");
-        }
-        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
-        {
-            throw new InvalidOperationException(
-                $"Slider event references unmounted or unknown view handle {viewHandle}."
-            );
-        }
-
-        var pending = owner.DispatchSliderCore(handlerId, sliderEvent);
-        if (!pending.IsCompletedSuccessfully)
-        {
-            ObserveEventTask(pending);
-        }
-    }
-
-    internal void DispatchDock(ulong eventToken, DockEvent dockEvent)
-    {
-        var viewHandle = (uint)(eventToken >> 32);
-        var handlerId = (uint)eventToken;
-        if (viewHandle == 0 || handlerId == 0)
-        {
-            throw new InvalidOperationException("Malformed dock event token.");
-        }
-        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
-        {
-            throw new InvalidOperationException(
-                $"Dock event references unmounted or unknown view handle {viewHandle}."
-            );
-        }
-
-        var pending = owner.DispatchDockCore(handlerId, dockEvent);
-        if (!pending.IsCompletedSuccessfully)
-        {
-            ObserveEventTask(pending);
-        }
-    }
-
-    internal void DispatchKey(ulong eventToken, KeyEvent keyEvent)
-    {
-        var viewHandle = (uint)(eventToken >> 32);
-        var handlerId = (uint)eventToken;
-        if (viewHandle == 0 || handlerId == 0)
-        {
-            throw new InvalidOperationException("Malformed key event token.");
-        }
-        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
-        {
-            throw new InvalidOperationException(
-                $"Key event references unmounted or unknown view handle {viewHandle}."
-            );
-        }
-
-        var pending = owner.DispatchKeyCore(handlerId, keyEvent);
-        if (!pending.IsCompletedSuccessfully)
-        {
-            ObserveEventTask(pending);
-        }
-    }
-
-    internal void DispatchMouse(ulong eventToken, MouseEvent mouseEvent)
-    {
-        var viewHandle = (uint)(eventToken >> 32);
-        var handlerId = (uint)eventToken;
-        if (viewHandle == 0 || handlerId == 0)
-        {
-            throw new InvalidOperationException("Malformed mouse event token.");
-        }
-        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
-        {
-            throw new InvalidOperationException(
-                $"Mouse event references unmounted or unknown view handle {viewHandle}."
-            );
-        }
-
-        var pending = owner.DispatchMouseCore(handlerId, mouseEvent);
-        if (!pending.IsCompletedSuccessfully)
-        {
-            ObserveEventTask(pending);
-        }
-    }
-
-    internal void DispatchModifiers(ulong eventToken, ModifiersEvent modifiersEvent)
-    {
-        var viewHandle = (uint)(eventToken >> 32);
-        var handlerId = (uint)eventToken;
-        if (viewHandle == 0 || handlerId == 0)
-        {
-            throw new InvalidOperationException("Malformed modifiers event token.");
-        }
-        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
-        {
-            throw new InvalidOperationException(
-                $"Modifiers event references unmounted or unknown view handle {viewHandle}."
-            );
-        }
-
-        var pending = owner.DispatchModifiersCore(handlerId, modifiersEvent);
-        if (!pending.IsCompletedSuccessfully)
-        {
-            ObserveEventTask(pending);
-        }
-    }
-
-    internal void DispatchHover(ulong eventToken, HoverEvent hoverEvent)
-    {
-        var viewHandle = (uint)(eventToken >> 32);
-        var handlerId = (uint)eventToken;
-        if (viewHandle == 0 || handlerId == 0)
-        {
-            throw new InvalidOperationException("Malformed hover event token.");
-        }
-        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
-        {
-            throw new InvalidOperationException(
-                $"Hover event references unmounted or unknown view handle {viewHandle}."
-            );
-        }
-
-        var pending = owner.DispatchHoverCore(handlerId, hoverEvent);
-        if (!pending.IsCompletedSuccessfully)
-        {
-            ObserveEventTask(pending);
-        }
-    }
-
-    internal void DispatchMouseMove(ulong eventToken, MouseMoveEvent mouseMoveEvent)
-    {
-        var viewHandle = (uint)(eventToken >> 32);
-        var handlerId = (uint)eventToken;
-        if (viewHandle == 0 || handlerId == 0)
-        {
-            throw new InvalidOperationException("Malformed mouse-move event token.");
-        }
-        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
-        {
-            throw new InvalidOperationException(
-                $"Mouse-move event references unmounted or unknown view handle {viewHandle}."
-            );
-        }
-
-        var pending = owner.DispatchMouseMoveCore(handlerId, mouseMoveEvent);
-        if (!pending.IsCompletedSuccessfully)
-        {
-            ObserveEventTask(pending);
-        }
-    }
-
-    internal void DispatchScrollWheel(ulong eventToken, ScrollWheelEvent scrollWheelEvent)
-    {
-        var viewHandle = (uint)(eventToken >> 32);
-        var handlerId = (uint)eventToken;
-        if (viewHandle == 0 || handlerId == 0)
-        {
-            throw new InvalidOperationException("Malformed scroll-wheel event token.");
-        }
-        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
-        {
-            throw new InvalidOperationException(
-                $"Scroll-wheel event references unmounted or unknown view handle {viewHandle}."
-            );
-        }
-
-        var pending = owner.DispatchScrollWheelCore(handlerId, scrollWheelEvent);
-        if (!pending.IsCompletedSuccessfully)
-        {
-            ObserveEventTask(pending);
-        }
-    }
-
-    internal void DispatchFileDrop(ulong eventToken, FileDropEvent fileDropEvent)
-    {
-        var viewHandle = (uint)(eventToken >> 32);
-        var handlerId = (uint)eventToken;
-        if (viewHandle == 0 || handlerId == 0)
-        {
-            throw new InvalidOperationException("Malformed file-drop event token.");
-        }
-        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
-        {
-            throw new InvalidOperationException(
-                $"File-drop event references unmounted or unknown view handle {viewHandle}."
-            );
-        }
-
-        var pending = owner.DispatchFileDropCore(handlerId, fileDropEvent);
-        if (!pending.IsCompletedSuccessfully)
-        {
-            ObserveEventTask(pending);
-        }
-    }
-
-    internal void DispatchNativeExtension(
-        ulong eventToken,
-        NativeExtensionEvent nativeExtensionEvent
-    )
-    {
-        var viewHandle = (uint)(eventToken >> 32);
-        var handlerId = (uint)eventToken;
-        if (viewHandle == 0 || handlerId == 0)
-        {
-            throw new InvalidOperationException("Malformed native extension event token.");
-        }
-        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
-        {
-            throw new InvalidOperationException(
-                $"Native extension event references unmounted or unknown view handle {viewHandle}."
-            );
-        }
-
-        var pending = owner.DispatchNativeExtensionCore(handlerId, nativeExtensionEvent);
-        if (!pending.IsCompletedSuccessfully)
-        {
-            ObserveEventTask(pending);
         }
     }
 }

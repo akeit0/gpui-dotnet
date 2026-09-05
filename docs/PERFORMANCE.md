@@ -49,7 +49,9 @@ subtree compact and disable the wrapper as soon as the animation completes.
 
 ## Notifications and resource commands
 
-Managed invalidation notifications are atomically coalesced to one pending native message. Resource
+Managed invalidation requests coalesce per stable View identity before application-thread
+consumption; native notifications also coalesce per session. No worker invalidation traverses or
+locks the retained tree. Resource
 commands use a lossless queue because order can be semantically important.
 
 If a new command is high-frequency, first decide whether the state belongs natively. If it must

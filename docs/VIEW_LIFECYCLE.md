@@ -176,8 +176,10 @@ resources, but all visible state changes still belong in event or lifecycle work
 
 ## Invalidation and async work
 
-`Invalidate()` marks the current View fragment dirty and propagates the required version to its
-ancestors. Repeated native notifications are coalesced while one render is already pending.
+`Invalidate()` queues a coalesced request for the current View. At the next root-render callback,
+the application thread marks its fragment dirty and propagates the required version to its
+ancestors. Requests arriving during rendering remain queued for a later render. Native wakeups
+are also coalesced while one render is already pending.
 
 Root rendering always uses the current `GpuiApplication.Theme`. Retained child fragments receive
 the same theme. A theme change invalidates every fragment in each window because ambient theme
