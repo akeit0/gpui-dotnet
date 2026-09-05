@@ -36,7 +36,7 @@ public abstract partial class ViewBase
     private sealed class ViewCommandRoute
     {
         private readonly object _gate = new();
-        private bool _active = true;
+        private bool _active;
 
         internal ViewCommandRoute(
             uint viewHandle,
@@ -161,6 +161,14 @@ public abstract partial class ViewBase
                 Volatile.Write(ref _active, false);
             }
         }
+
+        internal void Activate()
+        {
+            lock (_gate)
+            {
+                Volatile.Write(ref _active, true);
+            }
+        }
     }
 
     // Only GPUI foreground callbacks access this object. That confinement makes complete reset
@@ -229,10 +237,11 @@ public abstract partial class ViewBase
     internal void ConsumeInvalidation() => Volatile.Write(ref _invalidationPending, 0);
 
     private const int LifecycleCreated = 0;
-    private const int LifecycleMounting = 1;
-    private const int LifecycleMounted = 2;
-    private const int LifecycleUnmounting = 3;
-    private const int LifecycleUnmounted = 4;
+    private const int LifecyclePrepared = 1;
+    private const int LifecycleMounting = 2;
+    private const int LifecycleMounted = 3;
+    private const int LifecycleUnmounting = 4;
+    private const int LifecycleUnmounted = 5;
 
     private protected ViewBase()
     {
@@ -338,7 +347,7 @@ public abstract partial class ViewBase
     }
     internal bool IsUnmountedCore => Volatile.Read(ref _lifecycle) >= LifecycleUnmounting;
 
-    internal void AttachRuntime(
+    internal void PrepareRuntime(
         uint viewHandle,
         Action<Action> post,
         Action<ViewBase> invalidate,
@@ -383,6 +392,24 @@ public abstract partial class ViewBase
                 )
             );
             _uiAttachment = RentUiAttachment(viewHandle);
+            Volatile.Write(ref _lifecycle, LifecyclePrepared);
+        }
+    }
+
+    internal void MountRuntime()
+    {
+        RequireUiAttachment();
+        lock (_lifecycleGate)
+        {
+            if (_lifecycle == LifecycleMounted)
+            {
+                return;
+            }
+            if (_lifecycle != LifecyclePrepared)
+            {
+                throw new InvalidOperationException("Only a prepared View may begin mounting.");
+            }
+            _commandRoute!.Activate();
             Volatile.Write(ref _lifecycle, LifecycleMounting);
         }
 

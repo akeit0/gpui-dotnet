@@ -381,6 +381,40 @@ public static class EditorElements
         return ui.NativeExtension(EditorExtension.Component, key, Configuration(options, 0, 0));
     }
 
+    /// <summary>Declares a keyed editor with a document-change callback before mounting.</summary>
+    public static Element<NativeExtensionTag> Editor<TView>(
+        this RenderContext ui,
+        ReadOnlySpan<char> key,
+        TView view,
+        Action<TView, EditorChangedEvent> onChanged,
+        EditorOptions? options = null
+    )
+        where TView : ViewBase
+    {
+        var changed = ui.BindNativeExtensionEvent(view, onChanged);
+        return ui.NativeExtension(EditorExtension.Component, key, Configuration(options, changed.Token, 0));
+    }
+
+    /// <summary>Declares a keyed editor with change and command-rejection callbacks before mounting.</summary>
+    public static Element<NativeExtensionTag> Editor<TView>(
+        this RenderContext ui,
+        ReadOnlySpan<char> key,
+        TView view,
+        Action<TView, EditorChangedEvent> onChanged,
+        Action<TView, EditorCommandRejectedEvent> onCommandRejected,
+        EditorOptions? options = null
+    )
+        where TView : ViewBase
+    {
+        var changed = ui.BindNativeExtensionEvent(view, onChanged);
+        var rejected = ui.BindNativeExtensionEvent(view, onCommandRejected);
+        return ui.NativeExtension(
+            EditorExtension.Component,
+            key,
+            Configuration(options, changed.Token, rejected.Token)
+        );
+    }
+
     internal static byte[] Configuration(
         EditorOptions? options,
         ulong changedEventToken,

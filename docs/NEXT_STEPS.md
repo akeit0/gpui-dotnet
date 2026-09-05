@@ -100,8 +100,7 @@ proven large-dataset behavior.
 
 ## Runtime
 
-Single-pass render arenas (ABI 4) are landed. The remaining lifecycle, dispatch,
-reactivity, and async ownership work is tracked in
+Event-token identity, demand-artifact leases, reactivity, and structured async ownership are tracked in
 [RUNTIME_PLAN.md](RUNTIME_PLAN.md).
 
 ## ABI, diagnostics, and CI

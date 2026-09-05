@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-pub const ABI_VERSION: u32 = 4;
+pub const ABI_VERSION: u32 = 5;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -169,7 +169,8 @@ pub struct NativeMenuRecord {
     pub reserved: u32,
 }
 
-pub type ManagedRenderFn = unsafe extern "C" fn(u64, *mut RenderArena, *mut u32) -> i32;
+pub type ManagedRenderFn = unsafe extern "C" fn(u64, *mut RenderArena, *mut u32, *mut u64) -> i32;
+pub type ManagedRenderCompletedFn = unsafe extern "C" fn(u64, u64, i32) -> i32;
 pub type ManagedClickFn = unsafe extern "C" fn(u64, u64, u64, *const NativeClickEvent) -> i32;
 pub type ManagedListRenderRangeFn =
     unsafe extern "C" fn(u64, u64, u32, u32, *mut RenderArena, *mut u32) -> i32;
@@ -191,6 +192,23 @@ pub struct ManagedCallbacks {
     pub window_closed: Option<ManagedWindowClosedFn>,
     pub menu_action: Option<ManagedMenuActionFn>,
     pub dynamic_frame: Option<ManagedDynamicFrameFn>,
+    pub render_completed: Option<ManagedRenderCompletedFn>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn acceptance_callback_extends_the_callback_table() {
+        let pointer_size = std::mem::size_of::<usize>();
+        assert_eq!(std::mem::size_of::<ManagedCallbacks>(), 10 * pointer_size);
+        assert_eq!(
+            std::mem::offset_of!(ManagedCallbacks, render_completed),
+            9 * pointer_size
+        );
+        assert_eq!(ABI_VERSION, 5);
+    }
 }
 
 pub type ValidateRenderFn = unsafe extern "C" fn(*const RenderArena, u32) -> i32;

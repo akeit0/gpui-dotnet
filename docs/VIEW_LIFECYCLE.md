@@ -12,9 +12,12 @@ window permanently unmounts the affected View instances.
 
 ```text
 Created
-   │ first session attachment
+   │ first declaration
    ▼
-OnMounted(ref ViewContext)
+Prepared  (identity and declaration storage; no lifecycle hooks)
+   │ native acceptance, then whole-tree props and composition commit
+   ▼
+OnMounted(ref ViewContext)  (parent-first, outside Render)
    │
    ▼
 Mounted  ◄──── dirty rerenders and successful slot/props commits
@@ -38,18 +41,21 @@ If `Lifetime` is never read, the View allocates no `CancellationTokenSource`; te
 a shared cancelled token. Once requested, the token and its source are permanently identity-bound
 to that View and are never pooled or reused.
 
-Runtime/session state is separate from that permanent identity. Mount creates a non-pooled,
+Runtime/session state is separate from that permanent identity. Preparation creates a non-pooled,
 any-thread `ViewCommandRoute` and a GPUI-thread-only `MountedViewAttachment`. The route carries an
 immutable owner handle and serializes commands against deactivation. The attachment contains the
 render/event/resource-key state; unmount removes and completely resets it before returning it to a
 bounded pool. A stale command can retain only its route and therefore cannot observe recycled
 attachment state.
+The route stays inactive until mounting begins, so preparation permits render declarations but
+does not permit invalidation, posting, or controller commands.
 
 Unmount deactivates runtime access before cancelling `Lifetime` and invoking `OnUnmounted()`, so a
 terminal View retained by application code does not retain its session or event tables. See
 [Lifecycle and threading](THREADING.md) for the GPUI entity model and exact thread boundaries.
 
-A queued root whose window closes before mounting goes directly from `Created` to `Unmounted`.
+A queued root or unaccepted candidate retired before mounting goes from `Created` or `Prepared`
+directly to `Unmounted`.
 Because mounting never began, neither lifecycle callback runs, but its `Lifetime` is still
 cancelled and the instance is still terminal.
 
@@ -93,8 +99,8 @@ var card = ui.Child<CounterCardView, CounterCardProps>(
 
 Each declaration stages a new props value, like a constructor call for the retained slot. The same
 key and concrete type retain the View instance and local state. Changed props rerender that child;
-a successful whole-tree commit promotes staged props to committed props. A failed render discards
-them, so event handlers continue to observe the last committed value.
+a successful native acceptance promotes staged props to committed props throughout the tree
+before any mount hook runs. A failed render does not promote them and faults normal dispatch.
 
 The implementation retains two `TProps` payloads, not three: the committed value observed outside
 rendering and the latest declaration used during rendering and for fragment comparison. The
@@ -131,12 +137,18 @@ protected override void OnUnmounted()
 }
 ```
 
+The first `Render()` runs before `OnMounted`. Declare the resource by the same explicit key
+(for example, `ui.Scroll("content", ScrollAxis.Vertical, body)`) or initialize a supported ref-bound controller in
+rendering. Do not make the first declaration depend on a controller initialized by `OnMounted`.
+Mount hooks see the accepted tree and committed props. They may command resources declared by
+that snapshot, even before native materialization. Calling `Invalidate()` requests a later render;
+state changes in mounting do not rewrite the accepted output.
+
 `OnUnmounted()` is for releasing application-owned subscriptions, timers, registrations, and other
 resources acquired for the mounted View. `Lifetime` has already been cancelled, `IsMounted` is
 false, and runtime commands are disabled. Do not call `Invalidate()`, post through `Dispatcher`, or
-use a controller there. Committed props remain readable during the callback. A candidate that never
-committed exposes its latest supplied props instead. Retained props are released after the callback
-returns.
+use a controller there. Committed props remain readable during the callback. Prepared candidates
+retire without either lifecycle callback. Retained props are released after cleanup.
 
 If `OnMounted` throws, the framework still performs terminal cleanup and calls `OnUnmounted()` once.
 This lets one cleanup path handle partially initialized fields. Descendants unmount before their
@@ -146,6 +158,9 @@ Input, List, and Slider controllers can also be default-initialized fields and p
 `Render()`. The first render assigns a stable per-View key retained by that controller. Creating a
 controller does not eagerly create a native resource; the resource appears when a matching
 semantic declaration is committed.
+Creating a controller for a key does not establish resource presence. Commands against absent
+declarations fail. Queued commands cannot cross resource removal and reappearance, even when the
+same controller and key are reused.
 
 ## Transactional rendering
 
@@ -164,15 +179,16 @@ committed managed tree. If a render fails, the native host presents its managed-
 surface and the failed snapshot does not become
 interactive. `[GpuiListItem]` renderers follow the same purity rule.
 
-A newly requested child is attached before its first render so its callbacks and controllers have
+A newly requested child is prepared before its first render so its callbacks and controllers have
 a stable owner identity. It is a session-owned candidate until the complete tree commits.
-The previously committed tree remains active during that attempt.
-After success, the candidate becomes the slot's committed child and the replaced subtree unmounts;
-an abandoned candidate is unmounted during reconciliation or session shutdown.
+The previously committed composition remains owned during that attempt. No external user callback
+may enter while a publication awaits acknowledgement. After Rust accepts the decoded snapshot,
+the complete reachable composition and props commit, replaced subtrees unmount child-first, and
+new Views mount parent-first. An abandoned Prepared candidate retires silently during reconciliation
+or session shutdown.
 
-Application code should not depend on when a candidate becomes committed. `OnMounted` may acquire
-resources, but all visible state changes still belong in event or lifecycle work outside
-`Render()` and must tolerate cleanup before the candidate is ever displayed.
+`OnMounted` may acquire resources after acceptance, but must tolerate cleanup before the View is
+ever painted. A native decode or acknowledgement failure is terminal for that session.
 
 ## Invalidation and async work
 

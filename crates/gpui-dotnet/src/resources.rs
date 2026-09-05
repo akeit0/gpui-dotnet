@@ -92,6 +92,18 @@ pub(crate) struct ResourceStore {
 }
 
 impl ResourceStore {
+    pub(crate) fn publish_presence(
+        &self,
+        presence: &mut crate::presence::ResourcePresence,
+        revision: u64,
+    ) {
+        presence.accept(
+            &self.active_scratch.borrow(),
+            &self.extension_active_scratch.borrow(),
+            revision,
+        );
+    }
+
     pub(crate) fn new(session_id: u64, callbacks: ManagedCallbacks, theme: SharedTheme) -> Self {
         Self {
             session_id,
@@ -1351,6 +1363,7 @@ mod tests {
         ManagedCallbacks {
             struct_size: 0,
             render: None,
+            render_completed: None,
             click: None,
             list_render_range: None,
             dynamic_frame: None,

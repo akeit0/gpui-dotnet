@@ -1979,8 +1979,9 @@ public sealed class SemanticRenderTests
         Assert.False(save.Matches("s", control: true, shift: true));
     }
 
-    private static void Attach(View view, uint handle = 1) =>
-        view.AttachRuntime(
+    private static void Attach(View view, uint handle = 1)
+    {
+        view.PrepareRuntime(
             handle,
             static callback => callback(),
             static _ => { },
@@ -1988,6 +1989,8 @@ public sealed class SemanticRenderTests
             static (_, _, _) => { },
             static (_, _, _, _, _, _, _, _, _, _) => { }
         );
+        view.MountRuntime();
+    }
 
     private static void RenderInvalidMove()
     {

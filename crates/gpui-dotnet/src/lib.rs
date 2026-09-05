@@ -11,6 +11,7 @@ mod input;
 mod materializer;
 mod overlay;
 mod popover_menu;
+mod presence;
 mod resources;
 mod scrolling;
 #[path = "semantic.g.rs"]
@@ -601,6 +602,7 @@ unsafe extern "C" fn run_application(
         || callbacks.application_started.is_none()
         || callbacks.window_closed.is_none()
         || callbacks.menu_action.is_none()
+        || callbacks.render_completed.is_none()
     {
         return -21;
     }

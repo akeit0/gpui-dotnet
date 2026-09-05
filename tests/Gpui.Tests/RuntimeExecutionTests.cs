@@ -11,6 +11,169 @@ namespace Gpui.Tests;
 public sealed unsafe class RuntimeExecutionTests
 {
     [Fact]
+    public void RenderRootOutputPreparesViewsWithoutRunningMountHooks()
+    {
+        using var fixture = new SessionFixture(new ProbeView());
+        fixture.Publish();
+        Assert.Equal(0, fixture.View.MountCount);
+    }
+
+    [Fact]
+    public void FailedRootRenderNeverMountsOrUnmountsThePreparedView()
+    {
+        using var fixture = new SessionFixture(new ProbeView
+        {
+            DuringRender = () => throw new InvalidOperationException("invalid declaration")
+        });
+        Assert.Throws<InvalidOperationException>(fixture.Render);
+        fixture.Session.Stop();
+        Assert.Equal(0, fixture.View.MountCount);
+        Assert.Equal(0, fixture.View.UnmountCount);
+    }
+
+    [Fact]
+    public void AcceptanceCommitsTheTreeBeforeParentFirstMounting()
+    {
+        using var fixture = new SessionFixture(new ParentView());
+        var order = new List<string>();
+        fixture.Publish();
+        var child = fixture.CandidateChild;
+        fixture.View.DuringMount = () =>
+        {
+            Assert.Same(child, fixture.Child);
+            Assert.Null(fixture.State(fixture.View).StagedChildren?.SingleOrDefault().Value);
+            Assert.False(child.IsMountedCore);
+            order.Add("parent");
+        };
+        child.DuringMount = () => order.Add("child");
+        Assert.Equal(0, fixture.Complete());
+        Assert.Equal(new[] { "parent", "child" }, order);
+        fixture.Render();
+        Assert.Equal(1, child.MountCount);
+        Assert.Equal(1, fixture.View.MountCount);
+    }
+
+    [Fact]
+    public void AcceptanceCommitsChildPropsBeforeParentMounting()
+    {
+        using var fixture = new SessionFixture(new PropsParentView());
+        fixture.Publish();
+        fixture.View.DuringMount = () =>
+        {
+            var child = Assert.IsType<PropsChildView>(fixture.State(fixture.View).Children!.Values.Single().View);
+            Assert.Equal(new LabelProps("accepted"), child.CurrentProps);
+        };
+        Assert.Equal(0, fixture.Complete());
+    }
+
+    [Fact]
+    public void NativeRejectionRetiresPreparedCandidatesWithoutLifecycleCallbacks()
+    {
+        using var fixture = new SessionFixture(new ParentView());
+        fixture.Publish();
+        var child = fixture.CandidateChild;
+        var lifetime = child.CapturedLifetime;
+        Assert.Equal(-103, fixture.Complete(status: -40));
+        fixture.Session.Stop();
+        Assert.Equal(0, fixture.View.MountCount);
+        Assert.Equal(0, fixture.View.UnmountCount);
+        Assert.Equal(0, child.MountCount);
+        Assert.Equal(0, child.UnmountCount);
+        Assert.True(lifetime.IsCancellationRequested);
+        Assert.True(child.IsUnmountedCore);
+        Assert.Contains("-40", fixture.Session.Failure!.Message);
+    }
+
+    [Theory]
+    [InlineData(0UL)]
+    [InlineData(2UL)]
+    public void UnmatchedAcknowledgementFaultsWithoutMounting(ulong revision)
+    {
+        using var fixture = new SessionFixture(new ProbeView());
+        fixture.Publish();
+        Assert.Equal(-103, fixture.Complete(revision));
+        Assert.Equal(0, fixture.View.MountCount);
+        Assert.NotNull(fixture.Session.Failure);
+    }
+
+    [Fact]
+    public void DuplicateAcknowledgementCannotMountOrCommitAgain()
+    {
+        using var fixture = new SessionFixture(new ProbeView());
+        fixture.Publish();
+        var revision = fixture.Session.PendingRenderRevision;
+        Assert.Equal(0, fixture.Complete(revision));
+        Assert.Equal(-103, fixture.Complete(revision));
+        Assert.Equal(1, fixture.View.MountCount);
+    }
+
+    [Fact]
+    public void NativePublicationReturnsARevisionAndBlocksEventsUntilAcknowledged()
+    {
+        using var fixture = new SessionFixture(new ProbeView());
+        Assert.Equal(0, fixture.NativePublish(out var revision));
+        Assert.NotEqual(0UL, revision);
+        Assert.Equal(fixture.Session.PendingRenderRevision, revision);
+        Assert.Equal(-111, fixture.Click());
+        Assert.Equal(0, fixture.View.ClickCount);
+        Assert.Equal(-103, fixture.Complete(revision));
+        Assert.Equal(0, fixture.View.MountCount);
+    }
+
+    [Fact]
+    public void PublicationCannotOverwriteAnUnacceptedArena()
+    {
+        using var fixture = new SessionFixture(new ProbeView());
+        Assert.Equal(0, fixture.NativePublish(out _));
+        Assert.Equal(-101, fixture.NativePublish(out var revision));
+        Assert.Equal(0UL, revision);
+        Assert.Equal(1, fixture.View.RenderCount);
+    }
+
+    [Fact]
+    public void MountInvalidationSchedulesTheNextRender()
+    {
+        using var fixture = new SessionFixture(new ProbeView());
+        fixture.View.DuringMount = fixture.View.Invalidate;
+        fixture.Publish();
+        Assert.Throws<InvalidOperationException>(fixture.View.Invalidate);
+        Assert.Equal(0, fixture.Complete());
+        Assert.Equal(1, fixture.Notifications);
+        Assert.Equal(1, fixture.View.RenderCount);
+        fixture.Render();
+        Assert.Equal(2, fixture.View.RenderCount);
+    }
+
+    [Fact]
+    public void MountFailureCleansUpTheParentAndNeverMountsItsChildren()
+    {
+        using var fixture = new SessionFixture(new ParentView());
+        fixture.Publish();
+        var child = fixture.CandidateChild;
+        fixture.View.DuringMount = () => throw new InvalidOperationException("mount failure");
+        Assert.Equal(-103, fixture.Complete());
+        fixture.Session.Stop();
+        Assert.Equal(1, fixture.View.UnmountCount);
+        Assert.Equal(0, child.MountCount);
+        Assert.Equal(0, child.UnmountCount);
+        Assert.True(child.IsUnmountedCore);
+    }
+
+    [Fact]
+    public void PublicationDoesNotRetireThePreviouslyAcceptedChild()
+    {
+        using var fixture = new SessionFixture(new ParentView());
+        fixture.Render();
+        var child = fixture.Child;
+        ((ParentView)fixture.View).ShowChild = false;
+        fixture.Publish();
+        Assert.Same(child, fixture.Child);
+        Assert.Equal(0, child.UnmountCount);
+        Assert.Equal(0, fixture.Complete());
+        Assert.Equal(1, child.UnmountCount);
+    }
+
+    [Fact]
     public void InvalidateQueuesOneRequestWithoutTouchingRetainedStateOnTheWorker()
     {
         using var fixture = new SessionFixture(new ParentView());
@@ -227,6 +390,7 @@ public sealed unsafe class RuntimeExecutionTests
         internal ManagedSession Session { get; }
         internal int Notifications => NotificationCounts[_id];
         internal ChildView Child => (ChildView)State(View).Children!.Values.Single().View;
+        internal ChildView CandidateChild => (ChildView)State(View).StagedChildren!.Values.Single().View;
 
         internal SessionFixture(ProbeView view, GpuiApplication? application = null)
         {
@@ -243,8 +407,31 @@ public sealed unsafe class RuntimeExecutionTests
 
         internal void Render()
         {
+            Publish();
+            Session.CompleteRender(Session.PendingRenderRevision, 0);
+        }
+
+        internal void Publish()
+        {
             RenderArena arena = default;
             Session.RenderRootOutput(&arena);
+        }
+
+        internal int NativePublish(out ulong revision)
+        {
+            delegate* unmanaged[Cdecl]<ulong, RenderArena*, uint*, ulong*, int> callback = &NativeCallbacks.Render;
+            RenderArena arena = default;
+            uint root = 0;
+            ulong value = 0;
+            var status = callback(_id, &arena, &root, &value);
+            revision = value;
+            return status;
+        }
+
+        internal int Complete(ulong? revision = null, int status = 0)
+        {
+            delegate* unmanaged[Cdecl]<ulong, ulong, int, int> callback = &NativeCallbacks.RenderCompleted;
+            return callback(_id, revision ?? Session.PendingRenderRevision, status);
         }
 
         internal int Click()
@@ -279,12 +466,21 @@ public sealed unsafe class RuntimeExecutionTests
     private class ProbeView : View
     {
         internal int RenderCount;
+        internal int MountCount;
         internal int ClickCount;
         internal int UnmountCount;
         internal ulong ClickToken;
         internal Action? DuringRender;
+        internal Action? DuringMount;
         internal Action? OnClick;
         internal bool ThrowDuringUnmount;
+        internal CancellationToken CapturedLifetime => Lifetime;
+
+        protected override void OnMounted(ref ViewContext context)
+        {
+            MountCount++;
+            DuringMount?.Invoke();
+        }
 
         protected override Element Render(ref RenderContext ui)
         {
@@ -320,5 +516,20 @@ public sealed unsafe class RuntimeExecutionTests
             var root = base.Render(ref ui);
             return ShowChild ? ui.Div(root, ui.Child<ChildView>("child")) : root;
         }
+    }
+
+    private sealed record LabelProps(string Text);
+
+    private sealed class PropsChildView : View<LabelProps>, IGeneratedViewFactory<PropsChildView>
+    {
+        public static PropsChildView CreateGpuiView() => new();
+        internal LabelProps CurrentProps => Props;
+        protected override Element Render(ref RenderContext ui) => ui.Text(Props.Text);
+    }
+
+    private sealed class PropsParentView : ProbeView
+    {
+        protected override Element Render(ref RenderContext ui) =>
+            ui.Child<PropsChildView, LabelProps>("props-child", new LabelProps("accepted"));
     }
 }

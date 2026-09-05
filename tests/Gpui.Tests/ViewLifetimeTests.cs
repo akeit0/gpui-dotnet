@@ -191,8 +191,9 @@ public sealed class ViewLifetimeTests
         Action<Action>? post = null,
         Action<ViewBase>? invalidate = null,
         Action<uint, ResourceCommand>? resourceCommand = null
-    ) =>
-        view.AttachRuntime(
+    )
+    {
+        view.PrepareRuntime(
             handle,
             post ?? (static callback => callback()),
             invalidate ?? (static _ => { }),
@@ -200,6 +201,8 @@ public sealed class ViewLifetimeTests
             static (_, _, _) => { },
             static (_, _, _, _, _, _, _, _, _, _) => { }
         );
+        view.MountRuntime();
+    }
 
     private sealed class LifecycleView : View
     {

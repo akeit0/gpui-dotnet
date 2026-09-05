@@ -1,6 +1,6 @@
 # Native ABI
 
-GPUI.NET currently uses ABI version 4. Managed startup requires an exact ABI version, a compatible
+GPUI.NET currently uses ABI version 5. Managed startup requires an exact ABI version, a compatible
 API-table prefix, all required function entries, and the semantic schema hash generated from
 `bindings/schema.json`.
 
@@ -38,10 +38,11 @@ The extension-command envelope keeps extension-specific IDs and payload layouts 
 numeric command and flags, expected revision, and opaque byte payload. Native code validates the
 envelope and provider compatibility and copies the payload before the FFI call returns.
 
-ABI 4 changes render-buffer ownership and is intentionally incompatible with ABI 3 even though
-record layouts do not change. The API-table layout keeps the historical `GpuiDotnetApiV3` name;
+ABI 5 adds root publication revisions and a required `render_completed` callback after native
+validation. It retains ABI 4's managed-owned single-pass buffers. The callback-table layout and
+root-render signature are incompatible with earlier hosts. The API table keeps the historical `GpuiDotnetApiV3` name;
 its `abi_version` value and the requested version, not that type name, negotiate this protocol.
-Generated layouts remain unchanged. Old and new managed/native hosts must not be mixed.
+Old and new managed/native hosts must not be mixed; rebuild custom hosts with the matching contract.
 
 ## Application and callbacks
 
@@ -49,6 +50,7 @@ Generated layouts remain unchanged. Old and new managed/native hosts must not be
 callback table provides:
 
 - dirty root rendering;
+- root snapshot acceptance acknowledgement;
 - click dispatch;
 - virtual list/table range rendering;
 - owner-view preparation for a requested dynamic frame;
@@ -73,7 +75,8 @@ Dirty root rendering uses:
 int32_t render(
     uint64_t session_id,
     gpui_render_arena* arena,
-    uint32_t* root);
+    uint32_t* root,
+    uint64_t* revision);
 ```
 
 `arena` is an output descriptor, not writable Rust-owned storage. Managed code resets a reusable
@@ -86,6 +89,26 @@ Rust immediately validates and decodes the borrowed buffers into an owned `Valid
 It must finish decoding before any further managed callback or session teardown, and must not
 retain or free a buffer pointer. Root and range rendering use separate reusable managed owners.
 Cached native row batches own decoded snapshots, never borrowed output arenas.
+
+A successful root publication returns a nonzero, monotonically increasing session revision.
+This is distinct from the arena generation used to validate builder handles. After decoding and
+reconciling resource declarations, Rust calls exactly once:
+
+```c
+int32_t render_completed(uint64_t session_id, uint64_t revision, int32_t status);
+```
+
+Rust must release its borrow of the arena before this callback. Status zero accepts the snapshot;
+a nonzero validation/decode status faults the session without mounting candidates. Failed render
+callbacks have no publication and receive no acknowledgement. An acknowledgement failure also
+rejects the native snapshot. Missing, zero, mismatched, or duplicate revisions are protocol errors.
+The callback table appends this required pointer after `dynamic_frame` (offset 72, size 80 on 64-bit
+targets; offset 36, size 40 on 32-bit targets).
+
+Managed acceptance commits the complete reachable tree and props, retires replaced subtrees, then
+mounts new Views parent-first. New root/range render and event dispatch are excluded until it
+finishes. Mount hooks can enqueue accepted-resource commands and invalidate a later frame. Native
+materialization and row requests begin only after successful acknowledgement.
 
 The output descriptor's `flags` and all four legacy `required_*_capacity` fields are reserved and
 must be zero. They remain in the layout to avoid needless generated-record churn. A failed
@@ -256,6 +279,15 @@ through the managed menu callback.
 `NativeResourceCommand` identifies a resource by owner View handle, resource kind, and UTF-8 key.
 The call validates and copies borrowed key/data bytes before queueing work on the native UI thread.
 
+Commands require a mounted owner and a matching declaration in the accepted native presence index.
+An absent resource returns `-34`, surfaced as a managed exception. Ingress stamps each queued
+command with the declaration's presence generation, then delivery checks it again on the GPUI
+thread. Removal retires the generation; reappearance under the same key gets a new one. Commands
+already queued for the old generation are discarded. Repeated snapshots preserving a declaration
+preserve its generation. Pending materialization commands are pruned when the declaration leaves.
+The same rule applies to UTF-8 Input setters and extension commands. Presence is published before
+`render_completed`, allowing `OnMounted` to command declared resources before materialization.
+
 | Resource | Commands |
 |---|---|
 | Scroll | ScrollToOffset, ScrollToTop, ScrollToBottom |
@@ -269,10 +301,6 @@ are measurement hints and are reconciled with the next managed snapshot. A hint 
 the declared datasource count falls back to a full reset. Dock commands queue until the next
 committed snapshot materializes the area and apply after the declaration, so imperative intent
 wins ties; unknown panels and malformed documents are consumed without effect.
-
-Scroll and focus/value commands apply to the retained resource directly. List structural commands
-are measurement hints and are reconciled with the next managed snapshot. A hint that disagrees with
-the declared datasource count falls back to a full reset.
 
 All payloads are canonical: no-payload commands require zero words and empty data, indices/counts
 must fit their documented words, offsets must be finite and non-negative, and Input data must be

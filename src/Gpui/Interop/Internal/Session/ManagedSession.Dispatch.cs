@@ -54,7 +54,9 @@ internal sealed unsafe partial class ManagedSession
             if (status != 0)
             {
                 throw new InvalidOperationException(
-                    $"Native extension command failed with status {status}."
+                    status == -34
+                        ? "The extension resource is not declared in the accepted snapshot."
+                        : $"Native extension command failed with status {status}."
                 );
             }
         }
@@ -99,7 +101,9 @@ internal sealed unsafe partial class ManagedSession
             if (status != 0)
             {
                 throw new InvalidOperationException(
-                    $"Native resource command failed with status {status}."
+                    status == -34
+                        ? "The resource is not declared in the accepted snapshot."
+                        : $"Native resource command failed with status {status}."
                 );
             }
         }
@@ -144,7 +148,9 @@ internal sealed unsafe partial class ManagedSession
             if (status != 0)
             {
                 throw new InvalidOperationException(
-                    $"Native input value command failed with status {status}."
+                    status == -34
+                        ? "The Input resource is not declared in the accepted snapshot."
+                        : $"Native input value command failed with status {status}."
                 );
             }
         }
@@ -194,6 +200,7 @@ internal sealed unsafe partial class ManagedSession
     {
         ThrowIfUnavailable();
         using var execution = Execution.Enter(ExecutionPhase.Event);
+        RequireAcceptedRender();
         try
         {
             var viewHandle = (uint)(eventToken >> 32);

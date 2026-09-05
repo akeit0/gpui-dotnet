@@ -28,14 +28,14 @@ Each native window owns one GPUI `Entity<ManagedView>`. The C# root and child `V
 not separate GPUI entities. They form a binding-managed retained tree whose fragments are combined
 into the snapshot consumed by that native `ManagedView`.
 
-Native-to-managed render, virtual-row, dynamic-frame, event, startup, and window-close callbacks
+Native-to-managed render, acceptance, virtual-row, dynamic-frame, event, startup, and window-close callbacks
 originate from GPUI foreground work. Managed mounting, rendering, event-table access,
-reconciliation, and unmounting therefore stay serialized on that thread once a View begins
-mounting. A root retired before its first native render has never mounted, so neither lifecycle
+reconciliation, and unmounting therefore stay serialized on that thread once a View is prepared.
+A root or candidate retired before native acceptance has never mounted, so neither lifecycle
 hook runs.
 
 One application-owned execution guard binds to the actual GPUI callback thread and is shared
-by every window. It checks root/range rendering, dynamic-frame callbacks, event dispatch, and
+by every window. It checks root/range rendering, acceptance, dynamic-frame callbacks, event dispatch, and
 cleanup before they access retained state. External callback entry cannot reenter an active
 callback, including through another window. Internal child rendering remains part of the root
 callback. Synchronous synchronization-context dispatch cannot bypass this guard.
@@ -45,8 +45,9 @@ During native callbacks, the binding installs a per-window `GpuiSynchronizationC
 a later root-render callback. `ConfigureAwait(false)` deliberately leaves this context; code
 running there must use one of the any-thread entry points to return to the View.
 
-`OnMounted` means that a C# View has joined a managed window session. It does not mean that GPUI
-created another entity or that the View has already appeared in a committed snapshot.
+`OnMounted` means that Rust accepted the View's snapshot and the reachable managed tree and props
+have committed. It runs outside rendering, parent-before-child, before native materialization.
+It does not imply a separate GPUI entity or a completed paint.
 `OnUnmounted` means that the window or committed child slot no longer owns that C# View. It is not
 triggered merely because GPUI skipped a paint. Terminal, one-shot C# View lifetime is a binding API
 contract, not a constraint imposed by GPUI's entity map.
@@ -66,7 +67,7 @@ Mounted Views keep two different runtime objects:
 This split prevents a stale worker-thread command from observing an attachment after it has been
 recycled. The command route serializes dispatch against deactivation and carries its own immutable
 owner handle; it never reads pooled state. Internal access to a live `MountedViewAttachment`
-asserts the managed thread that mounted it.
+asserts the managed thread that prepared it. The command route activates only when mounting begins.
 
 Lifecycle identity remains directly on `ViewBase`: the terminal state and lazily allocated
 `CancellationTokenSource` are never pooled. If `Lifetime` is never requested, no source is
@@ -94,12 +95,22 @@ compute or perform I/O, then use `Dispatcher.Post` or a captured synchronization
 continuation to modify View state. Passing `Lifetime` to the work prevents a continuation from
 treating a terminal View as mounted.
 
+Retained-resource commands also require an accepted declaration. Native ingress reads a small
+thread-safe presence index and stamps the queued command with its generation. Delivery rechecks
+the generation on the application thread; removal and reappearance cannot revive queued commands.
+This index contains identities and generations, never GPUI entities or managed retained trees.
+
 ## Render and teardown ordering
 
 Managed render and row callbacks are synchronous. Their managed-owned buffers grow before writes
 without capacity retry. They must remain deterministic and side-effect free. Posted callbacks are drained before root rendering;
 their state changes are included in that render. Each drain has a bounded work budget so a
 self-posting callback cannot prevent rendering indefinitely; excess work requests a later frame.
+
+Successful root output awaits a matching native acknowledgement before another render, demand
+request, or user event can enter. Rust releases borrowed arena data and publishes resource presence
+before acknowledging. Acceptance commits all props and composition before lifecycle hooks. Mount
+commands may queue at this point; mount invalidations remain queued for a later frame.
 
 Invalidation publishes a stable, never-pooled View identity with an atomic pending bit. Repeated
 requests coalesce before reaching the application thread. Only ingress consumption touches the

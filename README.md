@@ -164,7 +164,7 @@ C# application and View state
         │ dirty render
         ▼
 flat RenderArena: nodes, operations, children, UTF-8
-        │ ABI v2 + base/extension schema negotiation
+        │ ABI v5 + base/extension schema negotiation
         ▼
 Rust validation and retained snapshot
         │
@@ -175,6 +175,9 @@ Rust validation and retained snapshot
 Clean native repaints do not call managed `Render()`. High-frequency state such as scrolling,
 selection, pointer interaction, IME composition, and slider movement stays in Rust. Managed code
 is called for dirty renders, bound events, and coarse virtual-row batches.
+Rust acknowledges each accepted root snapshot before managed Views mount. The first render declares
+the UI; `OnMounted` then runs with committed props and can command accepted resources. Commands
+queued before a resource's removal cannot reach a later resource using the same key.
 
 ## Views and events
 

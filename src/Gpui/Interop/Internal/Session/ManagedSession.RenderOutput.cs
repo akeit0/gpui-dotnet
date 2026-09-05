@@ -15,6 +15,7 @@ internal sealed unsafe partial class ManagedSession
         {
             throw new InvalidOperationException("Nested managed render output is not supported.");
         }
+        RequireAcceptedRender();
         if (output == null)
         {
             throw new ArgumentNullException(nameof(output));

@@ -53,6 +53,8 @@ internal sealed unsafe partial class ManagedSession
         _unmountStack.Clear();
         _unmountVisited.Clear();
         _rootOutputArena?.Dispose();
+        _mountCandidates.Clear();
+        _pendingRenderRevision = 0;
         _rootOutputArena = null;
         _rangeOutputArena?.Dispose();
         _rangeOutputArena = null;
@@ -91,7 +93,7 @@ internal sealed unsafe partial class ManagedSession
         try
         {
             _ = GetRenderState(view);
-            view.AttachRuntime(
+            view.PrepareRuntime(
                 handle,
                 Post,
                 Invalidate,

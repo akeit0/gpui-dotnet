@@ -8,6 +8,7 @@ internal sealed unsafe partial class ManagedSession
     {
         ThrowIfUnavailable();
         using var execution = Execution.Enter(ExecutionPhase.Ingress);
+        RequireAcceptedRender();
         try
         {
             BeginRendering();
@@ -22,7 +23,7 @@ internal sealed unsafe partial class ManagedSession
                 ManagedValidator.Validate(arena, element);
                 CompleteComposition(RootView);
                 completed = true;
-                CommitSnapshotTree();
+                _pendingRenderRevision = checked(++_nextRenderRevision);
                 return element;
             }
             catch
@@ -55,6 +56,7 @@ internal sealed unsafe partial class ManagedSession
     {
         ThrowIfUnavailable();
         using var execution = Execution.Enter(ExecutionPhase.DemandRender);
+        RequireAcceptedRender();
         var viewHandle = unchecked((uint)(rendererToken >> 32));
         var rendererId = unchecked((uint)rendererToken);
         if (viewHandle == 0 || rendererId == 0)
@@ -204,6 +206,7 @@ internal sealed unsafe partial class ManagedSession
     {
         _snapshotStack.Clear();
         _snapshotVisited.Clear();
+        _mountCandidates.Clear();
 
         lock (_renderStateGate)
         {
@@ -230,6 +233,10 @@ internal sealed unsafe partial class ManagedSession
                 }
 
                 current.CommitStagedProps();
+                if (!current.IsMountedCore)
+                {
+                    _mountCandidates.Add(current);
+                }
 
                 if (state.Children is null)
                 {
@@ -271,6 +278,13 @@ internal sealed unsafe partial class ManagedSession
                 RecordFailure(exception);
             }
         }
+
+        foreach (var view in _mountCandidates)
+        {
+            ThrowIfUnavailable();
+            view.MountRuntime();
+        }
+        _mountCandidates.Clear();
     }
 
     private void MarkViewFragmentDirty(ViewBase view)

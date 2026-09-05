@@ -31,6 +31,11 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     private int _stopped;
     private int _allViewsPending;
     private int _notificationPending;
+    private ulong _nextRenderRevision;
+    private ulong _pendingRenderRevision;
+    private readonly List<ViewBase> _mountCandidates = [];
+
+    internal ulong PendingRenderRevision => _pendingRenderRevision;
 
     private readonly record struct IngressWork(ViewBase? View, Action? Callback);
     private ApplicationExecution Execution => _application.Execution;
@@ -68,6 +73,14 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _stopped) != 0, this);
         Volatile.Read(ref _failure)?.Throw();
+    }
+
+    private void RequireAcceptedRender()
+    {
+        if (_pendingRenderRevision != 0)
+        {
+            throw new InvalidOperationException("Published root output is awaiting native acceptance.");
+        }
     }
 
     private void DiscardIngress()
@@ -129,6 +142,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     {
         ThrowIfUnavailable();
         using var execution = Execution.Enter(ExecutionPhase.Ingress);
+        RequireAcceptedRender();
         if (ownerView == 0)
         {
             return;
@@ -154,6 +168,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     {
         ThrowIfUnavailable();
         using var execution = Execution.Enter(ExecutionPhase.Event);
+        RequireAcceptedRender();
         try
         {
             callback(state);

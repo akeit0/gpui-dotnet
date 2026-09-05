@@ -68,6 +68,7 @@ public sealed unsafe class RenderOutputTests
         {
             RenderArena first = default;
             var root = session.RenderRootOutput(&first);
+            session.CompleteRender(session.PendingRenderRevision, 0);
             ManagedValidator.Validate(&first, new Element(&first, root, first.Generation));
             Assert.Equal(1, view.RootCalls);
             Assert.True(first.NodeCapacity > 256);
@@ -82,6 +83,7 @@ public sealed unsafe class RenderOutputTests
             // A subsequent request deliberately renders again; growth within one request does not.
             RenderArena second = default;
             session.RenderRootOutput(&second);
+            session.CompleteRender(session.PendingRenderRevision, 0);
             Assert.Equal(2, view.RootCalls);
             Assert.Equal(firstNodes, (nuint)second.Nodes);
             Assert.Equal(firstBytes, (nuint)second.Utf8);
@@ -103,6 +105,7 @@ public sealed unsafe class RenderOutputTests
         {
             RenderArena rootOutput = default;
             session.RenderRootOutput(&rootOutput);
+            session.CompleteRender(session.PendingRenderRevision, 0);
             var originalTextByte = rootOutput.Utf8[0];
             var token = ((ulong)view.RuntimeViewHandle << 32) | 1;
             RenderArena rangeOutput = default;
@@ -193,11 +196,13 @@ public sealed unsafe class RenderOutputTests
         {
             RenderArena output = default;
             session.RenderRootOutput(&output);
+            session.CompleteRender(session.PendingRenderRevision, 0);
             view.Second = true;
             var threw = false;
             try
             {
                 session.RenderRootOutput(&output);
+                session.CompleteRender(session.PendingRenderRevision, 0);
             }
             catch (InvalidOperationException)
             {

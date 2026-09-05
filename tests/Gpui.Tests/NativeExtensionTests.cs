@@ -421,6 +421,35 @@ public sealed class NativeExtensionTests
         }
     }
 
+    [Fact]
+    public void KeyedEditorEventsCanBeDeclaredBeforeMounting()
+    {
+        var view = new ExtensionProbeView();
+        view.PrepareRuntime(
+            42, static callback => callback(), static _ => { },
+            static (_, _) => { }, static (_, _, _) => { },
+            static (_, _, _, _, _, _, _, _, _, _) => { }
+        );
+        try
+        {
+            Assert.False(view.Editor.IsBound);
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new ExtensionNoopRenderer(), view);
+            var editor = ui.Editor(
+                "document", view, static (_, _) => { }, static (_, _) => { }
+            );
+            arena.Validate(editor);
+            Assert.Contains("gpui.net.editor", arena.Dump(editor), StringComparison.Ordinal);
+            Assert.False(view.IsMountedCore);
+            view.MountRuntime();
+            Assert.True(view.Editor.IsBound);
+        }
+        finally
+        {
+            view.UnmountRuntime();
+        }
+    }
+
     [Theory]
     [InlineData("bad id")]
     [InlineData("bad/id")]
@@ -462,8 +491,9 @@ public sealed class NativeExtensionTests
         View view,
         uint handle,
         NativeExtensionCommandDispatcher? extensionCommand = null
-    ) =>
-        view.AttachRuntime(
+    )
+    {
+        view.PrepareRuntime(
             handle,
             static callback => callback(),
             static _ => { },
@@ -471,6 +501,8 @@ public sealed class NativeExtensionTests
             static (_, _, _) => { },
             extensionCommand ?? (static (_, _, _, _, _, _, _, _, _, _) => { })
         );
+        view.MountRuntime();
+    }
 
     private sealed class ExtensionProbeView : View
     {

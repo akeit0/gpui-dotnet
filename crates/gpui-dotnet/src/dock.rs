@@ -1254,6 +1254,7 @@ mod tests {
         ManagedCallbacks {
             struct_size: 0,
             render: None,
+            render_completed: None,
             click: None,
             list_render_range: None,
             dynamic_frame: None,
@@ -1325,7 +1326,9 @@ mod tests {
         });
         CAPTURED.with(|captured| captured.borrow_mut().clear());
         let theme = Rc::new(TestRefCell::new(NativeTheme::default()));
-        let view = cx.update(|cx| cx.new(|_| ManagedView::new(1, capture_callbacks(), theme)));
+        let view = cx.update(|cx| {
+            cx.new(|_| ManagedView::new(1, capture_callbacks(), theme, Default::default()))
+        });
         let owner = view.downgrade();
         let store = Rc::new(ResourceStore::new(
             1,

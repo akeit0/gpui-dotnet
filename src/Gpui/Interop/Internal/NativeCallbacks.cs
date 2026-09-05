@@ -9,13 +9,14 @@ namespace Gpui.Interop.Internal;
 internal static unsafe class NativeCallbacks
 {
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    internal static int Render(ulong sessionId, RenderArena* arena, uint* root)
+    internal static int Render(ulong sessionId, RenderArena* arena, uint* root, ulong* revision)
     {
         try
         {
             if (
                 arena == null
                 || root == null
+                || revision == null
                 || !NativeRegistry.Sessions.TryGetValue(sessionId, out var session)
             )
             {
@@ -23,10 +24,12 @@ internal static unsafe class NativeCallbacks
             }
 
             var previousContext = SynchronizationContext.Current;
+            *revision = 0;
             SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
             try
             {
                 *root = session.RenderRootOutput(arena);
+                *revision = session.PendingRenderRevision;
                 return 0;
             }
             finally
@@ -38,6 +41,34 @@ internal static unsafe class NativeCallbacks
         {
             NativeRegistry.RecordRenderFailure(sessionId, exception);
             return -101;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    internal static int RenderCompleted(ulong sessionId, ulong revision, int status)
+    {
+        try
+        {
+            if (!NativeRegistry.Sessions.TryGetValue(sessionId, out var session))
+            {
+                return -102;
+            }
+            var previousContext = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
+            try
+            {
+                session.CompleteRender(revision, status);
+                return 0;
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(previousContext);
+            }
+        }
+        catch (Exception exception)
+        {
+            NativeRegistry.RecordFailure(sessionId, exception);
+            return -103;
         }
     }
 

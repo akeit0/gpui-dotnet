@@ -73,13 +73,13 @@ internal sealed partial class EditorSampleView : View
         };
         var editor = _observeChanges
             ? ui.Editor(
-                _editor,
+                "main-document",
                 this,
                 static (view, changed) => view.OnEditorChanged(changed),
                 static (view, rejected) => view.OnEditorCommandRejected(rejected),
                 options
             )
-            : ui.Editor(_editor, options);
+            : ui.Editor("main-document", options);
 
         var header = ui.VStack(
                 ui.HStack(

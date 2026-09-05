@@ -952,6 +952,7 @@ mod tests {
         ManagedCallbacks {
             struct_size: 0,
             render: None,
+            render_completed: None,
             click: None,
             list_render_range: None,
             dynamic_frame: None,

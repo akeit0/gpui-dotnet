@@ -56,6 +56,10 @@ writes without rerunning user rendering. Rust receives a borrowed completed desc
 synchronously decodes it into an owned snapshot before any further managed callback. Native row
 caches retain decoded snapshots, not the borrowed buffers. `Render()` and `[GpuiListItem]` remain
 deterministic and free of application-side effects; this requirement is independent of capacity.
+Each root publication returns a non-reused revision. After decoding and resource reconciliation,
+Rust acknowledges it through `render_completed`. Managed props and composition commit throughout
+the tree, replaced subtrees retire, and new Views mount parent-first before native materialization.
+Normal external callbacks cannot enter between publication and acceptance.
 
 The native `ManagedView` keeps the last valid snapshot. A clean GPUI repaint materializes or paints
 that snapshot without calling managed code. `View.Invalidate()` queues a coalesced request using
@@ -86,9 +90,9 @@ the current root arena. Staged props changes and child invalidation mark the nec
 its ancestors dirty. Application-wide theme changes invalidate every retained fragment because a
 theme is ambient render input rather than child props.
 
-New children are session-owned candidates until a render commits. Tree
-replacement commits the new composition before terminally unmounting the old subtree; abandoned
-candidates are also unmounted during reconciliation. Unmount proceeds child-first. See
+New children are prepared without lifecycle hooks and remain session-owned candidates until native
+acceptance. Tree replacement commits the new composition before terminally unmounting the old
+subtree; abandoned Prepared candidates retire without lifecycle hooks. Unmount proceeds child-first. See
 [VIEW_LIFECYCLE.md](VIEW_LIFECYCLE.md).
 
 ## Retained resource path
@@ -104,11 +108,14 @@ use the same View route with an extension-neutral envelope and schema-owned payl
 managed controller ──► native resource/extension command ──► retained GPUI resource
 ```
 
-Resource commands execute on the GPUI thread. Declarative snapshots remain authoritative. List
+Resource commands require an accepted declaration and execute on the GPUI thread. Native ingress
+stamps commands with the current presence generation; delivery discards them after that generation
+ends. A later declaration under the same key creates a new generation. Declarative snapshots remain authoritative. List
 measurement hints such as `Splice` and `Refresh` are committed with the next compatible snapshot;
 a mismatch falls back to a safe reset.
 Extension payloads are copied before returning through FFI and may wait for the first matching
-resource materialization.
+resource materialization within that generation. Presence is published before mount hooks, so
+`OnMounted` can command its accepted resources before they materialize.
 
 ## Virtual datasource path
 

@@ -172,7 +172,7 @@ namespace Gpui.Interop
     internal unsafe partial struct ManagedCallbacks
     {
         public uint struct_size;
-        public delegate* unmanaged[Cdecl]<ulong, RenderArena*, uint*, int> render;
+        public delegate* unmanaged[Cdecl]<ulong, RenderArena*, uint*, ulong*, int> render;
         public delegate* unmanaged[Cdecl]<ulong, ulong, ulong, NativeClickEvent*, int> click;
         public delegate* unmanaged[Cdecl]<ulong, ulong, uint, uint, RenderArena*, uint*, int> list_render_range;
         public delegate* unmanaged[Cdecl]<ulong, ulong, NativeControlEvent*, int> control_event;
@@ -180,6 +180,7 @@ namespace Gpui.Interop
         public delegate* unmanaged[Cdecl]<ulong, ulong, int, int> window_closed;
         public delegate* unmanaged[Cdecl]<ulong, ulong, int> menu_action;
         public delegate* unmanaged[Cdecl]<ulong, uint, int> dynamic_frame;
+        public delegate* unmanaged[Cdecl]<ulong, ulong, int, int> render_completed;
     }
 
     [StructLayout(LayoutKind.Sequential)]
