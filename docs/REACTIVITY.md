@@ -33,11 +33,18 @@ Each retained View and each native demand artifact is a distinct consumer. A syn
 scope restores its parent when a child render ends; child reads therefore do not subscribe the
 parent. Reads outside rendering assert affinity but do not create dependencies.
 
-Consumers reuse a dictionary of edges, and each Signal links only accepted edges. A render stamps
+Consumers use a linear array for small dependency sets and replace it with a dictionary above 64
+active/provisional edges. One field owns either representation; conversion preserves the edge
+objects and releases the array. Each Signal links only accepted edges. A render stamps
 the edges it reads. Acceptance attaches new edges, reuses unchanged edges, and detaches conditional
 dependencies no longer read. Failure discards provisional edges; terminal teardown detaches every
 edge before user cleanup and clears consumer references. A long-lived Signal must not retain a
 retired View, its session, captured objects, or native artifact.
+
+After removal, each consumer may retain at most eight cleared edge records for reuse. These
+records have no Signal reference and never move to another consumer. Rejection can return only
+provisional edges; previously accepted edges must remain subscribed. Retirement drops all spare
+storage. Small branch changes reuse records after warmup without retaining old Signal values.
 
 An observation also records the Signal's change revision. If a value changes between observation
 and acceptance, acceptance installs the dependency and immediately invalidates that consumer.
@@ -98,14 +105,17 @@ side effects in the sample, verify invalidation and subscription counts.
 Steady-state tracked reads and unchanged edges allocate nothing, acquire no locks, and make no
 native calls. Writes visit actual accepted subscribers. View invalidation uses existing dirty
 propagation and notification coalescing; artifact invalidation batches at callback exit. Edge,
-dictionary, and transport-buffer growth are cold costs. Native ingress retains its existing
+array/dictionary, and transport-buffer growth allocate; branch changes exceeding the consumer's bounded
+spare storage can also allocate on later renders. Native ingress retains its existing
 thread-safe message routing; there is no second reactive scheduler.
 
 Tests exercise production root/range callbacks: conditional and nested reads, sharing across
 windows, wrong-thread and cross-application access, render-time writes, equality, the observation
 gap, rejection, teardown retention, independent sources, and row-only invalidation. Native tests
 cover acceptance after decoding, selective eviction, stale keys, and repaint without root dirtiness.
-Allocation checks cover warm tracking and repeated writes with an already-pending notification.
+Allocation checks cover construction, first tracking, stable and conditional dependencies,
+cross-view updates, paused readers, and repeated writes with an already-pending notification.
+See [Performance](PERFORMANCE.md) for measured costs and the retained-storage tradeoff.
 
 View-owned [asynchronous work](ASYNC_WORK.md) receives an explicit snapshot; producers cannot
 access bound Signals from workers. Their eventual live completion may replace Signal values

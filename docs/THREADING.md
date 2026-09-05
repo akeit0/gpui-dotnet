@@ -76,7 +76,7 @@ recycled. The command route serializes dispatch against deactivation and carries
 owner handle; it never reads pooled state. Internal access to a live `MountedViewAttachment`
 asserts the managed thread that prepared it. The command route activates only when mounting begins.
 
-Lifecycle identity remains directly on `ViewBase`: the terminal state and lazily allocated
+Lifecycle identity belongs to the View's non-pooled `ViewRuntime`: the terminal state and lazily allocated
 `CancellationTokenSource` are never pooled. If `Lifetime` is never requested, no source is
 allocated.
 
@@ -84,6 +84,11 @@ The mounted attachment needs no monitor: render, event binding/dispatch, and res
 allocation are foreground-thread-only. The remaining lifecycle lock protects only rare
 mount/unmount and lazy-token races. The command-route lock is also outside rendering; it makes
 deactivation linear with any command already entering from another thread.
+
+`Dispatcher` is a readonly value handle over that identity. Copies share the same terminal
+lifetime; a default handle rejects posting. Prefer `Post(state, static callback)` when dispatching
+per-call data, so the caller need not allocate a capturing delegate. The application explicitly
+chooses when to post; the framework does not move producers to a different thread.
 
 ## Allowed calls by thread
 

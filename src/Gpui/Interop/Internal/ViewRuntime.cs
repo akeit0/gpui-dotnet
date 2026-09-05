@@ -48,16 +48,12 @@ internal sealed class ViewRuntime
 
     private readonly ViewBase _owner;
 
-    internal ViewRuntime(ViewBase owner)
-    {
-        _owner = owner;
-        Dispatcher = new Dispatcher(this);
-    }
+    internal ViewRuntime(ViewBase owner) => _owner = owner;
 
     internal ViewEventRegistry Events => RequireUiAttachment().Events;
 
     /// <summary>Posts managed work to this view's GPUI UI thread.</summary>
-    internal Dispatcher Dispatcher { get; }
+    internal Dispatcher Dispatcher => new(this);
 
     /// <summary>
     /// Allocates the next auto resource-key id for this view. Ids are monotonic per view
@@ -399,6 +395,14 @@ internal sealed class ViewRuntime
         {
             throw new InvalidOperationException("The view is not mounted in a GPUI application.");
         }
+    }
+
+    internal void Post<TState>(TState state, Action<TState> callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        var route = Volatile.Read(ref _commandRoute);
+        if (route is null || !route.TryPost(state, callback))
+            throw new InvalidOperationException("The view is not mounted in a GPUI application.");
     }
 
     private MountedViewAttachment RequireUiAttachment(

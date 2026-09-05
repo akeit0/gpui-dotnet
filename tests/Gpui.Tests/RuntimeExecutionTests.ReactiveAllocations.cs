@@ -97,17 +97,23 @@ public sealed partial class RuntimeExecutionTests
     [InlineData("first-dependencies", 1)]
     [InlineData("first-dependencies", 8)]
     [InlineData("first-dependencies", 32)]
+    [InlineData("first-dependencies", 65)]
     [InlineData("stable-dependencies", 1)]
     [InlineData("stable-dependencies", 8)]
     [InlineData("stable-dependencies", 32)]
+    [InlineData("stable-dependencies", 128)]
     [InlineData("repeated-same-signal", 32)]
     [InlineData("conditional-switch", 1)]
+    [InlineData("conditional-switch", 8)]
+    [InlineData("conditional-switch", 32)]
+    [InlineData("conditional-switch", 128)]
     [InlineData("detach-resubscribe-pair", 1)]
     public void SignalDependencyTrackingAllocations(string pattern, int dependencyCount)
     {
         using var fixture = new SessionFixture(new AllocationRenderRoot());
         fixture.Render();
-        var signals = Enumerable.Range(0, Math.Max(2, dependencyCount)).Select(static _ => new Signal<int>(0)).ToArray();
+        var signals = Enumerable.Range(0, Math.Max(2, pattern == "conditional-switch" ? 2 * dependencyCount : dependencyCount))
+            .Select(static _ => new Signal<int>(0)).ToArray();
         var consumer = new ReactiveConsumer(fixture.Session, fixture.View);
         try
         {
@@ -129,14 +135,15 @@ public sealed partial class RuntimeExecutionTests
                     using (current.Begin())
                     {
                         for (var dependency = 0; dependency < dependencyCount; dependency++)
-                            _ = signals[pattern == "conditional-switch" ? index % 2
+                            _ = signals[pattern == "conditional-switch" ? (index % 2) * dependencyCount + dependency
                                 : pattern is "repeated-same-signal" or "detach-resubscribe-pair" ? 0 : dependency].Value;
                     }
                     current.Commit();
                 }
                 var bytes = GC.GetAllocatedBytesForCurrentThread() - before;
                 ReportAllocation($"{pattern}-{dependencyCount}", batch, bytes);
-                if (batch >= AllocationWarmups && (pattern is "stable-dependencies" or "repeated-same-signal"))
+                if (batch >= AllocationWarmups && pattern != "first-dependencies"
+                    && !(pattern == "conditional-switch" && dependencyCount > 8))
                     Assert.Equal(0, bytes);
                 foreach (var item in fresh)
                     item.Dispose();
@@ -205,8 +212,7 @@ public sealed partial class RuntimeExecutionTests
             if (batch >= AllocationWarmups)
             {
                 Assert.Equal(0, writes);
-                if (pattern != "conditional-switch")
-                    Assert.Equal(0, renders);
+                Assert.Equal(0, renders);
             }
             Assert.Equal(pattern == "equal-write" ? 0 : AllocationBatchSize, fixture.Notifications - notifications);
             for (var index = 0; index < readers.Length; index++)

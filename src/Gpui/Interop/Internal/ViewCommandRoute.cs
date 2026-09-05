@@ -38,6 +38,9 @@ internal sealed class ViewCommandRoute
 
     internal bool TryPost(Action callback) => TryPost(new RoutedCallback(this, callback));
 
+    internal bool TryPost<TState>(TState state, Action<TState> callback) =>
+        TryPost(new RoutedCallback<TState>(this, state, callback));
+
     internal bool TryPost(IIngressWork work)
     {
         lock (_gate)
@@ -57,6 +60,15 @@ internal sealed class ViewCommandRoute
         {
             if (route.IsActive)
                 callback();
+        }
+    }
+
+    private sealed class RoutedCallback<TState>(ViewCommandRoute route, TState state, Action<TState> callback) : IIngressWork
+    {
+        public void Invoke()
+        {
+            if (route.IsActive)
+                callback(state);
         }
     }
 

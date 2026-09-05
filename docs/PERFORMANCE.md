@@ -29,20 +29,21 @@ Release measurements on Windows x64 / .NET 10.0.11:
 
 | Construction pattern | Managed B/instance |
 | --- | ---: |
-| Empty `View` subclass | 152 |
-| `View<int>` subclass, props not yet supplied | 168 |
-| Empty View followed by its first `Lifetime` access | 200 |
-| View containing one initialized `Signal<int>` field | 216 |
+| Empty `View` subclass | 120 |
+| `View<int>` subclass, props not yet supplied | 136 |
+| Empty View followed by its first `Lifetime` access | 168 |
+| View containing one initialized `Signal<int>` field | 184 |
 | `new Signal<int>(0)` | 56 |
 
-The empty View includes its runtime identity, lifecycle lock, and Dispatcher. No mounted
+The empty View includes its runtime identity and lifecycle lock. Dispatcher is a value handle,
+so it adds no separate allocation or stored runtime field. No mounted
 attachment, command route, cancellation source, or work scope exists yet. The Signal-owning View
 adds an eight-byte reference field and the 56-byte Signal. First lifetime access adds a 48-byte
 cancellation source. The construction probe stores every instance in a preallocated array, keeping
 the objects observable while excluding array allocation. It warms type initialization; these are
 fresh object costs, not process startup costs.
 
-The first accepted render of a new root returning only constant Text allocates **1,400 managed
+The first accepted render of a new root returning only constant Text allocates **1,416 managed
 bytes** in the session fixture. This includes preparation, retained/render bookkeeping, first
 capacity growth, and acceptance/mounting. View/application/session construction and disposal are
 outside that interval. The fixture renders roots sequentially, so the bounded attachment pool is
@@ -54,30 +55,37 @@ are outside the managed allocation counter.
 Signal reads reuse consumer edges and make no native call. Accepted subscriptions use linked
 edges, so writes traverse actual subscribers without locks or temporary collections. Conditional
 dependencies detach at acceptance; retirement clears them before user cleanup. Tracking stable
-dependencies and coalesced writes allocate nothing after edge and collection warmup. Returning to
-a removed dependency allocates a new edge. Artifact keys batch at the
+dependencies and coalesced writes allocate nothing after edge and collection warmup. Consumers
+reuse up to eight detached edges with cleared Signal references. Artifact keys batch at the
 outer callback boundary using reusable managed storage; native ingress copies that batch once.
 
 The isolated dependency probe reads Signals inside `ReactiveConsumer.Begin()` and commits the
 observations. Consumer, Signal, and session creation are outside the measurement. First-subscription
-cases use a fresh consumer for each operation; the dictionary and edges allocated by tracking are
+cases use a fresh consumer for each operation; collection storage and edges allocated by tracking are
 included. These numbers are per complete pass, not per Signal:
 
 | Tracking pattern | Managed B/pass |
 | --- | ---: |
-| First read/accept of one distinct Signal | 288 |
-| First read/accept of eight distinct Signals | 1,568 |
-| First read/accept of 32 distinct Signals | 4,384 |
-| Stable read/accept of 1, 8, or 32 Signals | 0 |
+| First read/accept of one distinct Signal | 128 |
+| First read/accept of eight distinct Signals | 720 |
+| First read/accept of 32 distinct Signals | 2,880 |
+| First read/accept of 65 distinct Signals, including dictionary conversion | 7,912 |
+| Stable read/accept of 1, 8, 32, or 128 Signals | 0 |
 | Read the same Signal 32 times, then accept, after warmup | 0 |
-| Alternate between two dependencies, accepting each change | 72 |
-| Accept no dependencies, then read/accept the previous Signal again | 72 per detach/resubscribe pair |
+| Alternate between disjoint sets of 1 or 8 dependencies, after warmup | 0 |
+| Alternate between disjoint sets of 32 dependencies, after warmup | 1,728 |
+| Alternate between disjoint sets of 128 dependencies, after warmup | 8,640 |
+| Accept no dependencies, then read/accept the previous Signal again | 0 per detach/resubscribe pair after warmup |
 
 Unbound reads, equal-value writes, and changed writes without subscribers each measure **0 B/op**
-after warmup. The first-dependency costs include dictionary creation/growth as well as edges;
-each edge is 72 bytes in this runtime. Removed edges are not retained for possible future branches.
-Repeated switching therefore continues allocating after warmup. This trades allocation for releasing
-references to Signals that the View no longer reads.
+after warmup. The first-dependency costs include array creation/growth and dictionary conversion
+for large sets, as well as edges;
+each edge is 72 bytes in this runtime. Each consumer retains at most eight spare records (576 bytes)
+after removing their Signal references. It releases that storage on retirement. This bounds the
+retained-memory tradeoff while making common conditional branches allocation-free after warmup.
+Switching 32 dependencies reuses eight records and allocates the remaining 24 (1,728 bytes).
+Collection tests cover both removed accepted dependencies and rejected observations beyond the
+spare limit. Active edges remain attached until acceptance; their storage cannot be reused early.
 
 The integration probe uses real retained child Views under one parent. Each reader tracks its own
 following flag and, while active, a shared selector plus the selected data Signals. Child keys and
@@ -87,7 +95,7 @@ props remain stable. Each cycle measures writes separately from managed renderin
 | --- | ---: | ---: |
 | One Signal shared by 1, 8, or 32 child Views | 0 | 0 |
 | One child reading 8 or 32 Signals; change all before rendering | 0 | 0 |
-| Eight readers switch between two data Signals | 0 | 576 |
+| Eight readers switch between two data Signals | 0 | 0 |
 | Eight readers, four paused; change the shared Signal | 0 | 0 |
 | Equal write with eight readers | 0 | 0 |
 | 32 changed writes before rendering eight readers | 0 | 0 |
@@ -109,6 +117,67 @@ Reproduce the View/Signal measurements with:
 ```sh
 dotnet test tests/Gpui.Tests/Gpui.Tests.csproj --no-restore -m:1 -c Release --filter "FullyQualifiedName~CreationAllocations|FullyQualifiedName~FirstAcceptedRenderAllocations|FullyQualifiedName~SignalAccessAllocations|FullyQualifiedName~TrackingAllocations|FullyQualifiedName~UpdateAllocations" --logger "console;verbosity=detailed"
 ```
+
+### Dependency lookup strategy
+
+One `_edges` field holds either a dense array or a dictionary. Linear search handles up to 64
+active/provisional edges. Adding the 65th replaces the array with a dictionary referencing the
+same edge objects. The dictionary remains until retirement; shrinking or rejecting a render does
+not repeatedly convert storage. Array acceptance/rejection compacts survivors and clears vacated
+slots; dictionary acceptance/rejection removes entries before recycling edges.
+
+`DependencyLookupCost` compares whole tracked read/accept passes with alternating forward/reverse
+read order. Local Release measurements on the same Windows x64 / .NET 10.0.11 environment are:
+
+| Dependencies | Dictionary-only baseline ns/pass | Array-only prototype ns/pass | Array switching to dictionary ns/pass |
+| --- | ---: | ---: | ---: |
+| 1 | 23.0 | 16.3 | 20.6 |
+| 4 | 85.9 | 48.9 | 58.7 |
+| 8 | 158.8 | 93.3 | 109.1 |
+| 16 | 334.6 | 190.5 | 215.6 |
+| 32 | 645.1 | 434.6 | 493.8 |
+| 64 | 1,361.2 | 1,283.5 | 1,411.7 |
+| 256 | 5,508.5 | 13,817.3 | 6,065.9 |
+
+Each value is the median of five batches of 4,096 passes after three warmup batches. Tiered
+compilation was disabled for this comparison to avoid measuring different JIT tiers. Setup,
+assertions, and reporting are outside the timed interval. These are separate local runs without
+CPU affinity or clock control, not portable latency guarantees or CI speed assertions. The results
+support linear storage for small sets and conversion near the measured crossover; the switching
+version adds type-dispatch overhead and does not improve every size. First-subscription allocations
+also fall from the dictionary baseline's 288/1,568/4,384 bytes at 1/8/32 dependencies to the current
+128/720/2,880 bytes. Reproduce current timing in PowerShell with:
+
+```powershell
+$env:DOTNET_TieredCompilation = "0"
+dotnet test tests/Gpui.Tests/Gpui.Tests.csproj --no-restore -m:1 -c Release --filter "FullyQualifiedName~DependencyLookupCost" --logger "console;verbosity=detailed"
+Remove-Item Env:DOTNET_TieredCompilation
+```
+
+## Explicit dispatch
+
+`Dispatcher` is a readonly struct; obtaining and copying a handle adds no managed allocation.
+Default handles reject commands. `Post(state, static callback)` avoids the closure needed to
+capture per-call state. Both overloads defer execution and drop delivery after the original View
+retires. For example:
+
+```csharp
+dispatcher.Post((view, value), static state => state.view.Apply(state.value));
+```
+
+The warmed `DispatcherAllocationPatterns` test measures queue admission with the same Release
+runtime, batch sizes, and native stub as the View/Signal probes. Draining the queue and rendering
+are outside the interval:
+
+| Pattern | Managed B/post |
+| --- | ---: |
+| `Post(static () => ...)`, no state | 32 |
+| `Post(state, static state => ...)`, reference state | 40 |
+| `Post(() => ...)`, fresh local capture | 120 |
+
+The explicit-state form allocates one typed ingress record; larger value-type states increase
+its size. It does not eliminate queue storage or application allocations. Reproduce with the
+same test command and `--filter "FullyQualifiedName~DispatcherAllocationPatterns"`.
 
 ## Task observation
 

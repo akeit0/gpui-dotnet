@@ -34,3 +34,35 @@ Composition introduces a fixed runtime object per View and reusable event-regist
 attachment. It must not introduce per-event forwarding closures or repeated callback reflection,
 change accepted event identities, weaken cross-view Signal ownership, or reset virtual lists.
 Validation uses the existing native-callback, lifecycle, event-lease, Signal, and allocation tests.
+
+## Allocation and API design
+
+`Dispatcher` is a readonly value handle over the stable View runtime. Obtaining or copying the
+handle requires no heap object, and copying it does not create a new lifecycle identity. A default
+handle rejects commands. `Post(state, static callback)` carries explicit state in the ingress record
+and avoids a caller closure; `Post(Action)` remains available for already-created callbacks. Both
+forms defer execution and recheck the original route, including when posted from another thread.
+This is an explicit application dispatch API; it does not choose where producers run.
+
+Reactive consumers may retain at most eight cleared, detached edge records for their own future
+reads. Reuse begins only after acceptance or rejection has removed an edge from its Signal and the
+consumer's active storage. A spare record has no Signal reference. This storage stays with its
+one consumer, is never shared across threads or consumers, and is discarded at retirement. Accepted
+edges must stay attached until the new snapshot commits, even when rendering has switched branches.
+The bound covers small conditional branches without retaining an unbounded historical dependency
+graph.
+
+Active dependencies use a dense array with a live count. Small sets use reference-equality linear
+lookup, avoiding dictionary objects, buckets, hashing, and dictionary-entry enumeration during
+acceptance. Acceptance and rejection compact surviving edges in place and clear vacated array
+slots. Edge objects retain their identity while linked to Signals; moving an array slot must not
+change a subscription. Above 64 active/provisional edges, the same storage field switches to a
+dictionary containing those edge objects, releasing the array. There is no separate index field or
+duplicate collection. Dictionary storage remains until retirement, avoiding repeated conversion when
+a large branch temporarily shrinks. Acceptance and rejection remove entries before recycling edges.
+The cutoff follows complete read/accept measurements at 1, 4, 8, 16, 32, 64, and 256 dependencies,
+including reversed read order; it is not a universal hardware crossover point.
+
+Validation compares construction, explicit-state/capturing dispatch, stable dependencies, and
+conditional-switch allocations. Regressions also cover default/copied dispatch handles, queued work
+after retirement, rejected observations, and collection of Signals after dependency removal.
