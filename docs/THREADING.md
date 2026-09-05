@@ -112,6 +112,11 @@ request, or user event can enter. Rust releases borrowed arena data and publishe
 before acknowledging. Acceptance commits all props and composition before lifecycle hooks. Mount
 commands may queue at this point; mount invalidations remain queued for a later frame.
 
+Artifact release is a framework-only cleanup callback. Native batch eviction or source removal
+may invoke it while root acceptance is pending; it releases event slots without running user
+callbacks or resetting output arenas. Release is also admitted after a session fault, and is
+idempotent after owner or session teardown.
+
 Invalidation publishes a stable, never-pooled View identity with an atomic pending bit. Repeated
 requests coalesce before reaching the application thread. Only ingress consumption touches the
 retained tree; requests arriving during rendering apply on a later render. Theme and metadata

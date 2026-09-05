@@ -2,7 +2,10 @@ use std::{
     cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     rc::Rc,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use gpui::{
@@ -483,9 +486,16 @@ impl ResourceStore {
         self.scrolls
             .borrow_mut()
             .retain(|key, _| active.contains(&(RESOURCE_SCROLL, key.clone())));
-        self.lists
-            .borrow_mut()
-            .retain(|key, _| active.contains(&(RESOURCE_LIST, key.clone())));
+        self.lists.borrow_mut().retain(|key, engine| {
+            if active.contains(&(RESOURCE_LIST, key.clone())) {
+                true
+            } else {
+                // A previous frame can still retain an Rc to the engine. Its artifact
+                // lifetimes end at declaration removal, independently of that Rc.
+                engine.borrow_mut().invalidate_all_batches();
+                false
+            }
+        });
         self.tables
             .borrow_mut()
             .retain(|key, _| active.contains(&(RESOURCE_LIST, key.clone())));
@@ -626,6 +636,7 @@ enum ListChange {
 }
 
 pub(crate) struct ManagedListResource {
+    source_id: u64,
     session_id: u64,
     callbacks: ManagedCallbacks,
     pub(crate) state: ListState,
@@ -654,6 +665,7 @@ impl ManagedListResource {
         snapshot_revision: u64,
     ) -> Self {
         Self {
+            source_id: next_source_id(),
             session_id,
             callbacks,
             state: ListState::new(
@@ -1001,15 +1013,18 @@ impl ManagedListResource {
             .callbacks
             .list_render_range
             .expect("callbacks were validated before application startup");
-        with_render_output(
+        let mut artifact_id = 0;
+        let result = with_render_output(
             |arena, root| unsafe {
                 callback(
                     self.session_id,
                     self.renderer_token,
+                    self.source_id,
                     start,
                     count,
                     arena,
                     root,
+                    &mut artifact_id,
                 )
             },
             |arena, root| {
@@ -1020,9 +1035,28 @@ impl ManagedListResource {
                     &mut batch.scratch,
                 )
             },
-        )?;
+        );
+        // The output borrow has ended. A lease can now safely invoke managed release,
+        // including when native decoding rejected a successfully published artifact.
+        if artifact_id != 0 {
+            batch.lease = Some(ArtifactLease {
+                session_id: self.session_id,
+                source_id: self.source_id,
+                artifact_id,
+                release: self
+                    .callbacks
+                    .release_artifact
+                    .expect("callbacks were validated before application startup"),
+                status: result.as_ref().err().copied().unwrap_or(0),
+            });
+        }
+        result?;
+        if batch.lease.is_none() {
+            return Err(-64);
+        }
         let root_node = &batch.snapshot.nodes[batch.snapshot.root as usize];
         if batch.snapshot.children(root_node).len() != count as usize {
+            batch.lease.as_mut().unwrap().status = -63;
             return Err(-63);
         }
         batch.last_used = self.use_clock;
@@ -1058,6 +1092,7 @@ impl ManagedListResource {
 }
 
 struct CachedBatch {
+    lease: Option<ArtifactLease>,
     retained_strings: RetainedStrings,
     snapshot: ValidatedSnapshot,
     scratch: SnapshotScratch,
@@ -1067,10 +1102,41 @@ struct CachedBatch {
 impl CachedBatch {
     fn new() -> Self {
         Self {
+            lease: None,
             retained_strings: RetainedStrings::default(),
             snapshot: ValidatedSnapshot::default(),
             scratch: SnapshotScratch::default(),
             last_used: 0,
+        }
+    }
+}
+
+fn next_source_id() -> u64 {
+    static NEXT_SOURCE_ID: AtomicU64 = AtomicU64::new(1);
+    NEXT_SOURCE_ID
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+        .expect("native datasource identity space exhausted")
+}
+
+struct ArtifactLease {
+    session_id: u64,
+    source_id: u64,
+    artifact_id: u64,
+    release: crate::abi::ManagedReleaseArtifactFn,
+    status: i32,
+}
+
+impl Drop for ArtifactLease {
+    fn drop(&mut self) {
+        // Release runs only framework cleanup. The managed callback is idempotent and
+        // admits cleanup after faults and while root acceptance is pending.
+        unsafe {
+            (self.release)(
+                self.session_id,
+                self.source_id,
+                self.artifact_id,
+                self.status,
+            );
         }
     }
 }
@@ -1355,6 +1421,201 @@ fn shared(value: &str) -> SharedString {
 mod tests {
     use super::*;
 
+    #[derive(Default)]
+    struct ArtifactCapture {
+        nodes: Vec<crate::abi::NodeRecord>,
+        children: Vec<crate::abi::ChildRecord>,
+        next_id: u64,
+        requests: Vec<(u64, u64)>,
+        releases: Vec<(u64, u64, i32)>,
+        failure_mode: u8,
+    }
+
+    thread_local! {
+        static ARTIFACTS: RefCell<ArtifactCapture> = RefCell::default();
+    }
+
+    unsafe extern "C" fn publish_test_range(
+        _: u64,
+        _: u64,
+        source: u64,
+        _: u32,
+        count: u32,
+        arena: *mut crate::abi::RenderArena,
+        root: *mut u32,
+        artifact: *mut u64,
+    ) -> i32 {
+        use crate::{
+            abi::{ChildRecord, NodeRecord},
+            semantic::{COMPONENT_DIV, COMPONENT_TEXT},
+        };
+        ARTIFACTS.with(|capture| {
+            let mut capture = capture.borrow_mut();
+            if capture.failure_mode == 3 {
+                return -106;
+            }
+            let rows = if capture.failure_mode == 2 { 0 } else { count };
+            capture.nodes.clear();
+            let component = if capture.failure_mode == 1 {
+                u16::MAX
+            } else {
+                COMPONENT_DIV
+            };
+            capture.nodes.push(NodeRecord {
+                component,
+                ..Default::default()
+            });
+            capture.children.clear();
+            for index in 0..rows {
+                capture.nodes.push(NodeRecord {
+                    component: COMPONENT_TEXT,
+                    ..Default::default()
+                });
+                capture.children.push(ChildRecord {
+                    parent: 0,
+                    child: index + 1,
+                });
+            }
+            capture.next_id += 1;
+            let id = capture.next_id;
+            capture.requests.push((source, id));
+            unsafe {
+                (*arena).nodes = capture.nodes.as_mut_ptr();
+                (*arena).node_length = capture.nodes.len() as i32;
+                (*arena).node_capacity = capture.nodes.capacity() as i32;
+                (*arena).children = capture.children.as_mut_ptr();
+                (*arena).child_length = capture.children.len() as i32;
+                (*arena).child_capacity = capture.children.capacity() as i32;
+                (*arena).generation = 1;
+                *root = 0;
+                *artifact = id;
+            }
+            0
+        })
+    }
+
+    unsafe extern "C" fn release_test_artifact(
+        _: u64,
+        source: u64,
+        artifact: u64,
+        status: i32,
+    ) -> i32 {
+        ARTIFACTS.with(|capture| {
+            capture
+                .borrow_mut()
+                .releases
+                .push((source, artifact, status))
+        });
+        0
+    }
+
+    fn artifact_callbacks() -> ManagedCallbacks {
+        ManagedCallbacks {
+            list_render_range: Some(publish_test_range),
+            release_artifact: Some(release_test_artifact),
+            ..callbacks()
+        }
+    }
+
+    fn artifact_resource() -> ManagedListResource {
+        let mut config = configuration(Some(1));
+        config.batch_size = 1;
+        ManagedListResource::new(1, artifact_callbacks(), &config, 1)
+    }
+
+    #[test]
+    fn native_cache_eviction_and_invalidation_release_only_their_artifacts() {
+        ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
+        let mut resource = artifact_resource();
+        for start in 0..5 {
+            resource.use_clock += 1;
+            resource.load_batch(start).unwrap();
+            resource.trim_batches();
+        }
+        ARTIFACTS.with(|capture| {
+            let capture = capture.borrow();
+            assert_eq!(capture.requests.len(), 5);
+            assert_eq!(capture.releases, vec![(resource.source_id, 1, 0)]);
+        });
+        resource.invalidate_batches_intersecting(2, 1);
+        ARTIFACTS.with(|capture| {
+            assert_eq!(
+                capture.borrow().releases,
+                vec![(resource.source_id, 1, 0), (resource.source_id, 3, 0)]
+            );
+        });
+        resource.clear_batches();
+        drop(resource);
+        ARTIFACTS.with(|capture| {
+            let capture = capture.borrow();
+            assert_eq!(capture.releases.len(), 5);
+            assert_eq!(
+                capture
+                    .releases
+                    .iter()
+                    .map(|(_, id, _)| *id)
+                    .collect::<HashSet<_>>()
+                    .len(),
+                5
+            );
+        });
+    }
+
+    #[test]
+    fn sources_using_one_renderer_release_independently() {
+        ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
+        let mut first = artifact_resource();
+        let mut second = artifact_resource();
+        assert_eq!(first.renderer_token, second.renderer_token);
+        assert_ne!(first.source_id, second.source_id);
+        first.load_batch(0).unwrap();
+        second.load_batch(0).unwrap();
+        let first_source = first.source_id;
+        drop(first);
+        ARTIFACTS.with(|capture| assert_eq!(capture.borrow().releases, vec![(first_source, 1, 0)]));
+        assert_eq!(second.batches.len(), 1);
+        drop(second);
+        ARTIFACTS.with(|capture| assert_eq!(capture.borrow().releases.len(), 2));
+    }
+
+    #[test]
+    fn declaration_removal_releases_artifacts_even_when_a_frame_retains_the_engine() {
+        ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
+        let store = ResourceStore::new(1, artifact_callbacks(), theme());
+        let key = ResourceKey::new(1, "list".into());
+        let engine = store.list_resource(&key, &configuration(Some(1)), 1);
+        engine.borrow_mut().load_batch(0).unwrap();
+        store.retain_snapshot(&ValidatedSnapshot::default());
+        assert!(engine.borrow().batches.is_empty());
+        ARTIFACTS.with(|capture| assert_eq!(capture.borrow().releases.len(), 1));
+        drop(engine);
+        ARTIFACTS.with(|capture| assert_eq!(capture.borrow().releases.len(), 1));
+    }
+
+    #[test]
+    fn failed_native_decode_releases_publication_after_the_borrow_ends() {
+        for mode in 1..=3 {
+            ARTIFACTS.with(|capture| {
+                *capture.borrow_mut() = ArtifactCapture {
+                    failure_mode: mode,
+                    ..Default::default()
+                }
+            });
+            let mut resource = artifact_resource();
+            assert!(resource.load_batch(0).is_err());
+            assert!(resource.batches.is_empty());
+            ARTIFACTS.with(|capture| {
+                let capture = capture.borrow();
+                if mode == 3 {
+                    assert!(capture.releases.is_empty());
+                } else {
+                    assert_eq!(capture.releases.len(), 1);
+                    assert_ne!(capture.releases[0].2, 0);
+                }
+            });
+        }
+    }
+
     fn theme() -> SharedTheme {
         Rc::new(RefCell::new(crate::theme::NativeTheme::default()))
     }
@@ -1364,6 +1625,7 @@ mod tests {
             struct_size: 0,
             render: None,
             render_completed: None,
+            release_artifact: None,
             click: None,
             list_render_range: None,
             dynamic_frame: None,

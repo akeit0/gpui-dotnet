@@ -52,22 +52,30 @@ internal sealed unsafe partial class ManagedSession
 
     internal uint RenderListRangeOutput(
         ulong rendererToken,
+        ulong source,
         uint start,
         uint count,
-        RenderArena* output
+        RenderArena* output,
+        out ulong artifact
     )
     {
+        artifact = 0;
         EnterRenderOutput(output);
         try
         {
             var storage = _rangeOutputArena ??= new RenderArenaOwner();
             storage.BeginRender();
-            var root = RenderListRange(rendererToken, start, count, storage.NativeArena);
+            var root = RenderListRange(rendererToken, source, start, count, storage.NativeArena, out artifact);
             storage.PublishTo(output, root);
             return root.Node;
         }
         catch (Exception exception)
         {
+            if (_demandArtifacts.Remove(artifact, out var failed))
+            {
+                failed.Owner.ReleaseEventArtifact(artifact);
+            }
+            artifact = 0;
             RecordFailure(exception);
             throw;
         }

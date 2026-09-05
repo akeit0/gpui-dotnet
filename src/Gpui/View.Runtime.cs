@@ -178,10 +178,14 @@ public abstract partial class ViewBase
         internal uint ViewHandle { get; private set; }
         internal int ManagedThreadId { get; private set; }
         internal List<EventEntry>? EventEntries { get; set; }
-        internal Stack<int>? FreeEventIds { get; set; }
+        internal Stack<int>? FreeEventSlots { get; set; }
+        internal Dictionary<uint, int>? EventSlots { get; set; }
+        internal Dictionary<ulong, List<int>>? ArtifactEventSlots { get; set; }
+        internal uint NextEventId { get; set; }
+        internal ulong EventBindingArtifact { get; set; }
         internal ViewEventBindingScope EventBindingScope { get; set; }
-        internal int EventBindingPass { get; set; }
-        internal int NextEventBindingPass { get; set; }
+        internal long EventBindingPass { get; set; }
+        internal long NextEventBindingPass { get; set; }
         internal ulong NextResourceKeyId { get; set; }
 
         internal void Activate(uint viewHandle)
@@ -197,13 +201,18 @@ public abstract partial class ViewBase
             if (EventEntries is { Capacity: > MaxRetainedEventEntryCapacity })
             {
                 EventEntries = null;
-                FreeEventIds = null;
+                FreeEventSlots = null;
+                EventSlots = null;
             }
             else
             {
                 EventEntries?.Clear();
-                FreeEventIds?.Clear();
+                FreeEventSlots?.Clear();
+                EventSlots?.Clear();
             }
+            ArtifactEventSlots = null;
+            NextEventId = 0;
+            EventBindingArtifact = 0;
             EventBindingScope = ViewEventBindingScope.None;
             EventBindingPass = 0;
             NextEventBindingPass = 0;

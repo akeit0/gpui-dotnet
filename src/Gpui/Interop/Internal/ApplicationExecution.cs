@@ -6,6 +6,7 @@ internal enum ExecutionPhase
     Ingress,
     Render,
     DemandRender,
+    ArtifactRelease,
     Acceptance,
     Event,
     Cleanup,

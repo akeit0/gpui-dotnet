@@ -45,6 +45,7 @@ internal sealed unsafe partial class ManagedSession
         }
 
         _attachedViews.Clear();
+        _demandArtifacts.Clear();
         _viewsByHandle.Clear();
         _renderingViews.Clear();
         _snapshotStack.Clear();
@@ -119,6 +120,7 @@ internal sealed unsafe partial class ManagedSession
 
     private void Unmount(ViewBase view)
     {
+        RetireDemandArtifacts(view);
         var handle = view.RuntimeViewHandle;
         Exception? lifecycleFailure = null;
         try

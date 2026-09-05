@@ -380,6 +380,152 @@ public sealed unsafe class RuntimeExecutionTests
         Assert.Null(failure);
     }
 
+    [Fact]
+    public void RenderingRangeBDoesNotRetireCachedRangeA()
+    {
+        using var fixture = new SessionFixture(new ProbeView());
+        fixture.Render();
+        fixture.Range(0);
+        var first = fixture.View.RowToken;
+        fixture.Range(1);
+        var second = fixture.View.RowToken;
+        Assert.Equal(0, fixture.Click(first));
+        Assert.Equal(1, fixture.View.ClickCount);
+        Assert.Equal(0, fixture.Click(second));
+        Assert.Equal(1, fixture.View.SecondClickCount);
+    }
+
+    [Fact]
+    public void EventForARetiredOwnerIsIgnoredWithoutFaultingTheSession()
+    {
+        using var fixture = new SessionFixture(new ParentView());
+        fixture.Render();
+        var token = fixture.Child.ClickToken;
+        ((ParentView)fixture.View).ShowChild = false;
+        fixture.Render();
+        Assert.Equal(0, fixture.Click(token));
+        Assert.Null(fixture.Session.Failure);
+    }
+
+    [Fact]
+    public void TwoSourcesSharingARendererKeepIndependentArtifacts()
+    {
+        using var fixture = new SessionFixture(new ProbeView());
+        fixture.Render();
+        var first = fixture.Range(0, source: 11);
+        var firstToken = fixture.View.RowToken;
+        var second = fixture.Range(0, source: 12);
+        var secondToken = fixture.View.RowToken;
+        Assert.NotEqual(firstToken, secondToken);
+        Assert.Equal(0, fixture.Release(11, first));
+        Assert.Equal(0, fixture.Release(11, first));
+        Assert.Equal(0, fixture.Click(firstToken));
+        Assert.Equal(0, fixture.View.ClickCount);
+        Assert.Equal(0, fixture.Click(secondToken));
+        Assert.Equal(1, fixture.View.ClickCount);
+        Assert.Equal(0, fixture.Release(12, second));
+    }
+
+    [Fact]
+    public void ReleasingOneRangeLeavesTheOtherRangeAndRootBindingLive()
+    {
+        using var fixture = new SessionFixture(new ProbeView());
+        fixture.Render();
+        var first = fixture.Range(0);
+        var firstToken = fixture.View.RowToken;
+        fixture.Range(1);
+        var secondToken = fixture.View.RowToken;
+        fixture.Render();
+        Assert.Equal(0, fixture.Release(1, first));
+        Assert.Equal(0, fixture.Click(firstToken));
+        Assert.Equal(0, fixture.View.ClickCount);
+        Assert.Equal(0, fixture.Click(secondToken));
+        Assert.Equal(1, fixture.View.SecondClickCount);
+        Assert.Equal(0, fixture.Click());
+        Assert.Equal(1, fixture.View.ClickCount);
+    }
+
+    [Fact]
+    public void ArtifactReleaseIsAllowedDuringNativeRootReconciliation()
+    {
+        using var fixture = new SessionFixture(new ProbeView());
+        fixture.Render();
+        var artifact = fixture.Range(0);
+        fixture.Publish();
+        Assert.Equal(0, fixture.Release(1, artifact));
+        Assert.Equal(0, fixture.Complete());
+        Assert.Null(fixture.Session.Failure);
+    }
+
+    [Fact]
+    public void NativeDemandDecodeFailureReleasesAndFaultsTheSession()
+    {
+        using var fixture = new SessionFixture(new ProbeView());
+        fixture.Render();
+        var artifact = fixture.Range(0);
+        Assert.Equal(-109, fixture.Release(1, artifact, -63));
+        Assert.Contains("-63", fixture.Session.Failure!.Message);
+        Assert.Equal(0, fixture.Release(1, artifact));
+    }
+
+    [Fact]
+    public void AnArtifactCannotBeReleasedByAnotherSource()
+    {
+        using var fixture = new SessionFixture(new ProbeView());
+        fixture.Render();
+        var artifact = fixture.Range(0, 11);
+        Assert.Equal(-109, fixture.Release(12, artifact));
+        Assert.Contains("another source", fixture.Session.Failure!.Message);
+        Assert.Equal(0, fixture.Release(11, artifact));
+    }
+
+    [Fact]
+    public void ReleasedArtifactDoesNotRetainItsCapturedObject()
+    {
+        using var fixture = new SessionFixture(new ProbeView());
+        fixture.Render();
+        var (reference, artifact) = BindCapturedRow(fixture);
+        GC.Collect();
+        Assert.True(reference.IsAlive);
+        Assert.Equal(0, fixture.Release(1, artifact));
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        Assert.False(reference.IsAlive);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (WeakReference, ulong) BindCapturedRow(SessionFixture fixture)
+    {
+        var captured = new object();
+        fixture.View.RowCapture = captured;
+        var artifact = fixture.Range(0);
+        fixture.View.RowCapture = null;
+        return (new WeakReference(captured), artifact);
+    }
+
+    [Fact]
+    public void RepeatedRangeEvictionReusesStorageWithoutReusingTokens()
+    {
+        using var fixture = new SessionFixture(new ProbeView());
+        fixture.Render();
+        var tokens = new HashSet<ulong>();
+        for (var index = 0; index < 100; index++)
+        {
+            var artifact = fixture.Range(0);
+            Assert.True(tokens.Add(fixture.View.RowToken));
+            Assert.Equal(0, fixture.Release(1, artifact));
+        }
+        foreach (var token in tokens)
+        {
+            Assert.Equal(0, fixture.Click(token));
+        }
+        Assert.Equal(0, fixture.View.ClickCount);
+        var attachment = typeof(ViewBase).GetField("_uiAttachment", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(fixture.View)!;
+        var entries = (System.Collections.ICollection)attachment.GetType().GetProperty("EventEntries", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(attachment)!;
+        Assert.Equal(2, entries.Count);
+    }
+
     private sealed class SessionFixture : IDisposable
     {
         private static long _nextId = 1_000_000;
@@ -434,11 +580,27 @@ public sealed unsafe class RuntimeExecutionTests
             return callback(_id, revision ?? Session.PendingRenderRevision, status);
         }
 
-        internal int Click()
+        internal ulong Range(uint start, ulong source = 1)
+        {
+            RenderArena arena = default;
+            uint root = 0;
+            ulong artifact = 0;
+            delegate* unmanaged[Cdecl]<ulong, ulong, ulong, uint, uint, RenderArena*, uint*, ulong*, int> callback = &NativeCallbacks.ListRenderRange;
+            Assert.Equal(0, callback(_id, ((ulong)View.RuntimeViewHandle << 32) | 1, source, start, 1, &arena, &root, &artifact));
+            return artifact;
+        }
+
+        internal int Release(ulong source, ulong artifact, int status = 0)
+        {
+            delegate* unmanaged[Cdecl]<ulong, ulong, ulong, int, int> callback = &NativeCallbacks.ReleaseArtifact;
+            return callback(_id, source, artifact, status);
+        }
+
+        internal int Click(ulong? token = null)
         {
             delegate* unmanaged[Cdecl]<ulong, ulong, ulong, NativeClickEvent*, int> callback = &NativeCallbacks.Click;
             NativeClickEvent click = default;
-            return callback(_id, View.ClickToken, 0, &click);
+            return callback(_id, token ?? View.ClickToken, 0, &click);
         }
 
         internal RetainedViewState State(ViewBase view)
@@ -468,6 +630,9 @@ public sealed unsafe class RuntimeExecutionTests
         internal int RenderCount;
         internal int MountCount;
         internal int ClickCount;
+        internal int SecondClickCount;
+        internal ulong RowToken;
+        internal object? RowCapture;
         internal int UnmountCount;
         internal ulong ClickToken;
         internal Action? DuringRender;
@@ -499,6 +664,19 @@ public sealed unsafe class RuntimeExecutionTests
             UnmountCount++;
             if (ThrowDuringUnmount)
                 throw new InvalidOperationException("cleanup fault");
+        }
+
+        protected override Element RenderListItem(uint rendererId, int index, ref RenderContext ui)
+        {
+            Action<ProbeView, ClickEvent> callback = index == 0
+                ? static (view, _) => view.ClickCount++
+                : static (view, _) => view.SecondClickCount++;
+            if (RowCapture is { } captured)
+            {
+                callback = (view, _) => { GC.KeepAlive(captured); view.ClickCount++; };
+            }
+            RowToken = BindClick(callback);
+            return ui.Button("row", "row").OnClick(this, callback);
         }
     }
 

@@ -164,7 +164,7 @@ C# application and View state
         │ dirty render
         ▼
 flat RenderArena: nodes, operations, children, UTF-8
-        │ ABI v5 + base/extension schema negotiation
+        │ ABI v6 + base/extension schema negotiation
         ▼
 Rust validation and retained snapshot
         │

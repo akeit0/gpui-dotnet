@@ -12,6 +12,9 @@ public abstract partial class ViewBase
     private const uint DynamicEventBit = 0x8000_0000u;
     private const uint DynamicEventEntryMask = 0x7FFF_FFFFu;
 
+    internal static bool IsWellFormedEventId(uint eventId) =>
+        (eventId & DynamicEventBit) != 0 && (eventId & DynamicEventEntryMask) != 0;
+
     [ThreadStatic]
     private static ViewBase? _currentEventBindingOwner;
 
@@ -233,12 +236,14 @@ public abstract partial class ViewBase
         internal object? Target;
         internal Delegate? Callback;
         internal int BinderIndex;
-        internal int LastPass;
+        internal long LastPass;
+        internal uint Id;
+        internal ulong Artifact;
     }
 
     /// <summary>
-    /// Registers a typed click callback on this mounted View. Equivalent bindings reuse their
-    /// recyclable per-View entry, so the native token remains compact and stable across renders.
+    /// Registers a typed click callback. Equivalent bindings reuse their live token within one
+    /// render scope or demand artifact; retired identities never alias recycled storage slots.
     /// </summary>
     internal ulong BindClick<TView>(Action<TView, ClickEvent> callback)
         where TView : ViewBase => BindDynamicEvent(this, callback, ClickEventBinder<TView>.Index);
@@ -390,6 +395,7 @@ public abstract partial class ViewBase
             if (
                 current.BinderIndex == binderIndex
                 && IsEntryInScope(current.LastPass, scope)
+                && current.Artifact == attachment.EventBindingArtifact
                 && ReferenceEquals(current.Target, target)
                 && Equals(current.Callback, callback)
             )
@@ -398,18 +404,19 @@ public abstract partial class ViewBase
                 current.Callback = callback;
                 current.LastPass = pass;
                 entries[index] = current;
-                return DynamicEventToken(attachment.ViewHandle, index);
+                return DynamicEventToken(attachment.ViewHandle, current.Id);
             }
         }
 
-        var freeEventIds = attachment.FreeEventIds;
-        var entryIndex = freeEventIds is { Count: > 0 } ? freeEventIds.Pop() : entries.Count;
-        if (entryIndex >= (int)DynamicEventEntryMask)
+        if (attachment.NextEventId == DynamicEventEntryMask)
         {
             throw new InvalidOperationException(
-                "The View has exhausted its dynamic event entries."
+                "The View has exhausted its dynamic event identities."
             );
         }
+        var id = ++attachment.NextEventId;
+        var freeSlots = attachment.FreeEventSlots;
+        var entryIndex = freeSlots is { Count: > 0 } ? freeSlots.Pop() : entries.Count;
 
         var entry = new EventEntry
         {
@@ -417,6 +424,8 @@ public abstract partial class ViewBase
             Callback = callback,
             BinderIndex = binderIndex,
             LastPass = pass,
+            Id = id,
+            Artifact = attachment.EventBindingArtifact,
         };
         if (entryIndex == entries.Count)
         {
@@ -426,10 +435,20 @@ public abstract partial class ViewBase
         {
             entries[entryIndex] = entry;
         }
-        return DynamicEventToken(attachment.ViewHandle, entryIndex);
+        (attachment.EventSlots ??= []).Add(id, entryIndex);
+        if (entry.Artifact != 0)
+        {
+            var artifacts = attachment.ArtifactEventSlots ??= [];
+            if (!artifacts.TryGetValue(entry.Artifact, out var slots))
+            {
+                artifacts.Add(entry.Artifact, slots = []);
+            }
+            slots.Add(entryIndex);
+        }
+        return DynamicEventToken(attachment.ViewHandle, id);
     }
 
-    internal void BeginEventBindingPass(ViewEventBindingScope scope)
+    internal void BeginEventBindingPass(ViewEventBindingScope scope, ulong artifact = 0)
     {
         var attachment = RequireUiAttachment();
         if (attachment.EventBindingScope != ViewEventBindingScope.None)
@@ -439,7 +458,12 @@ public abstract partial class ViewBase
             );
         }
 
-        var pass = ++attachment.NextEventBindingPass;
+        if ((scope == ViewEventBindingScope.ListRange) != (artifact != 0))
+        {
+            throw new InvalidOperationException("Demand event bindings require an artifact identity.");
+        }
+        var pass = checked(++attachment.NextEventBindingPass);
+        attachment.EventBindingArtifact = artifact;
         attachment.EventBindingScope = scope;
         attachment.EventBindingPass = scope == ViewEventBindingScope.ListRange ? -pass : pass;
     }
@@ -457,7 +481,14 @@ public abstract partial class ViewBase
             return;
         }
 
-        if (completed && attachment.EventEntries is { } entries)
+        if (scope == ViewEventBindingScope.ListRange)
+        {
+            if (!completed)
+            {
+                ReleaseEventArtifact(attachment.EventBindingArtifact);
+            }
+        }
+        else if (completed && attachment.EventEntries is { } entries)
         {
             for (var index = 0; index < entries.Count; index++)
             {
@@ -468,18 +499,43 @@ public abstract partial class ViewBase
                     && entry.LastPass != attachment.EventBindingPass
                 )
                 {
-                    entries[index] = default;
-                    (attachment.FreeEventIds ??= new Stack<int>()).Push(index);
+                    ReleaseEventSlot(attachment, index);
                 }
             }
         }
 
         attachment.EventBindingScope = ViewEventBindingScope.None;
         attachment.EventBindingPass = 0;
+        attachment.EventBindingArtifact = 0;
     }
 
-    private static ulong DynamicEventToken(uint viewHandle, int index) =>
-        ((ulong)viewHandle << 32) | DynamicEventBit | checked((uint)(index + 1));
+    internal void ReleaseEventArtifact(ulong artifact)
+    {
+        var attachment = _uiAttachment;
+        if (attachment is null)
+        {
+            return;
+        }
+        attachment.AssertAccess();
+        if (attachment.ArtifactEventSlots?.Remove(artifact, out var slots) == true)
+        {
+            foreach (var index in slots)
+            {
+                ReleaseEventSlot(attachment, index);
+            }
+        }
+    }
+
+    private static void ReleaseEventSlot(MountedViewAttachment attachment, int index)
+    {
+        var entries = attachment.EventEntries!;
+        attachment.EventSlots!.Remove(entries[index].Id);
+        entries[index] = default;
+        (attachment.FreeEventSlots ??= new Stack<int>()).Push(index);
+    }
+
+    private static ulong DynamicEventToken(uint viewHandle, uint id) =>
+        ((ulong)viewHandle << 32) | DynamicEventBit | id;
 
     private ValueTask DispatchDynamicClickAsync(uint eventId, ClickEvent clickEvent)
     {
@@ -675,25 +731,31 @@ public abstract partial class ViewBase
             return false;
         }
 
-        var index = checked((int)entryId - 1);
-        if (index >= entries.Count)
+        if (attachment.EventSlots?.TryGetValue(entryId, out var index) != true)
         {
             entry = default;
             return false;
         }
 
         entry = entries[index];
-        return entry.BinderIndex != 0;
+        return entry.BinderIndex != 0 && entry.Target is ViewBase { IsMountedCore: true };
     }
 
-    private static ValueTask MissingDynamicEvent(uint eventId, string eventType) =>
-        ValueTask.FromException(
+    private ValueTask MissingDynamicEvent(uint eventId, string eventType)
+    {
+        if (IsWellFormedEventId(eventId)
+            && (_uiAttachment is null || (eventId & DynamicEventEntryMask) <= _uiAttachment.NextEventId))
+        {
+            return ValueTask.CompletedTask;
+        }
+        return ValueTask.FromException(
             new InvalidOperationException(
                 $"Dynamic {eventType} event entry {eventId & DynamicEventEntryMask} has no callback."
             )
         );
+    }
 
-    private static bool IsEntryInScope(int pass, ViewEventBindingScope scope) =>
+    private static bool IsEntryInScope(long pass, ViewEventBindingScope scope) =>
         scope switch
         {
             ViewEventBindingScope.None => pass == 0,

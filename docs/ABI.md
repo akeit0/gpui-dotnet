@@ -1,6 +1,6 @@
 # Native ABI
 
-GPUI.NET currently uses ABI version 5. Managed startup requires an exact ABI version, a compatible
+GPUI.NET currently uses ABI version 6. Managed startup requires an exact ABI version, a compatible
 API-table prefix, all required function entries, and the semantic schema hash generated from
 `bindings/schema.json`.
 
@@ -38,9 +38,10 @@ The extension-command envelope keeps extension-specific IDs and payload layouts 
 numeric command and flags, expected revision, and opaque byte payload. Native code validates the
 envelope and provider compatibility and copies the payload before the FFI call returns.
 
-ABI 5 adds root publication revisions and a required `render_completed` callback after native
-validation. It retains ABI 4's managed-owned single-pass buffers. The callback-table layout and
-root-render signature are incompatible with earlier hosts. The API table keeps the historical `GpuiDotnetApiV3` name;
+ABI 6 adds source and artifact identities to range rendering and a required `release_artifact`
+callback. It retains explicit root acceptance and managed-owned single-pass buffers. The
+callback-table layout and range-render signature are incompatible with earlier hosts.
+The API table keeps the historical `GpuiDotnetApiV3` name;
 its `abi_version` value and the requested version, not that type name, negotiate this protocol.
 Old and new managed/native hosts must not be mixed; rebuild custom hosts with the matching contract.
 
@@ -53,6 +54,7 @@ callback table provides:
 - root snapshot acceptance acknowledgement;
 - click dispatch;
 - virtual list/table range rendering;
+- cached range artifact release;
 - owner-view preparation for a requested dynamic frame;
 - retained control events (Input, Slider, Dock, and observer key/mouse);
 - application-started notification;
@@ -102,8 +104,9 @@ Rust must release its borrow of the arena before this callback. Status zero acce
 a nonzero validation/decode status faults the session without mounting candidates. Failed render
 callbacks have no publication and receive no acknowledgement. An acknowledgement failure also
 rejects the native snapshot. Missing, zero, mismatched, or duplicate revisions are protocol errors.
-The callback table appends this required pointer after `dynamic_frame` (offset 72, size 80 on 64-bit
-targets; offset 36, size 40 on 32-bit targets).
+The callback table places this required pointer after `dynamic_frame` (offset 72 on 64-bit
+targets; offset 36 on 32-bit targets). ABI 6 appends `release_artifact` at offset 80/40, for a
+total table size of 88/44 bytes on 64/32-bit targets.
 
 Managed acceptance commits the complete reachable tree and props, retires replaced subtrees, then
 mounts new Views parent-first. New root/range render and event dispatch are excluded until it
@@ -121,24 +124,47 @@ Virtual rows use:
 int32_t list_render_range(
     uint64_t session_id,
     uint64_t renderer_token,
+    uint64_t source_id,
     uint32_t start,
     uint32_t count,
     gpui_render_arena* arena,
-    uint32_t* root);
+    uint32_t* root,
+    uint64_t* artifact_id);
 ```
 
 The returned root must contain exactly `count` direct row children. `count` is limited to 512. Range
 rendering uses the same single-call, borrowed-output contract as root rendering. Each requested
 row is rendered once per range request; later cache misses can request that range again.
 
+Each native row engine has a nonzero, non-reused source ID independent of its renderer method.
+Two controls using the same renderer still have distinct source IDs. Successful managed range
+publication returns a nonzero, non-reused session artifact ID. Its event bindings remain live
+until the native batch releases them:
+
+```c
+int32_t release_artifact(
+    uint64_t session_id, uint64_t source_id, uint64_t artifact_id, int32_t status);
+```
+
+Native code releases after it finishes borrowing the output. Status zero retires the artifact
+normally; a nonzero decode/shape status also faults the session. Failed managed publication
+returns no artifact. Normal release occurs on eviction, invalidation, source removal, or window
+shutdown. A native batch owns exactly one release obligation. Duplicate releases and releases
+after managed shutdown are harmless. A live artifact cannot be released by another source.
+Release runs framework cleanup only and is allowed during pending root acceptance and after a
+session fault. Removing a source releases its batches even if an old native frame retains the
+row engine. No cache hit or individual cached row requires a release callback.
+
 An active `Dynamic` wrapper asks native GPUI for another display frame. Before the corresponding
 root render, native invokes `dynamic_frame(session_id, owner_view)` so managed retained fragments
 for that owner and its ancestors are marked dirty. Multiple active wrappers with the same owner are
 collapsed to one callback per frame.
 
-Click and renderer tokens pack a mounted managed View handle in the high 32 bits and a generated or
-registered entry ID in the low 32 bits. Click records carry a separate unmanaged `uint64_t` payload
-for row or model identity.
+Renderer tokens pack a prepared/mounted View handle in the high 32 bits and a generated method ID
+below. Event tokens pack the View handle above a dynamic marker (bit 31) and a non-reused 31-bit
+event ID. Live IDs map to recyclable storage slots; retired IDs never resolve to new callbacks.
+Retired event IDs and owner handles are ignored. Malformed or never-issued identities are errors.
+Click records carry a separate unmanaged `uint64_t` payload for row or model identity.
 
 ## Render arena
 

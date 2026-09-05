@@ -129,7 +129,7 @@ GPUI item request
 Rust row-batch cache ── hit ──► retained row snapshot
       │ miss
       ▼
-list_render_range(start, count)
+list_render_range(source, start, count) → artifact
       │
       ▼
 one arena containing count row roots
@@ -138,6 +138,16 @@ one arena containing count row roots
 `ListDataSource.ContentRevision` controls row-snapshot validity independently from the root snapshot
 revision. Theme changes also evict row batches because rows contain resolved theme colors. List
 viewport and measurement state survive either invalidation.
+
+Every native row engine owns a non-reused source identity, separate from its generated renderer
+method. Every loaded batch owns a managed artifact lease that keeps only that batch's event
+bindings live. Eviction, revision/theme invalidation, source removal, and shutdown release those
+bindings explicitly. Native decode failure releases the unpublished batch's lease and faults the
+session. Artifact release runs no application code, including during root reconciliation.
+
+Dynamic event tokens identify a never-reused ID under a one-shot View handle. Live IDs map to
+recyclable slots. Root rendering retires only root bindings; each artifact releases only its own
+bindings. Stale tokens are harmless and released slots no longer retain targets or delegates.
 
 ## Applications, windows, and threading
 

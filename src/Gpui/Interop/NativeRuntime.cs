@@ -210,6 +210,7 @@ public sealed unsafe class NativeRuntime
                 struct_size = (uint)sizeof(ManagedCallbacks),
                 render = &NativeCallbacks.Render,
                 render_completed = &NativeCallbacks.RenderCompleted,
+                release_artifact = &NativeCallbacks.ReleaseArtifact,
                 click = &NativeCallbacks.Click,
                 list_render_range = &NativeCallbacks.ListRenderRange,
                 dynamic_frame = &NativeCallbacks.DynamicFrame,

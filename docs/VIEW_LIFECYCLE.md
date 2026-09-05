@@ -238,3 +238,9 @@ View. It has no `OnMounted`, `OnUnmounted`, child slots, or independent controll
 
 Row cache eviction is a virtualization concern. Stable `.ItemId` values preserve native element
 identity across datasource splices; they do not create managed row objects.
+
+Each cached range owns an independent event-binding artifact. Rendering another range or rerendering
+the owning View does not retire it. Eviction, datasource revision/theme invalidation, or source
+removal releases exactly that artifact's bindings. Two Lists/Tables may share one renderer method
+without sharing source identity or event lifetimes. A stale event token is ignored, and its ID
+cannot be reused for a later binding. Owner unmount releases all remaining artifacts immediately.

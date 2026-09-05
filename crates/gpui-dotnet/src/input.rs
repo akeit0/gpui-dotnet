@@ -953,6 +953,7 @@ mod tests {
             struct_size: 0,
             render: None,
             render_completed: None,
+            release_artifact: None,
             click: None,
             list_render_range: None,
             dynamic_frame: None,

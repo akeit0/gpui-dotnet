@@ -603,6 +603,7 @@ unsafe extern "C" fn run_application(
         || callbacks.window_closed.is_none()
         || callbacks.menu_action.is_none()
         || callbacks.render_completed.is_none()
+        || callbacks.release_artifact.is_none()
     {
         return -21;
     }

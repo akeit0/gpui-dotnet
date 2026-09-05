@@ -154,7 +154,7 @@ internal sealed partial class SampleShellView : View
                     )
                     .OnClick(this, (view, _) => view.ToggleTheme())
                     .Style(SampleStyles.Button(theme, SampleButtonVariant.Primary)),
-                ui.Badge(ui.Text("ABI v5"u8))
+                ui.Badge(ui.Text("ABI v6"u8))
                     .FontSize(Px(theme.Typography.Caption))
                     .Background(theme.Colors.InfoBackground)
                     .TextColor(theme.Colors.Info)

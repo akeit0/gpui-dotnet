@@ -49,9 +49,11 @@ internal sealed unsafe partial class ManagedSession
 
     internal Element RenderListRange(
         ulong rendererToken,
+        ulong source,
         uint start,
         uint count,
-        RenderArena* arena
+        RenderArena* arena,
+        out ulong artifact
     )
     {
         ThrowIfUnavailable();
@@ -74,18 +76,19 @@ internal sealed unsafe partial class ManagedSession
             throw new ArgumentOutOfRangeException(nameof(count));
         }
 
+        artifact = CreateDemandArtifact(source, owner);
         Volatile.Write(ref _renderingStarted, 1);
         if (Interlocked.CompareExchange(ref _renderingManaged, 1, 0) != 0)
         {
             throw new InvalidOperationException("Nested managed list rendering is not supported.");
         }
         Volatile.Write(ref _notifyAfterRender, 0);
-        owner.BeginEventBindingPass(ViewEventBindingScope.ListRange);
         var previousEventBindingOwner = ViewBase.CurrentEventBindingOwner;
-        ViewBase.CurrentEventBindingOwner = owner;
         var completed = false;
         try
         {
+            owner.BeginEventBindingPass(ViewEventBindingScope.ListRange, artifact);
+            ViewBase.CurrentEventBindingOwner = owner;
             var ui = new RenderContext(arena, theme: _application.Theme);
             var batchRoot = ui.Div();
             for (uint offset = 0; offset < count; offset++)
@@ -110,6 +113,10 @@ internal sealed unsafe partial class ManagedSession
             try
             {
                 owner.CompleteEventBindingPass(ViewEventBindingScope.ListRange, completed);
+                if (!completed)
+                {
+                    _demandArtifacts.Remove(artifact);
+                }
             }
             finally
             {

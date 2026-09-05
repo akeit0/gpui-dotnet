@@ -76,10 +76,12 @@ internal static unsafe class NativeCallbacks
     internal static int ListRenderRange(
         ulong sessionId,
         ulong rendererToken,
+        ulong source,
         uint start,
         uint count,
         RenderArena* arena,
-        uint* root
+        uint* root,
+        ulong* artifact
     )
     {
         try
@@ -87,6 +89,8 @@ internal static unsafe class NativeCallbacks
             if (
                 arena == null
                 || root == null
+                || artifact == null
+                || source == 0
                 || count == 0
                 || count > 512
                 || !NativeRegistry.Sessions.TryGetValue(sessionId, out var session)
@@ -96,10 +100,12 @@ internal static unsafe class NativeCallbacks
             }
 
             var previousContext = SynchronizationContext.Current;
+            *artifact = 0;
             SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
             try
             {
-                *root = session.RenderListRangeOutput(rendererToken, start, count, arena);
+                *root = session.RenderListRangeOutput(rendererToken, source, start, count, arena, out var artifactId);
+                *artifact = artifactId;
                 return 0;
             }
             finally
@@ -111,6 +117,24 @@ internal static unsafe class NativeCallbacks
         {
             NativeRegistry.RecordRenderFailure(sessionId, exception);
             return -106;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    internal static int ReleaseArtifact(ulong sessionId, ulong source, ulong artifact, int status)
+    {
+        try
+        {
+            if (NativeRegistry.Sessions.TryGetValue(sessionId, out var session))
+            {
+                session.ReleaseDemandArtifact(source, artifact, status);
+            }
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            NativeRegistry.RecordFailure(sessionId, exception);
+            return -109;
         }
     }
 

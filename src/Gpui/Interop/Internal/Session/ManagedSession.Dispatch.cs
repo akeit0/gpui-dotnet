@@ -205,12 +205,16 @@ internal sealed unsafe partial class ManagedSession
         {
             var viewHandle = (uint)(eventToken >> 32);
             var handlerId = (uint)eventToken;
-            if (viewHandle == 0 || handlerId == 0)
+            if (viewHandle == 0 || !ViewBase.IsWellFormedEventId(handlerId))
             {
                 throw new InvalidOperationException("Malformed event token.");
             }
             if (!_viewsByHandle.TryGetValue(viewHandle, out var owner))
             {
+                if (viewHandle <= _nextViewHandle)
+                {
+                    return;
+                }
                 throw new InvalidOperationException(
                     $"Event references unmounted or unknown view handle {viewHandle}."
                 );

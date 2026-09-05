@@ -1,7 +1,7 @@
 # Runtime design
 
-This design refines [RUNTIME_PLAN.md](RUNTIME_PLAN.md). ABI 5 uses single-pass managed-owned
-arenas and explicit native acceptance. The older runtime specification's capacity
+This design refines [RUNTIME_PLAN.md](RUNTIME_PLAN.md). ABI 6 uses single-pass managed-owned
+arenas, explicit native acceptance, and cached-range artifact leases. The older runtime specification's capacity
 retry protocol is superseded: user rendering must never be repeated to grow storage.
 
 ## Execution and fault ownership
@@ -52,7 +52,7 @@ Rust decodes the borrowed arena and reconciles resource declarations, then calls
 Status zero accepts it; a decode failure faults the session without mounting candidates.
 Until acknowledgement, reject new root/range rendering and user dispatch. Commit all managed
 props and composition before parent-first mounting. Invalidation from mounting queues a later
-frame; it never changes the accepted snapshot in place. This is an ABI 5 callback-table change.
+frame; it never changes the accepted snapshot in place. The acknowledgement is a required ABI callback.
 
 A resource has a stable controller identity and a separate presence generation.
 Commands require a mounted owner and an accepted declaration, capture that generation,
@@ -82,6 +82,23 @@ Test the production dispatch and cache routes: remove/rebind under one live View
 retain A while rendering B, evict only A, and bind two sources to the same method.
 Tests must establish callback liveness as well as retained-memory release.
 
+The concrete transport uses ABI 6. A native row engine receives a process-unique, non-reused
+64-bit source ID when created. Each range request carries that source ID alongside the renderer
+token and returns a session-unique artifact ID. Managed code owns an artifact's event slots;
+the native cached batch owns the corresponding release obligation. Batch eviction, invalidation,
+decode failure, or source destruction releases `(session, source, artifact)` exactly once.
+Repeated release is harmless. Release invokes no user code and is allowed while a root awaits
+acceptance, since native resource reconciliation may retire row engines at that boundary.
+
+Dynamic event tokens retain the owner handle in their upper 32 bits, with a monotonically
+allocated 31-bit external ID and dynamic marker below. Internal storage slots can be recycled;
+an ID-to-slot map contains only live entries. Equivalent bindings reuse an ID only within the
+same root-render scope or the same demand artifact. Artifact A never shares a slot with B,
+even when both call the same delegate. Releasing an artifact clears its targets and delegates
+immediately. Exhaustion fails explicitly; neither event IDs nor artifact/source IDs wrap.
+Retired IDs and retired owner handles are ignored; malformed or never-issued identities remain
+protocol errors. Root bindings and demand bindings cannot retire one another.
+
 ## Reactivity and structured work
 
 After execution, acceptance, and artifact leases are established, replace retained
@@ -108,7 +125,9 @@ callback entry points with a small fake native API for notification observation.
 Acceptance tests cover silent candidate retirement, whole-tree props commit, mount ordering and
 failure, unmatched acknowledgements, and exclusion of dispatch while awaiting acceptance. Native
 tests cover acknowledgement after decoding, absence rejection, and generation checks at command
-delivery. Stale-event, cached-range, and late-completion regressions remain required
+delivery. Event and artifact tests cover stale-token dispatch, independent sources and ranges,
+capture release, bounded slot reuse, native eviction and invalidation, and declaration removal
+while a frame retains the engine. Late-completion and dependency regressions remain required
 gates for the open phases. Measure warm allocations and native crossings after
 correctness is established. Run binding verification, managed/native suites, formatting,
 and sample builds. Windows behavior and macOS behavior need separate platform evidence;

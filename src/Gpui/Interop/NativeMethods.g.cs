@@ -174,13 +174,14 @@ namespace Gpui.Interop
         public uint struct_size;
         public delegate* unmanaged[Cdecl]<ulong, RenderArena*, uint*, ulong*, int> render;
         public delegate* unmanaged[Cdecl]<ulong, ulong, ulong, NativeClickEvent*, int> click;
-        public delegate* unmanaged[Cdecl]<ulong, ulong, uint, uint, RenderArena*, uint*, int> list_render_range;
+        public delegate* unmanaged[Cdecl]<ulong, ulong, ulong, uint, uint, RenderArena*, uint*, ulong*, int> list_render_range;
         public delegate* unmanaged[Cdecl]<ulong, ulong, NativeControlEvent*, int> control_event;
         public delegate* unmanaged[Cdecl]<ulong, int> application_started;
         public delegate* unmanaged[Cdecl]<ulong, ulong, int, int> window_closed;
         public delegate* unmanaged[Cdecl]<ulong, ulong, int> menu_action;
         public delegate* unmanaged[Cdecl]<ulong, uint, int> dynamic_frame;
         public delegate* unmanaged[Cdecl]<ulong, ulong, int, int> render_completed;
+        public delegate* unmanaged[Cdecl]<ulong, ulong, ulong, int, int> release_artifact;
     }
 
     [StructLayout(LayoutKind.Sequential)]

@@ -5,7 +5,7 @@ FFI call fast.
 
 ## Dirty and clean frames
 
-A dirty managed tree normally requires one native-to-managed root render callback. The callback
+A dirty managed tree normally requires one root render callback and one acceptance callback. Rendering
 writes a whole semantic tree into a flat arena. Rust validates and retains the decoded snapshot.
 
 A clean GPUI repaint must not call managed `Render()`.
@@ -15,7 +15,7 @@ After arena warmup:
 - `RenderContext` is stack-only;
 - `Element<TTag>` is a small value;
 - child APIs accept spans;
-- event tokens are compact recyclable registry indices;
+- event tokens use compact non-reused IDs mapped to recyclable registry slots;
 - framework child activation uses generated factories;
 - native snapshot buffers and decode scratch are reused.
 
@@ -82,6 +82,11 @@ managed crossings:  1
 At most four batches are retained per List/Table row engine. Scrolling inside retained batches
 requires no managed call. A missing batch requires one `list_render_range` call containing all
 rows in that batch.
+
+Each batch retains its own managed event lease. Eviction or invalidation adds one artifact-release
+callback per retired batch, never per row. Cache hits require no managed call. Binding storage is
+reused after release, while external event IDs never alias a later binding. Two row engines using
+the same generated renderer have independent source IDs and leases.
 
 `ListDataSource(count, contentRevision)` lets batches survive unrelated root renders. Increment the
 revision only when row output can change. Theme changes and table column changes invalidate row

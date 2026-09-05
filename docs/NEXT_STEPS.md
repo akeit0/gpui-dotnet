@@ -100,7 +100,7 @@ proven large-dataset behavior.
 
 ## Runtime
 
-Event-token identity, demand-artifact leases, reactivity, and structured async ownership are tracked in
+Dirty-state propagation, reactivity, and structured async ownership are tracked in
 [RUNTIME_PLAN.md](RUNTIME_PLAN.md).
 
 ## ABI, diagnostics, and CI

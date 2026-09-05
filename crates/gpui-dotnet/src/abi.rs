@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-pub const ABI_VERSION: u32 = 5;
+pub const ABI_VERSION: u32 = 6;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -173,7 +173,8 @@ pub type ManagedRenderFn = unsafe extern "C" fn(u64, *mut RenderArena, *mut u32,
 pub type ManagedRenderCompletedFn = unsafe extern "C" fn(u64, u64, i32) -> i32;
 pub type ManagedClickFn = unsafe extern "C" fn(u64, u64, u64, *const NativeClickEvent) -> i32;
 pub type ManagedListRenderRangeFn =
-    unsafe extern "C" fn(u64, u64, u32, u32, *mut RenderArena, *mut u32) -> i32;
+    unsafe extern "C" fn(u64, u64, u64, u32, u32, *mut RenderArena, *mut u32, *mut u64) -> i32;
+pub type ManagedReleaseArtifactFn = unsafe extern "C" fn(u64, u64, u64, i32) -> i32;
 pub type ManagedDynamicFrameFn = unsafe extern "C" fn(u64, u32) -> i32;
 pub type ManagedControlEventFn = unsafe extern "C" fn(u64, u64, *const NativeControlEvent) -> i32;
 pub type ManagedApplicationStartedFn = unsafe extern "C" fn(u64) -> i32;
@@ -193,6 +194,7 @@ pub struct ManagedCallbacks {
     pub menu_action: Option<ManagedMenuActionFn>,
     pub dynamic_frame: Option<ManagedDynamicFrameFn>,
     pub render_completed: Option<ManagedRenderCompletedFn>,
+    pub release_artifact: Option<ManagedReleaseArtifactFn>,
 }
 
 #[cfg(test)]
@@ -202,12 +204,16 @@ mod tests {
     #[test]
     fn acceptance_callback_extends_the_callback_table() {
         let pointer_size = std::mem::size_of::<usize>();
-        assert_eq!(std::mem::size_of::<ManagedCallbacks>(), 10 * pointer_size);
+        assert_eq!(std::mem::size_of::<ManagedCallbacks>(), 11 * pointer_size);
         assert_eq!(
             std::mem::offset_of!(ManagedCallbacks, render_completed),
             9 * pointer_size
         );
-        assert_eq!(ABI_VERSION, 5);
+        assert_eq!(
+            std::mem::offset_of!(ManagedCallbacks, release_artifact),
+            10 * pointer_size
+        );
+        assert_eq!(ABI_VERSION, 6);
     }
 }
 

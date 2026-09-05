@@ -1338,6 +1338,7 @@ mod tests {
             menu_action: None,
             dynamic_frame: None,
             render_completed: None,
+            release_artifact: None,
         };
         let presence = Arc::new(Mutex::new(ResourcePresence::default()));
         let view = ManagedView::new(7, callbacks, Rc::default(), presence.clone());

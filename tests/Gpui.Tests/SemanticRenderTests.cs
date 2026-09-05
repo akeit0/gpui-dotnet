@@ -1170,15 +1170,19 @@ public sealed class SemanticRenderTests
             var third = view.RenderCore(ref thirdUi);
             arena.Validate(third);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                view.DispatchClickCore(firstEventId, default).AsTask()
-            );
+            await view.DispatchClickCore(firstEventId, default);
+            Assert.Equal(1, view.ClickCount);
 
             view.BindCallback = true;
             var fourthUi = arena.BeginRender(new NoopRenderer(), view);
             var fourth = view.RenderCore(ref fourthUi);
             arena.Validate(fourth);
-            Assert.Equal(firstEventId, ReadCallbackEventId(arena));
+            var reboundEventId = ReadCallbackEventId(arena);
+            Assert.NotEqual(firstEventId, reboundEventId);
+            await view.DispatchClickCore(firstEventId, default);
+            Assert.Equal(1, view.ClickCount);
+            await view.DispatchClickCore(reboundEventId, default);
+            Assert.Equal(2, view.ClickCount);
         }
         finally
         {
