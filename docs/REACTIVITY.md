@@ -1,6 +1,6 @@
 # Reactivity
 
-## Fundamentals and assessment
+## Fundamentals
 
 A Signal is a value plus accepted rendering dependencies. It is not an event stream, a scheduler,
 or an owner of Views. `Signal<T>(initialValue, comparer?)`, `Value`, and `Set(value)` provide
@@ -16,10 +16,9 @@ It prevents accidental replacement through reader props, not mutation inside a m
 explicit cast back to the concrete Signal. `Peek()` is not part of this API: reads outside rendering
 already do not subscribe, while values used in rendering normally belong in its dependencies.
 
-The existing runtime supplies application-thread entry, terminal session faults, retained dirty
-flags, root acceptance, and explicit demand artifacts. These are sufficient for a small graph,
-but two gaps require explicit treatment: observations precede acceptance, and native row caches
-must be invalidated without requesting a managed root render.
+The runtime supplies application-thread entry, terminal session faults, retained dirty flags,
+root acceptance, and explicit demand artifacts. Observation revisions connect reads to later
+acceptance; artifact invalidation updates native row caches without requesting a managed root render.
 
 ## Ownership and access
 
@@ -32,7 +31,8 @@ same thread. Unbound values are ordinary initialization state, not concurrent co
 Rendering may read but never write Signals, including equal-value writes and writes to unbound
 Signals. Equality comparison must not reenter Signal mutation. A changed value invalidates its
 accepted consumers synchronously and schedules later native work. It never renders or invokes
-application callbacks. Writes from effect setup are valid after the entire graph has committed.
+subscription callbacks. Notification failure can run terminal View cleanup at the mutation-scope
+boundary. Writes from effect setup are valid after the entire graph has committed.
 
 ## Accepted dependencies
 
@@ -42,18 +42,17 @@ parent. Reads outside rendering assert affinity but do not create dependencies. 
 tracking, including child field initializers, without permitting writes to existing Signals.
 Memo calculations and input equality cannot read Signals; assemble memo inputs before calling Get.
 
-Consumers use a linear array for small dependency sets and replace it with a dictionary above 64
-active/provisional edges. One field owns either representation; conversion preserves the edge
-objects and releases the array. Each Signal links only accepted edges. A render stamps
+Consumers reuse dependency edges. Each Signal links only accepted edges. A render stamps
 the edges it reads. Acceptance attaches new edges, reuses unchanged edges, and detaches conditional
 dependencies no longer read. Failure discards provisional edges; terminal teardown detaches every
 edge before user cleanup and clears consumer references. A long-lived Signal must not retain a
 retired View, its session, captured objects, or native artifact.
 
-After removal, each consumer may retain at most eight cleared edge records for reuse. These
+After removal, each consumer may retain a bounded set of cleared edge records for reuse. These
 records have no Signal reference and never move to another consumer. Rejection can return only
 provisional edges; previously accepted edges must remain subscribed. Retirement drops all spare
-storage. Small branch changes reuse records after warmup without retaining old Signal values.
+storage. See [Performance](PERFORMANCE.md#dependency-lookup-strategy) for lookup thresholds and
+storage policies; these tuning choices do not change subscription semantics.
 
 An observation also records the Signal's change revision. If a value changes between observation
 and acceptance, acceptance installs the dependency and immediately invalidates that consumer.
@@ -67,9 +66,9 @@ reactive scheduler or per-View epoch is needed.
 
 ## Demand artifacts and native transport
 
-ABI 7 adds required `accept_artifact(session, source, artifact)` after native range decoding and
+ABI 7 requires `accept_artifact(session, source, artifact)` after native range decoding and
 row-count validation, after the output borrow ends. Root dependencies commit at the existing root
-acknowledgement. Range dependencies commit only at this new acknowledgement. Decode or acceptance
+acknowledgement. Range dependencies commit only at artifact acknowledgement. Decode or acceptance
 failure releases the artifact; duplicate or mismatched acceptance is a protocol fault.
 
 A row-only Signal change queues the artifact's non-reused `(source, artifact)` identity once.
@@ -82,6 +81,9 @@ The existing release callback then detaches the retired artifact's dependencies 
 Ordinary Signal writes outside a framework callback use a short mutation scope on the bound
 application thread so queued artifact work is still flushed. Shared Signals may affect several
 windows in one application. Faulted or stopped sessions admit no new reactive work.
+Failure retirement may change Signals used by surviving windows. The same boundary drains any
+artifact invalidations and subsequent failures produced by that cleanup before returning to the
+caller, preserving the first notification error.
 
 Notification failure does not roll back a changed value. Propagation must visit every accepted
 subscriber, even if notifying one window fails, and must flush queued artifact invalidations before

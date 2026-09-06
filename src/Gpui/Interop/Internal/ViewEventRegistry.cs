@@ -371,8 +371,14 @@ internal sealed class ViewEventRegistry
         var entries = attachment.EventEntries ??= [];
         var scope = attachment.EventBindingScope;
         var pass = attachment.EventBindingPass;
-        for (var index = 0; index < entries.Count; index++)
+        List<int>? artifactSlots = null;
+        var demand = scope == ViewEventBindingScope.ListRange;
+        if (demand)
+            attachment.ArtifactEventSlots?.TryGetValue(attachment.EventBindingArtifact, out artifactSlots);
+        var count = demand ? artifactSlots?.Count ?? 0 : entries.Count;
+        for (var candidate = 0; candidate < count; candidate++)
         {
+            var index = demand ? artifactSlots![candidate] : candidate;
             var current = entries[index];
             if (
                 current.BinderIndex == binderIndex

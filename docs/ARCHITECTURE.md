@@ -60,6 +60,9 @@ writes without rerunning user rendering. Rust receives a borrowed completed desc
 synchronously decodes it into an owned snapshot before any further managed callback. Native row
 caches retain decoded snapshots, not the borrowed buffers. `Render()` and `[GpuiListItem]` remain
 free of observable application-side effects while allowing pure owned caches; this requirement is independent of capacity.
+Child fragment boundaries check arena identity, generation, and root index before copying. Full
+managed semantic validation runs once on the assembled root or row batch before publication;
+native decoding independently validates the complete snapshot before acceptance.
 Each root publication returns a non-reused revision. After decoding and resource reconciliation,
 Rust acknowledges it through `render_completed`. Managed props and composition commit throughout
 the tree, replaced ownership retires, all new routes activate, and effects start parent-first before native materialization.

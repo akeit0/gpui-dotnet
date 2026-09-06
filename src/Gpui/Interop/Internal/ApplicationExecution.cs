@@ -86,17 +86,28 @@ internal sealed class ApplicationExecution
         }
     }
 
-    private void FlushArtifacts()
+    private void FlushArtifacts(ref Exception? failure)
     {
         if (_reactiveSessions is null)
             return;
-        Exception? failure = null;
         foreach (var session in _reactiveSessions)
         {
             try { session.FlushReactiveArtifacts(); }
             catch (Exception exception) { session.RecordFailure(exception); failure ??= exception; }
         }
         _reactiveSessions.Clear();
+    }
+
+    private void DrainBoundary()
+    {
+        Exception? failure = null;
+        do
+        {
+            FlushArtifacts(ref failure);
+            RetireFailures();
+            // Retirement can change Signals in surviving windows. Flush those rows and
+            // retire any resulting failures before returning control to native or the caller.
+        } while (_reactiveSessions is { Count: > 0 });
         if (failure is not null)
             System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
@@ -113,12 +124,8 @@ internal sealed class ApplicationExecution
         {
             if (execution is not null)
             {
-                try { execution.FlushArtifacts(); }
-                finally
-                {
-                    try { execution.RetireFailures(); }
-                    finally { execution.Phase = ExecutionPhase.Idle; Current = null; }
-                }
+                try { execution.DrainBoundary(); }
+                finally { execution.Phase = ExecutionPhase.Idle; Current = null; }
             }
         }
     }

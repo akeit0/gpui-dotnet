@@ -4,7 +4,7 @@ namespace Gpui;
 
 internal static unsafe class ManagedValidator
 {
-    internal static void Validate(RenderArena* arena, Element root)
+    internal static void ValidateRoot(RenderArena* arena, Element root)
     {
         if (root.Arena != arena || root.Generation != arena->Generation)
         {
@@ -17,6 +17,11 @@ internal static unsafe class ManagedValidator
         {
             throw new InvalidOperationException("Root node is outside the node arena.");
         }
+    }
+
+    internal static void Validate(RenderArena* arena, Element root)
+    {
+        ValidateRoot(arena, root);
 
         for (var i = 0; i < arena->NodeLength; i++)
         {

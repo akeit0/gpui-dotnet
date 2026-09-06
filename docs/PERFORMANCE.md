@@ -23,6 +23,16 @@ After arena warmup:
 
 Do not replace this model with per-element or per-style P/Invoke calls.
 
+Child fragments check root identity, generation, and index before copying. Full managed semantic
+validation runs once per assembled root or row batch, preserving diagnostics without rescanning
+descendants at every fragment boundary. Native validation remains authoritative at acceptance.
+Wrapper and Dock validation can still require repeated scans within that single managed pass;
+this is not a claim of linear validation cost or a measured end-to-end speedup.
+
+Acceptance activates only newly mounted Views. Factory-owned child slots reuse accepted children;
+unaccepted candidates retain ownership edges solely for failed-render cleanup. Retirement scratch
+collections clear their View references immediately after use while retaining collection capacity.
+
 ## View and Signal creation
 
 Release measurements on Windows x64 / .NET 10.0.11:
@@ -44,7 +54,7 @@ cancellation source. The construction probe stores every instance in a prealloca
 the objects observable while excluding array allocation. It warms type initialization; these are
 fresh object costs, not process startup costs.
 
-The first accepted render of an already constructed test root returning only constant Text allocates **1,416 managed
+The first accepted render of an already constructed test root returning only constant Text allocates **1,408 managed
 bytes** in the session fixture. This includes preparation, retained/render bookkeeping, first
 capacity growth, and acceptance/mounting. View/application/session construction and disposal are
 outside that interval. The fixture renders roots sequentially, so the bounded attachment pool is
@@ -306,6 +316,8 @@ Each batch retains its own managed event lease. Eviction or invalidation adds on
 callback per retired batch, never per row. Cache hits require no managed call. Binding storage is
 reused after release, while external event IDs never alias a later binding. Two row engines using
 the same generated renderer have independent source IDs and leases.
+Equivalent row bindings search only their current artifact's live slots, independently of root
+bindings, other cached batches, and unused storage slots.
 
 `ListDataSource(count, contentRevision)` lets batches survive unrelated root renders. Increment the
 revision only when row output can change. Theme changes and table column changes invalidate row

@@ -144,7 +144,7 @@ internal sealed unsafe partial class ManagedSession
                 var ui = state.Fragment.BeginRender(this, view, _application.Theme);
                 var element = view.Runtime.RenderCore(ref ui);
                 ThrowIfUnavailable();
-                state.Fragment.Validate(element);
+                ManagedValidator.ValidateRoot(state.Fragment.NativeArena, element);
                 view.ValidateRenderInputs();
                 state.Root = element.Node;
                 CompleteComposition(view);
@@ -172,7 +172,6 @@ internal sealed unsafe partial class ManagedSession
         state.Consumer ??= new ReactiveConsumer(this, view);
         state.Dirty = true;
         state.WorkingChildren?.Clear();
-        state.WorkingViews?.Clear();
         state.WorkingNextPosition = 0;
     }
 
@@ -189,7 +188,6 @@ internal sealed unsafe partial class ManagedSession
             state.StagedChildren
         );
         state.WorkingChildren?.Clear();
-        state.WorkingViews?.Clear();
         state.HasStagedComposition = true;
     }
 
@@ -202,7 +200,6 @@ internal sealed unsafe partial class ManagedSession
 
         var state = GetRenderState(view);
         state.WorkingChildren?.Clear();
-        state.WorkingViews?.Clear();
         state.WorkingNextPosition = 0;
     }
 
@@ -255,16 +252,7 @@ internal sealed unsafe partial class ManagedSession
                         "A committed child View is missing its retained render state."
                     );
                 }
-                if (
-                    childState.Parent is not null
-                    && !ReferenceEquals(childState.Parent, current)
-                )
-                {
-                    throw new InvalidOperationException(
-                        "A managed child View cannot be committed under multiple parents."
-                    );
-                }
-                childState.Parent = current;
+                System.Diagnostics.Debug.Assert(ReferenceEquals(childState.Parent, current));
                 _snapshotStack.Push(entry.View);
             }
         }
@@ -281,6 +269,8 @@ internal sealed unsafe partial class ManagedSession
                 RecordFailure(exception);
             }
         }
+        _unmountCandidates.Clear();
+        _unmountVisited.Clear();
 
         for (var index = _acceptedViews.Count - 1; index >= 0; index--)
             if (_acceptedViews[index].Ownership.Effects is { } effects)
@@ -289,7 +279,8 @@ internal sealed unsafe partial class ManagedSession
         foreach (var view in _acceptedViews)
         {
             ThrowIfUnavailable();
-            view.Runtime.MountRuntime();
+            if (!view.Runtime.IsMounted)
+                view.Runtime.MountRuntime();
         }
         foreach (var view in _acceptedViews)
         {

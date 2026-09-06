@@ -80,15 +80,13 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         ChildSlot slot
     )
     {
-        EnsureNotRecursive(child);
-        var childState = PrepareOwnership(child, parent);
         try
         {
             Attach(child);
+            GetRenderState(child).Parent = parent;
         }
         catch
         {
-            RollBackPreparedOwnership(child, childState, parent);
             child.Runtime.UnmountRuntime();
             throw;
         }
@@ -96,16 +94,6 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         var entry = new ChildEntry(child);
         GetCandidates(parentState)[slot] = entry;
         RegisterWorkingChild(parentState, slot, entry);
-    }
-
-    private void EnsureNotRecursive(ViewBase child)
-    {
-        if (_renderingViews.Contains(child))
-        {
-            throw new InvalidOperationException(
-                "Managed views cannot recursively render themselves."
-            );
-        }
     }
 
     private static bool TryGetFrameworkChild<TView>(
@@ -126,15 +114,6 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         }
 
         if (
-            parentState.Candidates is not null
-            && parentState.Candidates.TryGetValue(slot, out entry)
-            && entry.View.GetType() == typeof(TView)
-        )
-        {
-            return true;
-        }
-
-        if (
             parentState.Children is not null
             && parentState.Children.TryGetValue(slot, out entry)
             && entry.View.GetType() == typeof(TView)
@@ -145,42 +124,6 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
 
         entry = default;
         return false;
-    }
-
-    private RetainedViewState PrepareOwnership(ViewBase child, ViewBase parent)
-    {
-        var childState = GetRenderState(child);
-        if (childState.Parent is not null && !ReferenceEquals(childState.Parent, parent))
-        {
-            throw new InvalidOperationException(
-                $"Managed View '{child.GetType().Name}' is already owned by "
-                    + $"'{childState.Parent.GetType().Name}'. A View instance may have only one parent."
-            );
-        }
-        childState.Parent = parent;
-        return childState;
-    }
-
-    private void RollBackPreparedOwnership(
-        ViewBase child,
-        RetainedViewState childState,
-        ViewBase parent
-    )
-    {
-        if (
-            !_attachedViews.Contains(child)
-            && ReferenceEquals(childState.Parent, parent)
-            && (childState.Children is null || childState.Children.Count == 0)
-            && (childState.Candidates is null || childState.Candidates.Count == 0)
-            && !childState.HasStagedComposition
-        )
-        {
-            childState.Parent = null;
-            if (_renderStates.Remove(child, out var removed))
-            {
-                removed.Fragment?.Dispose();
-            }
-        }
     }
 
     private static ChildSlot NormalizeSlot(RetainedViewState state, ChildSlot requestedSlot)
@@ -214,16 +157,8 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         RetainedViewState parentState,
         ChildSlot slot,
         ChildEntry entry
-    )
-    {
-        if (!GetWorkingViews(parentState).Add(entry.View))
-        {
-            throw new InvalidOperationException(
-                "The same managed child View instance cannot be rendered in multiple slots of one parent."
-            );
-        }
+    ) =>
         GetWorkingChildren(parentState).Add(slot, entry);
-    }
 
     private void EnsureParentIsRendering(ViewBase parent)
     {

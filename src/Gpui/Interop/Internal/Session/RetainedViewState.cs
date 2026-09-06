@@ -17,6 +17,6 @@ internal sealed class RetainedViewState
     internal Dictionary<ChildSlot, ChildEntry>? Children;
     internal Dictionary<ChildSlot, ChildEntry>? WorkingChildren;
     internal Dictionary<ChildSlot, ChildEntry>? StagedChildren;
+    // Preserve unaccepted ownership edges for child-first cleanup after a failed render.
     internal Dictionary<ChildSlot, ChildEntry>? Candidates;
-    internal HashSet<ViewBase>? WorkingViews;
 }

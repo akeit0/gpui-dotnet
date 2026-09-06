@@ -272,7 +272,4 @@ internal sealed unsafe partial class ManagedSession
 
     private static Dictionary<ChildSlot, ChildEntry> GetCandidates(RetainedViewState state) =>
         state.Candidates ??= [];
-
-    private static HashSet<ViewBase> GetWorkingViews(RetainedViewState state) =>
-        state.WorkingViews ??= new HashSet<ViewBase>(ViewIdentity);
 }

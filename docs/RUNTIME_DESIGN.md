@@ -1,8 +1,8 @@
 # Runtime design
 
-This design refines [RUNTIME_PLAN.md](RUNTIME_PLAN.md). ABI 7 uses single-pass managed-owned
-arenas, explicit native acceptance, and cached-range artifact leases. The older runtime specification's capacity
-retry protocol is superseded: user rendering must never be repeated to grow storage.
+ABI 7 uses single-pass managed-owned arenas, explicit native acceptance, and cached-range artifact
+leases. Arenas grow before writes without repeating user rendering. The authoring and acceptance
+contracts are defined in [View lifecycle](VIEW_LIFECYCLE.md).
 
 ## Execution and fault ownership
 
@@ -27,27 +27,28 @@ callback throws. The application's final error report may retain a session's fai
 it does not act as an independent recovery mechanism. Metadata updates invalidate
 healthy sessions but cannot revive a faulted session; restarting is required.
 
-Regression tests for each subsequent phase should be introduced immediately before its fix so
-the normal suite remains an executable acceptance gate throughout migration.
+The outer execution boundary flushes row invalidations and retires failed sessions. Cleanup can
+invalidate rows in surviving windows, so the boundary drains that work and any resulting failures
+before returning, retaining the first error. The ordinary successful path needs one flush.
 
 ## Acceptance and resource presence
 
-Preparation allocates identity and declaration storage without invoking user code.
-After validation, commit the entire reachable composition and props before invoking
-any lifecycle callback. Mount parent before child outside user rendering. Retirement
-of an unaccepted candidate cancels lifetime and releases registered local resources without starting effects.
-Mounting failures fault the session and cleanup remains child-first.
+Runtime preparation allocates identity and declaration storage without invoking user code.
+Acceptance follows the [whole-tree sequence](VIEW_LIFECYCLE.md#acceptance-and-retirement-order):
+commit reachable state, retire removed relationships, activate all new routes, then start effects
+parent-before-child. Retirement of an unaccepted candidate cancels lifetime and releases registered
+local resources without starting effects. Setup failures fault the session; cleanup remains child-first.
 
 Managed acceptance alone must not be confused with Rust accepting the published
 arena. An explicit native acceptance acknowledgement follows validation of the decoded root
 and retained resource declarations. The acknowledgement commits
-managed state and schedules mounting before normal external dispatch resumes. Do not
-mount inside the render-output callback and call that native acceptance.
+managed state and activates routes and effects before normal external dispatch resumes.
+The render-output callback only publishes a candidate snapshot.
 
 The acknowledgement protocol uses a non-reused 64-bit revision returned by root rendering.
 Rust decodes the borrowed arena and reconciles resource declarations, then calls
 `render_completed(session, revision, status)` exactly once for successfully published output.
-Status zero accepts it; a decode failure faults the session without mounting candidates.
+Status zero accepts it; a decode failure faults the session without activating candidates.
 Until acknowledgement, reject new root/range rendering and user dispatch. Commit all managed
 props and composition before whole-tree route activation and parent-first effect setup. Invalidation from effect setup queues a later
 frame; it never changes the accepted snapshot in place. The acknowledgement is a required ABI callback.
@@ -55,7 +56,7 @@ frame; it never changes the accepted snapshot in place. The acknowledgement is a
 Signal updates while publication awaits acknowledgement must survive clearing staged ancestors.
 Those View invalidations enter the existing coalesced ingress queue. During acceptance itself,
 consumers commit parent-before-child, so revision-gap invalidations can mark their already-committed
-ancestor path immediately. Mount hooks run after the entire tree commits.
+ancestor path immediately. Effect setup runs after the entire tree commits.
 
 Native row cache ownership also follows the frame: layout/prepaint pins requested batches, and
 post-prepaint trimming evicts only idle batches. This does not delay explicit source or owner
@@ -70,7 +71,7 @@ rule, including UTF-8 Input commands. Native ingress assigns the generation from
 accepted-presence index; the queued command retains it and validates it again before delivery.
 This avoids duplicating native resource-key decoding in managed code or adding generation
 fields to every command ABI record. Publish the index before the acceptance acknowledgement,
-so commands from mounting see accepted resources even before physical materialization.
+so commands from effect setup see accepted resources even before physical materialization.
 
 ## Events and demand artifacts
 
@@ -143,8 +144,9 @@ through ingress. Check the one-shot owner lifetime when consuming the completion
 even if production ignored cancellation. Only a live owner may run the apply callback.
 Producer diagnostics require directly supplied static lambdas or methods, without claiming
 that arbitrary request objects can be proven deeply immutable. Event diagnostics reject
-async handlers and discarded tasks; View-bound registration also rejects indirect async-void
-delegates. See [Asynchronous work](ASYNC_WORK.md) for the ownership and diagnostic contracts.
+visible async handlers and discarded tasks. Indirect delegates carry the same synchronous
+contract without runtime delegate reflection. See [Asynchronous work](ASYNC_WORK.md) for the
+ownership and diagnostic contracts.
 
 ## Verification gates
 
@@ -153,13 +155,14 @@ cross-window thread identity, nested callbacks, first-fault retention, dispatch 
 fault, and complete teardown after a fault. Use the actual session renderer and native
 callback entry points with a small fake native API for notification observation.
 
-Acceptance tests cover silent candidate retirement, whole-tree props commit, mount ordering and
-failure, unmatched acknowledgements, and exclusion of dispatch while awaiting acceptance. Native
-tests cover acknowledgement after decoding, absence rejection, and generation checks at command
+Acceptance tests cover candidate cleanup without effect setup, whole-tree props commit, route
+activation, effect ordering and failure, unmatched acknowledgements, and exclusion of dispatch
+while awaiting acceptance. Native tests cover acknowledgement after decoding, absence rejection,
+and generation checks at command
 delivery. Event and artifact tests cover stale-token dispatch, independent sources and ranges,
 capture release, bounded slot reuse, native eviction and invalidation, and declaration removal
-while a frame retains the engine. Late-completion and dependency regressions remain required
-gates for the open phases. Measure warm allocations and native crossings after
+while a frame retains the engine. Late-completion and dependency regressions exercise revocation
+and accepted observation boundaries. Measure warm allocations and native crossings after
 correctness is established. Run binding verification, managed/native suites, formatting,
 and sample builds. Windows behavior and macOS behavior need separate platform evidence;
 a managed test or Windows build does not verify the macOS title bar or menu path.

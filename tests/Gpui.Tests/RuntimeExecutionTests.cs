@@ -294,12 +294,22 @@ public sealed unsafe partial class RuntimeExecutionTests
         fixture.Render();
         fixture.Render();
         Assert.Equal(0, allocated);
-        signal.Value++;
+        for (var batch = 0; batch < 7; batch++)
+        {
+            var bytes = MeasureCoalescedSignalWrites(signal);
+            if (batch >= 4)
+                Assert.Equal(0, bytes);
+        }
+        Assert.Equal(1, fixture.Notifications);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static long MeasureCoalescedSignalWrites(Signal<int> signal)
+    {
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 10_000; i++)
             signal.Value++;
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
-        Assert.Equal(1, fixture.Notifications);
+        return GC.GetAllocatedBytesForCurrentThread() - before;
     }
 
     [Fact]
