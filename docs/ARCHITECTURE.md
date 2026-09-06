@@ -59,10 +59,10 @@ Managed code owns reusable root, retained-fragment, and range-output arenas. Buf
 writes without rerunning user rendering. Rust receives a borrowed completed descriptor and
 synchronously decodes it into an owned snapshot before any further managed callback. Native row
 caches retain decoded snapshots, not the borrowed buffers. `Render()` and `[GpuiListItem]` remain
-deterministic and free of application-side effects; this requirement is independent of capacity.
+free of observable application-side effects while allowing pure owned caches; this requirement is independent of capacity.
 Each root publication returns a non-reused revision. After decoding and resource reconciliation,
 Rust acknowledges it through `render_completed`. Managed props and composition commit throughout
-the tree, replaced subtrees retire, and new Views mount parent-first before native materialization.
+the tree, replaced ownership retires, all new routes activate, and effects start parent-first before native materialization.
 Normal external callbacks cannot enter between publication and acceptance.
 
 The native `ManagedView` keeps the last valid snapshot. A clean GPUI repaint materializes or paints
@@ -73,8 +73,9 @@ ancestor. Retained tree state uses the application execution guard and needs no 
 
 ## Managed view tree
 
-Each window has one `ManagedSession` and one root `View`. Framework-owned children are resolved by
-slot through source-generated factories. A slot retains the same child while its requested type is
+Each window has one `ManagedSession` and one root `View` or `View<TProps>`. Roots and children consume
+typed Spec declarations and construct through the same generated factory under a pre-existing ownership
+scope on the application thread. Framework-owned children are resolved by slot. A slot retains the same child while its requested type is
 unchanged; a keyed slot can replace its child type for routes and tabs.
 
 UI ownership, rather than CLR reachability, defines lifetime. An open window owns its root and a
@@ -83,7 +84,8 @@ Unmount is terminal; an instance that leaves its window or slot cannot join anot
 
 `ViewBase` is the authoring boundary. Its composed `ViewRuntime` coordinates one-shot identity,
 lifetime, and mounting. A stable, non-pooled `ViewCommandRoute` admits any-thread commands.
-`MountedViewAttachment` owns the UI handle, resource-key sequence, optional `WorkScope`, and
+`ViewOwnership` owns construction cleanup, memos, and effect handles. `ViewRuntime` owns the optional
+View work handle. `MountedViewAttachment` owns the UI handle, resource-key sequence, and
 `ViewEventRegistry`; the registry owns event tokens and artifact leases. Unmount deactivates the
 route, retires optional capabilities, and resets pooled attachment storage before user cleanup.
 See [Managed View runtime](VIEW_RUNTIME.md) for responsibility and lifetime boundaries.
@@ -97,13 +99,12 @@ its ancestors dirty. Application-wide theme changes invalidate every retained fr
 theme is ambient render input rather than child props.
 
 Completing a managed fragment only stages it. Dirty flags clear for reachable staged compositions
-when native accepts the root, before mount hooks run. Rejection leaves the flags dirty. Requests
+when native accepts the root, before effect setup runs. Rejection faults the session and retires its Views. Requests
 queued during rendering or pending acceptance are consumed by a later render, so accepting the
 current snapshot cannot erase a newer invalidation.
 
-New children are prepared without lifecycle hooks and remain session-owned candidates until native
-acceptance. Tree replacement commits the new composition before terminally unmounting the old
-subtree; abandoned Prepared candidates retire without lifecycle hooks. Unmount proceeds child-first. See
+New children construct owned local state and remain session-owned candidates until native acceptance. Tree replacement commits the new composition before terminally unmounting the old
+subtree; abandoned candidates release local ownership without starting effects. Unmount proceeds child-first. See
 [VIEW_LIFECYCLE.md](VIEW_LIFECYCLE.md).
 
 ## Reactive state
@@ -133,8 +134,8 @@ ends. A later declaration under the same key creates a new generation. Declarati
 measurement hints such as `Splice` and `Refresh` are committed with the next compatible snapshot;
 a mismatch falls back to a safe reset.
 Extension payloads are copied before returning through FFI and may wait for the first matching
-resource materialization within that generation. Presence is published before mount hooks, so
-`OnMounted` can command its accepted resources before they materialize.
+resource materialization within that generation. Presence is published before effect setup, so
+accepted effect setup can command its resources before they materialize.
 
 ## Virtual datasource path
 

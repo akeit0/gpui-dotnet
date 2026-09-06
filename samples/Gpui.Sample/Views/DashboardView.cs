@@ -10,7 +10,7 @@ internal sealed partial class DashboardView : View
     private bool _foundationChecked;
     private int _foundationRadio;
 
-    protected override void OnMounted(ref ViewContext context)
+    public DashboardView(ViewConstruction context) : base(context)
     {
         _scroll = context.CreateScrollController("overview-scroll");
     }
@@ -23,13 +23,13 @@ internal sealed partial class DashboardView : View
         Element secondCounter;
         if (_reverseCounters)
         {
-            firstCounter = ui.Child<CounterCardView, CounterCardProps>("beta", in betaProps);
-            secondCounter = ui.Child<CounterCardView, CounterCardProps>("alpha", in alphaProps);
+            firstCounter = ui.Child("beta", CounterCardView.Spec(betaProps));
+            secondCounter = ui.Child("alpha", CounterCardView.Spec(alphaProps));
         }
         else
         {
-            firstCounter = ui.Child<CounterCardView, CounterCardProps>("alpha", in alphaProps);
-            secondCounter = ui.Child<CounterCardView, CounterCardProps>("beta", in betaProps);
+            firstCounter = ui.Child("alpha", CounterCardView.Spec(alphaProps));
+            secondCounter = ui.Child("beta", CounterCardView.Spec(betaProps));
         }
 
         var controls = ui.HStack(

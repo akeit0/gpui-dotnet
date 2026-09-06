@@ -27,7 +27,7 @@ component model.
 
 - Reloading Rust code, the native library, the semantic schema, or the C ABI.
 - Supporting NativeAOT, trimming-oriented Release builds, or arbitrary runtime assembly plugins.
-- Re-running constructors or `OnMounted()` for already mounted Views.
+- Re-running constructors for already accepted Views.
 - Migrating state across a changed View base type, props type, or generic shape.
 - Watching JSON settings, image files, or other content files. Those need separate content-reload
   policies.
@@ -92,7 +92,7 @@ important than selective invalidation.
 The handler can run on a non-GPUI thread. It therefore:
 
 - use only thread-safe application/session ingress;
-- never call `Render()`, lifecycle hooks, event handlers, or controller methods directly;
+- never call Render, effect setup/cleanup, event handlers, or controller methods directly;
 - tolerate applications starting or stopping concurrently;
 - isolate failures per application and never throw through the runtime's metadata-update callback.
 
@@ -118,8 +118,12 @@ This preserves:
 - lazy lifetime tokens and mounted ownership;
 - event-entry storage until the updated render declares the next binding pass.
 
-The update must not remount the tree. `OnMounted()` and constructors describe one-shot lifetime and
-are not refresh hooks. Changes to them apply only to subsequently created instances.
+The update does not remount the tree or rerun constructors. Before the next render, application-thread
+ingress clears owned memo entries and marks effect code generations changed. The next accepted
+declaration replaces each effect even when its inputs are equal. Old callbacks and work are revoked,
+cleanup runs, and setup executes again. Semantic state and native resource identity remain preserved.
+Changes to constructors and constructor-created callback selection apply to new instances or require
+restart; compatible setup method-body edits apply through effect replacement.
 
 ## Native invalidation
 
@@ -188,7 +192,8 @@ error and restart the application. Healthy windows continue to accept compatible
 | Change an existing `[GpuiListItem]` body | Native batches clear and rows regenerate lazily |
 | Add the first `[GpuiListItem]` | Supported after stable generated scaffolding |
 | Add an ordinary field | Runtime-dependent; existing instances receive no constructor migration |
-| Change constructor, initializer, or `OnMounted()` | Existing instances are not reinitialized |
+| Change constructor or initializer | Existing instances are not reinitialized |
+| Change effect setup method body or memo calculation | Effects replace and derived caches clear after code update |
 | Change View base type, `TProps`, generic constraints, or incompatible signatures | Restart |
 | Change generated/native binding code, Rust, schema, or ABI | Rebuild and restart |
 | Change JSON settings or file assets | Outside metadata Hot Reload |
@@ -203,10 +208,6 @@ Automated managed tests verify handler registration and harmless updates when no
 running. Generator tests verify that a View with no row renderer still receives the stable generated
 row scaffold. Native tests verify command scoping and that ambient managed-render changes clear
 retained List/Table row batches.
-
-The macOS sample has also been exercised under `dotnet watch`: a method-body edit to the mounted root
-View reached the metadata handler and immediately rendered the updated method without restarting the
-process. Adding the first `[GpuiListItem]` to an existing View also applied in process.
 
 Broader framework tests should continue to cover:
 

@@ -2,31 +2,29 @@ using Gpui;
 using static Gpui.Units;
 
 [GpuiView]
-internal sealed partial class CompanionWindowView : View
+internal sealed partial class CompanionWindowView : View<string>
 {
     private int _localCount;
 
-    internal string Origin { get; init; } = "Opened by the sample";
-    internal GpuiWindow? Window { get; set; }
+    private readonly GpuiWindow Window;
+    public CompanionWindowView(ViewConstruction construction, string initialProps) : base(construction) => Window = construction.Window;
 
     private void CloseWindow()
     {
-        (
-            Window ?? throw new InvalidOperationException("The companion has no window handle.")
-        ).Close();
+        Window.Close();
     }
 
-    protected override Element Render(ref RenderContext ui)
+    protected override Element Render(in string props, ref RenderContext ui)
     {
         var theme = ui.Theme;
-        var windowId = Window?.Id ?? 0;
+        var windowId = Window.Id;
         return ui.VStack(
                 ui.HStack(
                         ui.VStack(
                                 ui.Text("Companion workspace"u8)
                                     .FontSize(Px(theme.Typography.Large))
                                     .TextColor(theme.Colors.Text),
-                                ui.Text(Origin)
+                                ui.Text(props)
                                     .FontSize(Px(theme.Typography.Detail))
                                     .TextColor(theme.Colors.TextMuted)
                             )

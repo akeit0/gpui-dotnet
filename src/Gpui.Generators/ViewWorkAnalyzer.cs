@@ -35,7 +35,7 @@ public sealed class ViewWorkAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeInvocation(OperationAnalysisContext context)
     {
         var invocation = (IInvocationOperation)context.Operation;
-        if (invocation.TargetMethod.Name != "Start"
+        if (invocation.TargetMethod.Name is not ("Start" or "StartLatest")
             || invocation.TargetMethod.ContainingType.ToDisplayString() != "Gpui.WorkScope")
             return;
 

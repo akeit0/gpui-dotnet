@@ -434,7 +434,8 @@ public sealed class NativeExtensionTests
         );
         try
         {
-            Assert.False(view.Editor.IsBound);
+            Assert.True(view.Editor.IsBound);
+            Assert.False(view.Runtime.IsMounted);
             using var arena = new RenderArenaOwner();
             var ui = arena.BeginRender(new ExtensionNoopRenderer(), view);
             var editor = ui.Editor(
@@ -509,11 +510,12 @@ public sealed class NativeExtensionTests
 
     private sealed class ExtensionProbeView : View
     {
+        public ExtensionProbeView() : this(TestViews.Construction()) { }
+        public ExtensionProbeView(ViewConstruction construction) : base(construction) =>
+            Editor = construction.CreateEditorController("document");
+
         internal EditorController Editor { get; private set; }
         internal byte ExtensionEventValue { get; set; }
-
-        protected override void OnMounted(ref ViewContext context) =>
-            Editor = context.CreateEditorController("document");
 
         protected override Element Render(ref RenderContext ui) => ui.Div();
     }
@@ -544,7 +546,7 @@ public sealed class NativeExtensionTests
             RenderArena* destination
         )
             where TProps : IEquatable<TProps>
-            where TView : View<TProps>, IGeneratedViewFactory<TView> =>
+            where TView : View<TProps>, IGeneratedViewFactory<TView, TProps> =>
             throw new NotSupportedException();
     }
 }

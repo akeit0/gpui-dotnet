@@ -15,7 +15,7 @@ internal sealed partial class ImageGalleryView : View
         "gpui.svg"
     );
 
-    protected override void OnMounted(ref ViewContext context)
+    public ImageGalleryView(ViewConstruction context) : base(context)
     {
         _scroll = context.CreateScrollController("images-scroll");
     }

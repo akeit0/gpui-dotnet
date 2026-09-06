@@ -32,7 +32,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     private int _notificationPending;
     private ulong _nextRenderRevision;
     private ulong _pendingRenderRevision;
-    private readonly List<ViewBase> _mountCandidates = [];
+    private readonly List<ViewBase> _acceptedViews = [];
 
     internal ulong PendingRenderRevision => _pendingRenderRevision;
 
@@ -55,22 +55,63 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         SynchronizationContext = new GpuiSynchronizationContext(this);
     }
 
-    internal View RootView { get; }
+    private RootViewDeclaration? _rootDeclaration;
+    private readonly GpuiWindow? _window;
+    private ViewBase? _rootView;
+    internal ViewBase RootView
+    {
+        get => _rootView ?? throw new InvalidOperationException("Root construction has not run.");
+        private set => _rootView = value;
+    }
+
+    internal ManagedSession(NativeRuntime runtime, GpuiApplication application, ulong sessionId,
+        RootViewDeclaration declaration, GpuiWindow window)
+    {
+        _runtime = runtime;
+        _application = application;
+        _sessionId = sessionId;
+        _rootDeclaration = declaration;
+        _window = window;
+        SynchronizationContext = new GpuiSynchronizationContext(this);
+    }
     internal SynchronizationContext SynchronizationContext { get; }
     internal Exception? Failure => Volatile.Read(ref _failure)?.SourceException;
 
-    internal void RecordFailure(Exception exception)
+    private int _failureWakePending;
+
+    internal void RecordFailure(Exception exception, bool deferCleanup = false)
     {
         if (Volatile.Read(ref _failure) is null)
         {
             Interlocked.CompareExchange(ref _failure, ExceptionDispatchInfo.Capture(exception), null);
         }
         DiscardIngress();
+        if (deferCleanup || (ReferenceEquals(ApplicationExecution.Current, Execution)
+            && Execution.Phase is ExecutionPhase.ArtifactRelease or ExecutionPhase.ArtifactAcceptance))
+        {
+            // Artifact callbacks cannot invoke application cleanup while native reconciles resources.
+            if (Interlocked.Exchange(ref _failureWakePending, 1) == 0)
+                try { _runtime.NotifyView(_sessionId); } catch (Exception) { }
+            return;
+        }
+        if (ReferenceEquals(ApplicationExecution.Current, Execution)) Execution.ScheduleFailure(this);
+        else if (ApplicationExecution.Current is null && Execution.HasAccess)
+        {
+            using var cleanup = Execution.Enter(ExecutionPhase.Cleanup);
+            Execution.ScheduleFailure(this);
+        }
     }
 
-    private void ThrowIfUnavailable()
+    private void ThrowIfUnavailable() => ThrowIfUnavailable(retireFailure: true);
+
+    private void ThrowIfUnavailable(bool retireFailure)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _stopped) != 0, this);
+        if (retireFailure && Failure is not null && ApplicationExecution.Current is null && Execution.HasAccess)
+        {
+            using var cleanup = Execution.Enter(ExecutionPhase.Cleanup);
+            Execution.ScheduleFailure(this);
+        }
         Volatile.Read(ref _failure)?.Throw();
     }
 
@@ -113,8 +154,11 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
 
     internal void PrepareManagedCodeUpdate()
     {
+        Interlocked.Exchange(ref _codeUpdatePending, 1);
         InvalidateAllViews(notify: false);
     }
+
+    private int _codeUpdatePending;
 
     private void InvalidateAllViews(bool notify)
     {
@@ -266,6 +310,8 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         }
         ThrowIfUnavailable();
         Execution.SetPhase(ExecutionPhase.Render);
+        if (Interlocked.Exchange(ref _codeUpdatePending, 0) != 0)
+            foreach (var view in _attachedViews) view.Ownership.ClearCaches();
     }
 
     private void EndRendering()

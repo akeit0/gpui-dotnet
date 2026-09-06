@@ -255,7 +255,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
             throw new InvalidOperationException("The GPUI application is stopping.");
         }
 
-        var session = new ManagedSession(_runtime, _application, window.Id, window.RootView);
+        var session = new ManagedSession(_runtime, _application, window.Id, window.TakeRootDeclaration(), window);
         if (!_sessions.TryAdd(window.Id, session))
         {
             throw new InvalidOperationException("Failed to register the managed window session.");

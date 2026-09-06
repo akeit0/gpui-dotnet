@@ -312,11 +312,14 @@ public sealed partial class RuntimeExecutionTests
         using var fixture = new SessionFixture(new ProbeView());
         fixture.Render();
         var failure = new InvalidOperationException("terminal session");
+        var work = fixture.View.Runtime.GetWorkScope();
         fixture.Session.RecordFailure(failure);
-        Assert.Same(failure, Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>(() =>
         {
-            _ = fixture.View.Runtime.GetWorkScope().StartCore(0,1, static (value, _) => Task.FromResult(value), (_, _) => { });
-        }));
+            _ = work.StartCore(0,1, static (value, _) => Task.FromResult(value), (_, _) => { });
+        });
+        Assert.Same(failure, fixture.Session.Failure);
+        Assert.True(fixture.View.Runtime.IsUnmounted);
         Assert.Equal(0, fixture.Notifications);
     }
 

@@ -78,7 +78,7 @@ public sealed class ViewLifetimeTests
         var view = new LifecycleView { ThrowDuringUnmount = true };
         Attach(view);
 
-        Assert.Throws<InvalidOperationException>(view.Runtime.UnmountRuntime);
+        Assert.Throws<AggregateException>(view.Runtime.UnmountRuntime);
 
         Assert.True(view.Unmounted);
         Assert.True(view.ViewLifetime.IsCancellationRequested);
@@ -102,7 +102,7 @@ public sealed class ViewLifetimeTests
     }
 
     [Fact]
-    public void UncommittedCandidatePropsRemainAvailableForUnmountCleanup()
+    public void UncommittedCandidateNeverPublishesCleanupProps()
     {
         var view = new PropsLifecycleView();
         view.Stage(new PropsPayload("candidate"));
@@ -111,7 +111,7 @@ public sealed class ViewLifetimeTests
 
         view.Runtime.UnmountRuntime();
 
-        Assert.Equal("candidate", view.UnmountedValue);
+        Assert.Null(view.UnmountedValue);
         Assert.Throws<InvalidOperationException>(view.ReadValue);
     }
 
@@ -203,10 +203,18 @@ public sealed class ViewLifetimeTests
             static () => { }
         );
         view.Runtime.MountRuntime();
+        try
+        {
+            if (view is LifecycleView lifecycle) lifecycle.Activate();
+        }
+        catch { view.Runtime.UnmountRuntime(); throw; }
     }
 
     private sealed class LifecycleView : View
     {
+        public LifecycleView() : this(TestViews.Construction()) { }
+        public LifecycleView(ViewConstruction construction) : base(construction) { }
+
         internal bool ThrowDuringMount { get; init; }
         internal bool ThrowDuringUnmount { get; init; }
         internal int MountCount { get; private set; }
@@ -238,8 +246,9 @@ public sealed class ViewLifetimeTests
                 )
             );
 
-        protected override void OnMounted(ref ViewContext context)
+        internal void Activate()
         {
+            Ownership.Own(new TestCleanup(Retire));
             MountCount++;
             if (ThrowDuringMount)
             {
@@ -247,7 +256,7 @@ public sealed class ViewLifetimeTests
             }
         }
 
-        protected override void OnUnmounted()
+        private void Retire()
         {
             UnmountCount++;
             LifetimeWasCancelledDuringUnmount = Lifetime.IsCancellationRequested;
@@ -273,6 +282,11 @@ public sealed class ViewLifetimeTests
 
     private sealed class PropsLifecycleView : View<PropsPayload>
     {
+        public PropsLifecycleView() : this(TestViews.Construction()) { }
+        private bool _committed;
+        public PropsLifecycleView(ViewConstruction construction) : base(construction) =>
+            construction.Own(new TestCleanup(() => UnmountedValue = _committed ? CommittedProps.Value : null));
+
         internal string? UnmountedValue { get; private set; }
 
         internal void Stage(PropsPayload props) => StageProps(in props);
@@ -281,14 +295,13 @@ public sealed class ViewLifetimeTests
         {
             ValidateRenderInputs();
             CommitStagedProps();
+            _committed = true;
         }
 
         internal void RollBack() => RollBackStagedProps();
 
-        internal string ReadValue() => Props.Value;
+        internal string ReadValue() => CommittedProps.Value;
 
-        protected override void OnUnmounted() => UnmountedValue = Props.Value;
-
-        protected override Element Render(ref RenderContext ui) => ui.Div();
+        protected override Element Render(in PropsPayload props, ref RenderContext ui) => ui.Div();
     }
 }

@@ -110,7 +110,7 @@ targets; offset 36 on 32-bit targets). `release_artifact` is at offset 80/40 and
 at offset 88/44, for a total callback-table size of 96/48 bytes on 64/32-bit targets.
 
 Managed acceptance commits the complete reachable tree and props, retires replaced subtrees, then
-mounts new Views parent-first. New root/range render and event dispatch are excluded until it
+activates all new View routes, then starts effects parent-first. New root/range render and event dispatch are excluded until it
 finishes. Mount hooks can enqueue accepted-resource commands and invalidate a later frame. Native
 materialization and row requests begin only after successful acknowledgement.
 
@@ -334,7 +334,7 @@ thread. Removal retires the generation; reappearance under the same key gets a n
 already queued for the old generation are discarded. Repeated snapshots preserving a declaration
 preserve its generation. Pending materialization commands are pruned when the declaration leaves.
 The same rule applies to UTF-8 Input setters and extension commands. Presence is published before
-`render_completed`, allowing `OnMounted` to command declared resources before materialization.
+`render_completed`, allowing accepted effect setup to command declared resources before materialization.
 
 | Resource | Commands |
 |---|---|

@@ -133,7 +133,7 @@ internal static unsafe class NativeCallbacks
         }
         catch (Exception exception)
         {
-            NativeRegistry.RecordFailure(sessionId, exception);
+            NativeRegistry.RecordFailure(sessionId, exception, deferCleanup: true);
             return -109;
         }
     }
@@ -150,7 +150,7 @@ internal static unsafe class NativeCallbacks
         }
         catch (Exception exception)
         {
-            NativeRegistry.RecordFailure(sessionId, exception);
+            NativeRegistry.RecordFailure(sessionId, exception, deferCleanup: true);
             return -109;
         }
     }

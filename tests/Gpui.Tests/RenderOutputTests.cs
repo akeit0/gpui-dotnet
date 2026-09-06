@@ -226,6 +226,9 @@ public sealed unsafe class RenderOutputTests
 
     private sealed class LargeView : View
     {
+        public LargeView() : this(TestViews.Construction()) { }
+        public LargeView(ViewConstruction construction) : base(construction) { }
+
         private readonly string _text = new('x', 128);
         private readonly string _rowText = new('r', 16384);
         internal int RootCalls;
@@ -252,6 +255,9 @@ public sealed unsafe class RenderOutputTests
 
     private sealed class ThrowingView : View
     {
+        public ThrowingView() : this(TestViews.Construction()) { }
+        public ThrowingView(ViewConstruction construction) : base(construction) { }
+
         internal int Calls;
         protected override Element Render(ref RenderContext ui)
         {
@@ -263,22 +269,35 @@ public sealed unsafe class RenderOutputTests
 
     private sealed class SwitchingView : View
     {
+        public SwitchingView() : this(TestViews.Construction()) { }
+        public SwitchingView(ViewConstruction construction) : base(construction) { }
+
         internal bool Keyed;
         internal bool Second;
         protected override Element Render(ref RenderContext ui) => Second
-            ? (Keyed ? ui.Child<SecondChild>("slot") : ui.Child<SecondChild>())
-            : (Keyed ? ui.Child<FirstChild>("slot") : ui.Child<FirstChild>());
+            ? (Keyed ? ui.Child("slot", SecondChild.Spec()) : ui.Child(SecondChild.Spec()))
+            : (Keyed ? ui.Child("slot", FirstChild.Spec()) : ui.Child(FirstChild.Spec()));
     }
 
     private sealed class FirstChild : View, IGeneratedViewFactory<FirstChild>
     {
-        public static FirstChild CreateGpuiView() => new();
+        public static ViewSpec<FirstChild> Spec() => default;
+
+        public FirstChild() : this(TestViews.Construction()) { }
+        public FirstChild(ViewConstruction construction) : base(construction) { }
+
+        public static FirstChild CreateGpuiView(ViewConstruction construction) => new(construction);
         protected override Element Render(ref RenderContext ui) => ui.Div();
     }
 
     private sealed class SecondChild : View, IGeneratedViewFactory<SecondChild>
     {
-        public static SecondChild CreateGpuiView() => new();
+        public static ViewSpec<SecondChild> Spec() => default;
+
+        public SecondChild() : this(TestViews.Construction()) { }
+        public SecondChild(ViewConstruction construction) : base(construction) { }
+
+        public static SecondChild CreateGpuiView(ViewConstruction construction) => new(construction);
         protected override Element Render(ref RenderContext ui) => ui.Div();
     }
 }

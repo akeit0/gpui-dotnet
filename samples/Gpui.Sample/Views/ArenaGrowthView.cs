@@ -1,7 +1,8 @@
 using Gpui;
 using static Gpui.Units;
 
-internal sealed class ArenaGrowthView : View
+[GpuiView]
+internal sealed partial class ArenaGrowthView : View
 {
     private static readonly string LargePayload = new('x', 20 * 1024);
 

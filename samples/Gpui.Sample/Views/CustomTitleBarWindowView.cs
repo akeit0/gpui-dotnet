@@ -6,14 +6,15 @@ internal sealed partial class CustomTitleBarWindowView : View
 {
     private int _localCount;
 
-    internal GpuiWindow? Window { get; set; }
+    private readonly GpuiWindow Window;
+    public CustomTitleBarWindowView(ViewConstruction construction) : base(construction) => Window = construction.Window;
 
     protected override Element Render(ref RenderContext ui)
     {
         var theme = ui.Theme;
         var titleBar = SampleTitleBar.Render(
             ref ui,
-            $"GPUI.NET  /  Custom window {Window?.Id ?? 0}"
+            $"GPUI.NET  /  Custom window {Window.Id}"
         );
 
         var content = ui.VStack(

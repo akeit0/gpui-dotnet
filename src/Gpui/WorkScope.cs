@@ -3,13 +3,22 @@ using Gpui.Interop.Internal;
 
 namespace Gpui;
 
-/// <summary>View-owned task observation and foreground completion, acquired from ViewContext.Work.</summary>
+/// <summary>Task observation and foreground completion owned by a View or accepted effect.</summary>
 public sealed class WorkScope
 {
     private List<PendingWork>? _pendingWork;
     private ViewCommandRoute? _route;
     private CancellationToken _lifetime;
     private readonly int _threadId;
+    private ViewRuntime? _runtime;
+    private PendingWork? _latest;
+    private List<PendingWork>? _retiredWork;
+
+    internal WorkScope(ViewRuntime runtime)
+    {
+        _runtime = runtime;
+        _threadId = Environment.CurrentManagedThreadId;
+    }
 
     internal WorkScope(ViewCommandRoute route, CancellationToken lifetime, int threadId)
     {
@@ -39,36 +48,70 @@ public sealed class WorkScope
         Action<TState>? cancelled = null
     ) => _ = StartCore(state, request, produce, complete, failed, cancelled);
 
+    /// <summary>Replaces the previous latest request, revoking delivery before requesting cancellation.</summary>
+    public void StartLatest<TState, TRequest, TResult>(
+        TState state, TRequest request,
+        Func<TRequest, CancellationToken, Task<TResult>> produce,
+        Action<TState, TResult> complete,
+        Action<TState, Exception>? failed = null, Action<TState>? cancelled = null
+    ) => _ = StartCore(state, request, produce, complete, failed, cancelled, latest: true);
+
     internal PendingWork StartCore<TState, TRequest, TResult>(
         TState state,
         TRequest request,
         Func<TRequest, CancellationToken, Task<TResult>> produce,
         Action<TState, TResult> complete,
         Action<TState, Exception>? failed = null,
-        Action<TState>? cancelled = null
+        Action<TState>? cancelled = null,
+        bool latest = false
     )
     {
         ArgumentNullException.ThrowIfNull(produce);
         ArgumentNullException.ThrowIfNull(complete);
         if (_threadId != Environment.CurrentManagedThreadId)
             throw new InvalidOperationException("Work must start on the owning UI thread.");
+        ApplicationExecution.AssertEffectsAllowed();
+        if (_route is null && _runtime is not null)
+        {
+            _route = _runtime.RequireActiveRoute();
+            _lifetime = _runtime.Lifetime;
+        }
         var route = _route ?? throw new InvalidOperationException("The work scope has retired.");
         if (ApplicationExecution.Current?.Phase is ExecutionPhase.Render or ExecutionPhase.DemandRender)
             throw new InvalidOperationException("Asynchronous work cannot start during rendering.");
         route.EnsureAvailable();
 
+        var previous = latest ? _latest : null;
         var work = new PendingWork<TState, TResult>(state, complete, failed, cancelled);
         var pending = _pendingWork ??= [];
         work.Attach(this, pending.Count);
+        if (latest)
+        {
+            work.Cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime);
+            _latest = work;
+        }
         pending.Add(work);
         try
         {
+            if (previous is not null)
+            {
+                var cancellation = previous.Cancellation;
+                previous.Cancellation = null;
+                RemovePendingWork(previous);
+                try { cancellation?.Cancel(); } finally { cancellation?.Dispose(); }
+            }
+            if (!ReferenceEquals(work.Owner, this))
+            {
+                // Cancellation can synchronously start a newer request or retire this scope.
+                work.Observe(null, null, true);
+                return work;
+            }
             Task<TResult>? task = null;
             Exception? failure = null;
             var wasCancelled = false;
             try
             {
-                task = produce(request, _lifetime)
+                task = produce(request, work.Cancellation?.Token ?? _lifetime)
                     ?? throw new InvalidOperationException("The work producer returned a null Task.");
             }
             catch (OperationCanceledException)
@@ -86,12 +129,15 @@ public sealed class WorkScope
         {
             if (work.Owner is not null)
                 RemovePendingWork(work);
+            work.Cancellation?.Dispose();
+            work.Cancellation = null;
             throw;
         }
     }
 
     private void RemovePendingWork(PendingWork work)
     {
+        if (ReferenceEquals(_latest, work)) _latest = null;
         var pending = _pendingWork!;
         var last = pending[^1];
         pending[work.Index] = last;
@@ -100,8 +146,10 @@ public sealed class WorkScope
         work.Release();
     }
 
-    internal void Retire()
+    internal void Revoke()
     {
+        _runtime = null;
+        _latest = null;
         _route = null;
         _lifetime = default;
         if (_pendingWork is not { } pending)
@@ -109,6 +157,23 @@ public sealed class WorkScope
         _pendingWork = null;
         foreach (var work in pending)
             work.Release();
+        _retiredWork = pending;
+    }
+
+    internal void Retire()
+    {
+        Revoke();
+        var pending = _retiredWork;
+        _retiredWork = null;
+        if (pending is null) return;
+        List<Exception>? failures = null;
+        foreach (var work in pending)
+        {
+            try { work.Cancellation?.Cancel(); }
+            catch (Exception e) { (failures ??= []).Add(e); }
+            finally { work.Cancellation?.Dispose(); work.Cancellation = null; }
+        }
+        if (failures is not null) throw new AggregateException(failures);
     }
 
     internal abstract class PendingWork : IIngressWork
@@ -121,6 +186,7 @@ public sealed class WorkScope
         internal WorkScope? Owner { get; private set; }
         internal int Index { get; set; }
         internal bool IsFinished => Volatile.Read(ref _finished) != 0;
+        internal CancellationTokenSource? Cancellation;
 
         internal void Attach(WorkScope owner, int index)
         {
@@ -227,6 +293,8 @@ public sealed class WorkScope
                 var failed = _failed;
                 var cancelled = _cancelled;
                 owner.RemovePendingWork(this);
+                Cancellation?.Dispose();
+                Cancellation = null;
                 if (_wasCancelled)
                     cancelled?.Invoke(state);
                 else if (_failure is null)

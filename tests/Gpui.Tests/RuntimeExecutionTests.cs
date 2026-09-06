@@ -439,7 +439,7 @@ public sealed unsafe partial class RuntimeExecutionTests
     }
 
     [Fact]
-    public void NativeRejectionDoesNotCleanTheRenderedChild()
+    public void NativeRejectionImmediatelyRetiresTheRenderedChild()
     {
         using var fixture = new SessionFixture(new ParentView());
         fixture.Render();
@@ -447,11 +447,11 @@ public sealed unsafe partial class RuntimeExecutionTests
         child.Invalidate();
         fixture.Publish();
         Assert.Equal(-103, fixture.Complete(status: -40));
-        Assert.True(fixture.State(child).Dirty);
+        Assert.True(child.Runtime.IsUnmounted);
     }
 
     [Fact]
-    public void RootFailureAfterRenderingAChildDoesNotCleanThatChild()
+    public void RootFailureAfterRenderingAChildImmediatelyRetiresThatChild()
     {
         var parent = new ParentView();
         using var fixture = new SessionFixture(parent);
@@ -461,7 +461,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         parent.AfterChildren = () => throw new InvalidOperationException("parent render failed");
         Assert.Throws<InvalidOperationException>(fixture.Publish);
         Assert.Equal(2, child.RenderCount);
-        Assert.True(fixture.State(child).Dirty);
+        Assert.True(child.Runtime.IsUnmounted);
     }
 
     [Fact]
@@ -576,7 +576,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         {
             Assert.Same(child, fixture.Child);
             Assert.Null(fixture.State(fixture.View).StagedChildren?.SingleOrDefault().Value);
-            Assert.False(child.Runtime.IsMounted);
+            Assert.True(child.Runtime.IsMounted);
             order.Add("parent");
         };
         child.DuringMount = () => order.Add("child");
@@ -1080,9 +1080,10 @@ public sealed unsafe partial class RuntimeExecutionTests
         internal ChildView Child => (ChildView)State(View).Children!.Values.Single().View;
         internal ChildView CandidateChild => (ChildView)State(View).StagedChildren!.Values.Single().View;
 
-        internal SessionFixture(ProbeView view, GpuiApplication? application = null)
+        internal SessionFixture(ProbeView? view, GpuiApplication? application = null,
+            RootViewDeclaration? declaration = null, GpuiWindow? window = null)
         {
-            View = view;
+            View = view!;
             _id = checked((ulong)Interlocked.Increment(ref _nextId));
             NotificationCounts[_id] = 0;
             ArtifactCalls[_id] = [];
@@ -1091,7 +1092,9 @@ public sealed unsafe partial class RuntimeExecutionTests
             _api->invalidate_artifacts = &InvalidateArtifacts;
             var constructor = typeof(NativeRuntime).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic).Single();
             var runtime = (NativeRuntime)constructor.Invoke([Pointer.Box(_api, typeof(GpuiDotnetApiV3*)), null]);
-            Session = new ManagedSession(runtime, application ?? new GpuiApplication(), _id, view);
+            Session = declaration is null
+                ? new ManagedSession(runtime, application ?? new GpuiApplication(), _id, view!)
+                : new ManagedSession(runtime, application!, _id, declaration, window!);
             Assert.True(NativeRegistry.Sessions.TryAdd(_id, Session));
         }
 
@@ -1195,6 +1198,13 @@ public sealed unsafe partial class RuntimeExecutionTests
 
     private class ProbeView : View
     {
+        public ProbeView() : this(TestViews.Construction()) { }
+        private readonly Effect<NoProps> _activation;
+        public ProbeView(ViewConstruction construction) : base(construction)
+        {
+            _activation = construction.Effect<NoProps>(Activate);
+        }
+
         internal int RenderCount;
         internal int MountCount;
         internal int ClickCount;
@@ -1210,14 +1220,16 @@ public sealed unsafe partial class RuntimeExecutionTests
         internal bool ThrowDuringUnmount;
         internal CancellationToken CapturedLifetime => Lifetime;
 
-        protected override void OnMounted(ref ViewContext context)
+        private void Activate(EffectScope scope, NoProps input)
         {
+            scope.Own(new TestCleanup(Retire));
             MountCount++;
             DuringMount?.Invoke();
         }
 
         protected override Element Render(ref RenderContext ui)
         {
+            ui.Effect(_activation, default);
             RenderCount++;
             ClickToken = Runtime.Events.BindClick<ProbeView>(static (view, _) =>
             {
@@ -1228,7 +1240,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             return ui.Text("probe");
         }
 
-        protected override void OnUnmounted()
+        private void Retire()
         {
             UnmountCount++;
             if (ThrowDuringUnmount)
@@ -1252,7 +1264,12 @@ public sealed unsafe partial class RuntimeExecutionTests
 
     private sealed class ChildView : ProbeView, IGeneratedViewFactory<ChildView>
     {
-        public static ChildView CreateGpuiView() => new();
+        public static ViewSpec<ChildView> Spec() => default;
+
+        public ChildView() : this(TestViews.Construction()) { }
+        public ChildView(ViewConstruction construction) : base(construction) { }
+
+        public static ChildView CreateGpuiView(ViewConstruction construction) => new(construction);
     }
 
     private sealed class ParentView : ProbeView
@@ -1263,7 +1280,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         protected override Element Render(ref RenderContext ui)
         {
             var root = base.Render(ref ui);
-            var result = ShowChild ? ui.Div(root, ui.Child<ChildView>("child")) : root;
+            var result = ShowChild ? ui.Div(root, ui.Child("child", ChildView.Spec())) : root;
             AfterChildren?.Invoke();
             return result;
         }
@@ -1271,32 +1288,42 @@ public sealed unsafe partial class RuntimeExecutionTests
 
     private sealed class BranchView : ProbeView, IGeneratedViewFactory<BranchView>
     {
-        public static BranchView CreateGpuiView() => new();
+        public static ViewSpec<BranchView> Spec() => default;
+
+        public BranchView() : this(TestViews.Construction()) { }
+        public BranchView(ViewConstruction construction) : base(construction) { }
+
+        public static BranchView CreateGpuiView(ViewConstruction construction) => new(construction);
         protected override Element Render(ref RenderContext ui) =>
-            ui.Div(base.Render(ref ui), ui.Child<ChildView>("first"), ui.Child<ChildView>("second"));
+            ui.Div(base.Render(ref ui), ui.Child("first", ChildView.Spec()), ui.Child("second", ChildView.Spec()));
     }
 
     private sealed class TreeView : ProbeView
     {
         protected override Element Render(ref RenderContext ui) =>
-            ui.Div(base.Render(ref ui), ui.Child<BranchView>("branch"), ui.Child<ChildView>("unaffected"));
+            ui.Div(base.Render(ref ui), ui.Child("branch", BranchView.Spec()), ui.Child("unaffected", ChildView.Spec()));
     }
 
     private readonly record struct SharedSignalReaderProps(IReadOnlySignal<int> Count, bool CanPause);
 
-    private sealed class SharedSignalReaderView : View<SharedSignalReaderProps>, IGeneratedViewFactory<SharedSignalReaderView>
+    private sealed class SharedSignalReaderView : View<SharedSignalReaderProps>, IGeneratedViewFactory<SharedSignalReaderView, SharedSignalReaderProps>
     {
-        public static SharedSignalReaderView CreateGpuiView() => new();
+        public static ViewSpec<SharedSignalReaderView, SharedSignalReaderProps> Spec(SharedSignalReaderProps props) => new(props);
+
+        public SharedSignalReaderView() : this(TestViews.Construction()) { }
+        public SharedSignalReaderView(ViewConstruction construction) : base(construction) { }
+
+        public static SharedSignalReaderView CreateGpuiView(ViewConstruction construction, SharedSignalReaderProps initialProps) => new(construction);
         private readonly Signal<bool> _following = new(true);
-        internal bool CanPause => Props.CanPause;
+        internal bool CanPause => CommittedProps.CanPause;
         internal int RenderCount;
         internal int? ObservedValue;
         internal ulong ToggleToken;
 
-        protected override Element Render(ref RenderContext ui)
+        protected override Element Render(in SharedSignalReaderProps props, ref RenderContext ui)
         {
             RenderCount++;
-            ObservedValue = !Props.CanPause || _following.Value ? Props.Count.Value : null;
+            ObservedValue = !props.CanPause || _following.Value ? props.Count.Value : null;
             ToggleToken = Runtime.Events.BindClick<SharedSignalReaderView>(static (view, _) =>
             {
                 view._following.Value = !view._following.Value;
@@ -1312,22 +1339,27 @@ public sealed unsafe partial class RuntimeExecutionTests
         protected override Element Render(ref RenderContext ui) =>
             ui.Div(
                 base.Render(ref ui),
-                ui.Child<SharedSignalReaderView, SharedSignalReaderProps>("live", new(Count, false)),
-                ui.Child<SharedSignalReaderView, SharedSignalReaderProps>("pausable", new(Count, true))
+                ui.Child("live", SharedSignalReaderView.Spec(new(Count, false))),
+                ui.Child("pausable", SharedSignalReaderView.Spec(new(Count, true)))
             );
     }
 
     private sealed record LabelProps(string Text);
 
-    private sealed class PropsChildView : View<LabelProps>, IGeneratedViewFactory<PropsChildView>
+    private sealed class PropsChildView : View<LabelProps>, IGeneratedViewFactory<PropsChildView, LabelProps>
     {
-        public static PropsChildView CreateGpuiView() => new();
-        internal LabelProps CurrentProps => Props;
+        public static ViewSpec<PropsChildView, LabelProps> Spec(LabelProps props) => new(props);
+
+        public PropsChildView() : this(TestViews.Construction()) { }
+        public PropsChildView(ViewConstruction construction) : base(construction) { }
+
+        public static PropsChildView CreateGpuiView(ViewConstruction construction, LabelProps initialProps) => new(construction);
+        internal LabelProps CurrentProps => CommittedProps;
         internal int RenderCount;
-        protected override Element Render(ref RenderContext ui)
+        protected override Element Render(in LabelProps props, ref RenderContext ui)
         {
             RenderCount++;
-            return ui.Text(Props.Text);
+            return ui.Text(props.Text);
         }
     }
 
@@ -1335,6 +1367,6 @@ public sealed unsafe partial class RuntimeExecutionTests
     {
         internal string Label = "accepted";
         protected override Element Render(ref RenderContext ui) =>
-            ui.Child<PropsChildView, LabelProps>("props-child", new LabelProps(Label));
+            ui.Child("props-child", PropsChildView.Spec(new LabelProps(Label)));
     }
 }

@@ -41,7 +41,6 @@ internal sealed class ViewRuntime
 
     private const int LifecycleCreated = 0;
     private const int LifecyclePrepared = 1;
-    private const int LifecycleMounting = 2;
     private const int LifecycleMounted = 3;
     private const int LifecycleUnmounting = 4;
     private const int LifecycleUnmounted = 5;
@@ -72,7 +71,7 @@ internal sealed class ViewRuntime
         get
         {
             var lifecycle = Volatile.Read(ref _lifecycle);
-            return lifecycle is LifecycleMounting or LifecycleMounted;
+            return lifecycle == LifecycleMounted;
         }
     }
 
@@ -185,67 +184,41 @@ internal sealed class ViewRuntime
 
     internal WorkScope GetWorkScope()
     {
-        var attachment = RequireUiAttachment();
-        if (!IsMounted)
-            throw new InvalidOperationException("A work scope requires a mounted View.");
-        _commandRoute!.EnsureAvailable();
-        return attachment.Work ??= new WorkScope(_commandRoute, Lifetime, attachment.ManagedThreadId);
+        RequireActiveRoute();
+        return GetConstructionWorkScope();
     }
+
+    internal ViewCommandRoute RequireActiveRoute()
+    {
+        var route = Volatile.Read(ref _commandRoute);
+        if (!IsMounted || route is null || !route.IsActive)
+            throw new InvalidOperationException("The View has not been accepted or has retired.");
+        route.EnsureAvailable();
+        return route;
+    }
+
+    internal bool TryPostOwned(IIngressWork work) => Volatile.Read(ref _commandRoute)?.TryPost(work) == true;
+
+    private WorkScope? _constructionWork;
+
+    internal WorkScope GetConstructionWorkScope() =>
+        _constructionWork ??= new WorkScope(this);
 
     internal void MountRuntime()
     {
         RequireUiAttachment();
         lock (_lifecycleGate)
         {
-            if (_lifecycle == LifecycleMounted)
-            {
-                return;
-            }
+            if (_lifecycle == LifecycleMounted) return;
             if (_lifecycle != LifecyclePrepared)
-            {
-                throw new InvalidOperationException("Only a prepared View may begin mounting.");
-            }
+                throw new InvalidOperationException("Only a prepared View can activate.");
             _commandRoute!.Activate();
-            Volatile.Write(ref _lifecycle, LifecycleMounting);
-        }
-
-        try
-        {
-            var context = new ViewContext(_owner);
-            _owner.OnMountedCore(ref context);
-            lock (_lifecycleGate)
-            {
-                if (
-                    _lifecycle != LifecycleMounting
-                    || _commandRoute is null
-                    || _uiAttachment is null
-                )
-                {
-                    throw new ObjectDisposedException(
-                        _owner.GetType().FullName,
-                        "The View left framework ownership while it was mounting."
-                    );
-                }
-                Volatile.Write(ref _lifecycle, LifecycleMounted);
-            }
-        }
-        catch (Exception mountFailure)
-        {
-            try
-            {
-                UnmountRuntime();
-            }
-            catch (Exception unmountFailure)
-            {
-                throw new AggregateException(mountFailure, unmountFailure);
-            }
-            throw;
+            Volatile.Write(ref _lifecycle, LifecycleMounted);
         }
     }
 
     internal void UnmountRuntime()
     {
-        bool invokeLifecycle;
         CancellationTokenSource? lifetimeSource;
         ViewCommandRoute? commandRoute;
         MountedViewAttachment? uiAttachment;
@@ -258,7 +231,6 @@ internal sealed class ViewRuntime
 
             uiAttachment = _uiAttachment;
             uiAttachment?.AssertAccess();
-            invokeLifecycle = _lifecycle is LifecycleMounting or LifecycleMounted;
             Volatile.Write(ref _lifecycle, LifecycleUnmounting);
             commandRoute = Interlocked.Exchange(ref _commandRoute, null);
             Volatile.Write(ref _uiAttachment, null);
@@ -270,14 +242,18 @@ internal sealed class ViewRuntime
         }
 
         commandRoute?.Deactivate();
-        uiAttachment?.Work?.Retire();
+        _constructionWork?.Revoke();
+        _owner.Ownership.RevokeEffects();
+        Exception? workFailure = null;
+        try { _constructionWork?.Retire(); } catch (Exception exception) { workFailure = exception; }
+        _constructionWork = null;
         if (uiAttachment is not null)
         {
             MountedViewAttachment.Return(uiAttachment);
         }
 
         Exception? cancellationFailure = null;
-        Exception? lifecycleFailure = null;
+        Exception? lifecycleFailure = workFailure;
         try
         {
             try
@@ -289,16 +265,10 @@ internal sealed class ViewRuntime
                 cancellationFailure = exception;
             }
 
-            if (invokeLifecycle)
+            try { _owner.Ownership.Retire(); }
+            catch (Exception exception)
             {
-                try
-                {
-                    _owner.OnUnmountedCore();
-                }
-                catch (Exception exception)
-                {
-                    lifecycleFailure = exception;
-                }
+                lifecycleFailure = lifecycleFailure is null ? exception : new AggregateException(lifecycleFailure, exception);
             }
         }
         finally
@@ -437,6 +407,7 @@ internal sealed class ViewRuntime
         var completed = false;
         try
         {
+            _owner.Ownership.Pass = checked(_owner.Ownership.Pass + 1);
             var element = _owner.RenderCore(ref ui);
             completed = true;
             return element;

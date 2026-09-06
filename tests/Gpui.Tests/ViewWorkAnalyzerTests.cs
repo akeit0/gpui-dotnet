@@ -9,6 +9,9 @@ namespace Gpui.Tests;
 public sealed class ViewWorkAnalyzerTests
 {
     [Theory]
+    [InlineData("_work.StartLatest(this, 1, StaticProducer, static (view, value) => view._value = value);", null)]
+    [InlineData("_work.StartLatest(this, 1, InstanceProducer, static (view, value) => view._value = value);", "GPUI016")]
+    [InlineData("_work.StartLatest(this, 1, StaticProducer, static async (view, value) => { await Task.Yield(); view._value = value; });", "GPUI017")]
     [InlineData("_work.Start(this, 1, static (value, _) => Task.FromResult(value), (_, value) => _value = value);", null)]
     [InlineData("_work.Start(this, 1, StaticProducer, (_, value) => _value = value);", null)]
     [InlineData("static Task<int> Local(int value, CancellationToken _) => Task.FromResult(value); _work.Start(this, 1, Local, (_, value) => _value = value);", null)]
@@ -37,7 +40,7 @@ public sealed class ViewWorkAnalyzerTests
             {
                 private int _value;
                 private WorkScope _work = null!;
-                protected override void OnMounted(ref ViewContext context) => _work = context.Work;
+                public WorkView(ViewConstruction context) : base(context) => _work = context.Work;
                 protected override Element Render(ref RenderContext ui) => ui.Text("work");
                 private static Task<int> StaticProducer(int value, CancellationToken token) => Task.FromResult(value);
                 private Task<int> InstanceProducer(int value, CancellationToken token) => Task.FromResult(_value + value);

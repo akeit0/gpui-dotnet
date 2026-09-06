@@ -17,6 +17,8 @@ public sealed class Signal<T>(T initialValue, IEqualityComparer<T>? comparer = n
     {
         get
         {
+            if (ReactiveConsumer.Comparing)
+                throw new InvalidOperationException("Memo calculations and equality comparisons cannot read Signals. Supply their values as inputs.");
             var consumer = ReactiveConsumer.Current;
             if (consumer is not null && Volatile.Read(ref _owner) is null)
                 Interlocked.CompareExchange(ref _owner, consumer.Execution, null);
@@ -35,7 +37,7 @@ public sealed class Signal<T>(T initialValue, IEqualityComparer<T>? comparer = n
     {
         AssertAccess();
         if (ApplicationExecution.Current?.Phase is ExecutionPhase.Render or ExecutionPhase.DemandRender
-            || ReactiveConsumer.Comparing)
+            || ReactiveConsumer.Comparing || ViewOwnership.Constructing)
             throw new InvalidOperationException("Signal mutation is not allowed during rendering or equality comparison.");
         bool equal;
         ReactiveConsumer.Comparing = true;

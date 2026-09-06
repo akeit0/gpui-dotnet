@@ -33,12 +33,12 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor ViewMustBeConstructible = Error(
         "GPUI010",
         "GPUI generated view must be constructible",
-        "'{0}' must be non-abstract and have a parameterless instance constructor so a framework-owned child slot can create it"
+        "'{0}' must be non-abstract and have a constructor accepting ViewConstruction followed by initial props for a props View"
     );
     private static readonly DiagnosticDescriptor ReservedFactoryMember = Error(
         "GPUI011",
         "Generated View factory member is reserved",
-        "'{0}' declares a member named 'CreateGpuiView'; [GpuiView] reserves that name for framework child activation"
+        "'{0}' declares 'CreateGpuiView' or 'Spec'; [GpuiView] reserves those names for framework-owned declarations and construction"
     );
     private static readonly DiagnosticDescriptor InvalidListRenderer = Error(
         "GPUI012",
@@ -102,19 +102,21 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
             context.ReportDiagnostic(Diagnostic.Create(MustDeriveFromView, location, view.Name));
             return;
         }
-        if (
-            view.IsAbstract
-            || !view.InstanceConstructors.Any(static constructor =>
-                constructor.Parameters.Length == 0
-            )
-        )
+        var propsType = GetPropsType(view);
+        if (view.IsAbstract || (!view.InstanceConstructors.All(static c => c.IsImplicitlyDeclared)
+            && !view.InstanceConstructors.Any(c => c.Parameters.Length == (propsType is null ? 1 : 2)
+                && IsNamedType(c.Parameters[0].Type, "Gpui", "ViewConstruction")
+                && c.Parameters[0].RefKind == RefKind.None
+                && (propsType is null || (SymbolEqualityComparer.Default.Equals(c.Parameters[1].Type, propsType)
+                    && c.Parameters[1].RefKind == RefKind.None)))))
+
         {
             context.ReportDiagnostic(
                 Diagnostic.Create(ViewMustBeConstructible, location, view.Name)
             );
             return;
         }
-        if (view.GetMembers("CreateGpuiView").Length != 0)
+        if (view.GetMembers("CreateGpuiView").Length != 0 || view.GetMembers("Spec").Length != 0)
         {
             context.ReportDiagnostic(Diagnostic.Create(ReservedFactoryMember, location, view.Name));
             return;
@@ -227,11 +229,15 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
             || method.IsGenericMethod
             || method.IsAsync
             || method.MethodKind != MethodKind.Ordinary
-            || method.Parameters.Length != 2
+            || method.Parameters.Length != (GetPropsType(view) is null ? 2 : 3)
         )
             return false;
         var index = method.Parameters[0];
-        var ui = method.Parameters[1];
+        var props = GetPropsType(view);
+        var ui = method.Parameters[method.Parameters.Length - 1];
+        if (props is not null && (method.Parameters[1].RefKind != RefKind.In
+            || !SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type, props)))
+            return false;
         if (index.RefKind != RefKind.None || index.Type.SpecialType != SpecialType.System_Int32)
             return false;
         if (ui.RefKind != RefKind.Ref || !IsNamedType(ui.Type, "Gpui", "RenderContext"))
@@ -265,6 +271,15 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
     {
         var id = Fnv1a32(value);
         return id == 0 ? 1u : id;
+    }
+
+    private static ITypeSymbol? GetPropsType(INamedTypeSymbol view)
+    {
+        for (var current = view.BaseType; current is not null; current = current.BaseType)
+            if (current.Name == "View" && current.Arity == 1
+                && current.ContainingNamespace?.ToDisplayString() == "Gpui")
+                return current.TypeArguments[0];
+        return null;
     }
 
     private static bool DerivesFromGpuiView(INamedTypeSymbol view)
@@ -324,25 +339,25 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
         }
 
         var viewIdentifier = EscapeIdentifier(view.Name);
-        builder
-            .Append(GetAccessibility(view.DeclaredAccessibility))
-            .Append(" partial class ")
-            .Append(viewIdentifier)
-            .Append(" : global::Gpui.IGeneratedViewFactory<")
-            .Append(viewIdentifier)
-            .AppendLine(">");
+        var props = GetPropsType(view)?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var typeArguments = viewIdentifier + (props is null ? "" : ", " + props);
+        var parameters = "global::Gpui.ViewConstruction construction" + (props is null ? "" : ", " + props + " initialProps");
+        builder.Append(GetAccessibility(view.DeclaredAccessibility)).Append(" partial class ")
+            .Append(viewIdentifier).Append(" : global::Gpui.IGeneratedViewFactory<")
+            .Append(typeArguments).AppendLine(">");
         builder.AppendLine("{");
-        builder.AppendLine(
-            "    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]"
-        );
-        builder
-            .Append("    public static ")
-            .Append(viewIdentifier)
-            .Append(" CreateGpuiView() => new ")
-            .Append(viewIdentifier)
-            .AppendLine("();");
+        if (view.InstanceConstructors.All(static c => c.IsImplicitlyDeclared))
+            builder.Append("    public ").Append(viewIdentifier).Append("(").Append(parameters)
+                .AppendLine(") : base(construction) { }");
+        builder.AppendLine("    [global::System.ComponentModel.EditorBrowsable(global::System.ComponentModel.EditorBrowsableState.Never)]");
+        builder.Append("    public static ").Append(viewIdentifier).Append(" CreateGpuiView(")
+            .Append(parameters).Append(") => new ").Append(viewIdentifier).Append("(construction")
+            .Append(props is null ? "" : ", initialProps").AppendLine(");");
+        builder.Append("    public static global::Gpui.ViewSpec<").Append(typeArguments).Append("> Spec(")
+            .Append(props is null ? "" : props + " props").Append(") => ")
+            .AppendLine(props is null ? "default;" : "new(props);");
 
-        AppendListRenderers(builder, viewIdentifier, listRenderers);
+        AppendListRenderers(builder, viewIdentifier, listRenderers, props);
         builder.AppendLine("}");
         return builder.ToString();
     }
@@ -350,7 +365,8 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
     private static void AppendListRenderers(
         StringBuilder builder,
         string viewIdentifier,
-        IReadOnlyList<ListRendererModel> renderers
+        IReadOnlyList<ListRendererModel> renderers,
+        string? props
     )
     {
         builder.AppendLine();
@@ -394,7 +410,7 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
             builder
                 .Append("                return ")
                 .Append(EscapeIdentifier(renderer.Method.Name))
-                .AppendLine("(index, ref ui);");
+                .AppendLine(props is null ? "(index, ref ui);" : "(index, in CommittedProps, ref ui);");
         }
         builder.AppendLine("            default:");
         builder.AppendLine(

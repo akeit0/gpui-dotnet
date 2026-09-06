@@ -79,13 +79,14 @@ explicit component states and contrast.
 ## Managed View rules
 
 `Render()` and `[GpuiListItem]` methods use grow-before-write managed arenas and are not retried
-for capacity. They must be deterministic and must not mutate application state, perform I/O, start tasks, call controllers, or
+for capacity. They must not mutate observable application state, perform I/O, start tasks, call controllers, or
 invalidate the View.
 
 Event bindings and ref-bound controller key initialization are supported render-time declarations.
-Perform state changes in event or lifecycle methods and then call `Invalidate()`.
+Pure owner-local caches and scratch mutation are supported. Perform observable state changes in events
+or accepted effects; Signals invalidate their consumers, and ordinary state uses `Invalidate()`.
 
-Use framework-owned `ui.Child<T>()` slots. Use `View<TProps>` for parent-owned render inputs; props
+Use framework-owned `ui.Child(key, TView.Spec(props))` slots and the same typed declarations for roots. Use `View<TProps>` for parent-owned render inputs; props
 must be supplied on every declaration. Use stable keys for conditional, repeated, or reorderable
 children.
 
@@ -94,8 +95,11 @@ records or record structs; do not weaken the constraint and silently reintroduce
 
 View lifetime follows framework ownership: a window owns its root and a committed parent slot owns
 its child. A CLR reference does not retain UI ownership. Unmount is terminal, so do not add remount
-semantics or implicit/manual child retention. `OnUnmounted()` is cleanup-only: its `Lifetime` is
-already cancelled and runtime commands are unavailable.
+semantics or implicit/manual child retention. Constructors receive `ViewConstruction` and initial
+props. Render receives current props explicitly; `CommittedProps` is always accepted input.
+Use owned memo handles for derived data and effect scopes for accepted external relationships.
+Registered cleanup also runs for failed construction and abandoned candidates. Retirement revokes
+work and effect delivery before cancellation/cleanup; runtime commands are unavailable then.
 
 Keep one-shot View identity separate from mounted runtime state. Any-thread operations must use the
 stable, non-pooled command route and must not inspect the GPUI-thread-only attachment. Remove and
@@ -116,7 +120,7 @@ resources, or deferred layers inside a row renderer.
 - Batch reverse datasource calls and avoid per-row managed closures.
 
 An ABI layout or entry-point change requires Rust and managed contract updates, generated bindings,
-tests, and `docs/ABI.md`. A semantic-only schema change normally keeps ABI version 1 and changes the
+tests, and `docs/ABI.md`. A semantic-only schema change normally keeps the current ABI version and changes the
 schema hash.
 
 ## Editing and formatting

@@ -33,7 +33,7 @@ public sealed class SynchronousEventAnalyzerTests
             {
                 private int _value;
                 private WorkScope _work = null!;
-                protected override void OnMounted(ref ViewContext context) => _work = context.Work;
+                public EventView(ViewConstruction context) : base(context) => _work = context.Work;
                 private static async void AsyncClick(EventView view, ClickEvent e) { await Task.Yield(); }
                 private static Task<int> GetData() => Task.FromResult(1);
                 private static ValueTask<int> GetValueData() => ValueTask.FromResult(1);

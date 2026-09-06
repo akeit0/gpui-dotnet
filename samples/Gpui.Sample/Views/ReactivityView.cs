@@ -15,7 +15,7 @@ internal sealed partial class ReactivityView : View
         var doubledProps = new SignalReaderProps(_count, "Doubled count", 2, true);
         var showSecondReader = _showSecondReader.Value;
         var secondReader = showSecondReader
-            ? ui.Child<SignalReaderView, SignalReaderProps>("doubled", in doubledProps)
+            ? ui.Child("doubled", SignalReaderView.Spec(doubledProps))
             : ui.VStack(
                     ui.Text("Doubled reader removed"u8),
                     ui.Text("Change the count, then show a fresh reader."u8)
@@ -30,9 +30,9 @@ internal sealed partial class ReactivityView : View
                     .FontSize(Px(ui.Theme.Typography.Heading)),
                 ui.Text("Use the controls, pause the doubled display, or remove and recreate it."u8)
                     .TextColor(ui.Theme.Colors.TextMuted),
-                ui.Child<SignalControlsView, SharedCountProps>("controls", in controlsProps),
+                ui.Child("controls", SignalControlsView.Spec(controlsProps)),
                 ui.HStack(
-                        ui.Child<SignalReaderView, SignalReaderProps>("count", in countProps),
+                        ui.Child("count", SignalReaderView.Spec(countProps)),
                         secondReader
                     )
                     .Gap(Px(12)),

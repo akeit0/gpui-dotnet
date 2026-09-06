@@ -6,19 +6,19 @@ internal sealed partial class SignalReaderView : View<SignalReaderProps>
 {
     private readonly Signal<bool> _following = new(true);
 
-    protected override Element Render(ref RenderContext ui)
+    protected override Element Render(in SignalReaderProps props, ref RenderContext ui)
     {
-        var following = !Props.CanPause || _following.Value;
+        var following = !props.CanPause || _following.Value;
         // A paused render deliberately omits the shared read, so acceptance detaches that edge.
-        var value = following ? $"{(long)Props.Count.Value * Props.Multiplier:N0}" : "Paused";
-        Element control = Props.CanPause
+        var value = following ? $"{(long)props.Count.Value * props.Multiplier:N0}" : "Paused";
+        Element control = props.CanPause
             ? ui.Button("toggle-following", following ? "Pause" : "Resume latest")
                 .OnClick(this, (view, _) => { view._following.Value = !view._following.Value; })
                 .Style(SampleStyles.Button(ui.Theme))
             : ui.Text("Always follows the shared count"u8).TextColor(ui.Theme.Colors.TextMuted);
 
         return ui.VStack(
-                ui.Text(Props.Title).FontSize(Px(ui.Theme.Typography.Title)),
+                ui.Text(props.Title).FontSize(Px(ui.Theme.Typography.Title)),
                 ui.Text(value).FontSize(Px(32)),
                 control
             )

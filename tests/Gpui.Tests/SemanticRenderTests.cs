@@ -2225,6 +2225,9 @@ public sealed class SemanticRenderTests
 
     private sealed class ProbeView : View
     {
+        public ProbeView() : this(TestViews.Construction()) { }
+        public ProbeView(ViewConstruction construction) : base(construction) { }
+
         internal float SliderEvents;
         internal float SliderReleases;
         internal List<DockEvent> DockEvents = new();
@@ -2245,6 +2248,9 @@ public sealed class SemanticRenderTests
 
     private sealed class DynamicCallbackView : View
     {
+        public DynamicCallbackView() : this(TestViews.Construction()) { }
+        public DynamicCallbackView(ViewConstruction construction) : base(construction) { }
+
         internal bool BindCallback = true;
         internal CallbackTargetView? CallbackTarget;
         internal int ClickCount;
@@ -2268,6 +2274,9 @@ public sealed class SemanticRenderTests
 
     private sealed class CallbackTargetView : View
     {
+        public CallbackTargetView() : this(TestViews.Construction()) { }
+        public CallbackTargetView(ViewConstruction construction) : base(construction) { }
+
         internal int ClickCount;
 
         protected override Element Render(ref RenderContext ui) => ui.Div();
@@ -2289,7 +2298,7 @@ public sealed class SemanticRenderTests
             Gpui.Interop.RenderArena* destination
         )
             where TProps : IEquatable<TProps>
-            where TView : View<TProps>, IGeneratedViewFactory<TView> =>
+            where TView : View<TProps>, IGeneratedViewFactory<TView, TProps> =>
             throw new NotSupportedException();
     }
 }

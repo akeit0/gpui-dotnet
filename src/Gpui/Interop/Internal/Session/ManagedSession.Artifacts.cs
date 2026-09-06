@@ -18,7 +18,7 @@ internal sealed unsafe partial class ManagedSession
 
     internal void AcceptDemandArtifact(ulong source, ulong artifact)
     {
-        ThrowIfUnavailable();
+        ThrowIfUnavailable(retireFailure: false);
         using var execution = Execution.Enter(ExecutionPhase.ArtifactAcceptance);
         RequireAcceptedRender();
         if (!_demandArtifacts.TryGetValue(artifact, out var consumer)

@@ -6,20 +6,30 @@ internal sealed partial class SampleShellView : View
 {
     private SamplePage _page;
 
-    internal GpuiApplication? Application { get; init; }
-    internal GpuiMenu[] MenuBar { get; set; } = [];
-    internal GpuiWindow? Window { get; set; }
+    private readonly GpuiApplication Application;
+    private GpuiMenu[] MenuBar = [];
+    private readonly GpuiWindow Window;
+    private readonly Effect<NoProps> _menus;
+
+    public SampleShellView(ViewConstruction construction) : base(construction)
+    {
+        Application = construction.Application;
+        Window = construction.Window;
+        _menus = construction.Effect<NoProps>(InstallMenus);
+    }
+
+    private void InstallMenus(EffectScope scope, NoProps input)
+    {
+        MenuBar = CreateMenuBar(scope);
+        Application.SetMenuBar(MenuBar);
+        Invalidate();
+    }
 
     private void OpenNewWindow()
     {
-        var application =
-            Application
-            ?? throw new InvalidOperationException(
-                "The sample root is not associated with its application."
-            );
-        var root = new CompanionWindowView { Origin = "Opened from the Windows gallery" };
+        var application = Application;
         var window = application.OpenWindow(
-            root,
+            CompanionWindowView.Spec("Opened from the Windows gallery"),
             new GpuiWindowOptions
             {
                 Title = "GPUI.NET Components — Opening",
@@ -28,7 +38,6 @@ internal sealed partial class SampleShellView : View
                 Activate = false,
             }
         );
-        root.Window = window;
         window.SetTitle($"GPUI.NET Companion — Window {window.Id}");
         window.Resize(860, 620);
         window.Activate();
@@ -36,14 +45,9 @@ internal sealed partial class SampleShellView : View
 
     private void OpenCustomTitleBarWindow()
     {
-        var application =
-            Application
-            ?? throw new InvalidOperationException(
-                "The sample root is not associated with its application."
-            );
-        var root = new CustomTitleBarWindowView();
+        var application = Application;
         var window = application.OpenWindow(
-            root,
+            CustomTitleBarWindowView.Spec(),
             new GpuiWindowOptions
             {
                 Title = "GPUI.NET Custom Title Bar",
@@ -52,24 +56,17 @@ internal sealed partial class SampleShellView : View
                 TitleBarStyle = WindowTitleBarStyle.Custom,
             }
         );
-        root.Window = window;
         window.SetTitle($"GPUI.NET Custom Title Bar — Window {window.Id}");
     }
 
     private void CloseWindow()
     {
-        (
-            Window ?? throw new InvalidOperationException("The sample root has no window handle.")
-        ).Close();
+        Window.Close();
     }
 
     private void ToggleTheme()
     {
-        var application =
-            Application
-            ?? throw new InvalidOperationException(
-                "The sample root is not associated with its application."
-            );
+        var application = Application;
         application.SetTheme(
             application.Theme.Appearance == GpuiThemeAppearance.Dark
                 ? SampleThemes.Light
@@ -79,21 +76,23 @@ internal sealed partial class SampleShellView : View
 
     protected override Element Render(ref RenderContext ui)
     {
+        ui.Effect(_menus, default);
         var theme = ui.Theme;
         var sidebar = RenderSidebar(ref ui);
         var page = _page switch
         {
-            SamplePage.Overview => ui.Child<DashboardView>("content"),
-            SamplePage.Reactivity => ui.Child<ReactivityView>("content"),
-            SamplePage.Activity => ui.Child<ActivityView>("content"),
-            SamplePage.Tables => ui.Child<TableView>("content"),
-            SamplePage.Dock => ui.Child<DockView>("content"),
-            SamplePage.Images => ui.Child<ImageGalleryView>("content"),
-            SamplePage.Text => ui.Child<TypographyView>("content"),
-            SamplePage.Grid => ui.Child<GridView>("content"),
-            SamplePage.Inputs => ui.Child<InputGalleryView>("content"),
-            SamplePage.Observers => ui.Child<ObserverView>("content"),
-            SamplePage.Overlays => ui.Child<OverlayGalleryView>("content"),
+            SamplePage.Overview => ui.Child("content", DashboardView.Spec()),
+            SamplePage.Reactivity => ui.Child("content", ReactivityView.Spec()),
+            SamplePage.Analysis => ui.Child("content", AnalysisGalleryView.Spec()),
+            SamplePage.Activity => ui.Child("content", ActivityView.Spec()),
+            SamplePage.Tables => ui.Child("content", TableView.Spec()),
+            SamplePage.Dock => ui.Child("content", DockView.Spec()),
+            SamplePage.Images => ui.Child("content", ImageGalleryView.Spec()),
+            SamplePage.Text => ui.Child("content", TypographyView.Spec()),
+            SamplePage.Grid => ui.Child("content", GridView.Spec()),
+            SamplePage.Inputs => ui.Child("content", InputGalleryView.Spec()),
+            SamplePage.Observers => ui.Child("content", ObserverView.Spec()),
+            SamplePage.Overlays => ui.Child("content", OverlayGalleryView.Spec()),
             SamplePage.Windows => RenderWindowGallery(ref ui),
             _ => throw new InvalidOperationException("Unknown sample page."),
         };
@@ -104,6 +103,7 @@ internal sealed partial class SampleShellView : View
             {
                 SamplePage.Overview => "Overview",
                 SamplePage.Reactivity => "Reactivity",
+                SamplePage.Analysis => "Document analysis",
                 SamplePage.Activity => "Activity",
                 SamplePage.Tables => "Tables",
                 SamplePage.Dock => "Dock",
@@ -120,6 +120,7 @@ internal sealed partial class SampleShellView : View
             {
                 SamplePage.Overview => "retained ScrollHandle; wheel scrolling stays native",
                 SamplePage.Reactivity => "shared Signals across sibling views, conditional reads, and teardown",
+                SamplePage.Analysis => "document subscriptions, local queries, cached matches, and background analysis",
                 SamplePage.Activity =>
                     "20,000 variable-height rows; managed rendering is range-batched",
                 SamplePage.Tables =>
@@ -140,10 +141,7 @@ internal sealed partial class SampleShellView : View
                 _ => throw new InvalidOperationException("Unknown sample page."),
             }
         );
-        var routeHeader = ui.Child<RouteHeaderView, RouteHeaderProps>(
-            "route-header",
-            in routeProps
-        );
+        var routeHeader = ui.Child("route-header", RouteHeaderView.Spec(routeProps));
 
         var topBar = ui.HStack(
                 routeHeader,
@@ -179,41 +177,41 @@ internal sealed partial class SampleShellView : View
         return GpuiTitleBar.RenderWindow(ref ui, "GPUI.NET  /  Components"u8, MenuBar, gallery);
     }
 
-    internal GpuiMenu[] CreateMenuBar() =>
+    private GpuiMenu[] CreateMenuBar(EffectScope scope) =>
         [
             new GpuiMenu(
                 "GPUI.NET",
-                GpuiMenuItem.Command("About GPUI.NET", () => ShowPage(SamplePage.Overview)),
-                GpuiMenuItem.Command("Toggle light/dark theme", ToggleTheme),
+                GpuiMenuItem.Command("About GPUI.NET", scope.Bind(this, static view => view.ShowPage(SamplePage.Overview))),
+                GpuiMenuItem.Command("Toggle light/dark theme", scope.Bind(this, static view => view.ToggleTheme())),
                 GpuiMenuItem.Separator(),
-                GpuiMenuItem.Command("Close window", CloseWindow)
+                GpuiMenuItem.Command("Close window", scope.Bind(this, static view => view.CloseWindow()))
             ),
             new GpuiMenu(
                 "File",
-                GpuiMenuItem.Command("New window", OpenNewWindow),
-                GpuiMenuItem.Command("New custom-title-bar window", OpenCustomTitleBarWindow),
+                GpuiMenuItem.Command("New window", scope.Bind(this, static view => view.OpenNewWindow())),
+                GpuiMenuItem.Command("New custom-title-bar window", scope.Bind(this, static view => view.OpenCustomTitleBarWindow())),
                 GpuiMenuItem.Separator(),
-                GpuiMenuItem.Command("Close window", CloseWindow)
+                GpuiMenuItem.Command("Close window", scope.Bind(this, static view => view.CloseWindow()))
             ),
             new GpuiMenu(
                 "View",
-                GpuiMenuItem.Command("Scroll view", () => ShowPage(SamplePage.Overview)),
-                GpuiMenuItem.Command("Reactivity", () => ShowPage(SamplePage.Reactivity)),
-                GpuiMenuItem.Command("Virtual list", () => ShowPage(SamplePage.Activity)),
-                GpuiMenuItem.Command("Virtual table", () => ShowPage(SamplePage.Tables)),
-                GpuiMenuItem.Command("Dock", () => ShowPage(SamplePage.Dock)),
-                GpuiMenuItem.Command("Images", () => ShowPage(SamplePage.Images)),
-                GpuiMenuItem.Command("Text", () => ShowPage(SamplePage.Text)),
-                GpuiMenuItem.Command("Grid", () => ShowPage(SamplePage.Grid)),
-                GpuiMenuItem.Command("Inputs", () => ShowPage(SamplePage.Inputs)),
-                GpuiMenuItem.Command("Observers", () => ShowPage(SamplePage.Observers)),
-                GpuiMenuItem.Command("Overlays + tooltips", () => ShowPage(SamplePage.Overlays)),
-                GpuiMenuItem.Command("Windows", () => ShowPage(SamplePage.Windows))
+                GpuiMenuItem.Command("Scroll view", scope.Bind(this, static view => view.ShowPage(SamplePage.Overview))),
+                GpuiMenuItem.Command("Reactivity", scope.Bind(this, static view => view.ShowPage(SamplePage.Reactivity))),
+                GpuiMenuItem.Command("Virtual list", scope.Bind(this, static view => view.ShowPage(SamplePage.Activity))),
+                GpuiMenuItem.Command("Virtual table", scope.Bind(this, static view => view.ShowPage(SamplePage.Tables))),
+                GpuiMenuItem.Command("Dock", scope.Bind(this, static view => view.ShowPage(SamplePage.Dock))),
+                GpuiMenuItem.Command("Images", scope.Bind(this, static view => view.ShowPage(SamplePage.Images))),
+                GpuiMenuItem.Command("Text", scope.Bind(this, static view => view.ShowPage(SamplePage.Text))),
+                GpuiMenuItem.Command("Grid", scope.Bind(this, static view => view.ShowPage(SamplePage.Grid))),
+                GpuiMenuItem.Command("Inputs", scope.Bind(this, static view => view.ShowPage(SamplePage.Inputs))),
+                GpuiMenuItem.Command("Observers", scope.Bind(this, static view => view.ShowPage(SamplePage.Observers))),
+                GpuiMenuItem.Command("Overlays + tooltips", scope.Bind(this, static view => view.ShowPage(SamplePage.Overlays))),
+                GpuiMenuItem.Command("Windows", scope.Bind(this, static view => view.ShowPage(SamplePage.Windows)))
             ),
             new GpuiMenu(
                 "Help",
-                GpuiMenuItem.Command("About GPUI.NET", () => ShowPage(SamplePage.Overview)),
-                GpuiMenuItem.Command("Open overlay gallery", () => ShowPage(SamplePage.Overlays))
+                GpuiMenuItem.Command("About GPUI.NET", scope.Bind(this, static view => view.ShowPage(SamplePage.Overview))),
+                GpuiMenuItem.Command("Open overlay gallery", scope.Bind(this, static view => view.ShowPage(SamplePage.Overlays)))
             ),
         ];
 
@@ -233,6 +231,7 @@ internal sealed partial class SampleShellView : View
                 ui.Divider().Background(theme.Colors.TitleBarHover),
                 NavigationButton(ref ui, "show-overview", "Scroll view", SamplePage.Overview),
                 NavigationButton(ref ui, "show-reactivity", "Reactivity", SamplePage.Reactivity),
+                NavigationButton(ref ui, "show-analysis", "Analysis", SamplePage.Analysis),
                 NavigationButton(ref ui, "show-activity", "Virtual list", SamplePage.Activity),
                 NavigationButton(ref ui, "show-tables", "Virtual table", SamplePage.Tables),
                 NavigationButton(ref ui, "show-dock", "Dock", SamplePage.Dock),
@@ -308,7 +307,7 @@ internal sealed partial class SampleShellView : View
                                     .BorderWidth(Px(1))
                                     .BorderColor(ui.Theme.Colors.TitleBarHover)
                                     .TextColor(ui.Theme.Colors.TitleBarText),
-                                ui.Badge(ui.Text($"Gallery window ID: {Window?.Id ?? 0}"))
+                                ui.Badge(ui.Text($"Gallery window ID: {Window.Id}"))
                                     .FontSize(Px(ui.Theme.Typography.Caption))
                                     .Background(ui.Theme.Colors.InfoBackground)
                                     .TextColor(ui.Theme.Colors.Info)

@@ -56,7 +56,7 @@ version, schema hash)`. Extension state lives in a type-erased store owned by th
 native resource store and is dropped when the committed snapshot stops declaring it.
 
 Typed schema packages wrap `NativeExtensionController`, normally through a factory on
-`ViewContext`. The controller uses the stable any-thread View route and sends schema-owned command
+`ViewConstruction`. The controller uses the stable any-thread View route and sends schema-owned command
 IDs and opaque byte payloads through the generic ABI. A custom provider validates each command,
 while Core queues copied payloads by the full resource identity until native materialization.
 Typed schema packages also bind render-scoped callbacks through `NativeExtensionEventBinding` and

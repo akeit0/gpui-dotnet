@@ -52,57 +52,45 @@ public readonly unsafe ref partial struct RenderContext
         }
     }
 
-    /// <summary>
-    /// Renders a framework-owned child in the next positional child slot. The instance is created
-    /// once per retained slot and reused while the slot continues to request the same view type.
-    /// Removing the slot permanently unmounts the child; a C# reference does not retain it.
-    /// </summary>
-    public Element Child<TView>()
+    public Element Child<TView>(ViewSpec<TView> spec)
         where TView : View, IGeneratedViewFactory<TView> =>
         RenderManagedChild<TView>(ChildSlot.Auto);
 
-    /// <summary>
-    /// Renders a framework-owned child in a stable keyed slot. If the same key later requests a
-    /// different view type, the old view is unmounted after the new tree commits and the slot is
-    /// replaced.
-    /// </summary>
-    public Element Child<TView>(ChildKey key)
+    public Element Child<TView>(ChildKey key, ViewSpec<TView> spec)
         where TView : View, IGeneratedViewFactory<TView> =>
         RenderManagedChild<TView>(ChildSlot.Keyed(key));
 
-    /// <summary>
-    /// Renders a framework-owned child with parent-supplied props. The positional slot owns the
-    /// retained instance until that slot is removed.
-    /// </summary>
-    public Element Child<TView, TProps>(in TProps props)
+    public Element Child<TView, TProps>(ViewSpec<TView, TProps> spec)
         where TProps : IEquatable<TProps>
-        where TView : View<TProps>, IGeneratedViewFactory<TView> =>
-        RenderManagedChild<TView, TProps>(ChildSlot.Auto, in props);
+        where TView : View<TProps>, IGeneratedViewFactory<TView, TProps> =>
+        RenderManagedChild<TView, TProps>(ChildSlot.Auto, spec.Props);
 
-    /// <summary>
-    /// Renders a keyed framework-owned child with parent-supplied props. Replacing or removing the
-    /// slot permanently unmounts its current instance.
-    /// </summary>
-    public Element Child<TView, TProps>(ChildKey key, in TProps props)
+    public Element Child<TView, TProps>(ChildKey key, ViewSpec<TView, TProps> spec)
         where TProps : IEquatable<TProps>
-        where TView : View<TProps>, IGeneratedViewFactory<TView> =>
-        RenderManagedChild<TView, TProps>(ChildSlot.Keyed(key), in props);
+        where TView : View<TProps>, IGeneratedViewFactory<TView, TProps> =>
+        RenderManagedChild<TView, TProps>(ChildSlot.Keyed(key), spec.Props);
+
+    public void Effect<TInput>(Effect<TInput> effect, TInput input) where TInput : IEquatable<TInput>
+    {
+        ArgumentNullException.ThrowIfNull(effect);
+        if (_views is null || _owner is null)
+            throw new InvalidOperationException("Effects belong to retained View rendering, not virtual rows.");
+        effect.Declare(_owner, input);
+    }
 
     private Element RenderManagedChild<TView>(ChildSlot slot)
         where TView : View, IGeneratedViewFactory<TView>
     {
         var renderer = _views ?? throw ChildRuntimeRequired();
-        var owner = _owner ?? throw ChildOwnerRequired();
-        return renderer.RenderChild<TView>(owner, slot, _arena);
+        return renderer.RenderChild<TView>(_owner ?? throw ChildOwnerRequired(), slot, _arena);
     }
 
-    private Element RenderManagedChild<TView, TProps>(ChildSlot slot, in TProps props)
+    private Element RenderManagedChild<TView, TProps>(ChildSlot slot, TProps props)
         where TProps : IEquatable<TProps>
-        where TView : View<TProps>, IGeneratedViewFactory<TView>
+        where TView : View<TProps>, IGeneratedViewFactory<TView, TProps>
     {
         var renderer = _views ?? throw ChildRuntimeRequired();
-        var owner = _owner ?? throw ChildOwnerRequired();
-        return renderer.RenderChild<TView, TProps>(owner, slot, in props, _arena);
+        return renderer.RenderChild<TView, TProps>(_owner ?? throw ChildOwnerRequired(), slot, in props, _arena);
     }
 
     private static InvalidOperationException ChildRuntimeRequired() =>

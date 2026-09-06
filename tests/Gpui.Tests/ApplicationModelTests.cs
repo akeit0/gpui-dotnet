@@ -44,16 +44,16 @@ public sealed class ApplicationModelTests
     }
 
     [Fact]
-    public void RunFailureStillTerminallyUnmountsPendingRoots()
+    public void RunFailureClosesPendingWindowsWithoutConstructingRoots()
     {
         var application = new GpuiApplication(new NativeRuntimeOptions { LibraryPath = " " });
-        var root = new ProbeView();
+        var root = ProbeView.Spec();
         var window = application.OpenWindow(root);
 
         Assert.Throws<ArgumentException>(application.Run);
 
         Assert.True(window.IsClosed);
-        Assert.True(root.Unmounted);
+        Assert.Equal(0, ProbeView.Constructions);
     }
 
     [Fact]
@@ -62,14 +62,14 @@ public sealed class ApplicationModelTests
         var application = new GpuiApplication();
 
         Assert.Throws<ArgumentException>(() =>
-            application.OpenWindow(new ProbeView(), new GpuiWindowOptions { Left = 10 })
+            application.OpenWindow(ProbeView.Spec(), new GpuiWindowOptions { Left = 10 })
         );
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            application.OpenWindow(new ProbeView(), new GpuiWindowOptions { Width = float.NaN })
+            application.OpenWindow(ProbeView.Spec(), new GpuiWindowOptions { Width = float.NaN })
         );
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             application.OpenWindow(
-                new ProbeView(),
+                ProbeView.Spec(),
                 new GpuiWindowOptions { TitleBarStyle = (WindowTitleBarStyle)99 }
             )
         );
@@ -100,7 +100,7 @@ public sealed class ApplicationModelTests
     public void PendingWindowCanBeConfiguredAndClosed()
     {
         var application = new GpuiApplication();
-        var root = new ProbeView();
+        var root = ProbeView.Spec();
         var window = application.OpenWindow(root);
 
         window.SetTitle("Updated");
@@ -116,7 +116,7 @@ public sealed class ApplicationModelTests
         window.Close();
 
         Assert.True(window.IsClosed);
-        Assert.True(root.Unmounted);
+        Assert.Equal(0, ProbeView.Constructions);
         window.Close();
         Assert.Throws<InvalidOperationException>(application.Run);
     }
@@ -125,10 +125,10 @@ public sealed class ApplicationModelTests
     public void EachApplicationWindowHasIndependentIdentityAndRootOwnership()
     {
         var application = new GpuiApplication();
-        var firstRoot = new ProbeView();
+        var firstRoot = ProbeView.Spec();
         var first = application.OpenWindow(firstRoot);
         var second = application.OpenWindow(
-            new ProbeView(),
+            ProbeView.Spec(),
             new GpuiWindowOptions { TitleBarStyle = WindowTitleBarStyle.Custom }
         );
 
@@ -136,19 +136,25 @@ public sealed class ApplicationModelTests
         Assert.False(first.Snapshot.Activate);
         Assert.True(second.Snapshot.Activate);
         Assert.Equal(WindowTitleBarStyle.Custom, second.Snapshot.TitleBarStyle);
-        Assert.Throws<InvalidOperationException>(() => application.OpenWindow(firstRoot));
+        var third = application.OpenWindow(firstRoot);
+        Assert.NotEqual(first.Id, third.Id);
 
         first.Close();
-        Assert.Throws<ObjectDisposedException>(() => application.OpenWindow(firstRoot));
+        Assert.False(application.OpenWindow(firstRoot).IsClosed);
         var reopened = application.OpenWindow(
-            new ProbeView(),
+            ProbeView.Spec(),
             new GpuiWindowOptions { Activate = false }
         );
         Assert.NotEqual(first.Id, reopened.Id);
     }
 
-    private sealed class ProbeView : View
+    private sealed class ProbeView : View, IGeneratedViewFactory<ProbeView>
     {
+        internal static int Constructions;
+        public ProbeView(ViewConstruction construction) : base(construction) => Constructions++;
+        public static ProbeView CreateGpuiView(ViewConstruction construction) => new(construction);
+        internal static ViewSpec<ProbeView> Spec() => default;
+
         internal bool Unmounted => IsUnmounted;
 
         protected override Element Render(ref RenderContext ui) => ui.Div();

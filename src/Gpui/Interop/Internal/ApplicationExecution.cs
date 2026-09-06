@@ -19,12 +19,14 @@ internal sealed class ApplicationExecution
     [ThreadStatic] internal static ApplicationExecution? Current;
     private int _threadId;
     private HashSet<Session.ManagedSession>? _reactiveSessions;
+    private HashSet<Session.ManagedSession>? _failedSessions;
     internal ExecutionPhase Phase { get; private set; }
 
     internal static void AssertEffectsAllowed()
     {
         // Current is thread-local: worker ingress remains valid while the UI thread renders.
-        if (Current?.Phase is ExecutionPhase.Render or ExecutionPhase.DemandRender)
+        if (Current?.Phase is ExecutionPhase.Render or ExecutionPhase.DemandRender
+            || ViewOwnership.Constructing || ReactiveConsumer.Comparing)
             throw new InvalidOperationException("Framework effects are not allowed during rendering.");
     }
 
@@ -50,6 +52,8 @@ internal sealed class ApplicationExecution
         }
     }
 
+    internal bool HasAccess => Volatile.Read(ref _threadId) == Environment.CurrentManagedThreadId;
+
     internal Scope Enter(ExecutionPhase phase)
     {
         BindThread();
@@ -66,6 +70,21 @@ internal sealed class ApplicationExecution
 
     internal void ScheduleArtifacts(Session.ManagedSession session) =>
         (_reactiveSessions ??= []).Add(session);
+
+    internal void ScheduleFailure(Session.ManagedSession session) =>
+        (_failedSessions ??= []).Add(session);
+
+    private void RetireFailures()
+    {
+        if (_failedSessions is null || _failedSessions.Count == 0) return;
+        Phase = ExecutionPhase.Cleanup;
+        while (_failedSessions.Count != 0)
+        {
+            var session = _failedSessions.First();
+            _failedSessions.Remove(session);
+            session.RetireFailedViews();
+        }
+    }
 
     private void FlushArtifacts()
     {
@@ -95,7 +114,11 @@ internal sealed class ApplicationExecution
             if (execution is not null)
             {
                 try { execution.FlushArtifacts(); }
-                finally { execution.Phase = ExecutionPhase.Idle; Current = null; }
+                finally
+                {
+                    try { execution.RetireFailures(); }
+                    finally { execution.Phase = ExecutionPhase.Idle; Current = null; }
+                }
             }
         }
     }

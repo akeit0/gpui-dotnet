@@ -10,7 +10,6 @@ internal sealed class MountedViewAttachment
     private const int MaxPooledUiAttachments = 256;
 
     internal ViewEventRegistry Events { get; } = new();
-    internal WorkScope? Work { get; set; }
     internal uint ViewHandle { get; private set; }
     internal int ManagedThreadId { get; private set; }
     internal ulong NextResourceKeyId { get; set; }
@@ -26,7 +25,6 @@ internal sealed class MountedViewAttachment
     {
         AssertAccess();
         Events.Reset();
-        Work = null;
         ViewHandle = 0;
         NextResourceKeyId = 0;
         ManagedThreadId = 0;

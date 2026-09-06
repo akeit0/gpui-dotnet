@@ -39,7 +39,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
             return (TView)existing.View;
         }
 
-        var child = CreateFrameworkView<TView>();
+        var child = ViewFactory.Create<TView>(parent.Ownership.Window);
         AttachResolvedCandidate(child, parent, parentState, slot);
         return child;
     }
@@ -50,7 +50,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         in TProps props
     )
         where TProps : IEquatable<TProps>
-        where TView : View<TProps>, IGeneratedViewFactory<TView>
+        where TView : View<TProps>, IGeneratedViewFactory<TView, TProps>
     {
         EnsureParentIsRendering(parent);
         var parentState = GetRenderState(parent);
@@ -68,31 +68,9 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
             return child;
         }
 
-        var created = CreateFrameworkPropsView<TView, TProps>();
-        _ = created.StageProps(in props);
+        var created = ViewFactory.Create<TView, TProps>(props, parent.Ownership.Window);
         AttachResolvedCandidate(created, parent, parentState, slot);
         return created;
-    }
-
-    private static TView CreateFrameworkView<TView>()
-        where TView : View, IGeneratedViewFactory<TView>
-    {
-        var child = TView.CreateGpuiView();
-        return child
-            ?? throw new InvalidOperationException(
-                $"The generated factory for {typeof(TView).FullName} returned null."
-            );
-    }
-
-    private static TView CreateFrameworkPropsView<TView, TProps>()
-        where TProps : IEquatable<TProps>
-        where TView : View<TProps>, IGeneratedViewFactory<TView>
-    {
-        var child = TView.CreateGpuiView();
-        return child
-            ?? throw new InvalidOperationException(
-                $"The generated factory for {typeof(TView).FullName} returned null."
-            );
     }
 
     private void AttachResolvedCandidate(
@@ -111,6 +89,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         catch
         {
             RollBackPreparedOwnership(child, childState, parent);
+            child.Runtime.UnmountRuntime();
             throw;
         }
 

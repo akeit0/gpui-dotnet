@@ -29,14 +29,14 @@ Release measurements on Windows x64 / .NET 10.0.11:
 
 | Construction pattern | Managed B/instance |
 | --- | ---: |
-| Empty `View` subclass | 120 |
-| `View<int>` subclass, props not yet supplied | 136 |
-| Empty View followed by its first `Lifetime` access | 168 |
-| View containing one initialized `Signal<int>` field | 184 |
+| Empty `View` subclass | 216 |
+| `View<int>` subclass, props not yet supplied | 232 |
+| Empty View followed by its first `Lifetime` access | 264 |
+| View containing one initialized `Signal<int>` field | 280 |
 | `new Signal<int>(0)` | 56 |
 | `new Signal<int>(0)` exposed as `IReadOnlySignal<int>` | 56 |
 
-The empty View includes its runtime identity and lifecycle lock. Dispatcher is a value handle,
+The empty View includes its construction ownership scope, runtime identity, and lifecycle lock. Dispatcher is a value handle,
 so it adds no separate allocation or stored runtime field. No mounted
 attachment, command route, cancellation source, or work scope exists yet. The Signal-owning View
 adds an eight-byte reference field and the 56-byte Signal. First lifetime access adds a 48-byte
@@ -44,7 +44,7 @@ cancellation source. The construction probe stores every instance in a prealloca
 the objects observable while excluding array allocation. It warms type initialization; these are
 fresh object costs, not process startup costs.
 
-The first accepted render of a new root returning only constant Text allocates **1,416 managed
+The first accepted render of an already constructed test root returning only constant Text allocates **1,416 managed
 bytes** in the session fixture. This includes preparation, retained/render bookkeeping, first
 capacity growth, and acceptance/mounting. View/application/session construction and disposal are
 outside that interval. The fixture renders roots sequentially, so the bounded attachment pool is
@@ -186,7 +186,8 @@ same test command and `--filter "FullyQualifiedName~DispatcherAllocationPatterns
 
 ## Task observation
 
-`ViewContext.Work` is an optional mounted capability. `WorkScope.Start` invokes the producer on
+`ViewConstruction.Work` acquires an optional View-owned handle; `EffectScope.Work` owns operations
+for one accepted relationship. Production requires an active scope. `WorkScope.Start` invokes the producer on
 the calling UI thread; application code owns offloading. One operation object owns completion
 state, observes the Task, and enters ingress. Pending tasks additionally need one continuation
 delegate. There is no framework worker job, async wrapper Task, or per-operation weak reference.
@@ -196,20 +197,20 @@ delegate. There is no framework worker job, async wrapper Task, or per-operation
 
 | Pattern | Start (B/op) | Task completion and observation (B/op) | Total (B/op) |
 | --- | ---: | ---: | ---: |
-| Completed Task, static callbacks | 96 | 0 | 96 |
-| Pending Task, static callbacks | 160 | 0 | 160 |
-| Already-cancelled Task | 96 | 0 | 96 |
-| Pending Task cancelled by its source | 160 | 80 | 240 |
-| Already-faulted Task, handled | 288 | 0 | 288 |
-| Pending Task faulted by its source, handled | 160 | 440 | 600 |
-| Producer throws a failure | 272 | 0 | 272 |
-| Producer throws cancellation | 272 | 0 | 272 |
-| Completed Task, fresh callback capturing `this` | 160 | 0 | 160 |
-| Completed Task, cached instance callback | 96 | 0 | 96 |
-| Completed Task, fresh callback capturing a local | 184 | 0 | 184 |
-| Completed Task, cached multicast callback | 96 | 0 | 96 |
-| Producer creates a completed Task with `Task.FromResult(42)` | 168 | 0 | 168 |
-| Producer awaits a pending Task with `ConfigureAwait(false)` | 272 | 0 | 272 |
+| Completed Task, static callbacks | 104 | 0 | 104 |
+| Pending Task, static callbacks | 168 | 0 | 168 |
+| Already-cancelled Task | 104 | 0 | 104 |
+| Pending Task cancelled by its source | 168 | 80 | 248 |
+| Already-faulted Task, handled | 296 | 0 | 296 |
+| Pending Task faulted by its source, handled | 168 | 440 | 608 |
+| Producer throws a failure | 280 | 0 | 280 |
+| Producer throws cancellation | 280 | 0 | 280 |
+| Completed Task, fresh callback capturing `this` | 168 | 0 | 168 |
+| Completed Task, cached instance callback | 104 | 0 | 104 |
+| Completed Task, fresh callback capturing a local | 192 | 0 | 192 |
+| Completed Task, cached multicast callback | 104 | 0 | 104 |
+| Producer creates a completed Task with `Task.FromResult(42)` | 176 | 0 | 176 |
+| Producer awaits a pending Task with `ConfigureAwait(false)` | 280 | 0 | 280 |
 
 The probe uses `GC.GetAllocatedBytesForCurrentThread`, four warmup batches, and three measured
 batches of 128 operations. Task sources complete inline on the calling thread with no current
@@ -219,7 +220,7 @@ intentionally include those application allocations. Each fault uses a separate 
 accumulating stack history across operations. Source cancellation/fault bookkeeping is included in
 the observation column; already-completed Task observation occurs inside Start.
 
-The baseline is one 96-byte operation object. Pending observation adds one 64-byte delegate.
+The baseline is one 104-byte operation object. Pending observation adds one 64-byte delegate.
 Fresh capturing callbacks add delegate allocation; a local capture also adds a closure object.
 Callback admission does not inspect method metadata. Caching a callback avoids repeated delegate
 construction. Static callbacks with explicit
@@ -361,3 +362,12 @@ Track at least:
 
 Set `GPUI_DOTNET_TRACE=1` to print per-stage native timings and cumulative list-cache telemetry while
 running the sample.
+
+## Owned derivation and effects
+
+A warm single-entry memo hit allocates zero managed bytes in the focused runtime test. Cache
+construction and first calculation are separate costs. Effect handles and registries allocate only
+when declared in construction; unchanged accepted inputs reuse the scope. Latest requests add their
+linked cancellation source and replacement bookkeeping. The work table above measures independent
+Start operations, not StartLatest. These managed measurements do not measure native frames or
+cross-platform performance.

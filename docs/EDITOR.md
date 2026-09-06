@@ -64,7 +64,7 @@ payloads. Adding another extension must not add editor branches to Core.
 
 Render remains pure. In particular, opening a document or issuing a command cannot occur inside
 `Render()`. `EditorController` uses the stable mounted View command route and may enqueue its
-bootstrap from `OnMounted` before the corresponding extension node is first materialized. Native
+bootstrap from accepted effect setup before the corresponding extension node is first materialized. Native
 pending-command storage owns copied bytes and discards them when the owner View unmounts or a
 committed snapshot omits the resource identity.
 

@@ -17,7 +17,7 @@ var application = new GpuiApplication(
 );
 application.SetTheme(GpuiTheme.CreateDefault(GpuiThemeAppearance.Dark));
 application.OpenWindow(
-    new EditorSampleView(),
+    EditorSampleView.Spec(),
     new GpuiWindowOptions
     {
         Title = "GPUI.NET Optional Editor",
@@ -45,9 +45,16 @@ internal sealed partial class EditorSampleView : View
     private string _lastInsertion = "Type in the editor to inspect its UTF-8 delta.";
     private string _lastCommand = "No managed command sent.";
 
-    protected override void OnMounted(ref ViewContext context)
+    private readonly Effect<NoProps> _bootstrap;
+
+    public EditorSampleView(ViewConstruction context) : base(context)
     {
         _editor = context.CreateEditorController("main-document");
+        _bootstrap = context.Effect<NoProps>(Bootstrap);
+    }
+
+    private void Bootstrap(EffectScope scope, NoProps input)
+    {
         _editor.Bootstrap(
             "// This Rope, selection, undo stack, scrolling, and IME live in Rust.\n"
                 + "// Edit this document to see revisioned UTF-8 deltas in the sidebar.\n\n"
@@ -60,6 +67,7 @@ internal sealed partial class EditorSampleView : View
 
     protected override Element Render(ref RenderContext ui)
     {
+        ui.Effect(_bootstrap, default);
         var theme = ui.Theme;
         var options = new EditorOptions
         {

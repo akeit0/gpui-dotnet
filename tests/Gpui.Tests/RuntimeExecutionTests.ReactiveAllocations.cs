@@ -245,11 +245,17 @@ public sealed partial class RuntimeExecutionTests
 
     private sealed class AllocationEmptyView : View
     {
+        public AllocationEmptyView() : this(TestViews.Construction()) { }
+        public AllocationEmptyView(ViewConstruction construction) : base(construction) { }
+
         protected override Element Render(ref RenderContext ui) => ui.Text("view");
     }
 
     private sealed class AllocationSignalView : View
     {
+        public AllocationSignalView() : this(TestViews.Construction()) { }
+        public AllocationSignalView(ViewConstruction construction) : base(construction) { }
+
         private readonly Signal<int> _count = new(0);
         protected override Element Render(ref RenderContext ui)
         {
@@ -260,7 +266,10 @@ public sealed partial class RuntimeExecutionTests
 
     private sealed class AllocationPropsView : View<int>
     {
-        protected override Element Render(ref RenderContext ui) => ui.Text("view");
+        public AllocationPropsView() : this(TestViews.Construction()) { }
+        public AllocationPropsView(ViewConstruction construction) : base(construction) { }
+
+        protected override Element Render(in int props, ref RenderContext ui) => ui.Text("view");
     }
 
     private sealed class AllocationRenderRoot : ProbeView
@@ -270,23 +279,28 @@ public sealed partial class RuntimeExecutionTests
 
     private readonly record struct AllocationReaderProps(Signal<int>[] Signals, Signal<int> Alternate, Signal<bool> UseAlternate);
 
-    private sealed class AllocationReaderView : View<AllocationReaderProps>, IGeneratedViewFactory<AllocationReaderView>
+    private sealed class AllocationReaderView : View<AllocationReaderProps>, IGeneratedViewFactory<AllocationReaderView, AllocationReaderProps>
     {
-        public static AllocationReaderView CreateGpuiView() => new();
+        public static ViewSpec<AllocationReaderView, AllocationReaderProps> Spec(AllocationReaderProps props) => new(props);
+
+        public AllocationReaderView() : this(TestViews.Construction()) { }
+        public AllocationReaderView(ViewConstruction construction) : base(construction) { }
+
+        public static AllocationReaderView CreateGpuiView(ViewConstruction construction, AllocationReaderProps initialProps) => new(construction);
         internal readonly Signal<bool> Following = new(true);
         internal int Renders;
         internal int Observed;
-        protected override Element Render(ref RenderContext ui)
+        protected override Element Render(in AllocationReaderProps props, ref RenderContext ui)
         {
             Renders++;
             Observed = -1;
             if (Following.Value)
             {
                 Observed = 0;
-                if (Props.UseAlternate.Value)
-                    Observed = Props.Alternate.Value;
+                if (props.UseAlternate.Value)
+                    Observed = props.Alternate.Value;
                 else
-                    foreach (var signal in Props.Signals)
+                    foreach (var signal in props.Signals)
                         Observed += signal.Value;
             }
             // Constant text isolates dependency/render machinery from number formatting.
@@ -302,7 +316,7 @@ public sealed partial class RuntimeExecutionTests
         {
             Span<Element> children = stackalloc Element[readers];
             for (var index = 0; index < readers; index++)
-                children[index] = ui.Child<AllocationReaderView, AllocationReaderProps>(index, new(signals, Alternate, UseAlternate));
+                children[index] = ui.Child(index, AllocationReaderView.Spec(new(signals, Alternate, UseAlternate)));
             return ui.Div(children);
         }
     }

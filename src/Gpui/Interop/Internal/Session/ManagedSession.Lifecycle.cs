@@ -5,6 +5,22 @@ namespace Gpui.Interop.Internal.Session;
 
 internal sealed unsafe partial class ManagedSession
 {
+    internal void RetireFailedViews()
+    {
+        BuildUnmountOrder(includeCommittedTree: true);
+        foreach (var view in _unmountCandidates)
+        {
+            try { Unmount(view); }
+            catch (Exception) { /* The session retains the original failure; all owners still retire. */ }
+        }
+        _unmountCandidates.Clear();
+        _acceptedViews.Clear();
+        _snapshotVisited.Clear();
+        _snapshotStack.Clear();
+        _unmountVisited.Clear();
+        _rootView = null;
+    }
+
     internal void Stop()
     {
         if (Volatile.Read(ref _stopped) != 0)
@@ -22,6 +38,8 @@ internal sealed unsafe partial class ManagedSession
         }
 
         DiscardIngress();
+        _rootDeclaration = null;
+        _rootView = null;
         BuildUnmountOrder(includeCommittedTree: true);
         foreach (var view in _unmountCandidates)
         {
@@ -53,7 +71,7 @@ internal sealed unsafe partial class ManagedSession
         _unmountStack.Clear();
         _unmountVisited.Clear();
         _rootOutputArena?.Dispose();
-        _mountCandidates.Clear();
+        _acceptedViews.Clear();
         _pendingRenderRevision = 0;
         _rootOutputArena = null;
         _rangeOutputArena?.Dispose();
@@ -62,6 +80,12 @@ internal sealed unsafe partial class ManagedSession
 
     private void AttachRoot()
     {
+        if (_rootView is null)
+        {
+            var declaration = _rootDeclaration ?? throw new InvalidOperationException("No root declaration.");
+            _rootDeclaration = null;
+            _rootView = declaration.Create(_window!);
+        }
         var rootState = GetRenderState(RootView);
         if (rootState.Parent is not null)
         {

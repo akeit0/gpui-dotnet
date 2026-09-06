@@ -5,9 +5,9 @@ using static Gpui.Units;
 internal sealed partial class CounterCardView : View<CounterCardProps>
 {
     private readonly Signal<int> _count = new(0);
-    private WorkScope _work = null!;
+    private readonly WorkScope _work;
 
-    protected override void OnMounted(ref ViewContext context) => _work = context.Work;
+    public CounterCardView(ViewConstruction context, CounterCardProps initialProps) : base(context) => _work = context.Work;
 
     private void Increment() =>
         _work.Start(
@@ -21,12 +21,12 @@ internal sealed partial class CounterCardView : View<CounterCardProps>
             static (view, increment) => view._count.Value += increment
         );
 
-    protected override Element Render(ref RenderContext ui) =>
+    protected override Element Render(in CounterCardProps props, ref RenderContext ui) =>
         ui.VStack(
-                ui.Text(Props.Title)
+                ui.Text(props.Title)
                     .FontSize(Px(ui.Theme.Typography.Title))
                     .TextColor(ui.Theme.Colors.Text),
-                ui.Text($"Parent props revision: {Props.Revision:N0}")
+                ui.Text($"Parent props revision: {props.Revision:N0}")
                     .FontSize(Px(ui.Theme.Typography.Detail))
                     .TextColor(ui.Theme.Colors.TextMuted),
                 ui.Text($"Retained local count: {_count.Value:N0}").TextColor(ui.Theme.Colors.Text),

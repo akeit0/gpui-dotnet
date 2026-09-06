@@ -35,7 +35,7 @@ the normal suite remains an executable acceptance gate throughout migration.
 Preparation allocates identity and declaration storage without invoking user code.
 After validation, commit the entire reachable composition and props before invoking
 any lifecycle callback. Mount parent before child outside user rendering. Retirement
-of an unaccepted candidate cancels and releases storage without lifecycle callbacks.
+of an unaccepted candidate cancels lifetime and releases registered local resources without starting effects.
 Mounting failures fault the session and cleanup remains child-first.
 
 Managed acceptance alone must not be confused with Rust accepting the published
@@ -49,7 +49,7 @@ Rust decodes the borrowed arena and reconciles resource declarations, then calls
 `render_completed(session, revision, status)` exactly once for successfully published output.
 Status zero accepts it; a decode failure faults the session without mounting candidates.
 Until acknowledgement, reject new root/range rendering and user dispatch. Commit all managed
-props and composition before parent-first mounting. Invalidation from mounting queues a later
+props and composition before whole-tree route activation and parent-first effect setup. Invalidation from effect setup queues a later
 frame; it never changes the accepted snapshot in place. The acknowledgement is a required ABI callback.
 
 Signal updates while publication awaits acknowledgement must survive clearing staged ancestors.
@@ -110,8 +110,8 @@ protocol errors. Root bindings and demand bindings cannot retire one another.
 
 Each retained View starts dirty. Entering composition marks its fragment dirty, and completing
 managed rendering only stages output. Native root acceptance clears dirty flags for the reachable
-Views whose composition was staged, before mounting. A rejected publication or failed render
-never marks its fragments clean. A clean child copies its accepted fragment without rerunning
+Views whose composition was staged, before effect setup. A rejected publication or failed render
+faults the session and retires its owned Views at the application callback boundary. A clean child copies its accepted fragment without rerunning
 user rendering; the root still renders whenever native requests a new managed snapshot.
 
 Any-thread requests continue to enter the existing coalesced ingress queue. Only the application

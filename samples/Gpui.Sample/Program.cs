@@ -4,36 +4,20 @@ var stressGrowth = args.Contains("--stress-growth", StringComparer.Ordinal);
 var multiWindow = args.Contains("--multi-window", StringComparer.Ordinal);
 var application = new GpuiApplication();
 application.SetTheme(SampleThemes.Light);
-var shell = new SampleShellView { Application = application };
-var menuBar = stressGrowth ? Array.Empty<GpuiMenu>() : shell.CreateMenuBar();
-shell.MenuBar = menuBar;
-if (!stressGrowth && OperatingSystem.IsMacOS())
+var options = new GpuiWindowOptions
 {
-    application.SetMenuBar(menuBar);
-}
-View rootView = stressGrowth ? new ArenaGrowthView() : shell;
-var mainWindow = application.OpenWindow(
-    rootView,
-    new GpuiWindowOptions
-    {
-        Title = stressGrowth ? "GPUI.NET Arena Growth" : "GPUI.NET Components",
-        Width = 1040,
-        Height = 700,
-        TitleBarStyle =
-            stressGrowth || OperatingSystem.IsMacOS()
-                ? WindowTitleBarStyle.System
-                : WindowTitleBarStyle.Custom,
-    }
-);
-if (rootView is SampleShellView mainShell)
-{
-    mainShell.Window = mainWindow;
-}
+    Title = stressGrowth ? "GPUI.NET Arena Growth" : "GPUI.NET Components",
+    Width = 1040,
+    Height = 700,
+    TitleBarStyle = stressGrowth || OperatingSystem.IsMacOS()
+        ? WindowTitleBarStyle.System : WindowTitleBarStyle.Custom,
+};
+if (stressGrowth) application.OpenWindow(ArenaGrowthView.Spec(), options);
+else application.OpenWindow(SampleShellView.Spec(), options);
 if (multiWindow)
 {
-    var secondRoot = new CompanionWindowView { Origin = "Started with --multi-window" };
-    var secondWindow = application.OpenWindow(
-        secondRoot,
+    application.OpenWindow(
+        CompanionWindowView.Spec("Started with --multi-window"),
         new GpuiWindowOptions
         {
             Title = "GPUI.NET Companion — Window 2",
@@ -43,6 +27,5 @@ if (multiWindow)
             Top = 80,
         }
     );
-    secondRoot.Window = secondWindow;
 }
 application.Run();

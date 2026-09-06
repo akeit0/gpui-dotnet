@@ -242,7 +242,7 @@ public readonly struct EditorController
 
     /// <summary>
     /// Supplies the document once, independently from render snapshots. This command may be sent
-    /// during <c>OnMounted</c>, before the matching editor declaration is materialized.
+    /// during accepted effect setup, before the matching editor declaration is materialized.
     /// </summary>
     public void Bootstrap(string value)
     {
@@ -314,12 +314,12 @@ public readonly struct EditorController
 public static class EditorElements
 {
     /// <summary>Creates a controller for an editor declared by the same View.</summary>
-    public static EditorController CreateEditorController(this ViewContext context, string key) =>
+    public static EditorController CreateEditorController(this ViewConstruction context, string key) =>
         new(context.CreateNativeExtensionController(EditorExtension.Component, key));
 
     /// <summary>Creates a controller whose editor resource key is already UTF-8.</summary>
     public static EditorController CreateEditorController(
-        this ViewContext context,
+        this ViewConstruction context,
         ReadOnlySpan<byte> utf8Key
     ) => new(context.CreateNativeExtensionController(EditorExtension.Component, utf8Key));
 

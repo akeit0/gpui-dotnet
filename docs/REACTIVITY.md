@@ -5,9 +5,8 @@
 A Signal is a value plus accepted rendering dependencies. It is not an event stream, a scheduler,
 or an owner of Views. `Signal<T>(initialValue, comparer?)`, `Value`, and `Set(value)` provide
 replacement semantics. `Set` compares once and reports whether the value changed. Mutating an
-object inside a Signal does not notify; comparers must be stable and side-effect free. Computed
-values, effects, deep observation, and public subscription callbacks are separate concerns and
-are outside this primitive.
+object inside a Signal does not notify; comparers must be stable and side-effect free. Computed values, deep observation, and public subscription callbacks are outside this primitive.
+View-owned memos and accepted effects have their own ownership contracts; see [View lifecycle](VIEW_LIFECYCLE.md).
 
 Pass `IReadOnlySignal<out T>` to readers and keep `Signal<T>` where replacement is authorized.
 The read-only contract exposes only `T Value { get; }`; interface reads use the same tracking and
@@ -33,13 +32,15 @@ same thread. Unbound values are ordinary initialization state, not concurrent co
 Rendering may read but never write Signals, including equal-value writes and writes to unbound
 Signals. Equality comparison must not reenter Signal mutation. A changed value invalidates its
 accepted consumers synchronously and schedules later native work. It never renders or invokes
-application callbacks. Writes from mount hooks are valid after the entire graph has committed.
+application callbacks. Writes from effect setup are valid after the entire graph has committed.
 
 ## Accepted dependencies
 
 Each retained View and each native demand artifact is a distinct consumer. A synchronous tracking
 scope restores its parent when a child render ends; child reads therefore do not subscribe the
-parent. Reads outside rendering assert affinity but do not create dependencies.
+parent. Reads outside rendering assert affinity but do not create dependencies. Construction explicitly suspends
+tracking, including child field initializers, without permitting writes to existing Signals.
+Memo calculations and input equality cannot read Signals; assemble memo inputs before calling Get.
 
 Consumers use a linear array for small dependency sets and replace it with a dictionary above 64
 active/provisional edges. One field owns either representation; conversion preserves the edge

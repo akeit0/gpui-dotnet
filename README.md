@@ -115,7 +115,7 @@ using static Gpui.Units;
 var application = new GpuiApplication();
 application.SetTheme(GpuiTheme.CreateDefault(GpuiThemeAppearance.Dark));
 application.OpenWindow(
-    new MainView(),
+    MainView.Spec(),
     new GpuiWindowOptions
     {
         Title = "Hello GPUI.NET",
@@ -149,7 +149,7 @@ internal sealed partial class MainView : View
 
 `[GpuiView]` generates the factory used for framework-owned child views and NativeAOT. `Render()`
 describes UI into a reusable managed-owned arena that grows before writes without rerunning user
-rendering. State changes, I/O, and task creation still belong in events or lifecycle methods rather
+rendering. Observable state changes, I/O, and task creation belong in events or accepted effects rather
 than in `Render()`. Rust synchronously decodes completed output into an owned snapshot.
 
 On Windows, the application executable must embed a Common Controls v6 manifest because the native
@@ -175,7 +175,7 @@ Clean native repaints do not call managed `Render()`. High-frequency state such 
 selection, pointer interaction, IME composition, and slider movement stays in Rust. Managed code
 is called for dirty renders, bound events, and coarse virtual-row batches.
 Rust acknowledges each accepted root snapshot before managed Views mount. The first render declares
-the UI; `OnMounted` then runs with committed props and can command accepted resources. Commands
+the UI; accepted effects then run with committed inputs and can command accepted resources. Commands
 queued before a resource's removal cannot reach a later resource using the same key.
 
 ## Views and events
@@ -185,8 +185,8 @@ Child views are retained by slot. Use a keyed slot when a route or tab may repla
 ```csharp
 var content = _page switch
 {
-    Page.Home => ui.Child<HomeView>("content"),
-    Page.Settings => ui.Child<SettingsView>("content"),
+    Page.Home => ui.Child("content", HomeView.Spec()),
+    Page.Settings => ui.Child("content", SettingsView.Spec()),
     _ => throw new InvalidOperationException(),
 };
 ```
@@ -196,15 +196,20 @@ key retains the same child instance and its local state. `TProps` must implement
 `IEquatable<TProps>`; records and record structs do so automatically:
 
 ```csharp
-ui.Child<CounterCardView, CounterCardProps>(
-    "account",
-    new("Account", revision)
-);
+ui.Child("account", CounterCardView.Spec(new("Account", revision)));
 ```
 
-`View` and `View<TProps>` are separate specializations of a shared runtime base, so calling
-`ui.Child<CounterCardView>()` for a props view is a compile-time error. The generated factory is
-used only for reflection-free, NativeAOT-safe child construction.
+Generated `Spec(...)` declarations enforce required props and use the same NativeAOT-safe factory
+for roots and children. Construction happens on the application thread. An explicit constructor takes
+`ViewConstruction` and initial props; the generator supplies it when no constructor is declared.
+Props views implement `Render(in TProps props, ref RenderContext ui)`. Event-time `CommittedProps`
+always means the accepted input.
+
+Construction can initialize readonly state, controller/work handles, and owner-local memos.
+`Memo<TInput, TResult>.Get` computes pure derived data in the first render and reuses equal inputs.
+Read Signals before assembling the memo input. Declare external relationships with `ui.Effect`;
+acceptance starts or replaces their scoped subscriptions and work. See [View lifecycle](docs/VIEW_LIFECYCLE.md).
+The **Analysis** sample exercises this model as both a retained child and an independent window.
 
 Events are bound at the element declaration and target a mounted view:
 
@@ -217,7 +222,7 @@ Event handlers are synchronous `Action` callbacks. Use [WorkScope.Start](docs/AS
 asynchronous production; async-void handlers are rejected. View lifetime follows UI ownership: a
 window owns its root and a committed slot owns its child; an ordinary C# reference owns neither.
 Each View has one lazily allocated, stable `Lifetime` token, cancelled before terminal
-`OnUnmounted()` cleanup. An unmounted instance cannot be reused. See
+owned cleanup. An unmounted instance cannot be reused. See
 [View lifecycle](docs/VIEW_LIFECYCLE.md).
 
 Managed render and lifecycle work is confined to GPUI's application thread. `Invalidate()`,
@@ -251,7 +256,7 @@ window has its own root view tree, retained resources, render snapshots, and fai
 
 ```csharp
 var window = application.OpenWindow(
-    new DocumentView(),
+    DocumentView.Spec(),
     new GpuiWindowOptions
     {
         Title = "Document",
@@ -383,7 +388,7 @@ then requests a new frame. Compatible method-body edits are applied to existing 
 | Text, colors, spacing, layout, or compatible event bindings | Updated output or behavior with state preserved. |
 | Rust, native bindings, schema, ABI, NativeAOT, JSON, or file assets | Rebuild or restart required. |
 
-Constructors and `OnMounted()` are not rerun for existing Views. Unsupported CLR edits are handed
+Constructors are not rerun. Derived memos clear and declared effects restart after acceptance. Unsupported CLR edits are handed
 back to `dotnet watch`, which restarts the application when required.
 
 ## Repository layout

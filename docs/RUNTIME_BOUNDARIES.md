@@ -31,6 +31,6 @@ the same caller obligation; arbitrary external callback implementations cannot b
 diagnostics. Runtime guards focus on thread, render phase, null arguments, and owner lifetime.
 No reflection cache or registration wrapper is required for callback admission.
 
-WorkScope keeps producer scheduling application-owned and Start operations independent. Queue
-limits, latest-wins work, debounce, and cancellation helpers require separately specified behavior;
+WorkScope keeps producer scheduling application-owned and Start operations independent. StartLatest explicitly revokes and cancels its previous latest request. Effect replacement revokes
+all work belonging to that effect generation. Queue limits and debounce remain separate policies;
 they are not implied by callback validation or the per-render ingress drain budget.

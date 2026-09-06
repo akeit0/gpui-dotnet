@@ -210,7 +210,7 @@ internal sealed unsafe partial class ManagedSession
     {
         _snapshotStack.Clear();
         _snapshotVisited.Clear();
-        _mountCandidates.Clear();
+        _acceptedViews.Clear();
 
         _snapshotStack.Push(RootView);
         while (_snapshotStack.TryPop(out var current))
@@ -235,13 +235,12 @@ internal sealed unsafe partial class ManagedSession
                 // Publication stages output; only native acceptance makes it reusable.
                 state.Dirty = false;
                 state.Consumer!.Commit();
+                if (current.Ownership.Effects is { } effects)
+                    foreach (var effect in effects) effect.Commit();
             }
 
             current.CommitStagedProps();
-            if (!current.Runtime.IsMounted)
-            {
-                _mountCandidates.Add(current);
-            }
+            _acceptedViews.Add(current);
 
             if (state.Children is null)
             {
@@ -283,12 +282,22 @@ internal sealed unsafe partial class ManagedSession
             }
         }
 
-        foreach (var view in _mountCandidates)
+        for (var index = _acceptedViews.Count - 1; index >= 0; index--)
+            if (_acceptedViews[index].Ownership.Effects is { } effects)
+                foreach (var effect in effects) effect.StopChanged();
+
+        foreach (var view in _acceptedViews)
         {
             ThrowIfUnavailable();
             view.Runtime.MountRuntime();
         }
-        _mountCandidates.Clear();
+        foreach (var view in _acceptedViews)
+        {
+            ThrowIfUnavailable();
+            if (view.Ownership.Effects is { } effects)
+                foreach (var effect in effects) effect.Start();
+        }
+        _acceptedViews.Clear();
     }
 
     private void MarkViewFragmentDirty(ViewBase view)

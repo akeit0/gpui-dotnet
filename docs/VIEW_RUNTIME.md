@@ -1,74 +1,63 @@
 # Managed View runtime
 
-The application View is an authoring object, not the runtime's shared implementation container.
-Its base declares rendering and lifecycle hooks and exposes small authoring conveniences. Props
-belong to `View<TProps>`. Runtime algorithms and storage belong to composed internal objects.
+The authoring object owns application state and defines rendering. Runtime identity, candidate
+ownership, native attachment storage, and optional facilities have separate responsibilities.
 
 | Owner | Responsibility | Lifetime |
 | --- | --- | --- |
-| `ViewBase` | Application hooks and access to its runtime identity | One application View |
-| `ViewRuntime` | Mount/retire transitions, cancellation, invalidation identity, lifecycle orchestration | One View; never pooled |
-| `ViewCommandRoute` | Admission of commands from any thread; terminal deactivation | One attachment; never pooled |
-| `MountedViewAttachment` | UI handle, resource-key sequence, and optional mounted capabilities | UI-thread storage; bounded reuse |
-| `ViewEventRegistry` | Event tokens, typed binding, render passes, and artifact leases | Part of the mounted attachment |
-| `WorkScope` | Pending tasks and live completion delivery | Optional capability acquired through `ViewContext.Work` |
-| `ManagedSession` | Window ingress, retained composition, native acceptance, and terminal faults | One native window |
+| ViewSpec | Typed factory and current input declaration | Value; root declaration retained until construction |
+| ViewOwnership | Construction registrations, memos, effect handles, owning window | Begins before user construction; terminal retirement |
+| ViewBase / View<TProps> | Application fields, rendering, explicit/committed inputs | One application View |
+| ViewRuntime | Stable identity, lifetime, command admission, optional View WorkScope | One View, never pooled |
+| ViewCommandRoute | Any-thread ingress and terminal deactivation | One attachment identity, never pooled |
+| MountedViewAttachment | Event registry, UI handle, resource-key sequence | Application-thread storage with bounded reuse |
+| EffectScope | One accepted relationship's cleanup, callbacks, cancellation, and work | One effect generation |
+| ManagedSession | Composition, publication, acceptance, faults, and subtree teardown | One native window |
 
-`ViewBase` has no event registry, scheduler, operation list, attachment pool, or implementation
-classes. Runtime callers address the appropriate composed object directly rather than adding a
-forwarding method for every feature to the base. Render and lifecycle invocation bridges remain
-small because they are the boundary to protected application overrides.
+## Construction and publication
 
-The non-pooled runtime identity is deliberate: an externally held View may survive retirement,
-and an any-thread command cannot safely use recycled identity. The attachment and event storage
-can be reused because only the UI thread accesses them. Retirement deactivates command admission,
-retires optional capabilities, resets and returns mounted storage, cancels lifetime, and invokes
-application cleanup. Every callback and target reference must be released before storage reuse.
+Generated Spec methods produce typed values; a declaration does not execute user construction.
+Roots and children call the same direct generic factory under a construction owner.
+The owner exists outside the constructor, so registered local resources are released when
+construction throws. Initial props seed local state; later props are passed to Render explicitly.
+Effect handles and work/controller handles can be initialized into readonly fields before rendering.
 
-Async work does not change this division. The producer runs on the caller's UI thread; application
-code owns offloading and await policy. A work operation is one object used for registration,
-observation, and ingress. The scope clears its state and ownership references on retirement.
-The View has no async start method and no knowledge of operation bookkeeping.
+Root creation is deferred until the application-thread render callback. There is no preconstructed
+root API. A pending window can close without creating application objects. Child fragments stage
+declarations and reactive reads; only native acceptance makes them reusable.
 
-Composition introduces a fixed runtime object per View and reusable event-registry storage per
-attachment. It must not introduce per-event forwarding closures or repeated callback reflection,
-change accepted event identities, weaken cross-view Signal ownership, or reset virtual lists.
-Validation uses the existing native-callback, lifecycle, event-lease, Signal, and allocation tests.
+Acceptance commits the whole reachable tree, retires removed ownership and replaced effects,
+activates every new route, then executes effect setup parent-first. Clean reused fragments keep
+their accepted effects. Effects are declared by owner-bound handles, not positional hook indices.
 
-## Allocation and API design
+## Revocation and cleanup
 
-`Dispatcher` is a readonly value handle over the stable View runtime. Obtaining or copying the
-handle requires no heap object, and copying it does not create a new lifecycle identity. A default
-handle rejects commands. `Post(state, static callback)` carries explicit state in the ingress record
-and avoids a caller closure; `Post(Action)` remains available for already-created callbacks. Both
-forms defer execution and recheck the original route, including when posted from another thread.
-This is an explicit application dispatch API; it does not choose where producers run.
+An externally retained View may outlive its UI ownership. Its stable runtime and command route
+must never observe recycled attachment state. Any-thread commands acquire only that route and
+recheck admission on delivery; they do not inspect the application-thread attachment.
 
-Command admission checks the caller's thread-local render phase before queueing effects.
-Synchronous callbacks are enforced through API contracts and compile-time diagnostics, without
-runtime delegate reflection. Failed detached row callbacks wake the existing native refresh path
-to display the terminal managed failure. Successful callbacks need no host lookup or extra
-captured host handle. See [Runtime boundaries](RUNTIME_BOUNDARIES.md).
+Retirement revokes routes and effect/work callbacks before cancellation and application cleanup.
+Attachments reset every event target and key before entering their bounded pool. Owned caches
+clear their inputs/results, effect scopes dispose registrations in reverse order, and props
+release after cleanup. Local resources also release for candidates that never reach acceptance.
+The session coordinates child-first retirement and preserves the first fault while completing cleanup.
 
-Reactive consumers may retain at most eight cleared, detached edge records for their own future
-reads. Reuse begins only after acceptance or rejection has removed an edge from its Signal and the
-consumer's active storage. A spare record has no Signal reference. This storage stays with its
-one consumer, is never shared across threads or consumers, and is discarded at retirement. Accepted
-edges must stay attached until the new snapshot commits, even when rendering has switched branches.
-The bound covers small conditional branches without retaining an unbounded historical dependency
-graph.
+Effect callbacks use their generation's ingress. Replacement clears queued callback targets before
+old subscriptions are disposed. Work observation separates producer input from foreground completion
+state, allowing retirement to release the latter even when production never finishes.
 
-Active dependencies use a dense array with a live count. Small sets use reference-equality linear
-lookup, avoiding dictionary objects, buckets, hashing, and dictionary-entry enumeration during
-acceptance. Acceptance and rejection compact surviving edges in place and clear vacated array
-slots. Edge objects retain their identity while linked to Signals; moving an array slot must not
-change a subscription. Above 64 active/provisional edges, the same storage field switches to a
-dictionary containing those edge objects, releasing the array. There is no separate index field or
-duplicate collection. Dictionary storage remains until retirement, avoiding repeated conversion when
-a large branch temporarily shrinks. Acceptance and rejection remove entries before recycling edges.
-The cutoff follows complete read/accept measurements at 1, 4, 8, 16, 32, 64, and 256 dependencies,
-including reversed read order; it is not a universal hardware crossover point.
+## Cost and invalidation
 
-Validation compares construction, explicit-state/capturing dispatch, stable dependencies, and
-conditional-switch allocations. Regressions also cover default/copied dispatch handles, queued work
-after retirement, rejected observations, and collection of Signals after dependency removal.
+Memo handles retain a single pure result, with no speculative copy or native crossing. Read Signals
+outside memo calculations to preserve dependencies on cache hits. Effect declarations compare
+equatable inputs and retain unchanged scopes. Optional lists, work, cancellation, and callback
+registries allocate when used. Clean native repaints do not enter managed rendering.
+
+Signals continue to use accepted reactive consumers for View fragments and row artifacts. Small
+dependency sets use dense arrays; sets above 64 edges switch to a dictionary. Each consumer may
+retain eight cleared detached edges. No reactive scheduler is added for View-local memoization.
+
+Hot Reload invalidates fragments, memo entries, and effect code generations through queued application
+ingress. Constructors and semantic state are preserved. Native row caches are invalidated separately
+by the existing code-update command. See [performance](PERFORMANCE.md) for measurements and
+[View lifecycle](VIEW_LIFECYCLE.md) for the public contract.
