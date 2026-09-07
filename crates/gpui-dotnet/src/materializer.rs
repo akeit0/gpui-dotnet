@@ -3,12 +3,12 @@ use std::path::PathBuf;
 use gpui::{
     AnyElement, App, BoxShadow, ClickEvent, Context, CursorStyle, DefiniteLength, ElementId,
     Entity, ExternalPaths, FillOptions, FillRule, FocusHandle, Font, FontFallbacks, FontStyle,
-    FontWeight, Hsla, InteractiveElement, IntoElement, KeyDownEvent, KeyUpEvent, Length, ListState,
-    ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ObjectFit,
-    ParentElement, PathBuilder, PathStyle, Pixels, ScrollWheelEvent, SharedString,
-    StatefulInteractiveElement, Styled, StyledImage, TextAlign, TextOverflow, WeakFocusHandle,
-    Window, WindowControlArea, anchored, canvas, deferred, div, img, list, point, px, relative,
-    rgba,
+    FontWeight, Hsla, InteractiveElement, IntoElement, KeyDownEvent, KeyUpEvent, Length,
+    ListOffset, ListState, ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent,
+    MouseUpEvent, ObjectFit, ParentElement, PathBuilder, PathStyle, Pixels, ScrollWheelEvent,
+    SharedString, StatefulInteractiveElement, Styled, StyledImage, TextAlign, TextOverflow,
+    WeakFocusHandle, Window, WindowControlArea, anchored, canvas, deferred, div, img, list, point,
+    px, relative, rgba,
 };
 use gpui_base::FocusTrapElement as _;
 
@@ -25,8 +25,8 @@ use crate::{
     overlay::OverlayKind,
     popover_menu::{PopoverMenuConfiguration, popover_menu},
     resources::{
-        ResourceStore, TableSpec, input_configuration, list_configuration, resource_key,
-        slider_configuration, table_configuration,
+        ResourceStore, ScrollInteraction, TableSpec, input_configuration, list_configuration,
+        resource_key, slider_configuration, table_configuration,
     },
     scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics, list_overlay, scroll_overlay},
     semantic::{
@@ -569,6 +569,7 @@ impl ManagedView {
         let focus = focus_state.read(cx).focus.clone();
         let keyboard_state = focus_state.clone();
         let keyboard_list = state.clone();
+        let keyboard_interaction = resource.borrow().interaction.clone();
         let item_count = configuration.item_count;
         let resources = self.resources.clone();
         let row_scope = key.clone();
@@ -605,6 +606,7 @@ impl ManagedView {
                     cx,
                     &keyboard_state,
                     &keyboard_list,
+                    &keyboard_interaction,
                     item_count,
                 );
             });
@@ -665,6 +667,7 @@ impl ManagedView {
         let focus = focus_state.read(cx).focus.clone();
         let keyboard_state = focus_state.clone();
         let keyboard_list = state.clone();
+        let keyboard_interaction = resource.borrow().interaction.clone();
         let item_count = configuration.item_count;
         let resources = self.resources.clone();
         let row_scope = key.clone();
@@ -705,6 +708,7 @@ impl ManagedView {
                     cx,
                     &keyboard_state,
                     &keyboard_list,
+                    &keyboard_interaction,
                     item_count,
                 );
             });
@@ -2836,6 +2840,7 @@ fn handle_collection_key_down(
     cx: &mut App,
     focus_state: &Entity<CollectionFocusState>,
     list_state: &ListState,
+    interaction: &ScrollInteraction,
     item_count: usize,
 ) {
     if item_count == 0 {
@@ -2850,14 +2855,43 @@ fn handle_collection_key_down(
         .read(cx)
         .active_index
         .min(item_count.saturating_sub(1));
-    let Some(next) = collection_key_target(&event.keystroke.key, current, item_count) else {
+    let key = event.keystroke.key.as_str();
+    let next = match key {
+        "pageup" | "pagedown" => page_collection(list_state, key == "pagedown"),
+        _ => collection_key_target(key, current, item_count).inspect(|&next| {
+            list_state.scroll_to_reveal_item(next);
+        }),
+    };
+    let Some(next) = next else {
         return;
     };
 
+    // Keyboard navigation supersedes queued wheel easing, just like dragging the scrollbar.
+    interaction.remaining.set(gpui::Point::default());
     focus_state.update(cx, |state, _| state.active_index = next);
-    list_state.scroll_to_reveal_item(next);
     window.refresh();
     cx.stop_propagation();
+}
+
+fn page_collection(list_state: &ListState, down: bool) -> Option<usize> {
+    let last = list_state.item_count().checked_sub(1)?;
+    let height = list_state.viewport_bounds().size.height;
+    if height <= px(0.) || !f32::from(height).is_finite() {
+        return None;
+    }
+    let current = -list_state.scroll_px_offset_for_scrollbar().y;
+    let maximum = list_state.max_offset_for_scrollbar().y.max(px(0.));
+    let target = (current + if down { height } else { -height })
+        .max(px(0.))
+        .min(maximum);
+
+    // Map the absolute target through GPUI's measured/estimated height tree. A zero anchor also
+    // normalizes bottom-aligned end sentinels, which scroll_by alone treats as past the last row.
+    // Both mutations run synchronously; no render or managed row request occurs between them.
+    list_state.scroll_to(ListOffset::default());
+    list_state.scroll_by(target);
+    // Keep the partial-row offset: revealing this item would undo the page movement for tall rows.
+    Some(list_state.logical_scroll_top().item_ix.min(last))
 }
 
 fn collection_key_target(key: &str, current: usize, item_count: usize) -> Option<usize> {
@@ -2867,8 +2901,6 @@ fn collection_key_target(key: &str, current: usize, item_count: usize) -> Option
         "end" => last,
         "up" => current.saturating_sub(1),
         "down" => (current + 1).min(last),
-        "pageup" => current.saturating_sub(10),
-        "pagedown" => (current + 10).min(last),
         _ => return None,
     })
 }
@@ -3321,12 +3353,189 @@ mod tests {
     fn collection_keyboard_navigation_is_bounded() {
         assert_eq!(collection_key_target("up", 0, 3), Some(0));
         assert_eq!(collection_key_target("down", 2, 3), Some(2));
-        assert_eq!(collection_key_target("pageup", 8, 20), Some(0));
-        assert_eq!(collection_key_target("pagedown", 8, 20), Some(18));
         assert_eq!(collection_key_target("home", 2, 3), Some(0));
         assert_eq!(collection_key_target("end", 0, 3), Some(2));
         assert_eq!(collection_key_target("left", 1, 3), None);
         assert_eq!(collection_key_target("down", 0, 0), None);
+    }
+
+    struct PagingListView {
+        state: ListState,
+        heights: Vec<f32>,
+        rendered: std::rc::Rc<std::cell::Cell<usize>>,
+    }
+
+    impl gpui::Render for PagingListView {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            let heights = self.heights.clone();
+            let rendered = self.rendered.clone();
+            list(self.state.clone(), move |index, _, _| {
+                rendered.set(rendered.get() + 1);
+                div().h(px(heights[index])).w_full().into_any_element()
+            })
+            .w_full()
+            .h_full()
+        }
+    }
+
+    fn draw_paging_list(
+        cx: &mut gpui::VisualTestContext,
+        state: &ListState,
+        heights: &[f32],
+        viewport_height: f32,
+    ) {
+        let view = cx.new(|_| PagingListView {
+            state: state.clone(),
+            heights: heights.to_vec(),
+            rendered: Default::default(),
+        });
+        cx.draw(
+            point(px(0.), px(0.)),
+            gpui::size(px(200.), px(viewport_height)),
+            |_, _| view.into_any_element(),
+        );
+    }
+
+    fn assert_list_offset(state: &ListState, index: usize, offset: f32) {
+        let actual = state.logical_scroll_top();
+        assert_eq!(actual.item_ix, index);
+        assert_eq!(actual.offset_in_item, px(offset));
+    }
+
+    #[gpui::test]
+    fn collection_paging_uses_measured_heights_partial_rows_and_resized_viewport(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        let heights = [20., 80., 30., 120., 50., 200.];
+        let state = ListState::new(heights.len(), gpui::ListAlignment::Top, px(0.)).measure_all();
+        draw_paging_list(cx, &state, &heights, 125.);
+        assert_eq!(page_collection(&state, true), Some(2));
+        assert_list_offset(&state, 2, 25.);
+        assert_eq!(page_collection(&state, true), Some(4));
+        assert_list_offset(&state, 4, 0.);
+        assert_eq!(page_collection(&state, false), Some(2));
+        assert_list_offset(&state, 2, 25.);
+
+        draw_paging_list(cx, &state, &heights, 75.);
+        assert_eq!(page_collection(&state, true), Some(3));
+        assert_list_offset(&state, 3, 70.);
+        assert_eq!(page_collection(&state, false), Some(2));
+        assert_list_offset(&state, 2, 25.);
+    }
+
+    #[gpui::test]
+    fn collection_paging_uses_unmeasured_hints_without_requesting_rows(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        let state = ListState::new(20_000, gpui::ListAlignment::Top, px(0.))
+            .with_uniform_item_height(px(20.));
+        let calls = std::rc::Rc::new(std::cell::Cell::new(0));
+        let view = cx.new(|_| PagingListView {
+            state: state.clone(),
+            heights: vec![20.; 20_000],
+            rendered: calls.clone(),
+        });
+        cx.draw(
+            point(px(0.), px(0.)),
+            gpui::size(px(200.), px(95.)),
+            |_, _| view.into_any_element(),
+        );
+        // Mirror the retained resource's post-layout restoration after the initial width change.
+        state.clone().with_uniform_item_height(px(20.));
+        let before = calls.get();
+        assert!(before < 20);
+        state.scroll_to(ListOffset {
+            item_ix: 12,
+            offset_in_item: px(7.),
+        });
+        assert_eq!(page_collection(&state, true), Some(17));
+        assert_list_offset(&state, 17, 2.);
+        assert_eq!(page_collection(&state, false), Some(12));
+        assert_list_offset(&state, 12, 7.);
+        assert_eq!(calls.get(), before);
+
+        // A shrinking datasource clamps against its new native count and scroll range.
+        state.reset_with_uniform_height(3, px(20.));
+        assert_eq!(page_collection(&state, true), Some(0));
+        assert_list_offset(&state, 0, 0.);
+        state.reset(0);
+        assert_eq!(page_collection(&state, false), None);
+    }
+
+    #[gpui::test]
+    fn collection_paging_traverses_tall_rows_and_clamps_both_ends(cx: &mut gpui::TestAppContext) {
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        let heights = [400., 20., 20.];
+        let state = ListState::new(3, gpui::ListAlignment::Top, px(0.)).measure_all();
+        draw_paging_list(cx, &state, &heights, 100.);
+        for offset in [100., 200., 300., 340., 340.] {
+            assert_eq!(page_collection(&state, true), Some(0));
+            assert_list_offset(&state, 0, offset);
+        }
+        for offset in [240., 140., 40., 0., 0.] {
+            assert_eq!(page_collection(&state, false), Some(0));
+            assert_list_offset(&state, 0, offset);
+        }
+    }
+
+    #[gpui::test]
+    fn collection_paging_key_handler_preserves_offset_and_cancels_wheel_easing(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        let state = ListState::new(3, gpui::ListAlignment::Top, px(0.)).measure_all();
+        draw_paging_list(cx, &state, &[400., 20., 20.], 100.);
+        let focus = cx.new(|cx| CollectionFocusState {
+            focus: cx.focus_handle(),
+            active_index: 2,
+        });
+        let interaction = ScrollInteraction::default();
+        interaction.remaining.set(point(px(0.), px(50.)));
+        let mut event = KeyDownEvent {
+            keystroke: gpui::Keystroke::parse("pagedown").unwrap(),
+            is_held: true,
+            prefer_character_input: false,
+        };
+        cx.update(|window, cx| {
+            handle_collection_key_down(&event, window, cx, &focus, &state, &interaction, 3);
+            assert_eq!(focus.read(cx).active_index, 0);
+            assert_list_offset(&state, 0, 100.);
+            assert_eq!(interaction.remaining.get(), gpui::Point::default());
+
+            interaction.remaining.set(point(px(0.), px(50.)));
+            event.keystroke.modifiers.control = true;
+            handle_collection_key_down(&event, window, cx, &focus, &state, &interaction, 3);
+            assert_list_offset(&state, 0, 100.);
+            assert_eq!(interaction.remaining.get().y, px(50.));
+
+            event.keystroke = gpui::Keystroke::parse("down").unwrap();
+            handle_collection_key_down(&event, window, cx, &focus, &state, &interaction, 3);
+            assert_eq!(focus.read(cx).active_index, 1);
+            assert_eq!(interaction.remaining.get(), gpui::Point::default());
+        });
+    }
+
+    #[gpui::test]
+    fn collection_paging_handles_bottom_alignment_and_missing_viewports(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        let state = ListState::new(10, gpui::ListAlignment::Bottom, px(0.)).measure_all();
+        assert_eq!(page_collection(&state, true), None);
+        assert_list_offset(&state, 10, 0.);
+        draw_paging_list(cx, &state, &[20.; 10], 60.);
+        assert_eq!(page_collection(&state, false), Some(4));
+        assert_list_offset(&state, 4, 0.);
+        assert_eq!(page_collection(&state, true), Some(7));
+        assert_list_offset(&state, 7, 0.);
+        assert_eq!(page_collection(&state, true), Some(7));
+        assert_list_offset(&state, 7, 0.);
+        draw_paging_list(cx, &state, &[20.; 10], 0.);
+        let before = state.logical_scroll_top();
+        assert_eq!(page_collection(&state, true), None);
+        assert_list_offset(&state, before.item_ix, f32::from(before.offset_in_item));
     }
 
     #[test]

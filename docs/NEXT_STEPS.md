@@ -5,8 +5,8 @@ documents.
 
 ## Implementation priorities
 
-1. Collection keyboard behavior: move Page Up/Down by viewport geometry, then define active row,
-   selection, and activation as distinct states and actions.
+1. Collection keyboard behavior: define active row, selection, and activation as distinct states
+   and actions, including stable identity across splices and pointer/keyboard synchronization.
 2. Native performance evidence: measure drawing preparation, Dynamic owner discovery, arena
    validation overhead, and fragment copying in representative workloads before changing transport.
 3. Input editing: word navigation, undo/redo, richer pointer selection, platform IME tests, and
@@ -113,9 +113,8 @@ Keep stacking and dismissal window-owned in Rust while product visuals remain ma
   invalidation and measurement refresh for changed items, including items outside cached batches;
 - optional public cache/overscan diagnostics when benchmarks justify an ABI query;
 - table header sort events and column visibility/reordering;
-- row activation and selection semantics;
-- viewport-based Page Up/Down for variable-height rows, including partially visible and
-  unmeasured rows;
+- row activation and selection semantics, including stable active identity across splices and
+  pointer/keyboard synchronization;
 - frozen columns or resize chrome only when application requirements and measurements justify the
   added native state.
 

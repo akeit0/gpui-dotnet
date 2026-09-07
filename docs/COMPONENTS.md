@@ -185,6 +185,15 @@ active-row keyboard navigation, and up to four aligned row batches. The managed 
 one synthetic root containing exactly the requested number of row roots. Actual measurements
 replace their hints, allowing native scroll geometry to converge without measuring the full list.
 
+Page Up/Down scroll by the current row viewport height, clamped to the native scroll range.
+Paging preserves partial-row offsets, including within a row taller than the viewport, and places
+the native keyboard cursor on the first visible row. It uses the current viewport even when wheel
+scrolling has moved the old cursor offscreen. Up/Down then move that cursor by one row; Home/End
+move it to the first/last row and reveal it. Keyboard navigation cancels pending wheel smoothing.
+Paging uses measured heights and estimates for unseen rows without requesting managed rows in the
+key handler. Hidden or not-yet-laid-out viewports do not page. This cursor does not declare managed
+selection or activate a row.
+
 Keep `contentRevision` stable when a managed render cannot change any row output. Increment it when
 row content, styling, or height can change. Theme changes invalidate batches automatically.
 
@@ -214,6 +223,7 @@ the header and applies the same column widths and alignment to `ui.TableCell(col
 
 Rows keep List semantics, including batching, model identity, keyboard navigation, refresh, and
 splice behavior. A changed column declaration invalidates row batches because cell layout changes.
+Page Up/Down use the row viewport below the header, so header height is excluded from a page.
 Managed row content should use a horizontal container; Table does not infer a row layout from plain
 Div children.
 
