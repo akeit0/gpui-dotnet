@@ -69,6 +69,10 @@ fn native_workload_measurements() {
             resource.load_batch(0).unwrap();
             resource.clear_batches();
         });
+        println!(
+            "load-release-{rows}-rows: empty-cache-scratch-capacity={} bytes",
+            resource.scratch.buffer_capacity_bytes()
+        );
         ARTIFACTS.with(|capture| {
             let capture = capture.borrow();
             assert_eq!(capture.requests.len(), capture.accepts.len());
@@ -93,11 +97,9 @@ fn native_workload_measurements() {
                 resource
                     .batches
                     .values()
-                    .map(|batch| {
-                        batch.snapshot.buffer_capacity_bytes()
-                            + batch.scratch.buffer_capacity_bytes()
-                    })
+                    .map(|batch| batch.snapshot.buffer_capacity_bytes())
                     .sum::<usize>()
+                    + resource.scratch.buffer_capacity_bytes()
             };
             retained_before = buffers(&resource);
             resource.begin_frame();

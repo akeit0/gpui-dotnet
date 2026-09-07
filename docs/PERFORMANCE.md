@@ -312,6 +312,12 @@ Each List/Table row engine retains its active frame batches and up to four idle 
 requires no managed call. A missing batch requires one `list_render_range` call containing all
 rows in that batch and one `accept_artifact` call after validation.
 
+Validation/grouping scratch belongs to the row engine and is reused across serial decodes;
+cached batches retain no scratch or string-interner tables. Snapshot strings remain independently
+owned after the temporary batch interner is dropped. A snapshot without data-valued operations
+does not allocate an operation-string table. Numeric operations and callback tokens need no such
+table; snapshots using font-family or other string-valued operations allocate it lazily.
+
 Frame layout/prepaint pins every requested batch. After prepaint, trimming retains those batches
 plus at most four idle batches; the viewport and overdraw demand determine the live working set.
 Source removal and explicit invalidation still release affected batches immediately.
@@ -464,36 +470,46 @@ restores the working directory. Windows x64 measurements use five measured batch
 warmups. Decode and load/release use 64 operations per batch; trimming measures one fully prepared
 cache per batch. Each row has a keyed Button with width, height, and a shared click token.
 
-| Workload | Median µs/op |
-| --- | ---: |
-| Decode 48 rows into reused storage | 3.75 |
-| Decode 512 rows into reused storage | 38.29 |
-| Load, accept, and release a new 48-row batch | 5.55 |
-| Load, accept, and release a new 512-row batch | 42.95 |
+| Workload | Baseline µs/op (`95c6d02`) | Current µs/op |
+| --- | ---: | ---: |
+| Decode 48 rows into reused storage | 3.81 | 3.70 |
+| Decode 512 rows into reused storage | 41.39 | 38.09 |
+| Load, accept, and release a new 48-row batch | 5.72 | 4.76 |
+| Load, accept, and release a new 512-row batch | 45.77 | 41.56 |
 
 Warm decode reuses the snapshot, string interner, and validation scratch against an unchanged
-borrowed arena. Load/release creates and destroys a native cached batch through the production
+borrowed arena. Load/release reuses engine scratch while creating and destroying a native cached batch through the production
 range/accept/release paths. Its Rust callback fixture constructs the arena and records callbacks
 in preallocated vectors; it measures no managed runtime or cross-language transition. Neither
 probe includes native materialization, text layout, painting, or complete frame time.
 
 Idle trimming selects the four newest idle batches in one scan and releases the rest in another.
 All batches requested by the current frame remain pinned. Selection uses four stack entries,
-without another heap buffer. Compared with repeated oldest-batch searches at `9c5d872`:
+without another heap buffer. Compared with per-batch scratch/interner retention and eager
+operation-string tables at `95c6d02`, shared scratch and leaner snapshots reduce both retained
+buffers and destruction work:
 
-| Idle 48-row batches | Repeated search µs/op | Selection µs/op | Snapshot/scratch buffer capacity before → after |
-| --- | ---: | ---: | ---: |
-| 16 | 6.20 | 5.60 | 211,792 → 52,948 bytes |
-| 128 | 77.20 | 27.90 | 1,694,336 → 52,948 bytes |
-| 512 | 854.10 | 213.90 | 6,777,344 → 52,948 bytes |
+| Idle 48-row batches | Baseline trim µs/op | Current trim µs/op | Baseline buffer bytes before trim | Current buffer bytes before trim |
+| --- | ---: | ---: | ---: | ---: |
+| 16 | 5.00 | 2.40 | 211,792 | 99,781 |
+| 128 | 28.90 | 7.20 | 1,694,336 | 771,781 |
+| 512 | 245.80 | 34.40 | 6,777,344 | 3,075,781 |
 
 Trimming includes native batch destruction and release callbacks, with loading outside the timed
 interval. Large cases stress viewport contraction; they are not typical idle cache sizes.
-The memory column sums `capacity × element size` for snapshot and validation/grouping vectors.
+After trimming to four idle batches, these cases retain 27,781 buffer bytes, compared with
+52,948 at baseline. The memory columns sum `capacity × element size` for snapshot and
+validation/grouping vectors, counting shared engine scratch only once.
 It excludes string allocations, hash-table storage, allocator overhead, ListState, GPUI elements,
-and GPU memory, so it is a retained-buffer measure rather than total heap usage. A 512-row batch
-uses 139,909 bytes of these buffers, compared with 13,237 for a 48-row batch. Separate runs have
-no CPU affinity or clock control; small differences are inconclusive.
+and GPU memory, so it is a retained-buffer measure rather than total heap usage. These probes
+use no data-valued operations. One 512-row snapshot plus scratch uses 103,045 buffer bytes,
+compared with 9,781 for 48 rows. Dropping batch interner tables saves additional storage that is
+outside this counter.
+
+The tradeoff is engine-owned high-water scratch capacity: emptying the cache retains 3,781 bytes
+after 48-row batches or 39,509 after 512-row batches in these probes, until the engine is dropped.
+These numeric buffers retain no snapshot strings, event callbacks, or borrowed arena pointers.
+Separate runs have no CPU affinity or clock control; small differences are inconclusive.
 
 ### Dispatcher callback validation cost
 

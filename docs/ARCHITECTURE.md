@@ -60,6 +60,10 @@ writes without rerunning user rendering. Rust receives a borrowed completed desc
 synchronously decodes it into an owned snapshot before any further managed callback. Native row
 caches retain decoded snapshots, not the borrowed buffers. `Render()` and `[GpuiListItem]` remain
 free of observable application-side effects while allowing pure owned caches; this requirement is independent of capacity.
+Row engines reuse numeric validation/grouping scratch across serial batch decodes. A batch keeps
+only its decoded snapshot, artifact lease, and cache metadata. Its temporary string interner ends
+after decoding; the snapshot owns its strings independently. Root snapshots retain their interner
+across renders so consecutive values can reuse allocations.
 Child fragment boundaries check arena identity, generation, and root index before copying. Full
 managed semantic validation runs once on the assembled root or row batch before publication;
 native decoding independently validates the complete snapshot before acceptance.

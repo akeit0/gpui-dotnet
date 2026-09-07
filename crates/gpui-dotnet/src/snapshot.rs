@@ -81,12 +81,16 @@ impl ValidatedSnapshot {
 
         retained_strings.begin_snapshot();
         self.op_data.clear();
-        self.op_data.resize(self.ops.len(), None);
         for (index, op) in self.ops.iter().enumerate() {
             let is_data = operation_metadata(op.code)
                 .is_some_and(|metadata| metadata.value_kind == ValueKind::Data);
             if !is_data {
                 continue;
+            }
+            // Most row operations are numeric or callbacks. Keep the indexed string table
+            // absent unless a data operation actually needs it; subsequent decodes reuse capacity.
+            if self.op_data.is_empty() {
+                self.op_data.resize(self.ops.len(), None);
             }
             let start = op.a as usize;
             let end = start + op.b as usize;
@@ -1913,5 +1917,71 @@ mod tests {
         strings.begin_snapshot();
         let after_eviction = strings.intern(VALUE);
         assert_ne!(first.as_str().as_ptr(), after_eviction.as_str().as_ptr());
+    }
+
+    #[test]
+    fn data_operation_storage_is_lazy_and_cleared_across_decode_transitions() {
+        use crate::semantic::OP_FONT_FAMILY;
+        let mut nodes = [NodeRecord {
+            component: COMPONENT_DIV,
+            ..Default::default()
+        }];
+        let numeric = OpRecord {
+            code: OP_GAP_PX,
+            value_kind: ValueKind::F32 as u16,
+            a: 4f32.to_bits() as u64,
+            ..Default::default()
+        };
+        let font = OpRecord {
+            code: OP_FONT_FAMILY,
+            value_kind: ValueKind::Data as u16,
+            a: 0,
+            b: 5,
+            ..Default::default()
+        };
+        let mut ops = [numeric, font, numeric, OpRecord { a: 5, b: 7, ..font }];
+        let mut utf8 = b"InterGeorgia".to_vec();
+        let mut arena: RenderArena = unsafe { std::mem::zeroed() };
+        arena.nodes = nodes.as_mut_ptr();
+        arena.node_length = 1;
+        arena.node_capacity = 1;
+        arena.ops = ops.as_mut_ptr();
+        arena.op_length = 1;
+        arena.op_capacity = ops.len() as i32;
+        arena.utf8 = utf8.as_mut_ptr();
+        arena.utf8_length = utf8.len() as i32;
+        arena.utf8_capacity = utf8.len() as i32;
+        arena.generation = 1;
+        let mut snapshot = ValidatedSnapshot::default();
+        let mut strings = RetainedStrings::default();
+        let mut scratch = SnapshotScratch::default();
+
+        snapshot
+            .decode_into(&arena, 0, &mut strings, &mut scratch)
+            .unwrap();
+        assert_eq!(snapshot.op_data.capacity(), 0);
+        for _ in 0..3 {
+            arena.op_length = 4;
+            snapshot
+                .decode_into(&arena, 0, &mut strings, &mut scratch)
+                .unwrap();
+            let retained = snapshot
+                .last_data_op(&snapshot.nodes[0], OP_FONT_FAMILY)
+                .unwrap();
+            assert_eq!(retained.as_ref(), "Georgia");
+            // Borrowed output may be reused immediately; snapshot strings remain owned.
+            utf8.fill(b'x');
+            assert_eq!(retained.as_ref(), "Georgia");
+            arena.op_length = 1;
+            snapshot
+                .decode_into(&arena, 0, &mut strings, &mut scratch)
+                .unwrap();
+            assert!(snapshot.op_data.is_empty());
+            assert_eq!(
+                snapshot.last_data_op(&snapshot.nodes[0], OP_FONT_FAMILY),
+                None
+            );
+            utf8.copy_from_slice(b"InterGeorgia");
+        }
     }
 }

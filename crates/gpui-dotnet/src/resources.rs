@@ -659,6 +659,8 @@ pub(crate) struct ManagedListResource {
     snapshot_revision: u64,
     content_revision: Option<u64>,
     batches: HashMap<u32, CachedBatch>,
+    // Batches own decoded output; validation/grouping scratch is reused serially by the engine.
+    scratch: SnapshotScratch,
     pending_commands: Vec<ResourceCommand>,
     use_clock: u64,
     frame_start: u64,
@@ -694,6 +696,7 @@ impl ManagedListResource {
             snapshot_revision,
             content_revision: configuration.content_revision,
             batches: HashMap::new(),
+            scratch: SnapshotScratch::default(),
             pending_commands: Vec::new(),
             use_clock: 0,
             frame_start: 0,
@@ -1024,6 +1027,9 @@ impl ManagedListResource {
             .batch_size
             .min(self.item_count.saturating_sub(start as usize)) as u32;
         let mut batch = CachedBatch::new();
+        // A batch is decoded once. Its snapshot owns the strings after this temporary
+        // interner deduplicates the borrowed payloads within the batch.
+        let mut retained_strings = RetainedStrings::default();
         let callback = self
             .callbacks
             .list_render_range
@@ -1043,12 +1049,9 @@ impl ManagedListResource {
                 )
             },
             |arena, root| {
-                batch.snapshot.decode_into(
-                    arena,
-                    root,
-                    &mut batch.retained_strings,
-                    &mut batch.scratch,
-                )
+                batch
+                    .snapshot
+                    .decode_into(arena, root, &mut retained_strings, &mut self.scratch)
             },
         );
         // The output borrow has ended. A lease can now safely invoke managed release,
@@ -1159,9 +1162,7 @@ impl ManagedListResource {
 
 struct CachedBatch {
     lease: Option<ArtifactLease>,
-    retained_strings: RetainedStrings,
     snapshot: ValidatedSnapshot,
-    scratch: SnapshotScratch,
     last_used: u64,
 }
 
@@ -1169,9 +1170,7 @@ impl CachedBatch {
     fn new() -> Self {
         Self {
             lease: None,
-            retained_strings: RetainedStrings::default(),
             snapshot: ValidatedSnapshot::default(),
-            scratch: SnapshotScratch::default(),
             last_used: 0,
         }
     }
@@ -1758,6 +1757,66 @@ mod tests {
                 }
             });
         }
+    }
+
+    #[test]
+    fn cached_snapshots_survive_reused_scratch_growth_and_failed_batches() {
+        ARTIFACTS.with(|capture| {
+            *capture.borrow_mut() = ArtifactCapture {
+                clickable: true,
+                ..Default::default()
+            };
+        });
+        let mut config = configuration(Some(1));
+        config.item_count = 2_000;
+        let mut resource = ManagedListResource::new(1, artifact_callbacks(), &config, 1);
+        resource.load_batch(0).unwrap();
+        let first_id = resource.batches[&0].lease.as_ref().unwrap().artifact_id;
+
+        ARTIFACTS.with(|capture| capture.borrow_mut().clickable = false);
+        resource.batch_size = 1;
+        resource.load_batch(48).unwrap();
+        ARTIFACTS.with(|capture| capture.borrow_mut().failure_mode = 2);
+        assert_eq!(resource.load_batch(49), Err(-63));
+        ARTIFACTS.with(|capture| {
+            let mut capture = capture.borrow_mut();
+            capture.failure_mode = 0;
+            capture.clickable = true;
+        });
+        resource.batch_size = 512;
+        resource.load_batch(512).unwrap();
+
+        let first = &resource.batches[&0].snapshot;
+        assert_eq!(first.children(&first.nodes[0]).len(), 48);
+        assert!(first.nodes[1..].iter().all(|node| {
+            node.component == crate::semantic::COMPONENT_BUTTON
+                && node.data.as_ref() == "row"
+                && first
+                    .ops(node)
+                    .iter()
+                    .any(|op| op.code == crate::semantic::OP_ON_CLICK && op.a == first_id)
+        }));
+        let second = &resource.batches[&48].snapshot;
+        assert_eq!(second.nodes.len(), 2);
+        assert_eq!(second.nodes[1].component, crate::semantic::COMPONENT_TEXT);
+        assert!(second.ops(&second.nodes[1]).is_empty());
+        assert_eq!(resource.batches[&512].snapshot.nodes.len(), 513);
+        assert!(
+            resource.invalidate_artifacts(&[crate::abi::NativeArtifactKey {
+                source: resource.source_id,
+                artifact: first_id,
+            }])
+        );
+        assert_eq!(batch_keys(&resource), vec![48, 512]);
+        ARTIFACTS.with(|capture| {
+            assert_eq!(
+                capture.borrow().releases,
+                vec![
+                    (resource.source_id, 3, -63),
+                    (resource.source_id, first_id, 0)
+                ]
+            );
+        });
     }
 
     #[test]
