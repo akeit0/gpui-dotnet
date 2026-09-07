@@ -94,28 +94,8 @@ internal sealed partial class ExploreView : View<ExploreProps>
         Invalidate();
     }
 
-    private void ToggleLike(ulong payload)
-    {
-        var id = checked((long)payload);
-        var store = CommittedProps.Store;
-        var index = -1;
-        for (var i = 0; i < _rows.Count; i++)
-        {
-            if (_rows[i].Id == id)
-            {
-                index = i;
-                break;
-            }
-        }
-        if (index < 0)
-        {
-            return;
-        }
-        // Silent write: revision stays stable so only this row range refreshes.
-        store.ToggleEntryLike(id);
-        _feed.RefreshRanges((index, 1));
-        Invalidate();
-    }
+    private void ToggleLike(ulong payload) =>
+        CommittedProps.Store.ToggleEntryLike(checked((long)payload));
 
     private void OpenSheet(ulong payload) => OpenDest(checked((int)payload));
 
@@ -170,7 +150,11 @@ internal sealed partial class ExploreView : View<ExploreProps>
                     count % store.Destinations.Count
                 );
             },
-            static (view, failure) => view._refreshing = false
+            static (view, failure) =>
+            {
+                view._refreshing = false;
+                view.Invalidate();
+            }
         );
         Invalidate();
     }

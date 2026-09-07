@@ -16,6 +16,8 @@
         <ProjectReference Include="../../src/Gpui.Generators/Gpui.Generators.csproj" />
         <ProjectReference Include="../../src/Gpui.Editor/Gpui.Editor.csproj" />
         <ProjectReference Include="../../samples/Gpui.Sample/Gpui.Sample.csproj" />
+        <ProjectReference Include="../../samples/Gpui.TaskBoard/Gpui.TaskBoard.csproj" Aliases="TaskBoard" />
+        <ProjectReference Include="../../samples/Gpui.Wander/Gpui.Wander.csproj" Aliases="Wander" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     </ItemGroup>
 </Project>

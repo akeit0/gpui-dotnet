@@ -43,7 +43,7 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor InvalidListRenderer = Error(
         "GPUI012",
         "Invalid GPUI list-item renderer",
-        "List renderer '{0}' must be an instance, non-generic synchronous method with signature Element Method(int index, ref RenderContext ui)"
+        "List renderer '{0}' must be an instance, non-generic synchronous method with signature {1}"
     );
     private static readonly DiagnosticDescriptor ReservedRowsMember = Error(
         "GPUI013",
@@ -133,7 +133,10 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
                         Diagnostic.Create(
                             InvalidListRenderer,
                             method.Locations.FirstOrDefault(),
-                            method.Name
+                            method.Name,
+                            propsType is null
+                                ? "Element Method(int index, ref RenderContext ui)"
+                                : $"Element Method(int index, in {propsType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)} props, ref RenderContext ui)"
                         )
                     );
                 }

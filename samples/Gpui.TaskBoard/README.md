@@ -25,7 +25,7 @@ dotnet run --project samples/Gpui.TaskBoard -- --dark
 - **Insights tab** — retained child `View<InsightsProps>` with a memo-cached
   summary, a flex distribution bar, and a native vector `Drawing` chart.
 - **Details pane** — retained child `View<TaskDetailProps>` in a collapsible Dock
-  right region: live-committing title/assignee inputs, status buttons, priority
+  right region: title/assignee inputs that commit on Enter, status buttons, priority
   radios, a retained estimate `Slider`, file-drop attachments, a `WorkScope`
   estimate suggestion, and open-in-window.
 - **Activity region** — second virtual `List` (bottom Dock region) fed by the same
@@ -49,10 +49,13 @@ dotnet run --project samples/Gpui.TaskBoard -- --dark
   without touching the revision.
 - `TaskDetailView` doubles as an embedded child and an independent window root
   from the same `Spec`, sharing the live store. Native input/slider values are
-  synchronized from accepted props through an effect (`SyncInputs`), so `Render`
-  builds no key strings and typing never fights the caret.
-- `Render` methods allocate nothing on the heap: ref-bound controllers, static
+  synchronized from accepted immutable field snapshots through an effect (`SyncInputs`).
+  Unrelated changes preserve local drafts; an external change to the same field wins.
+  Selecting another task discards uncommitted drafts. Estimate work snapshots the target
+  and rejects results after intervening model edits.
+- Render code uses allocation-conscious mechanisms: ref-bound controllers, static
   event handlers with `ulong` payloads, stack-span collection expressions, one
   small inline buffer for the variable-length project/attachment lists, static
   option snapshots, and arena-direct interpolated text. See `FINDINGS.md` for
-  what the framework made easy and what is still missing.
+  what the framework made easy and what is still missing. Projection rebuilds and
+  capturing lookup predicates still allocate; no end-to-end zero-allocation claim is made.

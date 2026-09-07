@@ -6,6 +6,7 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
     <ItemGroup>
+        <InternalsVisibleTo Include="Gpui.Tests" />
         <ProjectReference Include="../../src/Gpui/Gpui.csproj" />
         <ProjectReference
             Include="../../src/Gpui.Generators/Gpui.Generators.csproj"

@@ -40,15 +40,15 @@ public sealed record Trip(
 );
 
 /// <summary>
-/// In-memory document for the sample. Mutations that must rerender subscribers go
-/// through <see cref="Notify"/>; silent mutations (feed likes) skip it so the owning
-/// View can use targeted row refresh instead of evicting every batch.
+/// In-memory document for the sample. Observable mutations advance the revision
+/// and notify every subscriber, including memoized projections and shell badges.
 /// </summary>
 public sealed class TravelStore
 {
     private long _nextEntry = 1;
     private int _nextTrip = 100;
     private ulong _revision = 1;
+    private ulong _resetRevision = 1;
     private event Action? Changed;
 
     public List<Destination> Destinations { get; } = [];
@@ -60,6 +60,7 @@ public sealed class TravelStore
     public float GoalKm { get; private set; } = 120;
     public float WalkedKm { get; private set; } = 86;
     public ulong Revision => _revision;
+    public ulong ResetRevision => _resetRevision;
 
     public TravelStore()
     {
@@ -99,7 +100,7 @@ public sealed class TravelStore
         return -1;
     }
 
-    /// <summary>Silent like: no revision bump, no notify; caller refreshes the row range.</summary>
+    /// <summary>Updates the immutable entry and invalidates its dependent projections.</summary>
     public void ToggleEntryLike(long id)
     {
         var index = EntryIndex(id);
@@ -110,6 +111,8 @@ public sealed class TravelStore
         var entry = Entries[index];
         var liked = !entry.Liked;
         Entries[index] = entry with { Liked = liked, Likes = entry.Likes + (liked ? 1 : -1) };
+        Bump();
+        Notify();
     }
 
     public void ToggleDestLike(int id)
@@ -221,6 +224,7 @@ public sealed class TravelStore
 
     public void Reset()
     {
+        _resetRevision++;
         Destinations.Clear();
         Entries.Clear();
         Trips.Clear();

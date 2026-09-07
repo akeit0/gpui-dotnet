@@ -12,10 +12,9 @@ internal readonly record struct TaskDetailProps(TaskStore Store, long TaskId);
 /// <summary>
 /// Inspector for one task. Edits commit to the store from events; the store subscription
 /// (accepted effect) rerenders this View wherever it is mounted. Native input values are
-/// synchronized from accepted props through an effect, so Render builds no key strings.
-/// Render allocates nothing on the heap: ref-bound controllers, static handlers with
-/// payloads, stack-span collection expressions, one small inline buffer for the
-/// variable-length attachment list, and arena-direct interpolated text.
+/// synchronized from accepted field snapshots. Title and assignee edits commit on Enter;
+/// unrelated model changes leave drafts alone, while an external change to the same field
+/// wins in this sample. Ref-bound controllers avoid render-time key strings.
 /// </summary>
 [GpuiView]
 internal sealed partial class TaskDetailView : View<TaskDetailProps>
@@ -26,10 +25,15 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
         private Element _element;
     }
 
-    private static readonly SliderOptions EstimateSliderOptions = new(min: 0, max: 40, step: 1);
+    private static readonly SliderOptions EstimateSliderOptions = new(min: 0, max: 120, step: 1);
 
-    private readonly Effect<NoProps> _watch;
-    private readonly Effect<TaskDetailProps> _sync;
+    private readonly record struct StoreInput(TaskStore Store);
+    private readonly record struct DetailInput(TaskStore Store, long TaskId, TaskItem? Task);
+
+    private readonly Effect<StoreInput> _watch;
+    private readonly Effect<DetailInput> _sync;
+    private TaskStore? _syncedStore;
+    private TaskItem? _syncedTask;
     private readonly WorkScope _work;
     private readonly GpuiApplication _application;
     private InputController _title;
@@ -42,58 +46,85 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
     {
         _application = construction.Application;
         _work = construction.Work;
-        _watch = construction.Effect<NoProps>(WatchStore);
-        _sync = construction.Effect<TaskDetailProps>(SyncInputs);
+        _watch = construction.Effect<StoreInput>(WatchStore);
+        _sync = construction.Effect<DetailInput>(SyncInputs);
     }
 
-    private void WatchStore(EffectScope scope, NoProps input)
+    private void WatchStore(EffectScope scope, StoreInput input)
     {
-        var store = CommittedProps.Store;
-        scope.Own(store.Subscribe(scope.Bind(this, static view => view.Invalidate())));
+        scope.Own(input.Store.Subscribe(scope.Bind(this, static view => view.Invalidate())));
     }
 
-    private void SyncInputs(EffectScope scope, TaskDetailProps input)
+    private void SyncInputs(EffectScope scope, DetailInput input)
     {
-        // Accepted effect: safe to command accepted resources before they materialize.
-        // Runs only when the props value changes (new task selected), never per keystroke,
-        // because live edits keep the same store reference and task id.
-        var task = input.Store.Find(input.TaskId);
+        var previous = _syncedTask;
+        var targetChanged = !ReferenceEquals(_syncedStore, input.Store) || previous?.Id != input.TaskId;
+        var task = input.Task;
+        _syncedStore = input.Store;
+        _syncedTask = task;
         if (task is null)
         {
             return;
         }
-        _title.SetValue(task.Title);
-        _assignee.SetValue(task.Assignee);
-        _estimate.SetValue(task.EstimateHours);
+        // Compare individual fields: an estimate update must not erase an assignee draft.
+        if (targetChanged || previous!.Title != task.Title)
+            _title.SetValue(task.Title);
+        if (targetChanged || previous!.Assignee != task.Assignee)
+            _assignee.SetValue(task.Assignee);
+        if (targetChanged || previous!.EstimateHours != task.EstimateHours)
+            _estimate.SetValue(task.EstimateHours);
+        if (targetChanged)
+        {
+            _suggestion = "Suggest an estimate from the title length.";
+            Invalidate();
+        }
     }
 
     private void SuggestEstimate()
     {
-        var task = CommittedProps.Store.Find(CommittedProps.TaskId);
+        var props = CommittedProps;
+        var task = props.Store.Find(props.TaskId);
         if (task is null)
         {
             return;
         }
         _suggestion = "Estimating…";
-        _work.Start(
-            this,
-            task.Title,
-            static async (title, lifetime) =>
+        Invalidate();
+        _work.StartLatest(
+            (View: this, Store: props.Store, Source: task),
+            (TaskId: task.Id, Title: task.Title),
+            static async (request, lifetime) =>
             {
                 await Task.Delay(350, lifetime).ConfigureAwait(false);
-                return Math.Clamp(1 + title.Length / 8, 1, 16);
+                return (request.TaskId, Hours: Math.Clamp(1 + request.Title.Length / 8, 1, 16));
             },
-            static (view, hours) =>
+            static (state, result) =>
             {
-                var current = view.CommittedProps.Store.Find(view.CommittedProps.TaskId);
-                if (current is null)
+                var view = state.View;
+                if (!ReferenceEquals(view.CommittedProps.Store, state.Store)
+                    || view.CommittedProps.TaskId != result.TaskId)
+                    return;
+                // Immutable record identity is a conservative per-entity edit token here.
+                // A production store should expose an explicit model revision / CAS operation.
+                if (!ReferenceEquals(state.Store.Find(result.TaskId), state.Source))
                 {
+                    view._suggestion = "Task changed; suggestion discarded.";
+                    view.Invalidate();
                     return;
                 }
-                view._suggestion = $"Suggested {hours}h for “{current.Title}”. Applied.";
-                view.CommittedProps.Store.SetEstimate(current.Id, hours);
+                view._suggestion = $"Suggested {result.Hours}h for “{state.Source.Title}”. Applied.";
+                state.Store.SetEstimate(result.TaskId, result.Hours);
+                view.Invalidate();
             },
-            static (view, failure) => view._suggestion = $"Estimate failed: {failure.Message}"
+            static (state, failure) =>
+            {
+                var view = state.View;
+                if (!ReferenceEquals(view.CommittedProps.Store, state.Store)
+                    || view.CommittedProps.TaskId != state.Source.Id)
+                    return;
+                view._suggestion = $"Estimate failed: {failure.Message}";
+                view.Invalidate();
+            }
         );
     }
 
@@ -183,10 +214,10 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
 
     protected override Element Render(in TaskDetailProps props, ref RenderContext ui)
     {
-        ui.Effect(_watch, default);
-        ui.Effect(_sync, props);
-        var theme = ui.Theme;
         var task = props.Store.Find(props.TaskId);
+        ui.Effect(_watch, new(props.Store));
+        ui.Effect(_sync, new(props.Store, props.TaskId, task));
+        var theme = ui.Theme;
         if (task is null)
         {
             return ui.VStack(
@@ -269,7 +300,6 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
                     .ItemsCenter(),
                 ui.Input(ref _title, new Utf8InputOptions(placeholder: "Task title"u8))
                     .Style(BoardStyles.Field(theme))
-                    .OnChanged(this, static (view, e) => view.CommittedProps.Store.RenameTask(view.CommittedProps.TaskId, e.Value))
                     .OnSubmitted(this, static (view, e) => view.CommittedProps.Store.RenameTask(view.CommittedProps.TaskId, e.Value))
                     .Width(Percent(100)),
                 ui.HStack(statuses).Gap(Px(6)).Wrap(FlexWrap.Wrap),

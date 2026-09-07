@@ -267,6 +267,12 @@ normal View event boundary after native resource borrows are released.
 Keep `contentRevision` stable when a managed render cannot change any row output. Increment it when
 row content, styling, or height can change. Theme changes invalidate batches automatically.
 
+The revision must also cover filter and sort inputs: changing to a different projection with
+the same item count still requires invalidation. Refreshing a range does not recompute a managed
+memo or replace immutable records held by a row source. Update that source before issuing a
+targeted refresh. `RefreshRanges` invalidates the owning View, not other store subscribers; Rust
+discards intersecting cached batches and remeasures the affected items, not necessarily one row.
+
 Native adapters that use `gpui-base` read the same application theme through the projected global
 foundation theme. Product variants still flatten into semantic operations; they do not become
 foundation theme types or cross the ABI.
@@ -281,6 +287,9 @@ Row renderer restrictions:
 
 Declare `.ItemId(id)` on a row root when interactive state should survive structural splices. ID
 zero is reserved. An `OnClick` binding without an explicit payload receives that model ID.
+
+Child element keys are scoped beneath their row root, so row-local keys such as `"like"` may
+repeat across distinct rows. Use stable row identity and event payloads for application actions.
 
 `ListController` supports `ScrollToItem`, `Refresh`, `RefreshRanges`, `Splice`, and `Reset`.
 Structural commands preserve unaffected measurements and row batches when their declared result
@@ -347,6 +356,8 @@ Div children.
 Bindings are opt-in: `OnChanged`, `OnSubmitted`, and `OnFocusChanged`. Without a binding, native
 editing does not cross into managed code. `Utf8InputOptions`, `InputEvent.Utf8Value`, and UTF-8
 controller overloads avoid unnecessary UTF-16 allocation. `InputEvent.Value` decodes lazily.
+Password inputs reject Copy and Cut without changing the clipboard, value, or selection.
+Paste and ordinary editing remain available subject to disabled and read-only settings.
 
 `InputController` supports `Focus`, `Blur`, `SelectAll`, `SetValue`, and `SetValueIfCurrent`.
 The declarative initial value is consumed only when the native keyed resource is created.
@@ -386,7 +397,8 @@ logarithmic mapping, bounds, and step size. GPUI owns pointer drag and keyboard 
 
 `OnChanged` fires for value changes; `OnReleased` marks the end of a pointer or keyboard
 interaction. `SliderController.SetValue` updates retained native state without synthesizing an
-interaction event.
+interaction event, including while disabled. Disabled state blocks user interaction, not
+programmatic synchronization.
 
 `TrackColor`, `FillColor`, `ThumbColor`, and `ThumbBorderColor` customize the retained parts through
 `IGpuiElementStyle<SliderTag>` recipes. Omitted colors resolve from the current theme: border variant

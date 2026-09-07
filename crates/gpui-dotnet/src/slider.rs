@@ -176,7 +176,8 @@ impl ManagedSlider {
     }
 
     pub(crate) fn apply_command(&mut self, command: &ResourceCommand, cx: &mut Context<Self>) {
-        if command.command != COMMAND_SLIDER_SET_VALUE || self.disabled {
+        // Disabled blocks user interaction, not authoritative model updates.
+        if command.command != COMMAND_SLIDER_SET_VALUE {
             return;
         }
         let start = f32::from_bits(command.a as u32);
@@ -892,6 +893,31 @@ mod tests {
         };
         slider.update(cx, |slider, cx| slider.apply_command(&command, cx));
 
+        assert!(events().is_empty());
+        slider.update(cx, |slider, _| {
+            assert_eq!(slider.value, SliderValue::Single(20.))
+        });
+    }
+
+    #[gpui::test]
+    fn disabled_slider_accepts_programmatic_value_without_interaction_events(
+        cx: &mut TestAppContext,
+    ) {
+        clear_events();
+        let mut configuration = configuration(SliderValue::Single(10.));
+        configuration.disabled = true;
+        let (slider, _) = cx.add_window_view(|_, cx| {
+            ManagedSlider::new(10, callbacks(), &configuration, theme(), cx)
+        });
+        let command = ResourceCommand {
+            key: crate::resources::ResourceKey::new(1, gpui::SharedString::new("slider")),
+            resource_kind: 4,
+            command: COMMAND_SLIDER_SET_VALUE,
+            a: (20f32.to_bits() as u64) | ((20f32.to_bits() as u64) << 32),
+            b: 0,
+            data: gpui::SharedString::new(""),
+        };
+        slider.update(cx, |slider, cx| slider.apply_command(&command, cx));
         assert!(events().is_empty());
         slider.update(cx, |slider, _| {
             assert_eq!(slider.value, SliderValue::Single(20.))

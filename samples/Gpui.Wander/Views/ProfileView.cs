@@ -17,7 +17,10 @@ internal sealed partial class ProfileView : View<ProfileProps>
         "cover.svg"
     );
 
-    private readonly Effect<NoProps> _watch;
+    private readonly record struct ResetInput(TravelStore Store, ulong Revision);
+
+    private readonly Effect<ProfileProps> _watch;
+    private readonly Effect<ResetInput> _reset;
     private readonly GpuiApplication _application;
     private InputController _name;
     private InputController _bio;
@@ -29,11 +32,24 @@ internal sealed partial class ProfileView : View<ProfileProps>
         : base(construction)
     {
         _application = construction.Application;
-        _watch = construction.Effect<NoProps>(WatchStore);
+        _watch = construction.Effect<ProfileProps>(WatchStore);
+        _reset = construction.Effect<ResetInput>(ResetInputs);
+        _draftName = initialProps.Store.ProfileName;
+        _draftBio = initialProps.Store.ProfileBio;
     }
 
-    private void WatchStore(EffectScope scope, NoProps input) =>
-        scope.Own(CommittedProps.Store.Subscribe(scope.Bind(this, static view => view.Invalidate())));
+    private void WatchStore(EffectScope scope, ProfileProps input) =>
+        scope.Own(input.Store.Subscribe(scope.Bind(this, static view => view.Invalidate())));
+
+    private void ResetInputs(EffectScope scope, ResetInput input)
+    {
+        // Initial acceptance, store replacement, and document reset replace the drafts.
+        _draftName = input.Store.ProfileName;
+        _draftBio = input.Store.ProfileBio;
+        _name.SetValue(_draftName);
+        _bio.SetValue(_draftBio);
+        _goal.SetValue(input.Store.GoalKm);
+    }
 
     private void SetDraftName(string value) => _draftName = value;
 
@@ -41,12 +57,13 @@ internal sealed partial class ProfileView : View<ProfileProps>
 
     private void Save()
     {
-        CommittedProps.Store.SetProfile(
-            _draftName.Length == 0 ? CommittedProps.Store.ProfileName : _draftName,
-            _draftBio
-        );
-        _draftName = string.Empty;
-        _draftBio = string.Empty;
+        var store = CommittedProps.Store;
+        store.SetProfile(_draftName, _draftBio);
+        // Preserve the accepted draft; another Save must not clear an untouched field.
+        _draftName = store.ProfileName;
+        _draftBio = store.ProfileBio;
+        _name.SetValue(_draftName);
+        _bio.SetValue(_draftBio);
         Invalidate();
     }
 
@@ -59,17 +76,12 @@ internal sealed partial class ProfileView : View<ProfileProps>
 
     private void SetDark() => _application.SetTheme(WanderThemes.Dark);
 
-    private void Reset()
-    {
-        CommittedProps.Store.Reset();
-        // The retained slider keeps its native value across renders; re-seat it
-        // after the model jumps. Legal here: events may command accepted resources.
-        _goal.SetValue(CommittedProps.Store.GoalKm);
-    }
+    private void Reset() => CommittedProps.Store.Reset();
 
     protected override Element Render(in ProfileProps props, ref RenderContext ui)
     {
-        ui.Effect(_watch, default);
+        ui.Effect(_watch, props);
+        ui.Effect(_reset, new(props.Store, props.Store.ResetRevision));
         var theme = ui.Theme;
         var store = props.Store;
 

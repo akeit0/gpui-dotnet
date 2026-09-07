@@ -232,7 +232,8 @@ internal sealed partial class TaskBoardShellView : View
             _ascending = true;
         }
         _tableRevision++;
-        Invalidate();
+        // Sorting is an arbitrary reorder; ItemId is not a native ID-to-index map.
+        _tasks.Reset(_rows.Count);
     }
 
     private void SetSearch(string value)

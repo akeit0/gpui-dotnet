@@ -265,6 +265,41 @@ public sealed class GeneratorTests
         Assert.Contains("Row(index, in CommittedProps, ref ui)", generated);
     }
 
+    [Fact]
+    public void InvalidPropsRowDiagnosticIncludesThePropsParameter()
+    {
+        const string source = """
+            using Gpui;
+            public readonly record struct Inputs(string Text);
+            [GpuiView]
+            public sealed partial class Items : View<Inputs>
+            {
+                protected override Element Render(in Inputs props, ref RenderContext ui) => ui.Text(props.Text);
+                [GpuiListItem]
+                private Element Row(int index, ref RenderContext ui) => ui.Div();
+            }
+            """;
+        var diagnostic = Assert.Single(RunGenerator(source).Diagnostics.Where(d => d.Id == "GPUI012"));
+        Assert.Contains("Element Method(int index, in Inputs props, ref RenderContext ui)", diagnostic.GetMessage());
+    }
+
+    [Fact]
+    public void InvalidNoPropsRowDiagnosticKeepsTheNoPropsSignature()
+    {
+        const string source = """
+            using Gpui;
+            [GpuiView]
+            public sealed partial class Items : View
+            {
+                protected override Element Render(ref RenderContext ui) => ui.Div();
+                [GpuiListItem]
+                private static Element Row(int index, ref RenderContext ui) => ui.Div();
+            }
+            """;
+        var diagnostic = Assert.Single(RunGenerator(source).Diagnostics.Where(d => d.Id == "GPUI012"));
+        Assert.Contains("Element Method(int index, ref RenderContext ui)", diagnostic.GetMessage());
+    }
+
     private static GeneratorDriverRunResult RunGenerator(string source)
     {
         var (result, _) = RunGeneratorAndUpdateCompilation(source);

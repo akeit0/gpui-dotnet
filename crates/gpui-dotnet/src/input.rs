@@ -338,7 +338,7 @@ impl ManagedInput {
     }
 
     fn copy(&mut self, _: &Copy, _: &mut Window, cx: &mut Context<Self>) {
-        if !self.disabled && !self.selected_range.is_empty() {
+        if !self.disabled && !self.password && !self.selected_range.is_empty() {
             cx.write_to_clipboard(ClipboardItem::new_string(
                 self.content[self.selected_range.clone()].to_string(),
             ));
@@ -346,7 +346,7 @@ impl ManagedInput {
     }
 
     fn cut(&mut self, _: &Cut, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.can_edit() || self.selected_range.is_empty() {
+        if !self.can_edit() || self.password || self.selected_range.is_empty() {
             return;
         }
         cx.write_to_clipboard(ClipboardItem::new_string(
@@ -1094,6 +1094,32 @@ mod tests {
             b: 0,
             data: data.into(),
         }
+    }
+
+    #[gpui::test]
+    fn password_copy_and_cut_leave_clipboard_and_value_unchanged(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.password = true;
+                input.content = shared("secret");
+                input.selected_range = 0..6;
+                cx.write_to_clipboard(ClipboardItem::new_string("sentinel".to_string()));
+                input.copy(&Copy, window, cx);
+                assert_eq!(
+                    cx.read_from_clipboard().and_then(|item| item.text()),
+                    Some("sentinel".to_string())
+                );
+                input.cut(&Cut, window, cx);
+                assert_eq!(
+                    cx.read_from_clipboard().and_then(|item| item.text()),
+                    Some("sentinel".to_string())
+                );
+                assert_eq!(input.content.as_ref(), "secret");
+                assert_eq!(input.selected_range, 0..6);
+            });
+        });
     }
 
     #[gpui::test]
