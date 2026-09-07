@@ -20,9 +20,11 @@ namespace Gpui;
 [InterpolatedStringHandler]
 public unsafe ref struct Utf8InterpolatedStringHandler
 {
-    private readonly RenderArena* _arena;
+    private readonly RenderArenaOwner _storage;
+    private readonly RenderArena* _arena => _storage.GetArena(_generation);
     private readonly uint _offset;
-    private Utf8StringWriter<ArenaUtf8BufferWriter> _writer;
+    private readonly uint _generation;
+    private int _expectedUtf8Length;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Utf8InterpolatedStringHandler"/> for the given render context.
@@ -41,25 +43,34 @@ public unsafe ref struct Utf8InterpolatedStringHandler
         RenderContext context
     )
     {
-        _arena = context.NativeArena;
-        _offset = checked((uint)_arena->Utf8Length);
-        _writer = new Utf8StringWriter<ArenaUtf8BufferWriter>(
-            literalLength,
-            formattedCount,
-            new ArenaUtf8BufferWriter(_arena)
-        );
+        _storage = context.Storage;
+        using var access = context.Access();
+        _offset = checked((uint)access.Arena->Utf8Length);
+        _generation = access.Arena->Generation;
+        _expectedUtf8Length = access.Arena->Utf8Length;
     }
 
     /// <summary>Appends a literal string fragment to the handler.</summary>
     /// <param name="value">The literal text to append. Must not be <c>null</c>.</param>
-    public void AppendLiteral(string value) => _writer.AppendLiteral(value);
+    public void AppendLiteral(string value)
+    {
+        using var access = _storage.Access(_generation);
+        var writer = CreateWriter();
+        writer.AppendLiteral(value);
+        FinishWrite(ref writer);
+    }
 
     /// <summary>Appends a formatted <see cref="bool"/> value.</summary>
     /// <param name="value">The value to format.</param>
     /// <param name="alignment">Minimum field width. Positive values right-align, negative values left-align.</param>
     /// <param name="format">An optional format string. Ignored for <see cref="bool"/>.</param>
-    public void AppendFormatted(bool value, int alignment = 0, string? format = null) =>
-        _writer.AppendFormatted(value, alignment, format);
+    public void AppendFormatted(bool value, int alignment = 0, string? format = null)
+    {
+        using var access = _storage.Access(_generation);
+        var writer = CreateWriter();
+        writer.AppendFormatted(value, alignment, format);
+        FinishWrite(ref writer);
+    }
 
     /// <summary>Appends a formatted <see cref="byte"/> value.</summary>
     /// <param name="value">The value to format.</param>
@@ -183,12 +194,15 @@ public unsafe ref struct Utf8InterpolatedStringHandler
         {
             if (alignment != 0)
             {
-                _writer.AppendWhitespace(Math.Abs(alignment));
+                AppendPadding(Math.Abs(alignment));
             }
             return;
         }
 
-        _writer.AppendFormatted(value, alignment, format);
+        using var access = _storage.Access(_generation);
+        var writer = CreateWriter();
+        writer.AppendFormatted(value, alignment, format);
+        FinishWrite(ref writer);
     }
 
     /// <summary>Appends a formatted value of any type that supports composite formatting.</summary>
@@ -197,7 +211,7 @@ public unsafe ref struct Utf8InterpolatedStringHandler
     /// <param name="alignment">Minimum field width. Positive values right-align, negative values left-align.</param>
     /// <param name="format">A format string whose interpretation depends on <typeparamref name="T"/>, or <c>null</c> for default.</param>
     public void AppendFormatted<T>(T value, int alignment = 0, string? format = null) =>
-        _writer.AppendFormatted(value, alignment, format);
+        AppendUsingWriter(value, alignment, format);
 
     /// <summary>Appends a formatted nullable value that implements <see cref="IUtf8SpanFormattable"/>.</summary>
     /// <typeparam name="T">The underlying value type.</typeparam>
@@ -213,22 +227,76 @@ public unsafe ref struct Utf8InterpolatedStringHandler
         }
         else if (alignment != 0)
         {
-            _writer.AppendWhitespace(Math.Abs(alignment));
+            AppendPadding(Math.Abs(alignment));
         }
     }
 
     /// <summary>Appends a span of characters directly as UTF-8.</summary>
     /// <param name="value">The character span to encode and append.</param>
-    public void AppendFormatted(ReadOnlySpan<char> value) => _writer.AppendFormatted(value);
+    public void AppendFormatted(ReadOnlySpan<char> value)
+    {
+        using var access = _storage.Access(_generation);
+        var writer = CreateWriter();
+        writer.AppendFormatted(value);
+        FinishWrite(ref writer);
+    }
 
     /// <summary>Appends a span of UTF-8 bytes directly without re-encoding.</summary>
     /// <param name="value">The UTF-8 bytes to append. Must be valid UTF-8.</param>
-    public void AppendFormatted(ReadOnlySpan<byte> value) => _writer.AppendFormatted(value);
+    public void AppendFormatted(ReadOnlySpan<byte> value)
+    {
+        using var access = _storage.Access(_generation);
+        var writer = CreateWriter();
+        writer.AppendFormatted(value);
+        FinishWrite(ref writer);
+    }
+
+    // Never retain a writer's Span across compiler-generated Append calls: another
+    // interpolation argument can evaluate application code before the next append.
+    private Utf8StringWriter<ArenaUtf8BufferWriter> CreateWriter()
+    {
+        ValidatePosition();
+        return new Utf8StringWriter<ArenaUtf8BufferWriter>(new ArenaUtf8BufferWriter(_arena));
+    }
+
+    private void FinishWrite(scoped ref Utf8StringWriter<ArenaUtf8BufferWriter> writer)
+    {
+        writer.Flush();
+        _expectedUtf8Length = _arena->Utf8Length;
+    }
+
+    private void AppendUsingWriter<T>(T value, int alignment, string? format)
+    {
+        using var access = _storage.Access(_generation);
+        var writer = CreateWriter();
+        using (_storage.EnterFormatter())
+            writer.AppendFormatted(value, alignment, format);
+        FinishWrite(ref writer);
+    }
+
+    private void AppendPadding(int count)
+    {
+        using var access = _storage.Access(_generation);
+        var writer = CreateWriter();
+        writer.AppendWhitespace(count);
+        FinishWrite(ref writer);
+    }
+
+    private readonly void ValidatePosition()
+    {
+        if (_arena->Generation != _generation || _arena->Utf8Length != _expectedUtf8Length)
+        {
+            throw new InvalidOperationException(
+                "UTF-8 arena writes cannot be interleaved with an active interpolation."
+            );
+        }
+    }
 
     private void AppendUtf8Formattable<T>(T value, int alignment, string? format)
         where T : IUtf8SpanFormattable
     {
-        _writer.Flush();
+        using var access = _storage.Access(_generation);
+        ValidatePosition();
         var start = _arena->Utf8Length;
         var sizeHint = 64;
         int bytesWritten;
@@ -236,7 +304,10 @@ public unsafe ref struct Utf8InterpolatedStringHandler
         while (true)
         {
             var destination = ArenaWriter.GetWritableUtf8Span(_arena, sizeHint);
-            if (value.TryFormat(destination, out bytesWritten, format, null))
+            bool formatted;
+            using (_storage.EnterFormatter())
+                formatted = value.TryFormat(destination, out bytesWritten, format, null);
+            if (formatted)
             {
                 break;
             }
@@ -263,12 +334,13 @@ public unsafe ref struct Utf8InterpolatedStringHandler
             ArenaWriter.AdvanceUtf8(_arena, padding);
         }
 
-        _writer = new Utf8StringWriter<ArenaUtf8BufferWriter>(new ArenaUtf8BufferWriter(_arena));
+        _expectedUtf8Length = _arena->Utf8Length;
     }
 
     internal void Complete(out RenderArena* arena, out uint offset, out uint length)
     {
-        _writer.Flush();
+        using var access = _storage.Access(_generation);
+        ValidatePosition();
         arena = _arena;
         offset = _offset;
         length = checked((uint)_arena->Utf8Length - _offset);

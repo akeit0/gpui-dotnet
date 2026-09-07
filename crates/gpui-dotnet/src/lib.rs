@@ -1,16 +1,26 @@
 pub mod abi;
+#[cfg(all(test, feature = "allocation-tracking"))]
+mod allocation_tracking;
 mod app_host;
 mod arena;
 mod components;
 mod context_menu;
+mod demand;
 mod dock;
 mod dock_icons;
 mod dock_skin;
+mod drawing_cache;
+mod drawing_commands;
 pub mod extension;
 mod input;
 mod materializer;
+#[cfg(test)]
+mod native_workloads;
 mod overlay;
+mod pointer;
 mod popover_menu;
+mod presence;
+mod presentation;
 mod resources;
 mod scrolling;
 #[path = "semantic.g.rs"]
@@ -31,10 +41,11 @@ use abi::{
 use semantic::{
     COMMAND_DOCK_CLOSE_PANEL, COMMAND_DOCK_EXPORT_LAYOUT, COMMAND_DOCK_IMPORT_LAYOUT,
     COMMAND_DOCK_SET_REGION_OPEN, COMMAND_INPUT_BLUR, COMMAND_INPUT_FOCUS,
-    COMMAND_INPUT_SELECT_ALL, COMMAND_INPUT_SET_VALUE, COMMAND_LIST_REFRESH, COMMAND_LIST_RESET,
-    COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_LIST_SPLICE, COMMAND_SCROLL_TO_BOTTOM,
-    COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP, COMMAND_SLIDER_SET_VALUE, RESOURCE_DOCK,
-    RESOURCE_INPUT, RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER, SCHEMA_HASH,
+    COMMAND_INPUT_SELECT_ALL, COMMAND_INPUT_SET_VALUE, COMMAND_INPUT_SET_VALUE_IF_CURRENT,
+    COMMAND_LIST_REFRESH, COMMAND_LIST_RESET, COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_LIST_SPLICE,
+    COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP,
+    COMMAND_SLIDER_SET_VALUE, RESOURCE_DOCK, RESOURCE_INPUT, RESOURCE_LIST, RESOURCE_SCROLL,
+    RESOURCE_SLIDER, SCHEMA_HASH,
 };
 
 static API_V3: GpuiDotnetApiV3 = GpuiDotnetApiV3 {
@@ -49,6 +60,7 @@ static API_V3: GpuiDotnetApiV3 = GpuiDotnetApiV3 {
     dispatch_application_menu: Some(dispatch_application_menu),
     supports_extension: Some(supports_extension),
     dispatch_extension_command: Some(dispatch_extension_command),
+    invalidate_artifacts: Some(invalidate_artifacts),
 };
 
 pub fn api(requested_version: u32) -> *const GpuiDotnetApiV3 {
@@ -75,7 +87,7 @@ unsafe fn dispatch_extension_command_inner(
     const MAX_KEY_LENGTH: i32 = 4096;
     const MAX_PAYLOAD_LENGTH: i32 = 256 * 1024 * 1024;
 
-    let Some(command) = (unsafe { command.as_ref() }) else {
+    let Some(command) = (unsafe { crate::pointer::as_ref(command) }) else {
         return -83;
     };
     if view_id == 0
@@ -101,15 +113,15 @@ unsafe fn dispatch_extension_command_inner(
     }
 
     let extension_id_bytes = unsafe {
-        std::slice::from_raw_parts(command.extension_id, command.extension_id_length as usize)
+        crate::pointer::slice(command.extension_id, command.extension_id_length as usize)
     };
     let component_kind_bytes = unsafe {
-        std::slice::from_raw_parts(
+        crate::pointer::slice(
             command.component_kind,
             command.component_kind_length as usize,
         )
     };
-    let key_bytes = unsafe { std::slice::from_raw_parts(command.key, command.key_length as usize) };
+    let key_bytes = unsafe { crate::pointer::slice(command.key, command.key_length as usize) };
     let (Ok(extension_id), Ok(component_kind), Ok(key)) = (
         std::str::from_utf8(extension_id_bytes),
         std::str::from_utf8(component_kind_bytes),
@@ -133,7 +145,7 @@ unsafe fn dispatch_extension_command_inner(
         std::sync::Arc::<[u8]>::from([])
     } else {
         let bytes =
-            unsafe { std::slice::from_raw_parts(command.payload, command.payload_length as usize) };
+            unsafe { crate::pointer::slice(command.payload, command.payload_length as usize) };
         std::sync::Arc::<[u8]>::from(bytes)
     };
     let command = extension::NativeExtensionCommand {
@@ -168,7 +180,7 @@ unsafe extern "C" fn supports_extension(
         if id_length <= 0 || id_length > 127 || id.is_null() || version == 0 || schema_hash == 0 {
             return -80;
         }
-        let bytes = unsafe { std::slice::from_raw_parts(id, id_length as usize) };
+        let bytes = unsafe { crate::pointer::slice(id, id_length as usize) };
         let Ok(id) = std::str::from_utf8(bytes) else {
             return -80;
         };
@@ -184,7 +196,7 @@ unsafe extern "C" fn validate_render(arena: *const RenderArena, root: u32) -> i3
 }
 
 fn validate_render_inner(arena: *const RenderArena, root: u32) -> i32 {
-    let Some(arena) = (unsafe { arena.as_ref() }) else {
+    let Some(arena) = (unsafe { crate::pointer::as_ref(arena) }) else {
         return -1;
     };
     snapshot::validate(arena, root).map_or_else(|status| status, |()| 0)
@@ -192,6 +204,27 @@ fn validate_render_inner(arena: *const RenderArena, root: u32) -> i32 {
 
 unsafe extern "C" fn notify_view(view_id: u64) -> i32 {
     std::panic::catch_unwind(AssertUnwindSafe(|| app_host::notify(view_id))).unwrap_or(-99)
+}
+
+unsafe extern "C" fn invalidate_artifacts(
+    view_id: u64,
+    keys: *const abi::NativeArtifactKey,
+    count: i32,
+) -> i32 {
+    std::panic::catch_unwind(AssertUnwindSafe(|| {
+        if count <= 0
+            || keys.is_null()
+            || (count as usize) > isize::MAX as usize / size_of::<abi::NativeArtifactKey>()
+        {
+            return -1;
+        }
+        let keys = unsafe { crate::pointer::slice(keys, count as usize) };
+        if keys.iter().any(|key| key.source == 0 || key.artifact == 0) {
+            return -2;
+        }
+        app_host::invalidate_artifacts(view_id, keys.to_vec())
+    }))
+    .unwrap_or(-99)
 }
 
 unsafe extern "C" fn dispatch_command(view_id: u64, command: *const NativeResourceCommand) -> i32 {
@@ -202,7 +235,7 @@ unsafe extern "C" fn dispatch_command(view_id: u64, command: *const NativeResour
 }
 
 unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCommand) -> i32 {
-    let Some(command) = (unsafe { command.as_ref() }) else {
+    let Some(command) = (unsafe { crate::pointer::as_ref(command) }) else {
         return -50;
     };
     if command.reserved != 0
@@ -225,7 +258,7 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         ),
         RESOURCE_INPUT => matches!(
             command.command,
-            COMMAND_INPUT_FOCUS..=COMMAND_INPUT_SELECT_ALL
+            COMMAND_INPUT_FOCUS..=COMMAND_INPUT_SET_VALUE_IF_CURRENT
         ),
         RESOURCE_SLIDER => command.command == COMMAND_SLIDER_SET_VALUE,
         RESOURCE_DOCK => matches!(
@@ -267,6 +300,7 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
             command.data_length == 0 && command.a == 0 && command.b == 0
         }
         (RESOURCE_INPUT, COMMAND_INPUT_SET_VALUE) => command.a == 0 && command.b == 0,
+        (RESOURCE_INPUT, COMMAND_INPUT_SET_VALUE_IF_CURRENT) => command.a != 0 && command.b <= 3,
         (RESOURCE_SLIDER, COMMAND_SLIDER_SET_VALUE) => {
             let start = f32::from_bits(command.a as u32);
             let end = f32::from_bits((command.a >> 32) as u32);
@@ -299,15 +333,14 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
     if !payload_valid {
         return -54;
     }
-    let key = unsafe { std::slice::from_raw_parts(command.key, command.key_length as usize) };
+    let key = unsafe { crate::pointer::slice(command.key, command.key_length as usize) };
     let Ok(key) = std::str::from_utf8(key) else {
         return -52;
     };
     let data = if command.data_length == 0 {
         ""
     } else {
-        let bytes =
-            unsafe { std::slice::from_raw_parts(command.data, command.data_length as usize) };
+        let bytes = unsafe { crate::pointer::slice(command.data, command.data_length as usize) };
         let Ok(data) = std::str::from_utf8(bytes) else {
             return -55;
         };
@@ -339,7 +372,7 @@ unsafe fn dispatch_application_command_inner(
     application_id: u64,
     command: *const NativeApplicationCommand,
 ) -> i32 {
-    let Some(command) = (unsafe { command.as_ref() }) else {
+    let Some(command) = (unsafe { crate::pointer::as_ref(command) }) else {
         return -60;
     };
     let is_theme = command.command == 8;
@@ -417,8 +450,7 @@ unsafe fn dispatch_application_command_inner(
     let title = if no_title {
         None
     } else {
-        let bytes =
-            unsafe { std::slice::from_raw_parts(command.title, command.title_length as usize) };
+        let bytes = unsafe { crate::pointer::slice(command.title, command.title_length as usize) };
         let Ok(title) = std::str::from_utf8(bytes) else {
             return -63;
         };
@@ -479,7 +511,7 @@ unsafe fn dispatch_application_menu_inner(
     const MAX_MENU_RECORDS: usize = 4096;
     const NO_PARENT: u32 = u32::MAX;
 
-    let Some(command) = (unsafe { command.as_ref() }) else {
+    let Some(command) = (unsafe { crate::pointer::as_ref(command) }) else {
         return -64;
     };
     if application_id == 0
@@ -495,7 +527,7 @@ unsafe fn dispatch_application_menu_inner(
     let records = if command.item_length == 0 {
         &[]
     } else {
-        unsafe { std::slice::from_raw_parts(command.items, command.item_length as usize) }
+        unsafe { crate::pointer::slice(command.items, command.item_length as usize) }
     };
     let mut children = vec![Vec::new(); records.len()];
     let mut roots = Vec::new();
@@ -515,7 +547,7 @@ unsafe fn dispatch_application_menu_inner(
             String::new()
         } else {
             let bytes =
-                unsafe { std::slice::from_raw_parts(record.title, record.title_length as usize) };
+                unsafe { crate::pointer::slice(record.title, record.title_length as usize) };
             let Ok(title) = std::str::from_utf8(bytes) else {
                 return -67;
             };
@@ -581,14 +613,15 @@ unsafe extern "C" fn run_application(
     application_id: u64,
     callbacks: *const ManagedCallbacks,
 ) -> i32 {
-    if application_id == 0 || callbacks.is_null() {
+    if application_id == 0 || !crate::pointer::valid(callbacks.cast::<u32>(), 1) {
         return -20;
     }
 
     // Read the declared size before trusting the full structure: a caller that only supplies a
     // prefix must not make us read past its allocation.
     let declared_size = unsafe { callbacks.cast::<u32>().read() };
-    if declared_size < size_of::<ManagedCallbacks>() as u32 {
+    if declared_size < size_of::<ManagedCallbacks>() as u32 || !crate::pointer::valid(callbacks, 1)
+    {
         return -21;
     }
 
@@ -601,6 +634,9 @@ unsafe extern "C" fn run_application(
         || callbacks.application_started.is_none()
         || callbacks.window_closed.is_none()
         || callbacks.menu_action.is_none()
+        || callbacks.render_completed.is_none()
+        || callbacks.release_artifact.is_none()
+        || callbacks.accept_artifact.is_none()
     {
         return -21;
     }
@@ -613,6 +649,19 @@ unsafe extern "C" fn run_application(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn artifact_invalidation_validates_pointer_count_and_identities() {
+        let zero = super::abi::NativeArtifactKey {
+            source: 0,
+            artifact: 1,
+        };
+        unsafe {
+            assert_eq!(super::invalidate_artifacts(1, std::ptr::null(), 1), -1);
+            assert_eq!(super::invalidate_artifacts(1, &zero, -1), -1);
+            assert_eq!(super::invalidate_artifacts(1, &zero, 0), -1);
+            assert_eq!(super::invalidate_artifacts(1, &zero, 1), -2);
+        }
+    }
     use super::*;
 
     fn empty_application_command(command: u16) -> NativeApplicationCommand {
@@ -678,6 +727,47 @@ mod tests {
             a,
             b,
         }
+    }
+
+    #[test]
+    fn conditional_input_commands_validate_revision_policies_and_utf8_before_routing() {
+        for policies in 0..=3 {
+            let command = dock_command(
+                RESOURCE_INPUT,
+                COMMAND_INPUT_SET_VALUE_IF_CURRENT,
+                1,
+                policies,
+                b"value",
+            );
+            assert_eq!(
+                unsafe { dispatch_command_inner(u64::MAX - 1, &command) },
+                -30
+            );
+        }
+        for (revision, policies) in [(0, 0), (0, 3), (1, 4), (1, u64::MAX)] {
+            let command = dock_command(
+                RESOURCE_INPUT,
+                COMMAND_INPUT_SET_VALUE_IF_CURRENT,
+                revision,
+                policies,
+                b"",
+            );
+            assert_eq!(
+                unsafe { dispatch_command_inner(u64::MAX - 1, &command) },
+                -54
+            );
+        }
+        let command = dock_command(
+            RESOURCE_INPUT,
+            COMMAND_INPUT_SET_VALUE_IF_CURRENT,
+            1,
+            0,
+            &[0xff],
+        );
+        assert_eq!(
+            unsafe { dispatch_command_inner(u64::MAX - 1, &command) },
+            -55
+        );
     }
 
     #[test]

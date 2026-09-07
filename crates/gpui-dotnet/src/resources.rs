@@ -12,30 +12,33 @@ use gpui::{
 };
 
 use crate::{
-    abi::{ManagedCallbacks, NativeResourceCommand},
+    abi::{ManagedCallbacks, NativeControlEvent, NativeResourceCommand},
     app_host::ManagedView,
-    arena::OwnedRenderArena,
+    demand::{ArtifactLease, load_artifact, next_source_id},
     dock::{DockConfiguration, ManagedDockResource, dock_configuration},
     extension::{
         NativeExtensionResourceKey, NativeExtensionStore, declaration as extension_declaration,
     },
-    input::{InputBindings, InputInitialState, ManagedInput},
+    input::{InputBindings, InputInitialState, InputPresentation, ManagedInput},
     scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics},
     semantic::{
         COMMAND_LIST_REFRESH, COMMAND_LIST_RESET, COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_LIST_SPLICE,
-        COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP, NativeAdapter,
+        COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP,
+        EVENT_LIST_ACTIVATED, EVENT_LIST_SELECTION_REQUESTED, NativeAdapter, OP_INPUT_CARET_RGBA,
         OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED, OP_INPUT_ON_SUBMITTED,
-        OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
-        OP_LIST_CONTENT_REVISION, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT,
-        OP_LIST_ITEM_ID, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_RESOURCE_OWNER,
-        OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SLIDER_AXIS, OP_SLIDER_DISABLED, OP_SLIDER_MAX,
-        OP_SLIDER_MIN, OP_SLIDER_ON_CHANGED, OP_SLIDER_ON_RELEASED, OP_SLIDER_RANGE_END,
-        OP_SLIDER_RANGE_START, OP_SLIDER_SCALE, OP_SLIDER_STEP, OP_SLIDER_VALUE, OP_TABLE_COLUMN,
-        RESOURCE_DOCK, RESOURCE_INPUT, RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER,
-        component_metadata,
+        OP_INPUT_PASSWORD, OP_INPUT_PLACEHOLDER_RGBA, OP_INPUT_READ_ONLY, OP_INPUT_SELECTION_RGBA,
+        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION,
+        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_ITEM_ID,
+        OP_LIST_ON_ACTIVATED, OP_LIST_ON_SELECTION_REQUESTED, OP_LIST_OVERDRAW_PX,
+        OP_LIST_RENDERER, OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH,
+        OP_SLIDER_AXIS, OP_SLIDER_DISABLED, OP_SLIDER_FILL_RGBA, OP_SLIDER_MAX, OP_SLIDER_MIN,
+        OP_SLIDER_ON_CHANGED, OP_SLIDER_ON_RELEASED, OP_SLIDER_RANGE_END, OP_SLIDER_RANGE_START,
+        OP_SLIDER_SCALE, OP_SLIDER_STEP, OP_SLIDER_THUMB_BORDER_RGBA, OP_SLIDER_THUMB_RGBA,
+        OP_SLIDER_TRACK_RGBA, OP_SLIDER_VALUE, OP_TABLE_COLUMN, RESOURCE_DOCK, RESOURCE_INPUT,
+        RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER, component_metadata,
     },
-    slider::{ManagedSlider, SliderValue},
-    snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
+    slider::{ManagedSlider, SliderPresentation, SliderValue},
+    snapshot::{SnapshotScratch, ValidatedSnapshot},
     theme::{NativeTheme, SharedTheme},
 };
 
@@ -91,7 +94,51 @@ pub(crate) struct ResourceStore {
     extension_active_scratch: RefCell<HashSet<NativeExtensionResourceKey>>,
 }
 
+struct ArtifactInvalidations<'a> {
+    keys: &'a [crate::abi::NativeArtifactKey],
+}
+
+impl<'a> ArtifactInvalidations<'a> {
+    fn new(keys: &'a mut [crate::abi::NativeArtifactKey]) -> Self {
+        // The ingress message already owns these records. Index it in place once for
+        // all row engines, without another allocation or retained artifact registry.
+        keys.sort_unstable_by_key(|key| (key.source, key.artifact));
+        Self { keys }
+    }
+
+    fn for_source(&self, source: u64) -> &[crate::abi::NativeArtifactKey] {
+        let start = self.keys.partition_point(|key| key.source < source);
+        let rest = &self.keys[start..];
+        let count = rest.partition_point(|key| key.source == source);
+        &rest[..count]
+    }
+}
+
 impl ResourceStore {
+    pub(crate) fn invalidate_artifacts(&self, keys: &mut [crate::abi::NativeArtifactKey]) -> bool {
+        if keys.is_empty() {
+            return false;
+        }
+        let keys = ArtifactInvalidations::new(keys);
+        let mut changed = false;
+        for engine in self.lists.borrow().values() {
+            changed |= engine.borrow_mut().invalidate_artifacts(&keys);
+        }
+        changed
+    }
+
+    pub(crate) fn publish_presence(
+        &self,
+        presence: &mut crate::presence::ResourcePresence,
+        revision: u64,
+    ) {
+        presence.accept(
+            &self.active_scratch.borrow(),
+            &self.extension_active_scratch.borrow(),
+            revision,
+        );
+    }
+
     pub(crate) fn new(session_id: u64, callbacks: ManagedCallbacks, theme: SharedTheme) -> Self {
         Self {
             session_id,
@@ -236,6 +283,7 @@ impl ResourceStore {
                 configuration.read_only,
                 configuration.password,
                 configuration.bindings,
+                configuration.presentation,
                 cx,
             );
         });
@@ -471,9 +519,16 @@ impl ResourceStore {
         self.scrolls
             .borrow_mut()
             .retain(|key, _| active.contains(&(RESOURCE_SCROLL, key.clone())));
-        self.lists
-            .borrow_mut()
-            .retain(|key, _| active.contains(&(RESOURCE_LIST, key.clone())));
+        self.lists.borrow_mut().retain(|key, engine| {
+            if active.contains(&(RESOURCE_LIST, key.clone())) {
+                true
+            } else {
+                // A previous frame can still retain an Rc to the engine. Its artifact
+                // lifetimes end at declaration removal, independently of that Rc.
+                engine.borrow_mut().invalidate_all_batches();
+                false
+            }
+        });
         self.tables
             .borrow_mut()
             .retain(|key, _| active.contains(&(RESOURCE_LIST, key.clone())));
@@ -504,6 +559,7 @@ pub(crate) struct InputConfiguration {
     pub(crate) read_only: bool,
     pub(crate) password: bool,
     pub(crate) bindings: InputBindings,
+    pub(crate) presentation: InputPresentation,
 }
 
 #[derive(Clone, Copy)]
@@ -531,11 +587,14 @@ pub(crate) struct SliderConfiguration {
     pub(crate) disabled: bool,
     pub(crate) logarithmic: bool,
     pub(crate) bindings: SliderBindings,
+    pub(crate) presentation: SliderPresentation,
 }
 
 pub(crate) struct ListConfiguration {
     pub(crate) item_count: usize,
     pub(crate) renderer_token: u64,
+    pub(crate) activation_token: u64,
+    pub(crate) selection_token: u64,
     pub(crate) batch_size: usize,
     pub(crate) overdraw: Pixels,
     pub(crate) alignment: ListAlignment,
@@ -613,13 +672,135 @@ enum ListChange {
     },
 }
 
+/// Foreground-only keyboard position, independent of row-batch cache lifetime and selection.
+pub(crate) struct CollectionCursor {
+    index: Cell<usize>,
+    count: Cell<usize>,
+    epoch: Cell<u64>,
+}
+
+impl CollectionCursor {
+    pub(crate) fn new(count: usize) -> Self {
+        Self {
+            index: Cell::new(0),
+            count: Cell::new(count),
+            epoch: Cell::new(1),
+        }
+    }
+
+    pub(crate) fn active(&self) -> Option<usize> {
+        (self.count.get() != 0).then(|| self.index.get())
+    }
+
+    pub(crate) fn set(&self, index: usize) -> bool {
+        if index >= self.count.get() {
+            return false;
+        }
+        self.index.set(index);
+        true
+    }
+
+    pub(crate) fn epoch(&self) -> u64 {
+        self.epoch.get()
+    }
+
+    pub(crate) fn set_from_row(&self, index: usize, epoch: u64) -> bool {
+        self.epoch.get() == epoch && self.set(index)
+    }
+
+    pub(crate) fn invalidate_rows(&self) {
+        self.epoch.set(
+            self.epoch
+                .get()
+                .checked_add(1)
+                .expect("collection cursor epoch exhausted"),
+        );
+    }
+
+    fn reset(&self, count: usize) {
+        self.index.set(0);
+        self.count.set(count);
+        self.invalidate_rows();
+    }
+
+    fn splice(&self, start: usize, removed: usize, inserted: usize) {
+        let count = self.count.get() - removed + inserted;
+        let index = self.index.get();
+        let next = if self.count.get() == 0 {
+            0
+        } else if index < start {
+            index
+        } else if index >= start + removed {
+            index - removed + inserted
+        } else {
+            // The active item was removed: choose its replacement/successor, or the final row.
+            start
+        };
+        self.index.set(next.min(count.saturating_sub(1)));
+        self.count.set(count);
+        if removed != 0 || inserted != 0 {
+            self.invalidate_rows();
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum ListRowEventKind {
+    Activation,
+    Selection,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct ListRowEvents {
+    pub(crate) session_id: u64,
+    pub(crate) callbacks: ManagedCallbacks,
+    pub(crate) activation_token: u64,
+    pub(crate) selection_token: u64,
+    pub(crate) index: u32,
+    pub(crate) item_id: Option<u64>,
+    pub(crate) content_revision: Option<u64>,
+}
+
+impl ListRowEvents {
+    pub(crate) fn emit(self, kind: ListRowEventKind, keyboard: bool) -> i32 {
+        let (kind, token) = match kind {
+            ListRowEventKind::Activation => (EVENT_LIST_ACTIVATED, self.activation_token),
+            ListRowEventKind::Selection => (EVENT_LIST_SELECTION_REQUESTED, self.selection_token),
+        };
+        if token == 0 {
+            return 0;
+        }
+        let mut data = [0u8; 16];
+        data[..4].copy_from_slice(&self.index.to_le_bytes());
+        data[8..].copy_from_slice(&self.item_id.unwrap_or(0).to_le_bytes());
+        let event = NativeControlEvent {
+            kind,
+            flags: u16::from(keyboard) | (u16::from(self.content_revision.is_some()) << 1),
+            revision: self.content_revision.unwrap_or(0),
+            data: data.as_ptr(),
+            data_length: 16,
+            reserved: 0,
+            reserved2: 0,
+        };
+        let callback = self
+            .callbacks
+            .control_event
+            .expect("callbacks validated at startup");
+        unsafe { callback(self.session_id, token, &event) }
+    }
+}
+
 pub(crate) struct ManagedListResource {
+    source_id: u64,
     session_id: u64,
     callbacks: ManagedCallbacks,
     pub(crate) state: ListState,
     pub(crate) interaction: Rc<ScrollInteraction>,
+    pub(crate) cursor: Rc<CollectionCursor>,
     pub(crate) item_count: usize,
     renderer_token: u64,
+    activation_token: u64,
+    selection_token: u64,
     batch_size: usize,
     overdraw: Pixels,
     alignment: ListAlignment,
@@ -628,8 +809,11 @@ pub(crate) struct ManagedListResource {
     snapshot_revision: u64,
     content_revision: Option<u64>,
     batches: HashMap<u32, CachedBatch>,
+    // Batches own decoded output; validation/grouping scratch is reused serially by the engine.
+    scratch: SnapshotScratch,
     pending_commands: Vec<ResourceCommand>,
     use_clock: u64,
+    frame_start: u64,
     last_batch: Option<u32>,
     telemetry: ListTelemetry,
 }
@@ -642,6 +826,7 @@ impl ManagedListResource {
         snapshot_revision: u64,
     ) -> Self {
         Self {
+            source_id: next_source_id(),
             session_id,
             callbacks,
             state: ListState::new(
@@ -651,8 +836,11 @@ impl ManagedListResource {
             )
             .with_uniform_item_height(configuration.estimated_item_height),
             interaction: Rc::new(ScrollInteraction::default()),
+            cursor: Rc::new(CollectionCursor::new(configuration.item_count)),
             item_count: configuration.item_count,
             renderer_token: configuration.renderer_token,
+            activation_token: configuration.activation_token,
+            selection_token: configuration.selection_token,
             batch_size: configuration.batch_size,
             overdraw: configuration.overdraw,
             alignment: configuration.alignment,
@@ -661,14 +849,23 @@ impl ManagedListResource {
             snapshot_revision,
             content_revision: configuration.content_revision,
             batches: HashMap::new(),
+            scratch: SnapshotScratch::default(),
             pending_commands: Vec::new(),
             use_clock: 0,
+            frame_start: 0,
             last_batch: None,
             telemetry: ListTelemetry::default(),
         }
     }
 
     fn configure(&mut self, configuration: &ListConfiguration, snapshot_revision: u64) {
+        if self.activation_token != configuration.activation_token
+            || self.selection_token != configuration.selection_token
+        {
+            self.activation_token = configuration.activation_token;
+            self.selection_token = configuration.selection_token;
+            self.cursor.invalidate_rows();
+        }
         let revision_changed = self.snapshot_revision != snapshot_revision;
         let content_changed = match (self.content_revision, configuration.content_revision) {
             (Some(previous), Some(current)) => previous != current,
@@ -679,9 +876,16 @@ impl ManagedListResource {
             || self.overdraw != configuration.overdraw
             || self.estimated_item_height != configuration.estimated_item_height;
 
+        // Reconcile positional identity before a simultaneous layout rebuild discards measurements.
+        if revision_changed && !self.pending_commands.is_empty() {
+            self.commit_pending_commands(configuration.item_count);
+        }
+        if self.item_count != configuration.item_count {
+            self.reset_native_state(configuration.item_count);
+        }
+
         if layout_changed {
-            // Rebuilding ListState already discards all measurements, so structural hints that
-            // were waiting for this managed commit no longer provide any additional value.
+            // Rebuild measurements while keeping the cursor reconciled with the accepted items.
             self.state = ListState::new(
                 configuration.item_count,
                 configuration.alignment,
@@ -695,17 +899,7 @@ impl ManagedListResource {
             self.hinted_viewport_width = None;
             self.pending_commands.clear();
             self.clear_batches();
-        } else if revision_changed && !self.pending_commands.is_empty() {
-            self.commit_pending_commands(configuration.item_count);
-        } else if self.item_count != configuration.item_count {
-            // A normal declarative count change without a ListController splice hint still has to
-            // be correct; it simply cannot preserve the old per-item measurements precisely.
-            self.state.reset_with_uniform_height(
-                configuration.item_count,
-                configuration.estimated_item_height,
-            );
-            self.item_count = configuration.item_count;
-            self.clear_batches();
+            self.cursor.invalidate_rows();
         }
 
         if self.renderer_token != configuration.renderer_token
@@ -714,12 +908,14 @@ impl ManagedListResource {
             self.renderer_token = configuration.renderer_token;
             self.batch_size = configuration.batch_size;
             self.clear_batches();
+            self.cursor.invalidate_rows();
         }
         if revision_changed {
             self.snapshot_revision = snapshot_revision;
         }
         if content_changed {
             self.clear_batches();
+            self.cursor.invalidate_rows();
         }
         self.content_revision = configuration.content_revision;
     }
@@ -800,11 +996,13 @@ impl ManagedListResource {
                     let batch = self.batch_size.max(1) as u32;
                     self.invalidate_batches_from((start as u32 / batch) * batch);
                     self.state.splice(start..start + removed, inserted);
+                    self.cursor.splice(start, removed, inserted);
                     inserted_unmeasured_items |= inserted > 0;
                     current_count = current_count - removed + inserted;
                 }
                 ListChange::Reset(count) => {
                     current_count = count;
+                    self.cursor.reset(count);
                     self.state
                         .reset_with_uniform_height(count, self.estimated_item_height);
                     inserted_unmeasured_items = false;
@@ -852,6 +1050,7 @@ impl ManagedListResource {
     }
 
     fn reset_native_state(&mut self, declared_item_count: usize) {
+        self.cursor.reset(declared_item_count);
         self.state
             .reset_with_uniform_height(declared_item_count, self.estimated_item_height);
         self.item_count = declared_item_count;
@@ -899,7 +1098,13 @@ impl ManagedListResource {
     /// GPUI invalidates every cached height and size hint when the list width changes. The
     /// maintenance canvas runs after list prepaint, detects that width transition, and restores
     /// uniform hints before the sibling foundation scrollbar reads the native range.
+    pub(crate) fn begin_frame(&mut self) {
+        self.frame_start = self.use_clock;
+    }
+
     pub(crate) fn maintain_height_hints(&mut self) {
+        // All viewport and overdraw rows have been requested by list prepaint.
+        self.trim_batches();
         let width = self.state.viewport_bounds().size.width;
         if width <= px(0.) || self.hinted_viewport_width == Some(width) {
             return;
@@ -944,7 +1149,6 @@ impl ManagedListResource {
                     ))
                     .into_any_element();
             }
-            self.trim_batches();
         } else {
             self.telemetry.batch_cache_hits += 1;
         }
@@ -980,43 +1184,100 @@ impl ManagedListResource {
         )
     }
 
+    pub(crate) fn cached_row_events(&self, index: usize) -> Option<ListRowEvents> {
+        if (self.activation_token == 0 && self.selection_token == 0) || index >= self.item_count {
+            return None;
+        }
+        let start = (index / self.batch_size) * self.batch_size;
+        let batch = self.batches.get(&(start as u32))?;
+        let parent = &batch.snapshot.nodes[batch.snapshot.root as usize];
+        let root = *batch.snapshot.children(parent).get(index - start)?;
+        let item_id = batch
+            .snapshot
+            .ops(&batch.snapshot.nodes[root as usize])
+            .iter()
+            .rev()
+            .find(|op| op.code == OP_LIST_ITEM_ID)
+            .map(|op| op.a)
+            .filter(|id| *id != 0);
+        Some(ListRowEvents {
+            session_id: self.session_id,
+            callbacks: self.callbacks,
+            activation_token: self.activation_token,
+            selection_token: self.selection_token,
+            index: index as u32,
+            item_id,
+            content_revision: self.content_revision,
+        })
+    }
+
+    pub(crate) fn event_enabled(&self, kind: ListRowEventKind) -> bool {
+        match kind {
+            ListRowEventKind::Activation => self.activation_token != 0,
+            ListRowEventKind::Selection => self.selection_token != 0,
+        }
+    }
+
+    pub(crate) fn prepare_row_event(
+        &mut self,
+        index: usize,
+        kind: ListRowEventKind,
+    ) -> Result<Option<ListRowEvents>, (u64, i32)> {
+        if !self.event_enabled(kind) || index >= self.item_count {
+            return Ok(None);
+        }
+        let start = ((index / self.batch_size) * self.batch_size) as u32;
+        self.use_clock = self.use_clock.wrapping_add(1).max(1);
+        if !self.batches.contains_key(&start) {
+            self.load_batch(start)
+                .map_err(|status| (self.session_id, status))?;
+        }
+        self.batches
+            .get_mut(&start)
+            .expect("batch loaded")
+            .last_used = self.use_clock;
+        Ok(self.cached_row_events(index))
+    }
+
     fn load_batch(&mut self, start: u32) -> Result<(), i32> {
         let count = self
             .batch_size
             .min(self.item_count.saturating_sub(start as usize)) as u32;
-        let mut batch = CachedBatch::new();
         let callback = self
             .callbacks
             .list_render_range
             .expect("callbacks were validated before application startup");
-        let mut root = 0u32;
-        let status = batch
-            .arena
-            .render_with_growth_retry(|arena| unsafe {
+        let (snapshot, lease) = load_artifact(
+            self.session_id,
+            self.source_id,
+            self.callbacks,
+            &mut self.scratch,
+            |arena, root, artifact_id| unsafe {
                 callback(
                     self.session_id,
                     self.renderer_token,
+                    self.source_id,
                     start,
                     count,
                     arena,
-                    &mut root,
+                    root,
+                    artifact_id,
                 )
-            })
-            .unwrap_or_else(|status| status);
-        if status != 0 {
-            return Err(status);
-        }
-        batch.snapshot.decode_into(
-            batch.arena.as_native(),
-            root,
-            &mut batch.retained_strings,
-            &mut batch.scratch,
+            },
+            |snapshot| {
+                let root = &snapshot.nodes[snapshot.root as usize];
+                if snapshot.children(root).len() == count as usize {
+                    Ok(())
+                } else {
+                    Err(-63)
+                }
+            },
         )?;
-        let root_node = &batch.snapshot.nodes[batch.snapshot.root as usize];
-        if batch.snapshot.children(root_node).len() != count as usize {
-            return Err(-63);
-        }
-        batch.last_used = self.use_clock;
+        let batch = CachedBatch {
+            snapshot,
+            lease: Some(lease),
+            last_used: self.use_clock,
+        };
         self.batches.insert(start, batch);
         self.telemetry.batch_loads += 1;
         Ok(())
@@ -1024,18 +1285,37 @@ impl ManagedListResource {
 
     fn trim_batches(&mut self) {
         const MAX_BATCHES: usize = 4;
-        while self.batches.len() > MAX_BATCHES {
-            let Some((&oldest, _)) = self.batches.iter().min_by_key(|(_, batch)| batch.last_used)
-            else {
-                break;
-            };
-            self.batches.remove(&oldest);
-            self.telemetry.batch_evictions += 1;
+        if self.batches.len() <= MAX_BATCHES {
+            return;
         }
+        // Select the four newest idle batches once. Repeatedly finding the oldest batch
+        // rescans the entire map for each eviction after a large viewport contracts.
+        let mut newest = [(0u32, 0u64); MAX_BATCHES];
+        let mut idle_count = 0;
+        for (&key, batch) in &self.batches {
+            if batch.last_used > self.frame_start {
+                continue;
+            }
+            if idle_count < MAX_BATCHES {
+                newest[idle_count] = (key, batch.last_used);
+            } else {
+                let oldest = newest.iter_mut().min_by_key(|entry| entry.1).unwrap();
+                if batch.last_used > oldest.1 {
+                    *oldest = (key, batch.last_used);
+                }
+            }
+            idle_count += 1;
+        }
+        if idle_count <= MAX_BATCHES {
+            return;
+        }
+        let before = self.batches.len();
+        self.batches.retain(|key, batch| {
+            batch.last_used > self.frame_start || newest.iter().any(|entry| entry.0 == *key)
+        });
+        self.telemetry.batch_evictions += (before - self.batches.len()) as u64;
     }
 
-    /// Reads the monotonic telemetry counters. The ABI does not expose them yet, so this is
-    /// currently only reachable from native tests and future benchmarks.
     /// Reads the monotonic telemetry counters for diagnostics aggregation.
     pub(crate) fn telemetry(&self) -> ListTelemetry {
         self.telemetry
@@ -1046,23 +1326,48 @@ impl ManagedListResource {
     pub(crate) fn invalidate_all_batches(&mut self) {
         self.clear_batches();
     }
+
+    fn invalidate_artifacts(&mut self, keys: &ArtifactInvalidations<'_>) -> bool {
+        let keys = keys.for_source(self.source_id);
+        if keys.is_empty() {
+            return false;
+        }
+        let before = self.batches.len();
+        self.batches.retain(|start, batch| {
+            let remove = batch.lease.as_ref().is_some_and(|lease| {
+                keys.binary_search_by_key(&lease.artifact_id, |key| key.artifact)
+                    .is_ok()
+            });
+            if remove {
+                let count = self
+                    .batch_size
+                    .min(self.item_count.saturating_sub(*start as usize));
+                self.state
+                    .remeasure_items(*start as usize..*start as usize + count);
+            }
+            !remove
+        });
+        let removed = before - self.batches.len();
+        self.telemetry.batch_invalidations += removed as u64;
+        if removed != 0 {
+            self.last_batch = None;
+        }
+        removed != 0
+    }
 }
 
 struct CachedBatch {
-    arena: OwnedRenderArena,
-    retained_strings: RetainedStrings,
+    lease: Option<ArtifactLease>,
     snapshot: ValidatedSnapshot,
-    scratch: SnapshotScratch,
     last_used: u64,
 }
 
 impl CachedBatch {
+    #[cfg(test)]
     fn new() -> Self {
         Self {
-            arena: OwnedRenderArena::new(),
-            retained_strings: RetainedStrings::default(),
+            lease: None,
             snapshot: ValidatedSnapshot::default(),
-            scratch: SnapshotScratch::default(),
             last_used: 0,
         }
     }
@@ -1192,6 +1497,11 @@ pub(crate) fn input_configuration(
         disabled: last_u32(snapshot, node, OP_INPUT_DISABLED).is_some_and(|value| value != 0),
         read_only: last_u32(snapshot, node, OP_INPUT_READ_ONLY).is_some_and(|value| value != 0),
         password: last_u32(snapshot, node, OP_INPUT_PASSWORD).is_some_and(|value| value != 0),
+        presentation: InputPresentation {
+            placeholder: last_u32(snapshot, node, OP_INPUT_PLACEHOLDER_RGBA),
+            caret: last_u32(snapshot, node, OP_INPUT_CARET_RGBA),
+            selection: last_u32(snapshot, node, OP_INPUT_SELECTION_RGBA),
+        },
         bindings: InputBindings {
             changed: last_callback(snapshot, node, OP_INPUT_ON_CHANGED),
             submitted: last_callback(snapshot, node, OP_INPUT_ON_SUBMITTED),
@@ -1241,6 +1551,12 @@ pub(crate) fn slider_configuration(
         axis,
         disabled: last_u32(snapshot, node, OP_SLIDER_DISABLED).unwrap_or(0) != 0,
         logarithmic,
+        presentation: SliderPresentation {
+            track: last_u32(snapshot, node, OP_SLIDER_TRACK_RGBA),
+            fill: last_u32(snapshot, node, OP_SLIDER_FILL_RGBA),
+            thumb: last_u32(snapshot, node, OP_SLIDER_THUMB_RGBA),
+            thumb_border: last_u32(snapshot, node, OP_SLIDER_THUMB_BORDER_RGBA),
+        },
         bindings: SliderBindings {
             changed: last_callback(snapshot, node, OP_SLIDER_ON_CHANGED),
             released: last_callback(snapshot, node, OP_SLIDER_ON_RELEASED),
@@ -1291,6 +1607,18 @@ pub(crate) fn list_configuration(
     Some(ListConfiguration {
         item_count,
         renderer_token: renderer,
+        activation_token: snapshot
+            .ops(node)
+            .iter()
+            .rev()
+            .find(|op| op.code == OP_LIST_ON_ACTIVATED)
+            .map_or(0, |op| op.a),
+        selection_token: snapshot
+            .ops(node)
+            .iter()
+            .rev()
+            .find(|op| op.code == OP_LIST_ON_SELECTION_REQUESTED)
+            .map_or(0, |op| op.a),
         batch_size,
         overdraw,
         alignment,
@@ -1346,7 +1674,803 @@ fn shared(value: &str) -> SharedString {
 
 #[cfg(test)]
 mod tests {
+    use crate::snapshot::RetainedStrings;
+    mod measurements;
     use super::*;
+
+    #[derive(Default)]
+    struct ArtifactCapture {
+        nodes: Vec<crate::abi::NodeRecord>,
+        children: Vec<crate::abi::ChildRecord>,
+        ops: Vec<crate::abi::OpRecord>,
+        clickable: bool,
+        item_ids: bool,
+        ranges: Vec<(u32, u32)>,
+        activations: Vec<(u64, u16, u64, Vec<u8>)>,
+        activation_resource: Option<std::rc::Weak<RefCell<ManagedListResource>>>,
+        clicked: Vec<u64>,
+        click_status: i32,
+        next_id: u64,
+        requests: Vec<(u64, u64)>,
+        accepts: Vec<(u64, u64)>,
+        releases: Vec<(u64, u64, i32)>,
+        failure_mode: u8,
+    }
+
+    thread_local! {
+        static ARTIFACTS: RefCell<ArtifactCapture> = RefCell::default();
+    }
+
+    unsafe extern "C" fn publish_test_range(
+        _: u64,
+        _: u64,
+        source: u64,
+        start: u32,
+        count: u32,
+        arena: *mut crate::abi::RenderArena,
+        root: *mut u32,
+        artifact: *mut u64,
+    ) -> i32 {
+        use crate::{
+            abi::{ChildRecord, NodeRecord},
+            semantic::{COMPONENT_DIV, COMPONENT_TEXT},
+        };
+        ARTIFACTS.with(|capture| {
+            let mut capture = capture.borrow_mut();
+            if capture.failure_mode == 3 {
+                return -106;
+            }
+            let rows = if capture.failure_mode == 2 { 0 } else { count };
+            capture.nodes.clear();
+            let component = if capture.failure_mode == 1 {
+                u16::MAX
+            } else {
+                COMPONENT_DIV
+            };
+            capture.nodes.push(NodeRecord {
+                component,
+                ..Default::default()
+            });
+            capture.children.clear();
+            for index in 0..rows {
+                capture.nodes.push(NodeRecord {
+                    component: COMPONENT_TEXT,
+                    ..Default::default()
+                });
+                capture.children.push(ChildRecord {
+                    parent: 0,
+                    child: index + 1,
+                });
+            }
+            capture.next_id += 1;
+            let id = capture.next_id;
+            capture.ops.clear();
+            if capture.clickable {
+                use crate::semantic::{OP_HEIGHT_PX, OP_ON_CLICK, OP_WIDTH_PX, ValueKind};
+                for index in 0..rows {
+                    capture.nodes[index as usize + 1].component = crate::semantic::COMPONENT_BUTTON;
+                    capture.nodes[index as usize + 1].data_length = 3;
+                    capture.ops.extend([
+                        crate::abi::OpRecord {
+                            node: index + 1,
+                            code: OP_WIDTH_PX,
+                            value_kind: ValueKind::F32 as u16,
+                            a: 200f32.to_bits() as u64,
+                            b: 0,
+                        },
+                        crate::abi::OpRecord {
+                            node: index + 1,
+                            code: OP_ON_CLICK,
+                            value_kind: ValueKind::Callback as u16,
+                            a: id,
+                            b: 0,
+                        },
+                        crate::abi::OpRecord {
+                            node: index + 1,
+                            code: OP_HEIGHT_PX,
+                            value_kind: ValueKind::F32 as u16,
+                            a: 30f32.to_bits() as u64,
+                            b: 0,
+                        },
+                    ]);
+                }
+            }
+            if capture.item_ids {
+                for index in 0..rows {
+                    capture.ops.push(crate::abi::OpRecord {
+                        node: index + 1,
+                        code: OP_LIST_ITEM_ID,
+                        value_kind: crate::semantic::ValueKind::U64 as u16,
+                        a: 1000 + (start + index) as u64,
+                        b: 0,
+                    });
+                }
+            }
+            capture.ranges.push((start, count));
+            capture.requests.push((source, id));
+            unsafe {
+                if capture.clickable {
+                    (*arena).utf8 = b"row".as_ptr().cast_mut();
+                    (*arena).utf8_length = 3;
+                    (*arena).utf8_capacity = 3;
+                }
+                (*arena).ops = capture.ops.as_mut_ptr();
+                (*arena).op_length = capture.ops.len() as i32;
+                (*arena).op_capacity = capture.ops.capacity() as i32;
+                (*arena).nodes = capture.nodes.as_mut_ptr();
+                (*arena).node_length = capture.nodes.len() as i32;
+                (*arena).node_capacity = capture.nodes.capacity() as i32;
+                (*arena).children = capture.children.as_mut_ptr();
+                (*arena).child_length = capture.children.len() as i32;
+                (*arena).child_capacity = capture.children.capacity() as i32;
+                (*arena).generation = 1;
+                *root = 0;
+                *artifact = id;
+            }
+            0
+        })
+    }
+
+    unsafe extern "C" fn release_test_artifact(
+        _: u64,
+        source: u64,
+        artifact: u64,
+        status: i32,
+    ) -> i32 {
+        ARTIFACTS.with(|capture| {
+            capture
+                .borrow_mut()
+                .releases
+                .push((source, artifact, status))
+        });
+        0
+    }
+
+    unsafe extern "C" fn capture_activation(
+        _: u64,
+        token: u64,
+        event: *const NativeControlEvent,
+    ) -> i32 {
+        let event = unsafe { &*event };
+        let bytes = unsafe { std::slice::from_raw_parts(event.data, event.data_length as usize) };
+        ARTIFACTS.with(|capture| {
+            let mut capture = capture.borrow_mut();
+            assert_eq!(
+                event.kind,
+                if token == 42 {
+                    EVENT_LIST_ACTIVATED
+                } else {
+                    EVENT_LIST_SELECTION_REQUESTED
+                }
+            );
+            assert_eq!(event.reserved, 0);
+            assert_eq!(event.reserved2, 0);
+            if let Some(resource) = capture
+                .activation_resource
+                .as_ref()
+                .and_then(|weak| weak.upgrade())
+            {
+                assert!(
+                    resource.try_borrow_mut().is_ok(),
+                    "resource borrow escaped into activation callback"
+                );
+            }
+            capture
+                .activations
+                .push((token, event.flags, event.revision, bytes.to_vec()));
+        });
+        0
+    }
+
+    #[gpui::test]
+    fn list_activation_resolves_uncached_identity_in_one_batch_and_ignores_repeat_and_modifiers(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        check_collection_key_event(cx, ListRowEventKind::Activation);
+    }
+
+    #[gpui::test]
+    fn list_selection_resolves_uncached_identity_without_selecting_on_navigation_or_repeat(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        check_collection_key_event(cx, ListRowEventKind::Selection);
+    }
+
+    fn check_collection_key_event(cx: &mut gpui::TestAppContext, kind: ListRowEventKind) {
+        ARTIFACTS.with(|capture| {
+            *capture.borrow_mut() = ArtifactCapture {
+                item_ids: true,
+                ..Default::default()
+            }
+        });
+        let mut config = configuration(Some(0));
+        let (key, token) = match kind {
+            ListRowEventKind::Activation => {
+                config.activation_token = 42;
+                ("enter", 42)
+            }
+            ListRowEventKind::Selection => {
+                config.selection_token = 43;
+                ("space", 43)
+            }
+        };
+        let callbacks = ManagedCallbacks {
+            control_event: Some(capture_activation),
+            ..artifact_callbacks()
+        };
+        let resource = Rc::new(RefCell::new(ManagedListResource::new(
+            1, callbacks, &config, 1,
+        )));
+        resource.borrow().cursor.set(51);
+        ARTIFACTS.with(|capture| {
+            capture.borrow_mut().activation_resource = Some(Rc::downgrade(&resource))
+        });
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            let focus = cx.focus_handle();
+            focus.focus(window, cx);
+            let mut event = gpui::KeyDownEvent {
+                keystroke: gpui::Keystroke::parse("down").unwrap(),
+                is_held: false,
+                prefer_character_input: false,
+            };
+            assert!(!crate::materializer::handle_collection_row_event_key(
+                &event, window, cx, &focus, &resource
+            ));
+            event.keystroke =
+                gpui::Keystroke::parse(if key == "enter" { "space" } else { "enter" }).unwrap();
+            assert!(!crate::materializer::handle_collection_row_event_key(
+                &event, window, cx, &focus, &resource
+            ));
+            ARTIFACTS.with_borrow(|capture| assert!(capture.ranges.is_empty()));
+            event.keystroke = gpui::Keystroke::parse(key).unwrap();
+            assert!(crate::materializer::handle_collection_row_event_key(
+                &event, window, cx, &focus, &resource
+            ));
+            event.is_held = true;
+            assert!(crate::materializer::handle_collection_row_event_key(
+                &event, window, cx, &focus, &resource
+            ));
+            event.is_held = false;
+            event.keystroke.modifiers.shift = true;
+            assert!(!crate::materializer::handle_collection_row_event_key(
+                &event, window, cx, &focus, &resource
+            ));
+            event.keystroke.modifiers.shift = false;
+            event.prefer_character_input = true;
+            assert!(!crate::materializer::handle_collection_row_event_key(
+                &event, window, cx, &focus, &resource
+            ));
+            event.prefer_character_input = false;
+            let child_focus = cx.focus_handle();
+            child_focus.focus(window, cx);
+            assert!(!crate::materializer::handle_collection_row_event_key(
+                &event, window, cx, &focus, &resource
+            ));
+        });
+        ARTIFACTS.with(|capture| {
+            let capture = capture.borrow();
+            assert_eq!(capture.ranges, vec![(48, 48)]);
+            assert_eq!(capture.accepts.len(), 1);
+            assert_eq!(capture.activations.len(), 1);
+            let (actual_token, flags, revision, bytes) = &capture.activations[0];
+            assert_eq!((*actual_token, *flags, *revision), (token, 3, 0));
+            assert_eq!(&bytes[..4], &51u32.to_le_bytes());
+            assert_eq!(&bytes[4..8], &[0; 4]);
+            assert_eq!(&bytes[8..], &1051u64.to_le_bytes());
+        });
+        let event = resource
+            .borrow_mut()
+            .prepare_row_event(51, kind)
+            .unwrap()
+            .unwrap();
+        assert_eq!(event.emit(kind, false), 0);
+        ARTIFACTS.with(|capture| {
+            let capture = capture.borrow();
+            assert_eq!(capture.ranges.len(), 1);
+            assert_eq!(capture.activations[1].1, 2);
+        });
+    }
+
+    #[test]
+    fn list_activation_is_opt_in_and_rejects_failed_or_out_of_range_rows() {
+        ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
+        let mut config = configuration(None);
+        let mut resource = ManagedListResource::new(1, artifact_callbacks(), &config, 1);
+        assert!(
+            resource
+                .prepare_row_event(50, ListRowEventKind::Activation)
+                .unwrap()
+                .is_none()
+        );
+        ARTIFACTS.with(|capture| assert!(capture.borrow().ranges.is_empty()));
+        config.activation_token = 42;
+        let epoch = resource.cursor.epoch();
+        resource.configure(&config, 2);
+        assert_ne!(resource.cursor.epoch(), epoch);
+        assert!(
+            resource
+                .prepare_row_event(100, ListRowEventKind::Activation)
+                .unwrap()
+                .is_none()
+        );
+        let event = resource
+            .prepare_row_event(0, ListRowEventKind::Activation)
+            .unwrap()
+            .unwrap();
+        assert_eq!(event.item_id, None);
+        assert_eq!(event.content_revision, None);
+        resource.clear_batches();
+        ARTIFACTS.with(|capture| capture.borrow_mut().failure_mode = 3);
+        assert!(matches!(
+            resource.prepare_row_event(51, ListRowEventKind::Activation),
+            Err((1, -106))
+        ));
+        assert!(resource.cached_row_events(51).is_none());
+    }
+
+    #[test]
+    fn list_selection_binding_changes_revoke_old_rows_without_loading_or_resetting_cursor() {
+        ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
+        let mut config = configuration(Some(1));
+        config.activation_token = 42;
+        let mut resource = ManagedListResource::new(1, artifact_callbacks(), &config, 1);
+        resource.cursor.set(51);
+        assert!(
+            resource
+                .prepare_row_event(51, ListRowEventKind::Selection)
+                .unwrap()
+                .is_none()
+        );
+        ARTIFACTS.with_borrow(|capture| assert!(capture.ranges.is_empty()));
+        let epoch = resource.cursor.epoch();
+        config.selection_token = 43;
+        resource.configure(&config, 2);
+        assert_ne!(resource.cursor.epoch(), epoch);
+        let packet = resource
+            .prepare_row_event(51, ListRowEventKind::Selection)
+            .unwrap()
+            .unwrap();
+        assert_eq!(packet.selection_token, 43);
+        assert_eq!(packet.activation_token, 42);
+        assert_eq!(resource.cursor.active(), Some(51));
+        let epoch = resource.cursor.epoch();
+        config.selection_token = 0;
+        resource.configure(&config, 3);
+        assert!(!resource.cursor.set_from_row(12, epoch));
+        assert_eq!(resource.cursor.active(), Some(51));
+        assert!(
+            resource
+                .prepare_row_event(51, ListRowEventKind::Selection)
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(resource.cached_row_events(51).unwrap().selection_token, 0);
+        ARTIFACTS.with_borrow(|capture| assert_eq!(capture.ranges, vec![(48, 48)]));
+        config.selection_token = 43;
+        config.item_count = 0;
+        resource.configure(&config, 4);
+        assert!(resource.cursor.active().is_none());
+        assert!(
+            resource
+                .prepare_row_event(0, ListRowEventKind::Selection)
+                .unwrap()
+                .is_none()
+        );
+        ARTIFACTS.with_borrow(|capture| assert_eq!(capture.ranges.len(), 1));
+    }
+
+    fn artifact_callbacks() -> ManagedCallbacks {
+        ManagedCallbacks {
+            click: Some(click_test_row),
+            accept_artifact: Some(accept_test_artifact),
+            list_render_range: Some(publish_test_range),
+            release_artifact: Some(release_test_artifact),
+            ..callbacks()
+        }
+    }
+
+    unsafe extern "C" fn click_test_row(
+        _: u64,
+        token: u64,
+        _: u64,
+        _: *const crate::abi::NativeClickEvent,
+    ) -> i32 {
+        ARTIFACTS.with(|capture| {
+            let mut capture = capture.borrow_mut();
+            if !capture
+                .releases
+                .iter()
+                .any(|(_, artifact, _)| *artifact == token)
+            {
+                capture.clicked.push(token);
+            }
+            capture.click_status
+        })
+    }
+
+    struct VisibleRows {
+        store: Rc<ResourceStore>,
+        resource: Rc<RefCell<ManagedListResource>>,
+    }
+
+    impl gpui::Render for VisibleRows {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            use gpui::Styled;
+            self.resource.borrow_mut().begin_frame();
+            let key = ResourceKey::new(1, "rows".into());
+            let state = self.resource.borrow().state.clone();
+            let rows_resource = self.resource.clone();
+            let store = self.store.clone();
+            let rows = div().flex().flex_col().w(px(200.)).h(px(240.)).child(
+                gpui::list(state, move |index, _, _| {
+                    rows_resource.borrow_mut().render_item(index, &store, &key)
+                })
+                .size_full(),
+            );
+            let resource = self.resource.clone();
+            rows.child(gpui::canvas(
+                move |_, _, _| resource.borrow_mut().trim_batches(),
+                |_, _, _, _| {},
+            ))
+        }
+    }
+
+    #[gpui::test]
+    fn displayed_rows_keep_artifacts_after_prepaint(cx: &mut gpui::TestAppContext) {
+        cx.update(gpui_base::init);
+        ARTIFACTS.with(|capture| {
+            *capture.borrow_mut() = ArtifactCapture {
+                clickable: true,
+                ..Default::default()
+            }
+        });
+        let store = Rc::new(ResourceStore::new(1, artifact_callbacks(), theme()));
+        let mut config = configuration(Some(1));
+        config.item_count = 8;
+        config.batch_size = 1;
+        config.overdraw = px(0.);
+        config.estimated_item_height = px(30.);
+        let resource = Rc::new(RefCell::new(ManagedListResource::new(
+            1,
+            artifact_callbacks(),
+            &config,
+            1,
+        )));
+        let (_, cx) = cx.add_window_view(|_, _| VisibleRows {
+            store,
+            resource: resource.clone(),
+        });
+        cx.update(|window, cx| {
+            window.draw(cx).clear(cx);
+        });
+        ARTIFACTS.with(|capture| {
+            assert_eq!(
+                resource.borrow().batches.len(),
+                8,
+                "requests={:?}, releases={:?}",
+                capture.borrow().requests,
+                capture.borrow().releases
+            )
+        });
+        ARTIFACTS.with(|capture| assert!(capture.borrow().releases.is_empty()));
+        cx.simulate_click(point(px(10.), px(15.)), Default::default());
+        cx.simulate_click(point(px(10.), px(225.)), Default::default());
+        ARTIFACTS.with(|capture| assert_eq!(capture.borrow().clicked, [1, 8]));
+        // Once no frame needs these batches, only four idle batches remain cached.
+        resource.borrow_mut().begin_frame();
+        resource.borrow_mut().trim_batches();
+        assert_eq!(resource.borrow().batches.len(), 4);
+        resource.borrow_mut().clear_batches();
+        ARTIFACTS.with(|capture| assert_eq!(capture.borrow().releases.len(), 8));
+    }
+
+    unsafe extern "C" fn accept_test_artifact(_: u64, source: u64, artifact: u64) -> i32 {
+        ARTIFACTS.with(|capture| {
+            let mut capture = capture.borrow_mut();
+            capture.accepts.push((source, artifact));
+            // Acceptance can reuse the managed output: native decoding must already be done.
+            capture.nodes.clear();
+            capture.children.clear();
+            if capture.failure_mode == 4 { -109 } else { 0 }
+        })
+    }
+
+    #[test]
+    fn artifact_acceptance_follows_decode_and_rejection_releases_the_batch() {
+        for mode in 0..=4 {
+            ARTIFACTS.with(|capture| {
+                *capture.borrow_mut() = ArtifactCapture {
+                    failure_mode: mode,
+                    ..Default::default()
+                }
+            });
+            let mut resource = artifact_resource();
+            assert_eq!(resource.load_batch(0).is_ok(), mode == 0);
+            if mode == 0 {
+                assert_eq!(resource.batches[&0].snapshot.nodes.len(), 2);
+            }
+            ARTIFACTS.with(|capture| {
+                let capture = capture.borrow();
+                assert_eq!(capture.accepts.len(), usize::from(mode == 0 || mode == 4));
+                if mode == 4 {
+                    assert_eq!(capture.releases.len(), 1);
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn cached_snapshots_survive_reused_scratch_growth_and_failed_batches() {
+        ARTIFACTS.with(|capture| {
+            *capture.borrow_mut() = ArtifactCapture {
+                clickable: true,
+                ..Default::default()
+            };
+        });
+        let mut config = configuration(Some(1));
+        config.item_count = 2_000;
+        let mut resource = ManagedListResource::new(1, artifact_callbacks(), &config, 1);
+        resource.load_batch(0).unwrap();
+        let first_id = resource.batches[&0].lease.as_ref().unwrap().artifact_id;
+
+        ARTIFACTS.with(|capture| capture.borrow_mut().clickable = false);
+        resource.batch_size = 1;
+        resource.load_batch(48).unwrap();
+        ARTIFACTS.with(|capture| capture.borrow_mut().failure_mode = 2);
+        assert_eq!(resource.load_batch(49), Err(-63));
+        ARTIFACTS.with(|capture| {
+            let mut capture = capture.borrow_mut();
+            capture.failure_mode = 0;
+            capture.clickable = true;
+        });
+        resource.batch_size = 512;
+        resource.load_batch(512).unwrap();
+
+        let first = &resource.batches[&0].snapshot;
+        assert_eq!(first.children(&first.nodes[0]).len(), 48);
+        assert!(first.nodes[1..].iter().all(|node| {
+            node.component == crate::semantic::COMPONENT_BUTTON
+                && node.data.as_ref() == "row"
+                && first
+                    .ops(node)
+                    .iter()
+                    .any(|op| op.code == crate::semantic::OP_ON_CLICK && op.a == first_id)
+        }));
+        let second = &resource.batches[&48].snapshot;
+        assert_eq!(second.nodes.len(), 2);
+        assert_eq!(second.nodes[1].component, crate::semantic::COMPONENT_TEXT);
+        assert!(second.ops(&second.nodes[1]).is_empty());
+        assert_eq!(resource.batches[&512].snapshot.nodes.len(), 513);
+        assert!(
+            resource.invalidate_artifacts(&ArtifactInvalidations::new(&mut [
+                crate::abi::NativeArtifactKey {
+                    source: resource.source_id,
+                    artifact: first_id,
+                }
+            ]))
+        );
+        assert_eq!(batch_keys(&resource), vec![48, 512]);
+        ARTIFACTS.with(|capture| {
+            assert_eq!(
+                capture.borrow().releases,
+                vec![
+                    (resource.source_id, 3, -63),
+                    (resource.source_id, first_id, 0)
+                ]
+            );
+        });
+    }
+
+    #[test]
+    fn reactive_invalidation_evicts_only_matching_source_and_artifact() {
+        ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
+        let mut resource = artifact_resource();
+        resource.load_batch(0).unwrap();
+        resource.load_batch(1).unwrap();
+        let key = crate::abi::NativeArtifactKey {
+            source: resource.source_id,
+            artifact: 1,
+        };
+        assert!(
+            !resource.invalidate_artifacts(&ArtifactInvalidations::new(&mut [
+                crate::abi::NativeArtifactKey {
+                    source: key.source + 1,
+                    ..key
+                }
+            ]))
+        );
+        assert!(resource.invalidate_artifacts(&ArtifactInvalidations::new(&mut [key])));
+        assert!(resource.batches.contains_key(&1));
+        resource.load_batch(0).unwrap();
+        assert!(!resource.invalidate_artifacts(&ArtifactInvalidations::new(&mut [key])));
+        assert_eq!(resource.batches.len(), 2);
+        ARTIFACTS.with(|capture| assert_eq!(capture.borrow().releases, vec![(key.source, 1, 0)]));
+    }
+
+    fn artifact_resource() -> ManagedListResource {
+        let mut config = configuration(Some(1));
+        config.batch_size = 1;
+        ManagedListResource::new(1, artifact_callbacks(), &config, 1)
+    }
+
+    #[test]
+    fn invalidation_batch_handles_unsorted_duplicates_and_overlapping_artifact_ids() {
+        use crate::abi::NativeArtifactKey;
+
+        ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
+        let store = ResourceStore::new(1, artifact_callbacks(), theme());
+        let mut config = configuration(Some(1));
+        config.batch_size = 1;
+        let engines: Vec<_> = ["first", "second", "unrelated"]
+            .into_iter()
+            .map(|name| {
+                let engine = store.list_resource(&ResourceKey::new(1, shared(name)), &config, 1);
+                {
+                    let mut resource = engine.borrow_mut();
+                    for start in 0..3 {
+                        resource.load_batch(start).unwrap();
+                        // Artifact identity is scoped by source, even when IDs overlap.
+                        resource
+                            .batches
+                            .get_mut(&start)
+                            .unwrap()
+                            .lease
+                            .as_mut()
+                            .unwrap()
+                            .artifact_id = start as u64 + 1;
+                    }
+                    resource.last_batch = Some(1);
+                }
+                engine
+            })
+            .collect();
+        let sources: Vec<_> = engines
+            .iter()
+            .map(|engine| engine.borrow().source_id)
+            .collect();
+        let mut keys = [
+            NativeArtifactKey {
+                source: sources[1],
+                artifact: 2,
+            },
+            NativeArtifactKey {
+                source: u64::MAX,
+                artifact: 1,
+            },
+            NativeArtifactKey {
+                source: sources[0],
+                artifact: 3,
+            },
+            NativeArtifactKey {
+                source: sources[0],
+                artifact: 1,
+            },
+            NativeArtifactKey {
+                source: sources[1],
+                artifact: 2,
+            },
+            NativeArtifactKey {
+                source: sources[0],
+                artifact: u64::MAX,
+            },
+        ];
+        assert!(!store.invalidate_artifacts(&mut []));
+        assert!(store.invalidate_artifacts(&mut keys));
+        for (index, expected) in [vec![1], vec![0, 2], vec![0, 1, 2]].iter().enumerate() {
+            let resource = engines[index].borrow();
+            assert_eq!(&batch_keys(&resource), expected);
+            assert_eq!(
+                resource.telemetry.batch_invalidations,
+                (3 - expected.len()) as u64
+            );
+            assert_eq!(resource.last_batch, if index == 2 { Some(1) } else { None });
+            assert_eq!(resource.state.max_offset_for_scrollbar().y, px(4_000.));
+        }
+        assert!(!store.invalidate_artifacts(&mut keys));
+        ARTIFACTS.with(|capture| {
+            let mut releases = capture.borrow().releases.clone();
+            releases.sort_unstable();
+            assert_eq!(
+                releases,
+                vec![(sources[0], 1, 0), (sources[0], 3, 0), (sources[1], 2, 0)]
+            );
+        });
+    }
+
+    #[test]
+    fn native_cache_eviction_and_invalidation_release_only_their_artifacts() {
+        ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
+        let mut resource = artifact_resource();
+        for start in 0..5 {
+            resource.use_clock += 1;
+            resource.load_batch(start).unwrap();
+            resource.begin_frame();
+            resource.trim_batches();
+        }
+        ARTIFACTS.with(|capture| {
+            let capture = capture.borrow();
+            assert_eq!(capture.requests.len(), 5);
+            assert_eq!(capture.releases, vec![(resource.source_id, 1, 0)]);
+        });
+        resource.invalidate_batches_intersecting(2, 1);
+        ARTIFACTS.with(|capture| {
+            assert_eq!(
+                capture.borrow().releases,
+                vec![(resource.source_id, 1, 0), (resource.source_id, 3, 0)]
+            );
+        });
+        resource.clear_batches();
+        drop(resource);
+        ARTIFACTS.with(|capture| {
+            let capture = capture.borrow();
+            assert_eq!(capture.releases.len(), 5);
+            assert_eq!(
+                capture
+                    .releases
+                    .iter()
+                    .map(|(_, id, _)| *id)
+                    .collect::<HashSet<_>>()
+                    .len(),
+                5
+            );
+        });
+    }
+
+    #[test]
+    fn sources_using_one_renderer_release_independently() {
+        ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
+        let mut first = artifact_resource();
+        let mut second = artifact_resource();
+        assert_eq!(first.renderer_token, second.renderer_token);
+        assert_ne!(first.source_id, second.source_id);
+        first.load_batch(0).unwrap();
+        second.load_batch(0).unwrap();
+        let first_source = first.source_id;
+        drop(first);
+        ARTIFACTS.with(|capture| assert_eq!(capture.borrow().releases, vec![(first_source, 1, 0)]));
+        assert_eq!(second.batches.len(), 1);
+        drop(second);
+        ARTIFACTS.with(|capture| assert_eq!(capture.borrow().releases.len(), 2));
+    }
+
+    #[test]
+    fn declaration_removal_releases_artifacts_even_when_a_frame_retains_the_engine() {
+        ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
+        let store = ResourceStore::new(1, artifact_callbacks(), theme());
+        let key = ResourceKey::new(1, "list".into());
+        let engine = store.list_resource(&key, &configuration(Some(1)), 1);
+        engine.borrow_mut().load_batch(0).unwrap();
+        store.retain_snapshot(&ValidatedSnapshot::default());
+        assert!(engine.borrow().batches.is_empty());
+        ARTIFACTS.with(|capture| assert_eq!(capture.borrow().releases.len(), 1));
+        drop(engine);
+        ARTIFACTS.with(|capture| assert_eq!(capture.borrow().releases.len(), 1));
+    }
+
+    #[test]
+    fn failed_native_decode_releases_publication_after_the_borrow_ends() {
+        for mode in 1..=3 {
+            ARTIFACTS.with(|capture| {
+                *capture.borrow_mut() = ArtifactCapture {
+                    failure_mode: mode,
+                    ..Default::default()
+                }
+            });
+            let mut resource = artifact_resource();
+            assert!(resource.load_batch(0).is_err());
+            assert!(resource.batches.is_empty());
+            ARTIFACTS.with(|capture| {
+                let capture = capture.borrow();
+                if mode == 3 {
+                    assert!(capture.releases.is_empty());
+                } else {
+                    assert_eq!(capture.releases.len(), 1);
+                    assert_ne!(capture.releases[0].2, 0);
+                }
+            });
+        }
+    }
 
     fn theme() -> SharedTheme {
         Rc::new(RefCell::new(crate::theme::NativeTheme::default()))
@@ -1356,6 +2480,9 @@ mod tests {
         ManagedCallbacks {
             struct_size: 0,
             render: None,
+            render_completed: None,
+            release_artifact: None,
+            accept_artifact: None,
             click: None,
             list_render_range: None,
             dynamic_frame: None,
@@ -1370,6 +2497,8 @@ mod tests {
         ListConfiguration {
             item_count: 100,
             renderer_token: 1,
+            activation_token: 0,
+            selection_token: 0,
             batch_size: 48,
             overdraw: px(240.),
             alignment: ListAlignment::Top,
@@ -1410,6 +2539,98 @@ mod tests {
         resource.commit_pending_commands(105);
 
         assert_eq!(resource.state.max_offset_for_scrollbar().y, px(4_200.));
+    }
+
+    #[test]
+    fn offscreen_refresh_preserves_full_scrollbar_range_after_configuration() {
+        let mut config = configuration(Some(1));
+        config.item_count = 20_000;
+        let mut resource = ManagedListResource::new(1, callbacks(), &config, 1);
+        resource.apply_command(&command(COMMAND_LIST_REFRESH, 10_000, 1_000, ""));
+        resource.configure(&config, 2);
+        assert_eq!(resource.state.max_offset_for_scrollbar().y, px(800_000.));
+        resource.scroll_to_item(19_000);
+        assert_eq!(
+            resource.state.scroll_px_offset_for_scrollbar().y,
+            px(-760_000.)
+        );
+    }
+
+    #[test]
+    fn mixed_changes_wait_for_acceptance_and_reconcile_with_content_revision() {
+        for changed_revision in [false, true] {
+            let mut config = configuration(Some(1));
+            config.item_count = 200;
+            let mut resource = ManagedListResource::new(1, callbacks(), &config, 1);
+            for start in [0, 48, 96, 144] {
+                resource.batches.insert(start, CachedBatch::new());
+            }
+            resource.apply_command(&command(COMMAND_LIST_REFRESH, 50, 2, ""));
+            resource.apply_command(&command(COMMAND_LIST_SPLICE, 150, (3_u64 << 32) | 8, ""));
+            resource.apply_command(&command(COMMAND_LIST_REFRESH, 201, 4, ""));
+            resource.configure(&config, 1);
+            assert_eq!(resource.item_count, 200);
+            assert_eq!(batch_keys(&resource), vec![0, 48, 96, 144]);
+            config.item_count = 205;
+            if changed_revision {
+                config.content_revision = Some(2);
+            }
+            resource.configure(&config, 2);
+            assert_eq!(resource.item_count, 205);
+            assert_eq!(resource.state.max_offset_for_scrollbar().y, px(8_200.));
+            assert!(resource.pending_commands.is_empty());
+            assert_eq!(
+                batch_keys(&resource),
+                if changed_revision {
+                    vec![]
+                } else {
+                    vec![0, 96]
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn invalid_mixed_hints_reset_to_the_accepted_shape() {
+        let mut config = configuration(Some(1));
+        let mut resource = ManagedListResource::new(1, callbacks(), &config, 1);
+        resource.batches.insert(0, CachedBatch::new());
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 90, (11_u64 << 32) | 1, ""));
+        resource.apply_command(&command(COMMAND_LIST_REFRESH, 0, 1, ""));
+        config.item_count = 90;
+        resource.configure(&config, 2);
+        assert_eq!(resource.item_count, 90);
+        assert_eq!(resource.state.max_offset_for_scrollbar().y, px(3_600.));
+        assert!(resource.batches.is_empty());
+        assert!(resource.pending_commands.is_empty());
+    }
+
+    #[test]
+    fn trimming_keeps_every_displayed_batch_and_the_four_newest_idle_batches() {
+        for tied in [false, true] {
+            let mut resource = resource_with_batches(&[]);
+            resource.frame_start = 100;
+            for key in 0..40 {
+                let mut batch = CachedBatch::new();
+                batch.last_used = if key >= 32 {
+                    101
+                } else if tied {
+                    1
+                } else {
+                    key as u64
+                };
+                resource.batches.insert(key, batch);
+            }
+            resource.trim_batches();
+            assert_eq!(resource.batches.len(), 12);
+            assert!((32..40).all(|key| resource.batches.contains_key(&key)));
+            if !tied {
+                assert_eq!(batch_keys(&resource), (28..40).collect::<Vec<_>>());
+            }
+            assert_eq!(resource.telemetry.batch_evictions, 28);
+            resource.trim_batches();
+            assert_eq!(resource.telemetry.batch_evictions, 28);
+        }
     }
 
     #[test]
@@ -1481,6 +2702,108 @@ mod tests {
         let telemetry = resource.telemetry();
         assert_eq!(telemetry.batch_invalidations, 1);
         assert_eq!(telemetry.full_invalidations, 0);
+    }
+
+    #[test]
+    fn collection_cursor_tracks_surviving_items_through_committed_splices() {
+        let mut resource = resource_with_batches(&[0, 48, 96]);
+        let cursor = resource.cursor.clone();
+        cursor.set(70);
+        let old_epoch = cursor.epoch();
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 10, 5, ""));
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 20, 3_u64 << 32, ""));
+        assert_eq!(cursor.active(), Some(70)); // Hints have not been accepted yet.
+        assert!(cursor.set_from_row(70, old_epoch));
+        resource.commit_pending_commands(102);
+        assert_eq!(cursor.active(), Some(72));
+        assert!(!cursor.set_from_row(70, old_epoch));
+        assert_eq!(cursor.active(), Some(72));
+        assert!(cursor.set_from_row(80, cursor.epoch()));
+
+        // Insertion exactly at the active position moves the existing item after the new rows.
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 80, 2, ""));
+        resource.commit_pending_commands(104);
+        assert_eq!(cursor.active(), Some(82));
+        // Cache eviction and stable-range refresh do not own the keyboard position.
+        resource.clear_batches();
+        resource.apply_command(&command(COMMAND_LIST_REFRESH, 80, 5, ""));
+        resource.commit_pending_commands(104);
+        assert_eq!(cursor.active(), Some(82));
+    }
+
+    #[test]
+    fn collection_cursor_chooses_successor_after_removal_and_clears_for_empty_lists() {
+        let mut resource = resource_with_batches(&[]);
+        let cursor = resource.cursor.clone();
+        cursor.set(50);
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 48, (5_u64 << 32) | 2, ""));
+        resource.commit_pending_commands(97);
+        assert_eq!(cursor.active(), Some(48));
+        cursor.set(96);
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 95, 2_u64 << 32, ""));
+        resource.commit_pending_commands(95);
+        assert_eq!(cursor.active(), Some(94));
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 0, 95_u64 << 32, ""));
+        resource.commit_pending_commands(0);
+        assert_eq!(cursor.active(), None);
+        assert!(!cursor.set(0));
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 0, 3, ""));
+        resource.commit_pending_commands(3);
+        assert_eq!(cursor.active(), Some(0));
+    }
+
+    #[test]
+    fn collection_cursor_resets_when_structural_identity_is_unknown() {
+        for reset_kind in ["explicit", "mismatch", "invalid", "declarative"] {
+            let mut resource = resource_with_batches(&[]);
+            resource.cursor.set(70);
+            let old_epoch = resource.cursor.epoch();
+            match reset_kind {
+                "explicit" => {
+                    resource.apply_command(&command(COMMAND_LIST_RESET, 100, 0, ""));
+                    resource.commit_pending_commands(100);
+                }
+                "mismatch" => {
+                    resource.apply_command(&command(COMMAND_LIST_SPLICE, 0, 1, ""));
+                    resource.commit_pending_commands(100);
+                }
+                "invalid" => {
+                    resource.apply_command(&command(COMMAND_LIST_SPLICE, 101, 1, ""));
+                    resource.commit_pending_commands(100);
+                }
+                _ => {
+                    let mut config = configuration(Some(1));
+                    config.item_count = 99;
+                    resource.configure(&config, 2);
+                }
+            }
+            assert_eq!(resource.cursor.active(), Some(0), "{reset_kind}");
+            assert!(!resource.cursor.set_from_row(70, old_epoch));
+        }
+    }
+
+    #[test]
+    fn collection_cursor_survives_content_and_layout_changes_including_simultaneous_splices() {
+        let mut config = configuration(Some(1));
+        let mut resource = ManagedListResource::new(1, callbacks(), &config, 1);
+        let cursor = resource.cursor.clone();
+        cursor.set(70);
+        config.content_revision = Some(2);
+        resource.configure(&config, 2);
+        assert_eq!(cursor.active(), Some(70));
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 5, 3, ""));
+        config.item_count = 103;
+        config.estimated_item_height = px(60.);
+        resource.configure(&config, 3);
+        assert_eq!(cursor.active(), Some(73));
+        assert!(Rc::ptr_eq(&cursor, &resource.cursor));
+        config.batch_size = 32;
+        resource.configure(&config, 4);
+        assert_eq!(cursor.active(), Some(73));
+        // A removed/recreated native resource starts a new independent cursor.
+        let recreated = ManagedListResource::new(1, callbacks(), &config, 4);
+        assert_eq!(recreated.cursor.active(), Some(0));
+        assert!(!Rc::ptr_eq(&cursor, &recreated.cursor));
     }
 
     #[test]
@@ -1666,7 +2989,7 @@ mod tests {
     #[test]
     fn binding_a_changed_table_spec_invalidates_row_batches() {
         let store = ResourceStore::new(1, callbacks(), theme());
-        let configuration = configuration(None);
+        let configuration = configuration(Some(1));
         let engine = store.list_resource(&ResourceKey::new(7, shared("rows")), &configuration, 1);
 
         let spec = TableSpec {
@@ -1694,7 +3017,18 @@ mod tests {
         );
         assert_eq!(engine.borrow().batches.len(), 1);
 
-        // A changed column table invalidates every cached row batch.
+        engine.borrow_mut().batches.insert(48, CachedBatch::new());
+        engine
+            .borrow_mut()
+            .apply_command(&command(COMMAND_LIST_REFRESH, 50, 1, ""));
+        engine
+            .borrow_mut()
+            .apply_command(&command(COMMAND_LIST_SPLICE, 90, (1_u64 << 32) | 1, ""));
+        let retained = store.list_resource(&ResourceKey::new(7, shared("rows")), &configuration, 2);
+        assert!(Rc::ptr_eq(&engine, &retained));
+        assert_eq!(batch_keys(&engine.borrow()), vec![0]);
+
+        // Column changes still invalidate rows preserved by targeted refresh/splice hints.
         let changed = TableSpec {
             columns: vec![
                 spec.columns[0].clone(),

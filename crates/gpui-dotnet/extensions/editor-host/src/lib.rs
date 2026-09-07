@@ -621,7 +621,7 @@ mod tests {
 
     #[test]
     fn custom_host_advertises_editor_schema() {
-        let api = gpui_dotnet_get_api(3);
+        let api = gpui_dotnet_get_api(gpui_dotnet::abi::ABI_VERSION);
         assert!(!api.is_null());
         let api = unsafe { &*api };
         let supports = api.supports_extension.unwrap();
@@ -638,8 +638,8 @@ mod tests {
 
     #[test]
     fn custom_host_validates_editor_commands_before_view_routing() {
-        let api = gpui_dotnet_get_api(3);
-        let api = unsafe { &*api };
+        let api = gpui_dotnet_get_api(gpui_dotnet::abi::ABI_VERSION);
+        let api = unsafe { api.as_ref() }.expect("matching ABI must return a valid API table");
         let dispatch = api.dispatch_extension_command.unwrap();
         let extension_id = EXTENSION_ID.as_bytes();
         let component_kind = COMPONENT_EDITOR.as_bytes();
@@ -666,6 +666,13 @@ mod tests {
         assert_eq!(unsafe { dispatch(u64::MAX - 1, &command) }, -30);
         command.command = 99;
         assert_eq!(unsafe { dispatch(u64::MAX - 1, &command) }, -85);
+    }
+
+    #[test]
+    fn custom_host_rejects_older_abi_versions() {
+        for version in 0..gpui_dotnet::abi::ABI_VERSION {
+            assert!(gpui_dotnet_get_api(version).is_null());
+        }
     }
 
     /// The regression the default-host split introduced: the shared runtime

@@ -5,7 +5,9 @@ using static Gpui.Units;
 internal sealed partial class InputGalleryView : View
 {
     private InputController _search;
+    private bool _invalid;
     private SliderController _volume;
+    private bool _customSliderStyle = true;
     private string _value = "Type in the first field";
     private string _lastEvent = "No input event yet";
     private string _lastSliderEvent = "No slider event yet";
@@ -18,11 +20,13 @@ internal sealed partial class InputGalleryView : View
             ref ui,
             "Interactive + UTF-8 events",
             ui.Input(ref _search, new Utf8InputOptions(placeholder: "Search or enter 日本語…"u8))
+                .Style(SampleStyles.Input(theme, _invalid))
                 .OnChanged(
                     this,
                     (view, input) =>
                     {
                         view._value = input.Value;
+                        view._invalid = input.Value.Length > 24;
                         view._lastEvent =
                             $"Changed · revision {input.Revision} · {input.Utf8Value.Length} UTF-8 bytes";
                         view.Invalidate();
@@ -44,7 +48,9 @@ internal sealed partial class InputGalleryView : View
                         view.Invalidate();
                     }
                 )
-                .Width(Percent(100))
+                .Width(Percent(100)),
+            _invalid ? "Use at most 24 characters." : "Select text to preview the custom selection color.",
+            _invalid
         );
         var password = Field(
             ref ui,
@@ -70,13 +76,18 @@ internal sealed partial class InputGalleryView : View
             ui.Input("disabled"u8, new Utf8InputOptions("Cannot focus or edit"u8, disabled: true))
                 .Width(Percent(100))
         );
+        var volumeInput = ui.Slider(
+            ref _volume,
+            new SliderOptions(min: 0, max: 100, step: 5, value: _volumeValue)
+        );
+        if (_customSliderStyle)
+        {
+            volumeInput = volumeInput.Style(SampleStyles.Slider(theme));
+        }
         var volume = Field(
             ref ui,
             "Slider + native Change/Release events",
-            ui.Slider(
-                    ref _volume,
-                    new SliderOptions(min: 0, max: 100, step: 5, value: _volumeValue)
-                )
+            volumeInput
                 .OnChanged(
                     this,
                     (view, slider) =>
@@ -94,7 +105,8 @@ internal sealed partial class InputGalleryView : View
                         view.Invalidate();
                     }
                 )
-                .Width(Percent(100))
+                .Width(Percent(100)),
+            _customSliderStyle ? "Custom track and thumb colors" : "Theme track and thumb colors"
         );
 
         var controls = ui.HStack(
@@ -121,7 +133,17 @@ internal sealed partial class InputGalleryView : View
                     .TextColor(theme.Colors.TextMuted),
                 ui.HStack(search, password).Gap(Px(14)),
                 ui.HStack(readOnly, disabled).Gap(Px(14)),
-                ui.HStack(volume).Gap(Px(14)),
+                ui.HStack(
+                        volume,
+                        ui.Button("toggle-slider-style", _customSliderStyle ? "Use theme colors" : "Use custom colors")
+                            .Style(SampleStyles.Button(theme))
+                            .OnClick(this, (view, _) =>
+                            {
+                                view._customSliderStyle = !view._customSliderStyle;
+                                view.Invalidate();
+                            })
+                    )
+                    .Gap(Px(14)),
                 controls,
                 ui.VStack(
                         ui.Text($"Value: {_value}").TextColor(theme.Colors.Text),
@@ -141,15 +163,31 @@ internal sealed partial class InputGalleryView : View
             .Grow();
     }
 
-    private static Element Field(ref RenderContext ui, ReadOnlySpan<char> label, Element input)
+    private static Element Field(
+        ref RenderContext ui,
+        ReadOnlySpan<char> label,
+        Element input,
+        string? help = null,
+        bool invalid = false
+    )
     {
         var theme = ui.Theme;
-        return ui.VStack(
+        var field = ui.VStack(
                 ui.Text(label)
                     .FontSize(Px(theme.Typography.Detail))
                     .TextColor(theme.Colors.TextMuted),
                 input
-            )
+            );
+        if (help is not null)
+        {
+            field.Child(
+                ui.Text(help)
+                    .FontSize(Px(theme.Typography.Detail))
+                    .TextColor(invalid ? theme.Colors.Error : theme.Colors.TextMuted)
+            );
+        }
+
+        return field
             .Gap(Px(6))
             .Padding(Px(12))
             .Width(Percent(50))

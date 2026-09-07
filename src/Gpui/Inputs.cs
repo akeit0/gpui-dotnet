@@ -91,6 +91,12 @@ public sealed class InputEvent
     public string Value => _value ??= Encoding.UTF8.GetString(_utf8Value);
 
     public bool IsFocused { get; }
+
+    /// <summary>
+    /// Nonzero native value/composition token for conditional replacement. Tokens change for
+    /// controller writes and IME edits too, and are not reused when an input is recreated.
+    /// Selection and focus alone do not change the token; treat it as opaque, not an edit count.
+    /// </summary>
     public ulong Revision { get; }
 }
 
@@ -149,11 +155,14 @@ public readonly struct InputController
 
     public void SelectAll() => Dispatch(ResourceCommandKind.InputSelectAll);
 
-    /// <summary>Replaces the native value and moves the caret to its end.</summary>
+    /// <summary>
+    /// Replaces a changed native value and moves the caret to its end. An identical value
+    /// after single-line normalization preserves selection, composition, and scrolling.
+    /// </summary>
     public void SetValue(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.Input,
                 ResourceCommandKind.InputSetValue,
@@ -167,17 +176,83 @@ public readonly struct InputController
     }
 
     /// <summary>
-    /// Replaces the native value from UTF-8 and moves the caret to its end. The bytes are
+    /// Replaces a changed native value from UTF-8 and moves the caret to its end. An identical
+    /// normalized value preserves selection, composition, and scrolling. The bytes are
     /// trusted: they must contain valid UTF-8 with no interior NUL, and are copied so the
     /// command remains safe after this call returns.
     /// </summary>
     public void SetValue(ReadOnlySpan<byte> utf8Value)
     {
-        Owner.DispatchUtf8InputValue(Utf8KeyArray, utf8Value);
+        Owner.Runtime.DispatchUtf8InputValue(Utf8KeyArray, utf8Value);
+    }
+
+    /// <summary>
+    /// Queues a replacement using an <see cref="InputEvent.Revision"/>. Native delivery silently
+    /// ignores stale revisions and, by default, active IME composition. Preserve keeps current
+    /// UTF-16 selection offsets and direction, clamped forward to grapheme boundaries in the new
+    /// value. MoveToEnd moves the caret to the end. CancelComposition permits replacement during
+    /// composition. Identical normalized values preserve all editing state regardless of policy.
+    /// Successful changes advance the revision without emitting events.
+    /// </summary>
+    public void SetValueIfCurrent(
+        string value,
+        ulong expectedRevision,
+        InputSelectionPolicy selection = InputSelectionPolicy.Preserve,
+        InputCompositionPolicy composition = InputCompositionPolicy.RejectWhileComposing
+    )
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        var policies = ValidateReplacement(expectedRevision, selection, composition);
+        Owner.Runtime.DispatchResourceCommand(
+            new ResourceCommand(
+                ResourceKind.Input,
+                ResourceCommandKind.InputSetValueIfCurrent,
+                null,
+                expectedRevision,
+                policies,
+                value,
+                Utf8KeyArray
+            )
+        );
+    }
+
+    /// <summary>
+    /// UTF-8 form of conditional replacement with the same revision, selection, and composition
+    /// policies. Bytes must contain valid UTF-8 with no interior NUL and are copied before return.
+    /// </summary>
+    public void SetValueIfCurrent(
+        ReadOnlySpan<byte> utf8Value,
+        ulong expectedRevision,
+        InputSelectionPolicy selection = InputSelectionPolicy.Preserve,
+        InputCompositionPolicy composition = InputCompositionPolicy.RejectWhileComposing
+    )
+    {
+        var policies = ValidateReplacement(expectedRevision, selection, composition);
+        Owner.Runtime.DispatchUtf8InputValue(
+            Utf8KeyArray, utf8Value, ResourceCommandKind.InputSetValueIfCurrent, expectedRevision, policies
+        );
+    }
+
+    private static ulong ValidateReplacement(
+        ulong expectedRevision,
+        InputSelectionPolicy selection,
+        InputCompositionPolicy composition
+    )
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(expectedRevision);
+        if (selection is not (InputSelectionPolicy.Preserve or InputSelectionPolicy.MoveToEnd))
+        {
+            throw new ArgumentOutOfRangeException(nameof(selection));
+        }
+        if (composition is not (InputCompositionPolicy.RejectWhileComposing or InputCompositionPolicy.CancelComposition))
+        {
+            throw new ArgumentOutOfRangeException(nameof(composition));
+        }
+        return (ulong)selection | ((ulong)composition << 1);
     }
 
     private void Dispatch(ResourceCommandKind command) =>
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(ResourceKind.Input, command, null, 0, 0, null, Utf8KeyArray)
         );
 

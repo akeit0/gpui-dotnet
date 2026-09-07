@@ -7,6 +7,16 @@ internal sealed partial class TableView : View
     private const int ItemCount = 5_000;
     private ListController _grid;
     private int _selected = -1;
+    private bool _descending;
+    private ulong _revision = 1;
+    private string _activation = "Click or press Space to select; double-click or press Enter to activate";
+
+    private void ActivateRow(ListActivationEvent e)
+    {
+        if (e.ItemId is not { } id || id is 0 or > ItemCount) return;
+        _activation = $"Activated svc-{id - 1:D4} via {e.Source} (ID {id})";
+        Invalidate();
+    }
 
     private static readonly TableColumn[] Columns =
     [
@@ -16,27 +26,27 @@ internal sealed partial class TableView : View
         new("rps", "Req/s", 90, TableColumnWidth.Pixels, TableColumnAlignment.Right),
     ];
 
-    private void SelectRow(ClickEvent e)
+    private void SelectRow(ListSelectionEvent e)
     {
-        // An OnClick without an explicit payload delivers the row's ItemId as its payload — the stable model
-        // identity that survives splices. Mapping an ID back to a refresh index is app-owned
-        // datasource logic; here the ID is the row's original position + 1 by construction.
-        var index = checked((int)e.Payload) - 1;
+        if (e.ItemId is not { } id || id is 0 or > ItemCount) return;
+        var index = checked((int)id - 1);
         var previous = _selected;
+        if (previous == index) return;
         _selected = index;
         if (previous >= 0)
         {
-            _grid.RefreshRanges((previous, 1), (index, 1));
+            _grid.RefreshRanges((RowIndex(previous), 1), (RowIndex(index), 1));
         }
         else
         {
-            _grid.Refresh(index, 1);
+            _grid.Refresh(RowIndex(index), 1);
         }
     }
 
     [GpuiListItem]
     private Element ServiceRow(int index, ref RenderContext ui)
     {
+        index = RowIndex(index);
         var theme = ui.Theme;
         var colors = theme.Colors;
         var selected = index == _selected;
@@ -52,39 +62,32 @@ internal sealed partial class TableView : View
         // Cells compose inside an explicit horizontal container: divs are block by default,
         // so the row must declare its own row layout. The cell widths reconcile against this
         // container, which stretches to the full row width.
-        return ui.Button(
-                "service-row",
+        return ui.Div(
                 ui.HStack(
                         ui.TableCell(
                             0,
                             ui.Text($"svc-{index:D4}")
                                 .FontSize(Px(theme.Typography.BodySmall))
-                                .TextColor(colors.Text)
-                        ),
+                        ).PaddingX(Px(10)),
                         ui.TableCell(
                             1,
                             ui.Text(Region(index))
                                 .FontSize(Px(theme.Typography.Detail))
                                 .TextColor(colors.TextMuted)
-                        ),
-                        ui.TableCell(2, ui.Text(status).TextColor(statusColor)),
+                        ).PaddingX(Px(10)),
+                        ui.TableCell(2, ui.Text(status).TextColor(statusColor)).PaddingX(Px(10)),
                         ui.TableCell(
                             3,
                             ui.Text(Throughput(index))
                                 .FontSize(Px(theme.Typography.Detail))
                                 .TextColor(colors.TextMuted)
-                        )
+                        ).PaddingX(Px(10))
                     )
                     .Width(Percent(100))
             )
             .ItemId(checked((ulong)index) + 1)
-            .OnClick(this, (view, e) => view.SelectRow(e))
             .Width(Percent(100))
-            .Padding(Px(selected ? 12 : 9))
-            .Background(selected ? colors.ElementSelected : colors.SurfaceBackground)
-            .BorderColor(selected ? colors.BorderSelected : colors.BorderVariant)
-            .TextColor(selected ? colors.TextAccent : colors.Text)
-            .BorderWidth(Px(1));
+            .Style(SampleStyles.TableRow(theme, selected));
     }
 
     protected override Element Render(ref RenderContext ui)
@@ -104,7 +107,7 @@ internal sealed partial class TableView : View
 
         var grid = ui.Table(
                 ref _grid,
-                new ListDataSource(ItemCount, 1),
+                new ListDataSource(ItemCount, _revision),
                 Rows.ServiceRow,
                 new TableOptions(
                     batchSize: 64,
@@ -114,14 +117,32 @@ internal sealed partial class TableView : View
                 ),
                 Columns
             )
+            .Header(
+                ui.Button("sort-service", _descending ? "Service ↓" : "Service ↑")
+                    .Style(SampleStyles.TableHeader(theme))
+                    .OnClick(this, static (view, _) => view.ToggleSort()),
+                ui.Text("Region"),
+                ui.HStack(ui.Text("●").TextColor(theme.Colors.Success), ui.Text("Status"))
+                    .Gap(Px(5)).ItemsCenter(),
+                ui.Text("Req/s")
+            )
+            .OnActivated(this, static (view, e) => view.ActivateRow(e))
+            .OnSelectionRequested(this, static (view, e) => view.SelectRow(e))
             .Grow()
             .Width(Percent(100))
-            .Background(theme.Colors.SurfaceBackground)
-            .BorderColor(theme.Colors.BorderVariant)
-            .BorderWidth(Px(1))
-            .Radius(Px(8));
+            .Style(SampleStyles.Table(theme));
 
-        return ui.VStack(header, grid).Gap(Px(10)).Grow();
+        return ui.VStack(header, ui.Text(_activation).TextColor(theme.Colors.TextMuted), grid).Gap(Px(10)).Grow();
+    }
+
+    private int RowIndex(int service) => _descending ? ItemCount - 1 - service : service;
+
+    private void ToggleSort()
+    {
+        _descending = !_descending;
+        _revision++;
+        // Arbitrary reordering resets the native cursor/cache. Selection remains model-owned.
+        _grid.Reset(ItemCount);
     }
 
     private static string Region(int index) =>

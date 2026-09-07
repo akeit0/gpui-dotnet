@@ -15,33 +15,7 @@ public readonly unsafe ref partial struct RenderContext
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        return new NativeExtensionEventBinding(view.BindNativeExtensionEvent(callback));
-    }
-
-    /// <summary>Binds an asynchronous typed callback for an optional extension package.</summary>
-    public NativeExtensionEventBinding BindNativeExtensionEvent<TView, TEvent>(
-        TView view,
-        Func<TView, TEvent, ValueTask> callback
-    )
-        where TView : ViewBase
-        where TEvent : INativeExtensionEvent<TEvent>
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        return new NativeExtensionEventBinding(view.BindNativeExtensionEvent(callback));
-    }
-
-    /// <summary>Binds an asynchronous typed callback for an optional extension package.</summary>
-    public NativeExtensionEventBinding BindNativeExtensionEvent<TView, TEvent>(
-        TView view,
-        Func<TView, TEvent, Task> callback
-    )
-        where TView : ViewBase
-        where TEvent : INativeExtensionEvent<TEvent>
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        return new NativeExtensionEventBinding(view.BindNativeExtensionEvent(callback));
+        return new NativeExtensionEventBinding(view.Runtime.Events.BindNativeExtensionEvent(callback));
     }
 
     /// <summary>

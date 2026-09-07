@@ -49,7 +49,6 @@ pub(crate) fn apply_defaults(adapter: NativeAdapter, element: Div, theme: Native
 pub(crate) fn button(id: ElementId, disabled: bool, theme: NativeTheme) -> Button {
     Button::new(id)
         .disabled(disabled)
-        .styles(|styles| styles.disabled(|style| style.opacity(0.5)))
         .rounded(px(6.))
         .border(px(1.))
         .border_color(rgba(theme.border))
@@ -85,7 +84,6 @@ pub(crate) fn checkbox(
     Checkbox::new(id)
         .checked(checked)
         .disabled(disabled)
-        .styles(|styles| styles.disabled(|style| style.opacity(0.5)))
         .flex()
         .flex_row()
         .items_center()
@@ -117,7 +115,6 @@ pub(crate) fn radio(id: ElementId, checked: bool, disabled: bool, theme: NativeT
     Radio::new(id)
         .checked(checked)
         .disabled(disabled)
-        .styles(|styles| styles.disabled(|style| style.opacity(0.5)))
         .flex()
         .flex_row()
         .items_center()

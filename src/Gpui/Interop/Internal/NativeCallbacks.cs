@@ -9,13 +9,14 @@ namespace Gpui.Interop.Internal;
 internal static unsafe class NativeCallbacks
 {
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    internal static int Render(ulong sessionId, RenderArena* arena, uint* root)
+    internal static int Render(ulong sessionId, RenderArena* arena, uint* root, ulong* revision)
     {
         try
         {
             if (
                 arena == null
                 || root == null
+                || revision == null
                 || !NativeRegistry.Sessions.TryGetValue(sessionId, out var session)
             )
             {
@@ -23,21 +24,18 @@ internal static unsafe class NativeCallbacks
             }
 
             var previousContext = SynchronizationContext.Current;
+            *revision = 0;
             SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
             try
             {
-                var element = session.RenderRoot(arena);
-                *root = element.Node;
+                *root = session.RenderRootOutput(arena);
+                *revision = session.PendingRenderRevision;
                 return 0;
             }
             finally
             {
                 SynchronizationContext.SetSynchronizationContext(previousContext);
             }
-        }
-        catch (RenderArenaGrowthRequiredException)
-        {
-            return NativeConstants.RenderGrowRequired;
         }
         catch (Exception exception)
         {
@@ -47,13 +45,43 @@ internal static unsafe class NativeCallbacks
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    internal static int RenderCompleted(ulong sessionId, ulong revision, int status)
+    {
+        try
+        {
+            if (!NativeRegistry.Sessions.TryGetValue(sessionId, out var session))
+            {
+                return -102;
+            }
+            var previousContext = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
+            try
+            {
+                session.CompleteRender(revision, status);
+                return 0;
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(previousContext);
+            }
+        }
+        catch (Exception exception)
+        {
+            NativeRegistry.RecordFailure(sessionId, exception);
+            return -103;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     internal static int ListRenderRange(
         ulong sessionId,
         ulong rendererToken,
+        ulong source,
         uint start,
         uint count,
         RenderArena* arena,
-        uint* root
+        uint* root,
+        ulong* artifact
     )
     {
         try
@@ -61,6 +89,8 @@ internal static unsafe class NativeCallbacks
             if (
                 arena == null
                 || root == null
+                || artifact == null
+                || source == 0
                 || count == 0
                 || count > 512
                 || !NativeRegistry.Sessions.TryGetValue(sessionId, out var session)
@@ -70,11 +100,12 @@ internal static unsafe class NativeCallbacks
             }
 
             var previousContext = SynchronizationContext.Current;
+            *artifact = 0;
             SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
             try
             {
-                var element = session.RenderListRange(rendererToken, start, count, arena);
-                *root = element.Node;
+                *root = session.RenderListRangeOutput(rendererToken, source, start, count, arena, out var artifactId);
+                *artifact = artifactId;
                 return 0;
             }
             finally
@@ -82,14 +113,45 @@ internal static unsafe class NativeCallbacks
                 SynchronizationContext.SetSynchronizationContext(previousContext);
             }
         }
-        catch (RenderArenaGrowthRequiredException)
-        {
-            return NativeConstants.RenderGrowRequired;
-        }
         catch (Exception exception)
         {
             NativeRegistry.RecordRenderFailure(sessionId, exception);
             return -106;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    internal static int ReleaseArtifact(ulong sessionId, ulong source, ulong artifact, int status)
+    {
+        try
+        {
+            if (NativeRegistry.Sessions.TryGetValue(sessionId, out var session))
+            {
+                session.ReleaseDemandArtifact(source, artifact, status);
+            }
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            NativeRegistry.RecordFailure(sessionId, exception, deferCleanup: true);
+            return -109;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    internal static int AcceptArtifact(ulong sessionId, ulong source, ulong artifact)
+    {
+        try
+        {
+            if (!NativeRegistry.Sessions.TryGetValue(sessionId, out var session))
+                return -109;
+            session.AcceptDemandArtifact(source, artifact);
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            NativeRegistry.RecordFailure(sessionId, exception, deferCleanup: true);
+            return -109;
         }
     }
 
@@ -221,13 +283,10 @@ internal static unsafe class NativeCallbacks
                         return -112;
                     }
 
-                    var value =
-                        nativeEvent->data_length == 0
-                            ? Array.Empty<byte>()
-                            : new ReadOnlySpan<byte>(
-                                nativeEvent->data,
-                                nativeEvent->data_length
-                            ).ToArray();
+                    var bytes = new ReadOnlySpan<byte>(nativeEvent->data, nativeEvent->data_length);
+                    if (!IsValidUtf8(bytes))
+                        return -112;
+                    var value = bytes.IsEmpty ? Array.Empty<byte>() : bytes.ToArray();
                     session.DispatchInput(
                         eventToken,
                         new InputEvent(
@@ -237,6 +296,30 @@ internal static unsafe class NativeCallbacks
                             nativeEvent->revision
                         )
                     );
+                }
+                else if (nativeEvent->kind is (ushort)ListEventKind.Activated or (ushort)ListEventKind.SelectionRequested)
+                {
+                    if ((nativeEvent->flags & ~3u) != 0 || nativeEvent->data_length != 16
+                        || ((nativeEvent->flags & 2) == 0 && nativeEvent->revision != 0))
+                        return -112;
+                    var data = new ReadOnlySpan<byte>(nativeEvent->data, 16);
+                    var index = BinaryPrimitives.ReadUInt32LittleEndian(data);
+                    if (index > int.MaxValue || BinaryPrimitives.ReadUInt32LittleEndian(data[4..]) != 0)
+                        return -112;
+                    var itemId = BinaryPrimitives.ReadUInt64LittleEndian(data[8..]);
+                    ulong? identity = itemId == 0 ? null : itemId;
+                    ulong? revision = (nativeEvent->flags & 2) == 0 ? null : nativeEvent->revision;
+                    var keyboard = (nativeEvent->flags & 1) != 0;
+                    if (nativeEvent->kind == (ushort)ListEventKind.Activated)
+                        session.DispatchListActivation(eventToken, new ListActivationEvent(
+                            (int)index, identity, revision,
+                            keyboard ? ListActivationSource.Keyboard : ListActivationSource.Pointer
+                        ));
+                    else
+                        session.DispatchListSelection(eventToken, new ListSelectionEvent(
+                            (int)index, identity, revision,
+                            keyboard ? ListSelectionSource.Keyboard : ListSelectionSource.Pointer
+                        ));
                 }
                 else if (
                     nativeEvent->kind is (ushort)SliderEventKind.Changed
@@ -307,16 +390,7 @@ internal static unsafe class NativeCallbacks
                         return -112;
                     }
 
-                    string key;
-                    try
-                    {
-                        key = System.Text.Encoding.UTF8.GetString(bytes);
-                    }
-                    catch
-                    {
-                        return -112;
-                    }
-                    if (string.IsNullOrEmpty(key))
+                    if (!TryDecodeUtf8(bytes, out var key))
                     {
                         return -112;
                     }
@@ -571,6 +645,8 @@ internal static unsafe class NativeCallbacks
                         return -112;
                     }
 
+                    if (!IsValidUtf8(data[8..]))
+                        return -112;
                     var paths = new List<string>();
                     var segmentStart = 8;
                     for (var index = 8; index <= data.Length; index++)
@@ -613,15 +689,8 @@ internal static unsafe class NativeCallbacks
                         return -112;
                     }
 
-                    var text =
-                        nativeEvent->data_length == 0
-                            ? string.Empty
-                            : System.Text.Encoding.UTF8.GetString(
-                                new ReadOnlySpan<byte>(
-                                    nativeEvent->data,
-                                    nativeEvent->data_length
-                                )
-                            );
+                    if (!TryDecodeUtf8(new ReadOnlySpan<byte>(nativeEvent->data, nativeEvent->data_length), out var text))
+                        return -112;
                     var changedKind = (ushort)DockEventKind.LayoutChanged;
                     if (
                         (nativeEvent->kind == changedKind && text.Length != 0)
@@ -703,6 +772,33 @@ internal static unsafe class NativeCallbacks
                 application.RecordFailure(exception);
             }
             return -121;
+        }
+    }
+
+    private static bool IsValidUtf8(ReadOnlySpan<byte> bytes)
+    {
+        try
+        {
+            _ = NativeRegistry.StrictUtf8.GetCharCount(bytes);
+            return true;
+        }
+        catch (System.Text.DecoderFallbackException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryDecodeUtf8(ReadOnlySpan<byte> bytes, out string text)
+    {
+        try
+        {
+            text = NativeRegistry.StrictUtf8.GetString(bytes);
+            return true;
+        }
+        catch (System.Text.DecoderFallbackException)
+        {
+            text = string.Empty;
+            return false;
         }
     }
 

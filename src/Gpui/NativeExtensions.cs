@@ -156,7 +156,7 @@ public readonly struct NativeExtensionController
     )
     {
         ArgumentOutOfRangeException.ThrowIfZero(command);
-        Owner.DispatchNativeExtensionCommand(
+        Owner.Runtime.DispatchNativeExtensionCommand(
             _component.Extension.Version,
             _component.Extension.SchemaHash,
             ExtensionId,

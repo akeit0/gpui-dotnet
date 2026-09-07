@@ -17,10 +17,11 @@ use gpui::{
 
 use crate::{
     abi::ManagedCallbacks,
-    arena::OwnedRenderArena,
+    arena::with_root_render_output,
     extension::NativeExtensionCommand,
     overlay::OverlayStack,
     popover_menu::PopoverMenuGroup,
+    presence::ResourcePresence,
     resources::{ResourceCommand, ResourceStore},
     semantic::{COMPONENT_DYNAMIC, OP_DYNAMIC_ACTIVE, OP_RESOURCE_OWNER},
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
@@ -31,7 +32,6 @@ use crate::{
 pub(crate) struct ManagedView {
     pub(crate) view_id: u64,
     pub(crate) callbacks: ManagedCallbacks,
-    arena: OwnedRenderArena,
     retained_strings: RetainedStrings,
     pub(crate) snapshot: ValidatedSnapshot,
     snapshot_scratch: SnapshotScratch,
@@ -40,6 +40,7 @@ pub(crate) struct ManagedView {
     dirty: bool,
     pub(crate) error: Option<String>,
     pub(crate) resources: Rc<ResourceStore>,
+    presence: Arc<Mutex<ResourcePresence>>,
     pub(crate) popover_menus: Rc<PopoverMenuGroup>,
     pub(crate) overlay_stack: Rc<OverlayStack>,
     pub(crate) theme: SharedTheme,
@@ -47,14 +48,16 @@ pub(crate) struct ManagedView {
 
 enum ViewMessage {
     Invalidate,
-    ResourceCommand(ResourceCommand),
-    ExtensionCommand(NativeExtensionCommand),
+    InvalidateArtifacts(Vec<crate::abi::NativeArtifactKey>),
+    ResourceCommand(ResourceCommand, u64),
+    ExtensionCommand(NativeExtensionCommand, u64),
 }
 
 #[derive(Clone)]
 struct ViewNotifier {
     sender: Sender<ViewMessage>,
     invalidate_pending: Arc<AtomicBool>,
+    presence: Arc<Mutex<ResourcePresence>>,
 }
 
 static VIEW_NOTIFIERS: OnceLock<Mutex<HashMap<u64, ViewNotifier>>> = OnceLock::new();
@@ -212,16 +215,28 @@ pub(crate) fn notify(view_id: u64) -> i32 {
 }
 
 pub(crate) fn dispatch_command(view_id: u64, command: ResourceCommand) -> i32 {
-    let sender = {
+    let notifier = {
         let Ok(notifiers) = view_notifiers().lock() else {
             return -32;
         };
         let Some(notifier) = notifiers.get(&view_id) else {
             return -30;
         };
-        notifier.sender.clone()
+        notifier.clone()
     };
-    match sender.try_send(ViewMessage::ResourceCommand(command)) {
+    let generation = {
+        let Ok(presence) = notifier.presence.lock() else {
+            return -32;
+        };
+        let Some(generation) = presence.base_generation(command.resource_kind, &command.key) else {
+            return -34;
+        };
+        generation
+    };
+    match notifier
+        .sender
+        .try_send(ViewMessage::ResourceCommand(command, generation))
+    {
         Ok(()) => 0,
         Err(TrySendError::Full(_)) => -33,
         Err(TrySendError::Closed(_)) => -31,
@@ -229,6 +244,35 @@ pub(crate) fn dispatch_command(view_id: u64, command: ResourceCommand) -> i32 {
 }
 
 pub(crate) fn dispatch_extension_command(view_id: u64, command: NativeExtensionCommand) -> i32 {
+    let notifier = {
+        let Ok(notifiers) = view_notifiers().lock() else {
+            return -32;
+        };
+        let Some(notifier) = notifiers.get(&view_id) else {
+            return -30;
+        };
+        notifier.clone()
+    };
+    let generation = {
+        let Ok(presence) = notifier.presence.lock() else {
+            return -32;
+        };
+        let Some(generation) = presence.extension_generation(&command.resource_key) else {
+            return -34;
+        };
+        generation
+    };
+    match notifier
+        .sender
+        .try_send(ViewMessage::ExtensionCommand(command, generation))
+    {
+        Ok(()) => 0,
+        Err(TrySendError::Full(_)) => -33,
+        Err(TrySendError::Closed(_)) => -31,
+    }
+}
+
+pub(crate) fn invalidate_artifacts(view_id: u64, keys: Vec<crate::abi::NativeArtifactKey>) -> i32 {
     let sender = {
         let Ok(notifiers) = view_notifiers().lock() else {
             return -32;
@@ -238,7 +282,7 @@ pub(crate) fn dispatch_extension_command(view_id: u64, command: NativeExtensionC
         };
         notifier.sender.clone()
     };
-    match sender.try_send(ViewMessage::ExtensionCommand(command)) {
+    match sender.try_send(ViewMessage::InvalidateArtifacts(keys)) {
         Ok(()) => 0,
         Err(TrySendError::Full(_)) => -33,
         Err(TrySendError::Closed(_)) => -31,
@@ -266,11 +310,15 @@ pub(crate) fn dispatch_application_command(
 }
 
 impl ManagedView {
-    pub(crate) fn new(view_id: u64, callbacks: ManagedCallbacks, theme: SharedTheme) -> Self {
+    pub(crate) fn new(
+        view_id: u64,
+        callbacks: ManagedCallbacks,
+        theme: SharedTheme,
+        presence: Arc<Mutex<ResourcePresence>>,
+    ) -> Self {
         Self {
             view_id,
             callbacks,
-            arena: OwnedRenderArena::new(),
             retained_strings: RetainedStrings::default(),
             snapshot: ValidatedSnapshot::default(),
             snapshot_scratch: SnapshotScratch::default(),
@@ -279,10 +327,48 @@ impl ManagedView {
             dirty: true,
             error: None,
             resources: Rc::new(ResourceStore::new(view_id, callbacks, theme.clone())),
+            presence,
             popover_menus: Rc::new(PopoverMenuGroup::default()),
             overlay_stack: OverlayStack::new(),
             theme,
         }
+    }
+
+    fn deliver_resource_command(&self, command: ResourceCommand, generation: u64) -> bool {
+        if self.error.is_some()
+            || self
+                .presence
+                .lock()
+                .ok()
+                .and_then(|presence| presence.base_generation(command.resource_kind, &command.key))
+                != Some(generation)
+        {
+            return false;
+        }
+        let notify_native_only = command.resource_kind == 1
+            || command.resource_kind == 3
+            || (command.resource_kind == 2 && command.command == 10);
+        self.resources.dispatch(command);
+        notify_native_only
+    }
+
+    fn deliver_artifact_invalidations(&self, keys: &mut [crate::abi::NativeArtifactKey]) -> bool {
+        self.error.is_none() && self.resources.invalidate_artifacts(keys)
+    }
+
+    fn deliver_extension_command(&self, command: NativeExtensionCommand, generation: u64) -> bool {
+        if self.error.is_some()
+            || self
+                .presence
+                .lock()
+                .ok()
+                .and_then(|presence| presence.extension_generation(&command.resource_key))
+                != Some(generation)
+        {
+            return false;
+        }
+        self.resources.extensions().enqueue_command(command);
+        true
     }
 
     fn refresh_if_dirty(&mut self) {
@@ -292,43 +378,47 @@ impl ManagedView {
 
         self.dirty = false;
         self.error = None;
-        let mut root = 0;
         let render = self
             .callbacks
             .render
             .expect("callbacks were validated before application startup");
         let view_id = self.view_id;
-        let status = {
-            let _stage = trace::span(trace::Stage::ManagedRender);
-            self.arena
-                .render_with_growth_retry(|arena| unsafe { render(view_id, arena, &mut root) })
-                .unwrap_or_else(|status| status)
-        };
-
-        if status != 0 {
-            self.error = Some(format!("Managed render failed with status {status}."));
-            return;
-        }
-
-        let decode_result = {
-            let _stage = trace::span(trace::Stage::SnapshotDecode);
-            self.snapshot.decode_into(
-                self.arena.as_native(),
-                root,
-                &mut self.retained_strings,
-                &mut self.snapshot_scratch,
-            )
-        };
+        let complete = self
+            .callbacks
+            .render_completed
+            .expect("callbacks were validated before application startup");
+        let decode_result = with_root_render_output(
+            |arena, root, revision| {
+                let _stage = trace::span(trace::Stage::ManagedRender);
+                unsafe { render(view_id, arena, root, revision) }
+            },
+            |arena, root, revision| {
+                if revision <= self.snapshot_revision {
+                    return Err(-40);
+                }
+                let _stage = trace::span(trace::Stage::SnapshotDecode);
+                self.snapshot.decode_into(
+                    arena,
+                    root,
+                    &mut self.retained_strings,
+                    &mut self.snapshot_scratch,
+                )?;
+                self.snapshot_revision = revision;
+                let _stage = trace::span(trace::Stage::Retain);
+                self.resources.retain_snapshot(&self.snapshot);
+                self.resources
+                    .publish_presence(&mut *self.presence.lock().map_err(|_| -32)?, revision);
+                Ok(())
+            },
+            |revision, status| unsafe { complete(view_id, revision, status) },
+        );
         match decode_result {
             Ok(()) => {
                 self.has_snapshot = true;
-                self.snapshot_revision = self.snapshot_revision.wrapping_add(1).max(1);
-                let _stage = trace::span(trace::Stage::Retain);
-                self.resources.retain_snapshot(&self.snapshot);
             }
             Err(status) => {
                 self.error = Some(format!(
-                    "Render snapshot validation failed with status {status}."
+                    "Managed render or snapshot validation failed with status {status}."
                 ));
             }
         }
@@ -371,7 +461,7 @@ impl ManagedView {
     }
 
     pub(crate) fn after_click(&mut self, status: i32, cx: &mut Context<Self>) {
-        if status != 0 {
+        if status != 0 && self.error.is_none() {
             self.error = Some(format!(
                 "Managed click callback failed with status {status}."
             ));
@@ -409,6 +499,14 @@ impl ManagedView {
             ("cross", sums[5]),
             ("rows", sums[6]),
         ]
+    }
+}
+
+pub(crate) fn after_detached_callback(session_id: u64, status: i32) {
+    if status != 0 {
+        // Managed callback failure is terminal and preserves its exception. Wake the normal
+        // refresh path to display that failure; successful row events need no host lookup.
+        let _ = notify(session_id);
     }
 }
 
@@ -528,6 +626,51 @@ fn active_dynamic_owners(snapshot: &ValidatedSnapshot) -> Vec<u32> {
         }
     }
     owners
+}
+
+#[cfg(test)]
+#[test]
+#[ignore = "opt-in Release measurement; run eng/measure-native.ps1"]
+fn native_workload_measurements_dynamic_discovery() {
+    use crate::{
+        native_workloads::{WorkloadArena, measure},
+        semantic::COMPONENT_DIV,
+    };
+    for (static_nodes, dynamic_nodes, distinct_owners) in [
+        (128, 0, 0),
+        (16_384, 0, 0),
+        (16_384, 1, 1),
+        (16_384, 128, 1),
+        (16_384, 128, 128),
+        (16_384, 1024, 1024),
+    ] {
+        let mut arena = WorkloadArena::default();
+        let root = arena.node(COMPONENT_DIV, None);
+        for _ in 0..static_nodes {
+            arena.node(COMPONENT_DIV, Some(root));
+        }
+        for index in 0..dynamic_nodes {
+            let node = arena.node(COMPONENT_DYNAMIC, Some(root));
+            arena.node(COMPONENT_DIV, Some(node));
+            arena.op(node, OP_DYNAMIC_ACTIVE, 1);
+            arena.op(
+                node,
+                OP_RESOURCE_OWNER,
+                (index % distinct_owners + 1) as u64,
+            );
+        }
+        let snapshot = arena.decode();
+        let owners = active_dynamic_owners(&snapshot);
+        assert_eq!(owners.len(), distinct_owners);
+        println!(
+            "dynamic static={static_nodes} wrappers={dynamic_nodes} owners={distinct_owners} snapshot_buffers={} result_capacity_bytes={}",
+            snapshot.buffer_capacity_bytes(),
+            owners.capacity() * size_of::<u32>()
+        );
+        measure("dynamic-discovery", 256, || {
+            std::hint::black_box(active_dynamic_owners(std::hint::black_box(&snapshot)));
+        });
+    }
 }
 
 pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
@@ -814,11 +957,13 @@ fn open_managed_window(
 
     let (sender, receiver) = async_channel::unbounded();
     let invalidate_pending = Arc::new(AtomicBool::new(false));
+    let presence = Arc::new(Mutex::new(ResourcePresence::default()));
     let view_registration = ViewRegistration::new(
         window_id,
         ViewNotifier {
             sender,
             invalidate_pending: Arc::clone(&invalidate_pending),
+            presence: Arc::clone(&presence),
         },
     )?;
 
@@ -856,6 +1001,7 @@ fn open_managed_window(
                     callbacks,
                     receiver,
                     invalidate_pending,
+                    presence,
                     theme,
                 )
             },
@@ -934,9 +1080,10 @@ fn create_managed_view(
     callbacks: ManagedCallbacks,
     receiver: Receiver<ViewMessage>,
     invalidate_pending: Arc<AtomicBool>,
+    presence: Arc<Mutex<ResourcePresence>>,
     theme: SharedTheme,
 ) -> gpui::Entity<ManagedView> {
-    let view = cx.new(|_| ManagedView::new(view_id, callbacks, theme));
+    let view = cx.new(|_| ManagedView::new(view_id, callbacks, theme, presence));
     let weak_view = view.downgrade();
 
     cx.spawn(async move |cx| {
@@ -947,18 +1094,20 @@ fn create_managed_view(
                         invalidate_pending.store(false, Ordering::Release);
                         view.invalidate(cx);
                     }
-                    ViewMessage::ResourceCommand(command) => {
-                        let notify_native_only = command.resource_kind == 1
-                            || command.resource_kind == 3
-                            || (command.resource_kind == 2 && command.command == 10);
-                        view.resources.dispatch(command);
-                        if notify_native_only {
+                    ViewMessage::InvalidateArtifacts(mut keys) => {
+                        if view.deliver_artifact_invalidations(&mut keys) {
                             cx.notify();
                         }
                     }
-                    ViewMessage::ExtensionCommand(command) => {
-                        view.resources.extensions().enqueue_command(command);
-                        cx.notify();
+                    ViewMessage::ResourceCommand(command, generation) => {
+                        if view.deliver_resource_command(command, generation) {
+                            cx.notify();
+                        }
+                    }
+                    ViewMessage::ExtensionCommand(command, generation) => {
+                        if view.deliver_extension_command(command, generation) {
+                            cx.notify();
+                        }
                     }
                 })
                 .is_err()
@@ -1152,9 +1301,18 @@ mod tests {
             ViewNotifier {
                 sender,
                 invalidate_pending: Arc::clone(&pending),
+                presence: Arc::default(),
             },
         )
         .unwrap();
+
+        after_detached_callback(view_id, 0);
+        assert!(receiver.try_recv().is_err());
+        after_detached_callback(view_id, -111);
+        after_detached_callback(view_id, -111);
+        assert!(matches!(receiver.try_recv(), Ok(ViewMessage::Invalidate)));
+        assert!(receiver.try_recv().is_err());
+        pending.store(false, Ordering::Release);
 
         assert_eq!(notify(view_id), 0);
         assert_eq!(notify(view_id), 0);
@@ -1162,11 +1320,234 @@ mod tests {
         assert!(receiver.try_recv().is_err());
 
         pending.store(false, Ordering::Release);
+        let keys = vec![crate::abi::NativeArtifactKey {
+            source: 1,
+            artifact: 2,
+        }];
+        assert_eq!(invalidate_artifacts(view_id, keys.clone()), 0);
+        let Ok(ViewMessage::InvalidateArtifacts(received)) = receiver.try_recv() else {
+            panic!("missing artifact message");
+        };
+        assert_eq!(received, keys);
+        assert!(!pending.load(Ordering::Acquire));
         assert_eq!(notify(view_id), 0);
         assert!(matches!(receiver.try_recv(), Ok(ViewMessage::Invalidate)));
 
         drop(registration);
         assert_eq!(notify(view_id), -30);
+    }
+
+    #[test]
+    fn command_ingress_requires_presence_and_stamps_its_generation() {
+        use crate::semantic::{COMMAND_INPUT_SET_VALUE, RESOURCE_INPUT};
+        use crate::{extension, resources::ResourceKey};
+
+        let view_id = u64::MAX - 1;
+        let (sender, receiver) = async_channel::unbounded();
+        let presence = Arc::new(Mutex::new(ResourcePresence::default()));
+        let _registration = ViewRegistration::new(
+            view_id,
+            ViewNotifier {
+                sender,
+                invalidate_pending: Arc::default(),
+                presence: presence.clone(),
+            },
+        )
+        .unwrap();
+        let key = ResourceKey::new(7, "入力".into());
+        let command = ResourceCommand {
+            key: key.clone(),
+            resource_kind: RESOURCE_INPUT,
+            command: COMMAND_INPUT_SET_VALUE,
+            a: 0,
+            b: 0,
+            data: "界".into(),
+        };
+        let extension_key = extension::resource_key(7, "test", "editor", "document", 1, 17);
+        let extension_command = NativeExtensionCommand {
+            resource_key: extension_key.clone(),
+            command: 1,
+            flags: 0,
+            expected_revision: 0,
+            payload: Arc::from(&b"document"[..]),
+        };
+        assert_eq!(dispatch_command(view_id, command.clone()), -34);
+        assert_eq!(
+            dispatch_extension_command(view_id, extension_command.clone()),
+            -34
+        );
+        assert!(receiver.try_recv().is_err());
+
+        let base = HashSet::from([(RESOURCE_INPUT, key)]);
+        let extensions = HashSet::from([extension_key]);
+        presence.lock().unwrap().accept(&base, &extensions, 11);
+        assert_eq!(dispatch_command(view_id, command.clone()), 0);
+        assert_eq!(
+            dispatch_extension_command(view_id, extension_command.clone()),
+            0
+        );
+        // A later snapshot preserving the declaration must preserve the presence generation.
+        presence.lock().unwrap().accept(&base, &extensions, 12);
+        let Ok(ViewMessage::ResourceCommand(queued, generation)) = receiver.try_recv() else {
+            panic!("expected base command");
+        };
+        assert_eq!(generation, 11);
+        assert_eq!(queued.data.as_ref(), "界");
+        let Ok(ViewMessage::ExtensionCommand(_, generation)) = receiver.try_recv() else {
+            panic!("expected extension command");
+        };
+        assert_eq!(generation, 11);
+
+        presence
+            .lock()
+            .unwrap()
+            .accept(&HashSet::new(), &HashSet::new(), 13);
+        assert_eq!(dispatch_command(view_id, command.clone()), -34);
+        assert_eq!(
+            dispatch_extension_command(view_id, extension_command.clone()),
+            -34
+        );
+        presence.lock().unwrap().accept(&base, &extensions, 14);
+        assert_eq!(dispatch_command(view_id, command), 0);
+        assert_eq!(dispatch_extension_command(view_id, extension_command), 0);
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(ViewMessage::ResourceCommand(_, 14))
+        ));
+        assert!(matches!(
+            receiver.try_recv(),
+            Ok(ViewMessage::ExtensionCommand(_, 14))
+        ));
+    }
+
+    #[test]
+    fn queued_commands_cannot_reach_a_recreated_resource() {
+        use crate::semantic::{
+            COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_SCROLL_TO_OFFSET, RESOURCE_LIST, RESOURCE_SCROLL,
+        };
+        use crate::{extension, resources::ResourceKey};
+
+        let callbacks = ManagedCallbacks {
+            struct_size: std::mem::size_of::<ManagedCallbacks>() as u32,
+            render: None,
+            click: None,
+            list_render_range: None,
+            control_event: None,
+            application_started: None,
+            window_closed: None,
+            menu_action: None,
+            dynamic_frame: None,
+            render_completed: None,
+            release_artifact: None,
+            accept_artifact: None,
+        };
+        let presence = Arc::new(Mutex::new(ResourcePresence::default()));
+        let mut view = ManagedView::new(7, callbacks, Rc::default(), presence.clone());
+        view.dirty = false;
+        assert!(
+            !view.deliver_artifact_invalidations(&mut [crate::abi::NativeArtifactKey {
+                source: 1,
+                artifact: 1
+            }])
+        );
+        assert!(!view.dirty);
+        let key = ResourceKey::new(7, "scroll".into());
+        let command = ResourceCommand {
+            key: key.clone(),
+            resource_kind: RESOURCE_SCROLL,
+            command: COMMAND_SCROLL_TO_OFFSET,
+            a: 10f32.to_bits() as u64,
+            b: 20f32.to_bits() as u64,
+            data: "".into(),
+        };
+        let extension_key = extension::resource_key(7, "test", "editor", "document", 1, 17);
+        let extension_command = NativeExtensionCommand {
+            resource_key: extension_key.clone(),
+            command: 1,
+            flags: 0,
+            expected_revision: 0,
+            payload: Arc::from(&b"document"[..]),
+        };
+        let base = HashSet::from([(RESOURCE_SCROLL, key.clone())]);
+        let extensions = HashSet::from([extension_key.clone()]);
+        presence.lock().unwrap().accept(&base, &extensions, 1);
+        presence
+            .lock()
+            .unwrap()
+            .accept(&HashSet::new(), &HashSet::new(), 2);
+        presence.lock().unwrap().accept(&base, &extensions, 3);
+
+        assert!(!view.deliver_resource_command(command.clone(), 1));
+        assert!(!view.deliver_extension_command(extension_command.clone(), 1));
+        assert_eq!(
+            view.resources.scroll_resource(&key).handle.offset(),
+            point(px(0.), px(0.))
+        );
+        assert!(
+            view.resources
+                .extensions()
+                .take_commands(&extension_key)
+                .is_empty()
+        );
+        assert!(view.deliver_resource_command(command, 3));
+        assert!(view.deliver_extension_command(extension_command, 3));
+        assert_eq!(
+            view.resources.scroll_resource(&key).handle.offset(),
+            point(px(-10.), px(-20.))
+        );
+        assert_eq!(
+            view.resources
+                .extensions()
+                .take_commands(&extension_key)
+                .len(),
+            1
+        );
+
+        let list_key = ResourceKey::new(7, "rows".into());
+        let list_presence = HashSet::from([(RESOURCE_LIST, list_key.clone())]);
+        presence
+            .lock()
+            .unwrap()
+            .accept(&list_presence, &HashSet::new(), 4);
+        presence
+            .lock()
+            .unwrap()
+            .accept(&HashSet::new(), &HashSet::new(), 5);
+        presence
+            .lock()
+            .unwrap()
+            .accept(&list_presence, &HashSet::new(), 6);
+        let config = crate::resources::ListConfiguration {
+            item_count: 100,
+            renderer_token: 1,
+            activation_token: 0,
+            selection_token: 0,
+            batch_size: 48,
+            overdraw: px(240.),
+            alignment: gpui::ListAlignment::Top,
+            estimated_item_height: px(40.),
+            content_revision: Some(1),
+            scrollbar: crate::scrolling::ScrollbarMetrics::new(px(8.), false),
+        };
+        let list = view.resources.list_resource(&list_key, &config, 6);
+        let command = ResourceCommand {
+            key: list_key,
+            resource_kind: RESOURCE_LIST,
+            command: COMMAND_LIST_SCROLL_TO_ITEM,
+            a: 50,
+            b: 0,
+            data: "".into(),
+        };
+        assert!(!view.deliver_resource_command(command.clone(), 4));
+        assert_eq!(
+            list.borrow().state.scroll_px_offset_for_scrollbar().y,
+            px(0.)
+        );
+        assert!(view.deliver_resource_command(command, 6));
+        assert_eq!(
+            list.borrow().state.scroll_px_offset_for_scrollbar().y,
+            px(-2_000.)
+        );
     }
 
     #[test]

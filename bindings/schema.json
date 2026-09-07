@@ -33,6 +33,38 @@
   ],
   "enums": [
     {
+      "name": "list_selection_source",
+      "csharp": "ListSelectionSource",
+      "variants": [
+        { "name": "pointer", "csharp": "Pointer", "value": 0 },
+        { "name": "keyboard", "csharp": "Keyboard", "value": 1 }
+      ]
+    },
+    {
+      "name": "list_activation_source",
+      "csharp": "ListActivationSource",
+      "variants": [
+        { "name": "pointer", "csharp": "Pointer", "value": 0 },
+        { "name": "keyboard", "csharp": "Keyboard", "value": 1 }
+      ]
+    },
+    {
+      "name": "input_selection_policy",
+      "csharp": "InputSelectionPolicy",
+      "variants": [
+        { "name": "preserve", "csharp": "Preserve", "value": 0 },
+        { "name": "move_to_end", "csharp": "MoveToEnd", "value": 1 }
+      ]
+    },
+    {
+      "name": "input_composition_policy",
+      "csharp": "InputCompositionPolicy",
+      "variants": [
+        { "name": "reject_while_composing", "csharp": "RejectWhileComposing", "value": 0 },
+        { "name": "cancel_composition", "csharp": "CancelComposition", "value": 1 }
+      ]
+    },
+    {
       "name": "flex_wrap",
       "csharp": "FlexWrap",
       "variants": [
@@ -378,10 +410,11 @@
       "csharp": "Table",
       "data": "utf8",
       "dataRequired": true,
-      "children": false,
+      "children": true,
       "managedFactory": "manual",
       "capabilities": [
         "styled",
+        "parent",
         "native_state",
         "virtualized",
         "table"
@@ -1354,6 +1387,22 @@
       "managedMethod": { "kind": "u64", "method": "ItemId", "param": "itemId", "guard": "nonZero", "guardMessage": "Item ID 0 is reserved.", "doc": "Declares the stable model identity of a virtualized list row. IDs must be unique within one list; payload 0 is reserved." }
     },
     {
+      "id": 323,
+      "name": "list_on_activated",
+      "csharp": "OnActivated",
+      "value": "callback",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
+      "id": 324,
+      "name": "list_on_selection_requested",
+      "csharp": "OnSelectionRequested",
+      "value": "callback",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
       "id": 400,
       "name": "image_object_fit",
       "csharp": "Fit",
@@ -1421,6 +1470,33 @@
       "value": "callback",
       "requires": "input",
       "managedApi": null
+    },
+    {
+      "id": 506,
+      "name": "input_placeholder_rgba",
+      "csharp": "InputPlaceholderRgba",
+      "value": "u32",
+      "requires": "input",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "PlaceholderColor", "param": "color", "doc": "Overrides Input placeholder text color. Omission uses the current theme." }
+    },
+    {
+      "id": 507,
+      "name": "input_caret_rgba",
+      "csharp": "InputCaretRgba",
+      "value": "u32",
+      "requires": "input",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "CaretColor", "param": "color", "doc": "Overrides Input caret color. Omission uses the current theme accent." }
+    },
+    {
+      "id": 508,
+      "name": "input_selection_rgba",
+      "csharp": "InputSelectionRgba",
+      "value": "u32",
+      "requires": "input",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "SelectionColor", "param": "color", "doc": "Overrides Input selection background, including alpha. Omission uses the translucent theme accent." }
     },
     {
       "id": 600,
@@ -1622,6 +1698,33 @@
       "validation": { "kind": "packedTableColumn", "status": -57 }
     },
     {
+      "id": 325,
+      "name": "table_header_background_rgba",
+      "csharp": "TableHeaderBackgroundRgba",
+      "value": "u32",
+      "requires": "table",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "HeaderBackground", "param": "color", "doc": "Overrides the Table header background, including its scrollbar gutter. Omission uses the current theme element background." }
+    },
+    {
+      "id": 326,
+      "name": "table_header_text_rgba",
+      "csharp": "TableHeaderTextRgba",
+      "value": "u32",
+      "requires": "table",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "HeaderTextColor", "param": "color", "doc": "Sets inherited Table header text color for labels and custom content. Omission uses the current theme muted text." }
+    },
+    {
+      "id": 327,
+      "name": "table_header_border_rgba",
+      "csharp": "TableHeaderBorderRgba",
+      "value": "u32",
+      "requires": "table",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "HeaderBorderColor", "param": "color", "doc": "Overrides the Table header bottom border, including its scrollbar gutter. Omission uses the current theme border variant." }
+    },
+    {
       "id": 330,
       "name": "slider_min",
       "csharp": "SliderMin",
@@ -1711,6 +1814,42 @@
       "value": "callback",
       "requires": "slider",
       "managedApi": null
+    },
+    {
+      "id": 341,
+      "name": "slider_track_rgba",
+      "csharp": "SliderTrackRgba",
+      "value": "u32",
+      "requires": "slider",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "TrackColor", "param": "color", "doc": "Overrides Slider track background, including alpha. Omission uses the current theme border variant." }
+    },
+    {
+      "id": 342,
+      "name": "slider_fill_rgba",
+      "csharp": "SliderFillRgba",
+      "value": "u32",
+      "requires": "slider",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "FillColor", "param": "color", "doc": "Overrides Slider filled track color, including alpha. Omission uses the current theme accent." }
+    },
+    {
+      "id": 343,
+      "name": "slider_thumb_rgba",
+      "csharp": "SliderThumbRgba",
+      "value": "u32",
+      "requires": "slider",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "ThumbColor", "param": "color", "doc": "Overrides Slider thumb background, including alpha. Omission uses the current theme surface background." }
+    },
+    {
+      "id": 344,
+      "name": "slider_thumb_border_rgba",
+      "csharp": "SliderThumbBorderRgba",
+      "value": "u32",
+      "requires": "slider",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "ThumbBorderColor", "param": "color", "doc": "Overrides Slider thumb border color, including alpha. Omission uses the current theme accent." }
     },
     {
       "id": 350,
@@ -2882,7 +3021,8 @@
         { "id": 20, "name": "focus", "csharp": "InputFocus", "doc": "Moves native keyboard focus to the input." },
         { "id": 21, "name": "blur", "csharp": "InputBlur", "doc": "Releases native keyboard focus from the input." },
         { "id": 22, "name": "set_value", "csharp": "InputSetValue", "doc": "Replaces the input value without emitting events." },
-        { "id": 23, "name": "select_all", "csharp": "InputSelectAll", "doc": "Selects the whole input value." }
+        { "id": 23, "name": "select_all", "csharp": "InputSelectAll", "doc": "Selects the whole input value." },
+        { "id": 24, "name": "set_value_if_current", "csharp": "InputSetValueIfCurrent", "doc": "Replaces UTF-8 data without events only when a matches the nonzero native revision. Word b packs input_selection_policy in bit 0 and input_composition_policy in bit 1; other bits are reserved zero. Identical normalized values preserve editing state." }
       ]
     },
     {
@@ -2906,6 +3046,8 @@
     }
   ],
   "controlEvents": [
+    { "id": 21, "name": "list_selection_requested", "csharp": "SelectionRequested", "group": "list", "doc": "Opt-in single-row selection request. Uses the List Activated payload and flag layout; selection and presentation remain application-owned." },
+    { "id": 20, "name": "list_activated", "csharp": "Activated", "group": "list", "doc": "Opt-in row activation. Data is 16 little-endian bytes: u32 index, zero u32 reserved, u64 ItemId (zero when absent). Flags bit 0 selects keyboard instead of pointer, bit 1 indicates a datasource content revision in revision; all other bits are zero. Without bit 1, revision is zero." },
     { "id": 1, "name": "input_changed", "csharp": "Changed", "group": "input", "doc": "The input value changed." },
     { "id": 2, "name": "input_submitted", "csharp": "Submitted", "group": "input", "doc": "The input value was submitted." },
     { "id": 3, "name": "input_focus_changed", "csharp": "FocusChanged", "group": "input", "doc": "Input focus changed." },

@@ -153,7 +153,7 @@ public readonly struct DockController
     public void ClosePanel(string panelId)
     {
         ValidatePanelId(panelId);
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.Dock,
                 ResourceCommandKind.DockClosePanel,
@@ -164,7 +164,7 @@ public readonly struct DockController
                 Utf8Key: Utf8KeyArray
             )
         );
-        Owner.InvalidateFromController();
+        Owner.Runtime.InvalidateFromController();
     }
 
     /// <summary>Opens or collapses a side region natively without changing the declaration.</summary>
@@ -174,7 +174,7 @@ public readonly struct DockController
         {
             throw new ArgumentOutOfRangeException(nameof(side));
         }
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.Dock,
                 ResourceCommandKind.DockSetRegionOpen,
@@ -184,7 +184,7 @@ public readonly struct DockController
                 Utf8Key: Utf8KeyArray
             )
         );
-        Owner.InvalidateFromController();
+        Owner.Runtime.InvalidateFromController();
     }
 
     /// <summary>
@@ -203,7 +203,7 @@ public readonly struct DockController
         {
             throw new ArgumentException("A Dock layout document cannot be empty.", nameof(layoutJson));
         }
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.Dock,
                 ResourceCommandKind.DockImportLayout,
@@ -214,7 +214,7 @@ public readonly struct DockController
                 Utf8Key: Utf8KeyArray
             )
         );
-        Owner.InvalidateFromController();
+        Owner.Runtime.InvalidateFromController();
     }
 
     /// <summary>
@@ -226,7 +226,7 @@ public readonly struct DockController
     /// </summary>
     public void ExportLayout()
     {
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.Dock,
                 ResourceCommandKind.DockExportLayout,
@@ -236,7 +236,7 @@ public readonly struct DockController
                 Utf8Key: Utf8KeyArray
             )
         );
-        Owner.InvalidateFromController();
+        Owner.Runtime.InvalidateFromController();
     }
 
     private static void ValidatePanelId(string panelId)

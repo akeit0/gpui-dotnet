@@ -27,7 +27,7 @@ component model.
 
 - Reloading Rust code, the native library, the semantic schema, or the C ABI.
 - Supporting NativeAOT, trimming-oriented Release builds, or arbitrary runtime assembly plugins.
-- Re-running constructors or `OnMounted()` for already mounted Views.
+- Re-running constructors for already accepted Views.
 - Migrating state across a changed View base type, props type, or generic shape.
 - Watching JSON settings, image files, or other content files. Those need separate content-reload
   policies.
@@ -57,7 +57,7 @@ CLR updates methods and metadata in place
                  ▼
 GPUI.NET metadata-update handler
                  │
-                 ├── mark all managed View fragments dirty
+                 ├── enqueue full-tree managed invalidation
                  │
                  └── enqueue ManagedCodeUpdated to the native application
                                       │
@@ -69,10 +69,9 @@ GPUI.NET metadata-update handler
                          next GPUI frame calls updated C#
 ```
 
-The managed dirty state must be established before the native command is enqueued. When the native
-application processes the command and requests a frame, the following render is guaranteed to see
-the new required versions. An update racing an existing render may allow that render to finish, but
-the queued invalidation must produce another render afterward.
+Managed invalidation must be queued before the native command is enqueued. The next root-render
+callback consumes it on the application thread before reusing retained fragments. An update racing
+an existing render may allow that render to finish, but queued invalidation requests another frame.
 
 ## Metadata-update entry point
 
@@ -93,7 +92,7 @@ important than selective invalidation.
 The handler can run on a non-GPUI thread. It therefore:
 
 - use only thread-safe application/session ingress;
-- never call `Render()`, lifecycle hooks, event handlers, or controller methods directly;
+- never call Render, effect setup/cleanup, event handlers, or controller methods directly;
 - tolerate applications starting or stopping concurrently;
 - isolate failures per application and never throw through the runtime's metadata-update callback.
 
@@ -106,8 +105,10 @@ Reload state. Release rendering therefore has no per-frame Hot Reload branch or 
 
 ## Managed invalidation
 
-Each live `ManagedSession` increments `RequiredVersion` for every retained View fragment. The
-existing full-fragment invalidation used by application-wide theme changes is the right primitive.
+Each healthy `ManagedSession` queues full-fragment invalidation, the same primitive used by theme
+changes. The application thread consumes it and marks every retained View fragment dirty. Dirty
+flags clear when native accepts the updated composition. The metadata-update thread never
+traverses or mutates the retained tree.
 
 This preserves:
 
@@ -117,8 +118,12 @@ This preserves:
 - lazy lifetime tokens and mounted ownership;
 - event-entry storage until the updated render declares the next binding pass.
 
-The update must not remount the tree. `OnMounted()` and constructors describe one-shot lifetime and
-are not refresh hooks. Changes to them apply only to subsequently created instances.
+The update does not remount the tree or rerun constructors. Before the next render, application-thread
+ingress clears owned memo entries and marks effect code generations changed. The next accepted
+declaration replaces each effect even when its inputs are equal. Old callbacks and work are revoked,
+cleanup runs, and setup executes again. Semantic state and native resource identity remain preserved.
+Changes to constructors and constructor-created callback selection apply to new instances or require
+restart; compatible setup method-body edits apply through effect replacement.
 
 ## Native invalidation
 
@@ -166,20 +171,15 @@ instead of introducing the virtual override during Hot Reload. Renderer ids rema
 stable method identity; changing that identity is allowed to produce a new token because native row
 batches are cleared for the update.
 
-## Render failure recovery
+## Fault behavior
 
 Compilation failures do not apply a metadata delta, so the running application should continue to
 show its last committed UI.
 
 A compiling edit can still throw or produce invalid semantic output. Native has a managed render
-error surface, and the managed session distinguishes between:
-
-- recoverable render/list-render failures; and
-- terminal event, lifecycle, interop, or native failures.
-
-A later metadata update clears only recoverable renderer failures and requests a new render. A
-successful render removes the native error surface. The update does not erase unrelated terminal
-failures.
+error surface, but unexpected render and list-render exceptions are terminal session faults, just
+like event and lifecycle failures. A later metadata update cannot revive that session. Fix the
+error and restart the application. Healthy windows continue to accept compatible metadata updates.
 
 ## Expected edit behavior
 
@@ -192,7 +192,8 @@ failures.
 | Change an existing `[GpuiListItem]` body | Native batches clear and rows regenerate lazily |
 | Add the first `[GpuiListItem]` | Supported after stable generated scaffolding |
 | Add an ordinary field | Runtime-dependent; existing instances receive no constructor migration |
-| Change constructor, initializer, or `OnMounted()` | Existing instances are not reinitialized |
+| Change constructor or initializer | Existing instances are not reinitialized |
+| Change effect setup method body or memo calculation | Effects replace and derived caches clear after code update |
 | Change View base type, `TProps`, generic constraints, or incompatible signatures | Restart |
 | Change generated/native binding code, Rust, schema, or ABI | Rebuild and restart |
 | Change JSON settings or file assets | Outside metadata Hot Reload |
@@ -208,10 +209,6 @@ running. Generator tests verify that a View with no row renderer still receives 
 row scaffold. Native tests verify command scoping and that ambient managed-render changes clear
 retained List/Table row batches.
 
-The macOS sample has also been exercised under `dotnet watch`: a method-body edit to the mounted root
-View reached the metadata handler and immediately rendered the updated method without restarting the
-process. Adding the first `[GpuiListItem]` to an existing View also applied in process.
-
 Broader framework tests should continue to cover:
 
 - every retained fragment becomes dirty;
@@ -219,7 +216,7 @@ Broader framework tests should continue to cover:
 - updates racing rendering or shutdown are coalesced safely;
 - View instances, props, and mounted lifetime are preserved;
 - event bindings are refreshed by the next successful render;
-- recoverable renderer failures do not clear terminal failures.
+- renderer failures remain terminal after metadata updates.
 
 Native coverage should continue to verify that `ManagedCodeUpdated`:
 
@@ -230,7 +227,7 @@ Native coverage should continue to verify that `ManagedCodeUpdated`:
 
 Release acceptance should run a static, non-animated sample through `dotnet watch` on macOS and
 Windows. It should cover text/layout changes, event behavior, an unchanged-revision virtual list,
-child replacement, a compiling render failure followed by recovery, rapid saves, and window-close
+child replacement, terminal render-fault behavior followed by restart, rapid saves, and window-close
 races. The static screen is important: an animation or user event must not accidentally provide the
 invalidation that the Hot Reload integration is intended to prove.
 

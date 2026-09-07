@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Buffers.Text;
 using Gpui.Editor;
 using Gpui.Interop;
+using Gpui.Interop.Internal;
 using static Gpui.Units;
 
 namespace Gpui.Tests;
@@ -9,7 +10,7 @@ namespace Gpui.Tests;
 public sealed class NativeExtensionTests
 {
     [Fact]
-    public async Task GenericExtensionEventBindingDecodesTypedEvent()
+    public void GenericExtensionEventBindingDecodesTypedEvent()
     {
         var view = new ExtensionProbeView();
         Attach(view, 41);
@@ -22,7 +23,7 @@ public sealed class NativeExtensionTests
                 static (target, extensionEvent) => target.ExtensionEventValue = extensionEvent.Value
             );
 
-            await view.DispatchNativeExtensionCore(
+            view.Runtime.Events.DispatchNativeExtensionCore(
                 unchecked((uint)binding.Token),
                 new NativeExtensionEvent(7, 0, 3, [42])
             );
@@ -31,7 +32,7 @@ public sealed class NativeExtensionTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -140,7 +141,7 @@ public sealed class NativeExtensionTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -155,7 +156,7 @@ public sealed class NativeExtensionTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -315,7 +316,7 @@ public sealed class NativeExtensionTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -339,7 +340,7 @@ public sealed class NativeExtensionTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -417,7 +418,38 @@ public sealed class NativeExtensionTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
+        }
+    }
+
+    [Fact]
+    public void KeyedEditorEventsCanBeDeclaredBeforeMounting()
+    {
+        var view = new ExtensionProbeView();
+        view.Runtime.PrepareRuntime(
+            42, static callback => callback.Invoke(), static _ => { },
+            static (_, _) => { }, static (_, _, _, _, _, _) => { },
+            static (_, _, _, _, _, _, _, _, _, _) => { },
+            static () => { }
+        );
+        try
+        {
+            Assert.True(view.Editor.IsBound);
+            Assert.False(view.Runtime.IsMounted);
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new ExtensionNoopRenderer(), view);
+            var editor = ui.Editor(
+                "document", view, static (_, _) => { }, static (_, _) => { }
+            );
+            arena.Validate(editor);
+            Assert.Contains("gpui.net.editor", arena.Dump(editor), StringComparison.Ordinal);
+            Assert.False(view.Runtime.IsMounted);
+            view.Runtime.MountRuntime();
+            Assert.True(view.Editor.IsBound);
+        }
+        finally
+        {
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -462,23 +494,28 @@ public sealed class NativeExtensionTests
         View view,
         uint handle,
         NativeExtensionCommandDispatcher? extensionCommand = null
-    ) =>
-        view.AttachRuntime(
+    )
+    {
+        view.Runtime.PrepareRuntime(
             handle,
-            static callback => callback(),
+            static callback => callback.Invoke(),
             static _ => { },
             static (_, _) => { },
-            static (_, _, _) => { },
-            extensionCommand ?? (static (_, _, _, _, _, _, _, _, _, _) => { })
+            static (_, _, _, _, _, _) => { },
+            extensionCommand ?? (static (_, _, _, _, _, _, _, _, _, _) => { }),
+            static () => { }
         );
+        view.Runtime.MountRuntime();
+    }
 
     private sealed class ExtensionProbeView : View
     {
+        public ExtensionProbeView() : this(TestViews.Construction()) { }
+        public ExtensionProbeView(ViewConstruction construction) : base(construction) =>
+            Editor = construction.CreateEditorController("document");
+
         internal EditorController Editor { get; private set; }
         internal byte ExtensionEventValue { get; set; }
-
-        protected override void OnMounted(ref ViewContext context) =>
-            Editor = context.CreateEditorController("document");
 
         protected override Element Render(ref RenderContext ui) => ui.Div();
     }
@@ -499,17 +536,17 @@ public sealed class NativeExtensionTests
 
     private sealed unsafe class ExtensionNoopRenderer : IViewRenderer
     {
-        public Element RenderChild<TView>(ViewBase owner, ChildSlot slot, RenderArena* destination)
+        public Element RenderChild<TView>(ViewBase owner, ChildSlot slot, RenderArenaOwner destination)
             where TView : View, IGeneratedViewFactory<TView> => throw new NotSupportedException();
 
         public Element RenderChild<TView, TProps>(
             ViewBase owner,
             ChildSlot slot,
             in TProps props,
-            RenderArena* destination
+            RenderArenaOwner destination
         )
             where TProps : IEquatable<TProps>
-            where TView : View<TProps>, IGeneratedViewFactory<TView> =>
+            where TView : View<TProps>, IGeneratedViewFactory<TView, TProps> =>
             throw new NotSupportedException();
     }
 }

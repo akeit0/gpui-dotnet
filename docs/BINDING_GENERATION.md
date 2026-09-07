@@ -67,8 +67,12 @@ dispatch.
 ### `[GpuiView]`
 
 Apply `[GpuiView]` to a `partial` View type. The generator implements the AOT-safe
-`IGeneratedViewFactory<T>` contract used by framework-owned `ui.Child<T>()` slots. No runtime
-reflection is required.
+`IGeneratedViewFactory<TView>` or `IGeneratedViewFactory<TView, TProps>` contract.
+Generated `Spec()` / `Spec(props)` methods return lightweight typed declarations consumed by both
+`ui.Child(key, spec)` and `application.OpenWindow(spec)`. No runtime reflection is required.
+The factory receives `ViewConstruction` and initial props when applicable. If no constructor is
+declared, the generator supplies that constructor; explicit constructors must support that signature.
+Reserved generated members include `CreateGpuiView` and `Spec`.
 
 Events are runtime fluent bindings (`OnClick`, `OnChanged`, `OnSubmitted`, `OnFocusChanged`,
 `OnReleased`, `OnDismiss`, `OnKeyDown`, `OnKeyUp`, `OnMouseDown`, `OnMouseUp`,
@@ -83,14 +87,16 @@ Accepted methods are synchronous, non-generic instance methods with this shape:
 Element Row(int index, ref RenderContext ui)
 ```
 
-`Element<TTag>` return types are also accepted. The generator emits:
+Props-bearing Views instead require `Element Row(int index, in TProps props, ref RenderContext ui)`.
+Dispatch supplies the owner's accepted props. `Element<TTag>` return types are also accepted.
+The generator emits:
 
 - a deterministic nonzero renderer ID;
 - a `Rows.Row` `ListItemRenderer` token;
 - direct switch-based dispatch on the owning mounted View;
 - diagnostics for invalid signatures, duplicate names, reserved members, and ID collisions.
 
-A row renderer may be retried after native arena growth and follows the same purity rules as
+A row renderer grows output before writes, without capacity retry, and follows the same purity rules as
 `View.Render()`.
 
 ## Native C-layout generation

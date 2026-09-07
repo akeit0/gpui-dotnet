@@ -4,8 +4,11 @@ namespace Gpui.Interop.Internal.Session;
 
 internal sealed unsafe partial class ManagedSession
 {
-    internal Element RenderRoot(RenderArena* arena)
+    internal Element RenderRoot(RenderArenaOwner arena)
     {
+        ThrowIfUnavailable();
+        using var execution = Execution.Enter(ExecutionPhase.Ingress);
+        RequireAcceptedRender();
         try
         {
             BeginRendering();
@@ -14,12 +17,14 @@ internal sealed unsafe partial class ManagedSession
             var completed = false;
             try
             {
+                using var reads = GetRenderState(RootView).Consumer!.Begin();
                 var ui = new RenderContext(arena, this, RootView, _application.Theme);
-                var element = RootView.RenderCore(ref ui);
-                ManagedValidator.Validate(arena, element);
+                var element = RootView.Runtime.RenderCore(ref ui);
+                ThrowIfUnavailable();
+                ManagedValidator.Validate(arena.NativeArena, element);
                 CompleteComposition(RootView);
                 completed = true;
-                CommitSnapshotTree();
+                _pendingRenderRevision = checked(++_nextRenderRevision);
                 return element;
             }
             catch
@@ -32,6 +37,11 @@ internal sealed unsafe partial class ManagedSession
                 throw;
             }
         }
+        catch (Exception exception)
+        {
+            RecordFailure(exception);
+            throw;
+        }
         finally
         {
             EndRendering();
@@ -40,92 +50,102 @@ internal sealed unsafe partial class ManagedSession
 
     internal Element RenderListRange(
         ulong rendererToken,
+        ulong source,
         uint start,
         uint count,
-        RenderArena* arena
-    )
+        RenderArenaOwner arena,
+        out ulong artifact
+    ) => RenderDemand(rendererToken, source, new ListRangeRenderRequest(start, count), arena, out artifact);
+
+    internal Element RenderDemand<TRequest>(
+        ulong rendererToken,
+        ulong source,
+        TRequest request,
+        RenderArenaOwner arena,
+        out ulong artifact
+    ) where TRequest : struct, IDemandRenderRequest
     {
+        ThrowIfUnavailable();
+        using var execution = Execution.Enter(ExecutionPhase.DemandRender);
+        RequireAcceptedRender();
         var viewHandle = unchecked((uint)(rendererToken >> 32));
         var rendererId = unchecked((uint)rendererToken);
         if (viewHandle == 0 || rendererId == 0)
         {
-            throw new InvalidOperationException("List renderer token 0 is reserved.");
+            throw new InvalidOperationException("Demand renderer token 0 is reserved.");
         }
-        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner) || !owner.IsMountedCore)
+        if (!_viewsByHandle.TryGetValue(viewHandle, out var owner) || !owner.Runtime.IsMounted)
         {
             throw new InvalidOperationException(
-                $"List renderer owner View 0x{viewHandle:X8} is no longer mounted."
+                $"Demand renderer owner View 0x{viewHandle:X8} is no longer mounted."
             );
         }
-        if (count is 0 or > 512 || (ulong)start + count > int.MaxValue)
-        {
-            throw new ArgumentOutOfRangeException(nameof(count));
-        }
+        request.Validate();
 
+        artifact = CreateDemandArtifact(source, owner);
         Volatile.Write(ref _renderingStarted, 1);
         if (Interlocked.CompareExchange(ref _renderingManaged, 1, 0) != 0)
         {
-            throw new InvalidOperationException("Nested managed list rendering is not supported.");
+            throw new InvalidOperationException("Nested managed demand rendering is not supported.");
         }
         Volatile.Write(ref _notifyAfterRender, 0);
-        owner.BeginEventBindingPass(ViewEventBindingScope.ListRange);
-        var previousEventBindingOwner = ViewBase.CurrentEventBindingOwner;
-        ViewBase.CurrentEventBindingOwner = owner;
+        var previousEventBindingOwner = ViewEventRegistry.CurrentEventBindingOwner;
         var completed = false;
         try
         {
+            owner.Runtime.Events.BeginEventBindingPass(ViewEventBindingScope.Demand, artifact);
+            ViewEventRegistry.CurrentEventBindingOwner = owner;
+            using var reads = _demandArtifacts[artifact].Consumer.Begin();
             var ui = new RenderContext(arena, theme: _application.Theme);
-            var batchRoot = ui.Div();
-            for (uint offset = 0; offset < count; offset++)
-            {
-                var index = checked((int)(start + offset));
-                var row = owner.RenderListItemCore(rendererId, index, ref ui);
-                ArenaWriter.AddChild(batchRoot, row);
-            }
+            var batchRoot = request.Render(owner, rendererId, ref ui);
 
-            ManagedValidator.Validate(arena, batchRoot);
+            ManagedValidator.Validate(arena.NativeArena, batchRoot);
+            ThrowIfUnavailable();
             completed = true;
             return batchRoot;
+        }
+        catch (Exception exception)
+        {
+            RecordFailure(exception);
+            throw;
         }
         finally
         {
             try
             {
-                owner.CompleteEventBindingPass(ViewEventBindingScope.ListRange, completed);
+                owner.Runtime.Events.CompleteEventBindingPass(ViewEventBindingScope.Demand, completed);
+                if (!completed)
+                {
+                    RemoveDemandArtifact(artifact);
+                }
             }
             finally
             {
-                ViewBase.CurrentEventBindingOwner = previousEventBindingOwner;
+                ViewEventRegistry.CurrentEventBindingOwner = previousEventBindingOwner;
                 EndRendering();
             }
         }
     }
 
-    private Element RenderResolvedChild(ViewBase view, RenderArena* destination)
+    private Element RenderResolvedChild(ViewBase view, RenderArenaOwner destination)
     {
+        ThrowIfUnavailable();
         var state = GetRenderState(view);
-        long requiredVersion;
-        lock (_renderStateGate)
-        {
-            requiredVersion = state.RequiredVersion;
-        }
 
-        if (state.Fragment is null || state.RenderedVersion != requiredVersion)
+        if (state.Fragment is null || state.Dirty)
         {
             state.Fragment ??= new RenderArenaOwner(64, 256, 128, 4096);
             BeginComposition(view);
             try
             {
+                using var reads = state.Consumer!.Begin();
                 var ui = state.Fragment.BeginRender(this, view, _application.Theme);
-                var element = view.RenderCore(ref ui);
-                state.Fragment.Validate(element);
+                var element = view.Runtime.RenderCore(ref ui);
+                ThrowIfUnavailable();
+                ManagedValidator.ValidateRoot(state.Fragment.NativeArena, element);
                 view.ValidateRenderInputs();
                 state.Root = element.Node;
                 CompleteComposition(view);
-                lock (_renderStateGate)
-                {
-                    state.RenderedVersion = requiredVersion;
-                }
             }
             catch
             {
@@ -134,7 +154,7 @@ internal sealed unsafe partial class ManagedSession
             }
         }
 
-        return ArenaWriter.AppendFragment(destination, state.Fragment.NativeArena, state.Root);
+        return ArenaWriter.AppendFragment(destination, state.Fragment, state.Root);
     }
 
     private void BeginComposition(ViewBase view)
@@ -147,8 +167,9 @@ internal sealed unsafe partial class ManagedSession
         }
 
         var state = GetRenderState(view);
+        state.Consumer ??= new ReactiveConsumer(this, view);
+        state.Dirty = true;
         state.WorkingChildren?.Clear();
-        state.WorkingViews?.Clear();
         state.WorkingNextPosition = 0;
     }
 
@@ -165,7 +186,6 @@ internal sealed unsafe partial class ManagedSession
             state.StagedChildren
         );
         state.WorkingChildren?.Clear();
-        state.WorkingViews?.Clear();
         state.HasStagedComposition = true;
     }
 
@@ -178,70 +198,75 @@ internal sealed unsafe partial class ManagedSession
 
         var state = GetRenderState(view);
         state.WorkingChildren?.Clear();
-        state.WorkingViews?.Clear();
         state.WorkingNextPosition = 0;
     }
 
     private void CommitSnapshotTree()
     {
         _snapshotStack.Clear();
-        _snapshotVisited.Clear();
+        _acceptedViews.Clear();
+        _unmountCandidates.Clear();
+        _unmountStack.Clear();
+        _unmountVisited.Clear();
 
-        lock (_renderStateGate)
+        _snapshotStack.Push(RootView);
+        while (_snapshotStack.TryPop(out var current))
         {
-            _snapshotStack.Push(RootView);
-            while (_snapshotStack.TryPop(out var current))
+            if (!_renderStates.TryGetValue(current, out var state))
             {
-                if (!_snapshotVisited.Add(current))
-                {
-                    continue;
-                }
-                if (!_renderStates.TryGetValue(current, out var state))
+                throw new InvalidOperationException(
+                    "The committed managed view tree references a missing render state."
+                );
+            }
+
+            // A clean child can receive equal-but-distinct props from a rendered parent.
+            // Its descendants have no new declarations and keep their accepted state.
+            if (!state.HasStagedComposition)
+            {
+                current.CommitStagedProps();
+                continue;
+            }
+
+            if (state.Children is { } previousChildren)
+                foreach (var (slot, previous) in previousChildren)
+                    if (state.StagedChildren is null
+                        || !state.StagedChildren.TryGetValue(slot, out var next)
+                        || !ReferenceEquals(previous.View, next.View))
+                        _unmountStack.Push((previous.View, false));
+
+            (state.Children, state.StagedChildren) = (state.StagedChildren, state.Children);
+            state.StagedChildren?.Clear();
+            state.HasStagedComposition = false;
+            state.Candidates?.Clear();
+            // Publication stages output; only native acceptance makes it reusable.
+            state.Dirty = false;
+            state.Consumer!.Commit();
+            if (current.Ownership.Effects is { } committedEffects)
+                foreach (var effect in committedEffects) effect.Commit();
+            current.CommitStagedProps();
+            _acceptedViews.Add(current);
+
+            if (state.Children is null)
+            {
+                continue;
+            }
+
+            foreach (var entry in state.Children.Values)
+            {
+                if (!_renderStates.TryGetValue(entry.View, out var childState))
                 {
                     throw new InvalidOperationException(
-                        "The committed managed view tree references a missing render state."
+                        "A committed child View is missing its retained render state."
                     );
                 }
-
-                if (state.HasStagedComposition)
-                {
-                    (state.Children, state.StagedChildren) = (state.StagedChildren, state.Children);
-                    state.StagedChildren?.Clear();
-                    state.HasStagedComposition = false;
-                    state.Candidates?.Clear();
-                }
-
-                current.CommitStagedProps();
-
-                if (state.Children is null)
-                {
-                    continue;
-                }
-
-                foreach (var entry in state.Children.Values)
-                {
-                    if (!_renderStates.TryGetValue(entry.View, out var childState))
-                    {
-                        throw new InvalidOperationException(
-                            "A committed child View is missing its retained render state."
-                        );
-                    }
-                    if (
-                        childState.Parent is not null
-                        && !ReferenceEquals(childState.Parent, current)
-                    )
-                    {
-                        throw new InvalidOperationException(
-                            "A managed child View cannot be committed under multiple parents."
-                        );
-                    }
-                    childState.Parent = current;
-                    _snapshotStack.Push(entry.View);
-                }
+                System.Diagnostics.Debug.Assert(ReferenceEquals(childState.Parent, current));
+                _snapshotStack.Push(entry.View);
             }
         }
 
-        BuildUnmountOrder(includeCommittedTree: false);
+        // Slots exclusively own their children. Removed slot roots cover all retirement;
+        // reused clean subtrees need neither a reachability scan nor lifecycle delivery.
+        CollectUnmountCandidates();
         foreach (var view in _unmountCandidates)
         {
             try
@@ -253,29 +278,44 @@ internal sealed unsafe partial class ManagedSession
                 RecordFailure(exception);
             }
         }
+        _unmountCandidates.Clear();
+        _unmountVisited.Clear();
+
+        for (var index = _acceptedViews.Count - 1; index >= 0; index--)
+            if (_acceptedViews[index].Ownership.Effects is { } effects)
+                foreach (var effect in effects) effect.StopChanged();
+
+        foreach (var view in _acceptedViews)
+        {
+            ThrowIfUnavailable();
+            if (!view.Runtime.IsMounted)
+                view.Runtime.MountRuntime();
+        }
+        foreach (var view in _acceptedViews)
+        {
+            ThrowIfUnavailable();
+            if (view.Ownership.Effects is { } effects)
+                foreach (var effect in effects) effect.Start();
+        }
+        _acceptedViews.Clear();
     }
 
     private void MarkViewFragmentDirty(ViewBase view)
     {
-        lock (_renderStateGate)
+        Execution.AssertAccess();
+        if (_renderStates.TryGetValue(view, out var state))
         {
-            if (_renderStates.TryGetValue(view, out var state))
-            {
-                state.RequiredVersion++;
-            }
+            // Changed props are discovered while the parent is already composing.
+            state.Dirty = true;
         }
     }
 
     private void RollBackStagedProps()
     {
-        ViewBase[] views;
-        lock (_renderStateGate)
+        Execution.AssertAccess();
+        foreach (var view in _renderStates.Keys)
         {
-            views = _renderStates.Keys.ToArray();
-        }
-
-        foreach (var view in views)
-        {
+            _renderStates[view].Consumer?.Abort();
             view.RollBackStagedProps();
         }
     }

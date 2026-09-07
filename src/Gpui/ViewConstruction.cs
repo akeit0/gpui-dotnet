@@ -1,25 +1,47 @@
 namespace Gpui;
 
 /// <summary>
-/// Lifecycle/control-plane context. Unlike <see cref="RenderContext"/>, this context is for
-/// mounted resources and commands; it is never used to build render IR.
+/// Establishes owned local facilities before the first render. Handles activate after acceptance;
+/// construction cannot perform external effects or issue runtime commands.
 /// </summary>
-public readonly ref struct ViewContext
+public readonly ref struct ViewConstruction
 {
-    private readonly ViewBase _view;
+    private readonly Gpui.Interop.Internal.ViewOwnership _owner;
+    private ViewBase _view => Owner.View;
+    private Gpui.Interop.Internal.ViewOwnership Owner
+    {
+        get
+        {
+            if (_owner is null) throw new InvalidOperationException("A construction context is required.");
+            _owner.AssertAccess();
+            if (_owner.ConstructionComplete) throw new InvalidOperationException("Construction has completed.");
+            return _owner;
+        }
+    }
 
-    internal ViewContext(ViewBase view) => _view = view;
+    internal ViewConstruction(Gpui.Interop.Internal.ViewOwnership owner) => _owner = owner;
+    internal Gpui.Interop.Internal.ViewOwnership Bind(ViewBase view)
+    {
+        var owner = Owner;
+        owner.Bind(view);
+        return owner;
+    }
+
+    public T Own<T>(T resource) where T : IDisposable => Owner.Own(resource);
+    public Memo<TInput, TResult> Memo<TInput, TResult>() where TInput : IEquatable<TInput> => Owner.Memo<TInput, TResult>();
+    public Effect<TInput> Effect<TInput>(Action<EffectScope, TInput> setup) where TInput : IEquatable<TInput> => Owner.Effect(setup);
 
     public Dispatcher Dispatcher => _view.Dispatcher;
+    public GpuiWindow Window => Owner.Window ?? throw new InvalidOperationException("No window owns this construction.");
+    public GpuiApplication Application => Window.Application;
 
-    public void Invalidate() => _view.Invalidate();
+    /// <summary>A stable work handle; starting production requires an accepted View.</summary>
+    public WorkScope Work => _view.Runtime.GetConstructionWorkScope();
 
     /// <summary>
     /// Creates an optional imperative controller for a ui.Scroll() resource owned by this View.
-    /// Commands issued before the resource exists are queued, but only while the owning View's
-    /// committed snapshots keep declaring the resource: once a snapshot omits it, natively
-    /// queued commands for that key are discarded (there is nothing to preserve). Declare the
-    /// resource in the same render that first issues commands.
+    /// Creating the handle does not declare a resource. Commands require an accepted declaration;
+    /// queued commands are revoked when that declaration's presence generation ends.
     /// </summary>
     public ScrollController CreateScrollController(string key)
     {

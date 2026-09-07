@@ -3,6 +3,29 @@ using Gpui.Interop;
 
 namespace Gpui;
 
+/// <summary>
+/// A request to select one List/Table row. The application decides whether to accept it and owns
+/// selection state and presentation. Identity describes the accepted datasource snapshot.
+/// </summary>
+public readonly record struct ListSelectionEvent(
+    int Index,
+    ulong? ItemId,
+    ulong? ContentRevision,
+    ListSelectionSource Source
+);
+
+/// <summary>
+/// An explicit List/Table row activation. Index and optional ItemId identify the row in the
+/// accepted datasource; ContentRevision is absent for declarations without a content revision.
+/// Cursor movement and application selection do not emit this event.
+/// </summary>
+public readonly record struct ListActivationEvent(
+    int Index,
+    ulong? ItemId,
+    ulong? ContentRevision,
+    ListActivationSource Source
+);
+
 /// <summary>Logical list growth direction.</summary>
 public enum ListAlignment : uint
 {
@@ -128,7 +151,7 @@ public readonly struct ListController
     public void ScrollToItem(int index)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(index);
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.List,
                 ResourceCommandKind.ListScrollToItem,
@@ -146,7 +169,7 @@ public readonly struct ListController
         ArgumentOutOfRangeException.ThrowIfNegative(removedCount);
         ArgumentOutOfRangeException.ThrowIfNegative(insertedCount);
         var packed = ((ulong)checked((uint)removedCount) << 32) | checked((uint)insertedCount);
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.List,
                 ResourceCommandKind.ListSplice,
@@ -156,7 +179,7 @@ public readonly struct ListController
                 Utf8Key: Utf8KeyArray
             )
         );
-        Owner.InvalidateFromController();
+        Owner.Runtime.InvalidateFromController();
     }
 
     /// <summary>
@@ -168,7 +191,7 @@ public readonly struct ListController
         ArgumentOutOfRangeException.ThrowIfNegative(start);
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         DispatchRefresh(start, count);
-        Owner.InvalidateFromController();
+        Owner.Runtime.InvalidateFromController();
     }
 
     /// <summary>
@@ -192,11 +215,11 @@ public readonly struct ListController
         {
             DispatchRefresh(start, count);
         }
-        Owner.InvalidateFromController();
+        Owner.Runtime.InvalidateFromController();
     }
 
     private void DispatchRefresh(int start, int count) =>
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.List,
                 ResourceCommandKind.ListRefresh,
@@ -210,7 +233,7 @@ public readonly struct ListController
     public void Reset(int itemCount)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(itemCount);
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.List,
                 ResourceCommandKind.ListReset,
@@ -220,7 +243,7 @@ public readonly struct ListController
                 Utf8Key: Utf8KeyArray
             )
         );
-        Owner.InvalidateFromController();
+        Owner.Runtime.InvalidateFromController();
     }
 
     private ViewBase Owner =>

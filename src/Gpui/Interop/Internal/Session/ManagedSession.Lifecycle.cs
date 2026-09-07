@@ -5,15 +5,41 @@ namespace Gpui.Interop.Internal.Session;
 
 internal sealed unsafe partial class ManagedSession
 {
+    internal void RetireFailedViews()
+    {
+        BuildUnmountOrder();
+        foreach (var view in _unmountCandidates)
+        {
+            try { Unmount(view); }
+            catch (Exception) { /* The session retains the original failure; all owners still retire. */ }
+        }
+        _unmountCandidates.Clear();
+        _acceptedViews.Clear();
+        _snapshotStack.Clear();
+        _unmountVisited.Clear();
+        _rootView = null;
+    }
+
     internal void Stop()
     {
+        if (Volatile.Read(ref _stopped) != 0)
+        {
+            return;
+        }
+        // A session that never entered a native callback owns no UI state and may be
+        // discarded on the window-opening thread if native registration fails.
+        using var execution = Volatile.Read(ref _renderingStarted) == 0
+            ? default(ApplicationExecution.Scope)
+            : Execution.Enter(ExecutionPhase.Cleanup);
         if (Interlocked.Exchange(ref _stopped, 1) != 0)
         {
             return;
         }
 
-        while (_posted.TryDequeue(out _)) { }
-        BuildUnmountOrder(includeCommittedTree: true);
+        DiscardIngress();
+        _rootDeclaration = null;
+        _rootView = null;
+        BuildUnmountOrder();
         foreach (var view in _unmountCandidates)
         {
             try
@@ -26,36 +52,44 @@ internal sealed unsafe partial class ManagedSession
             }
         }
 
-        lock (_renderStateGate)
+        foreach (var state in _renderStates.Values)
         {
-            foreach (var state in _renderStates.Values)
-            {
-                state.Fragment?.Dispose();
-            }
-            _renderStates.Clear();
+            state.Consumer?.Dispose();
+            state.Fragment?.Dispose();
         }
+        _renderStates.Clear();
 
         _attachedViews.Clear();
+        _demandArtifacts.Clear();
+        _invalidArtifacts?.Clear();
         _viewsByHandle.Clear();
         _renderingViews.Clear();
         _snapshotStack.Clear();
-        _snapshotVisited.Clear();
         _unmountCandidates.Clear();
         _unmountStack.Clear();
         _unmountVisited.Clear();
+        _rootOutputArena?.Dispose();
+        _acceptedViews.Clear();
+        _pendingRenderRevision = 0;
+        _rootOutputArena = null;
+        _demandOutputArena?.Dispose();
+        _demandOutputArena = null;
     }
 
     private void AttachRoot()
     {
-        lock (_renderStateGate)
+        if (_rootView is null)
         {
-            var rootState = GetRenderState(RootView);
-            if (rootState.Parent is not null)
-            {
-                throw new InvalidOperationException(
-                    "The root View cannot be owned by another View."
-                );
-            }
+            var declaration = _rootDeclaration ?? throw new InvalidOperationException("No root declaration.");
+            _rootDeclaration = null;
+            _rootView = declaration.Create(_window!);
+        }
+        var rootState = GetRenderState(RootView);
+        if (rootState.Parent is not null)
+        {
+            throw new InvalidOperationException(
+                "The root View cannot be owned by another View."
+            );
         }
         Attach(RootView);
     }
@@ -78,25 +112,23 @@ internal sealed unsafe partial class ManagedSession
         try
         {
             _ = GetRenderState(view);
-            view.AttachRuntime(
+            view.Runtime.PrepareRuntime(
                 handle,
                 Post,
                 Invalidate,
                 DispatchResourceCommand,
                 DispatchUtf8InputValue,
-                DispatchNativeExtensionCommand
+                DispatchNativeExtensionCommand,
+                ThrowIfUnavailable
             );
         }
         catch
         {
             _viewsByHandle.Remove(handle);
             _attachedViews.Remove(view);
-            lock (_renderStateGate)
+            if (_renderStates.Remove(view, out var failedState))
             {
-                if (_renderStates.Remove(view, out var failedState))
-                {
-                    failedState.Fragment?.Dispose();
-                }
+                failedState.Fragment?.Dispose();
             }
             throw;
         }
@@ -104,11 +136,14 @@ internal sealed unsafe partial class ManagedSession
 
     private void Unmount(ViewBase view)
     {
-        var handle = view.RuntimeViewHandle;
+        _renderStates.TryGetValue(view, out var retiring);
+        RetireDemandArtifacts(retiring);
+        retiring?.Consumer?.Dispose();
+        var handle = view.Runtime.RuntimeViewHandle;
         Exception? lifecycleFailure = null;
         try
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
         catch (Exception exception)
         {
@@ -122,13 +157,10 @@ internal sealed unsafe partial class ManagedSession
             }
             _attachedViews.Remove(view);
 
-            lock (_renderStateGate)
+            if (_renderStates.Remove(view, out var state))
             {
-                if (_renderStates.Remove(view, out var state))
-                {
-                    state.Parent = null;
-                    state.Fragment?.Dispose();
-                }
+                state.Parent = null;
+                state.Fragment?.Dispose();
             }
         }
 
@@ -140,89 +172,80 @@ internal sealed unsafe partial class ManagedSession
 
     private RetainedViewState GetRenderState(ViewBase view)
     {
-        lock (_renderStateGate)
+        Execution.AssertAccess();
+        if (!_renderStates.TryGetValue(view, out var state))
         {
-            if (!_renderStates.TryGetValue(view, out var state))
-            {
-                state = new RetainedViewState();
-                _renderStates.Add(view, state);
-            }
-            return state;
+            state = new RetainedViewState();
+            _renderStates.Add(view, state);
         }
+        return state;
     }
 
     private void MarkDirty(ViewBase view)
     {
-        lock (_renderStateGate)
+        Execution.AssertAccess();
+        if (Volatile.Read(ref _stopped) != 0)
         {
-            if (Volatile.Read(ref _stopped) != 0)
+            return;
+        }
+
+        ViewBase? current = view;
+        while (current is not null)
+        {
+            if (!_renderStates.TryGetValue(current, out var state) || state.Dirty)
             {
                 return;
             }
-
-            ViewBase? current = view;
-            while (current is not null)
-            {
-                if (!_renderStates.TryGetValue(current, out var state))
-                {
-                    return;
-                }
-                state.RequiredVersion++;
-                current = state.Parent;
-            }
+            // An already-dirty ancestor has already propagated to the root.
+            state.Dirty = true;
+            current = state.Parent;
         }
     }
 
-    private void BuildUnmountOrder(bool includeCommittedTree)
+    private void BuildUnmountOrder()
     {
         _unmountCandidates.Clear();
         _unmountStack.Clear();
         _unmountVisited.Clear();
 
-        lock (_renderStateGate)
+        foreach (var view in _attachedViews)
         {
-            foreach (var view in _attachedViews)
-            {
-                if (!includeCommittedTree && _snapshotVisited.Contains(view))
-                {
-                    continue;
-                }
-
-                _unmountStack.Push((view, false));
-                while (_unmountStack.TryPop(out var entry))
-                {
-                    if (entry.Expanded)
-                    {
-                        _unmountCandidates.Add(entry.View);
-                        continue;
-                    }
-
-                    if (!_unmountVisited.Add(entry.View))
-                    {
-                        continue;
-                    }
-
-                    _unmountStack.Push((entry.View, true));
-                    if (!_renderStates.TryGetValue(entry.View, out var state))
-                    {
-                        continue;
-                    }
-
-                    PushCleanupChildren(state.Children, includeCommittedTree);
-                    if (state.HasStagedComposition)
-                    {
-                        PushCleanupChildren(state.StagedChildren, includeCommittedTree);
-                    }
-                    PushCleanupChildren(state.Candidates, includeCommittedTree);
-                }
-            }
+            _unmountStack.Push((view, false));
+            CollectUnmountCandidates();
         }
     }
 
-    private void PushCleanupChildren(
-        Dictionary<ChildSlot, ChildEntry>? children,
-        bool includeCommittedTree
-    )
+    private void CollectUnmountCandidates()
+    {
+        while (_unmountStack.TryPop(out var entry))
+        {
+            if (entry.Expanded)
+            {
+                _unmountCandidates.Add(entry.View);
+                continue;
+            }
+
+            if (!_unmountVisited.Add(entry.View))
+            {
+                continue;
+            }
+
+            _unmountStack.Push((entry.View, true));
+            if (!_renderStates.TryGetValue(entry.View, out var state))
+            {
+                continue;
+            }
+
+            PushCleanupChildren(state.Children);
+            if (state.HasStagedComposition)
+            {
+                PushCleanupChildren(state.StagedChildren);
+            }
+            PushCleanupChildren(state.Candidates);
+        }
+    }
+
+    private void PushCleanupChildren(Dictionary<ChildSlot, ChildEntry>? children)
     {
         if (children is null)
         {
@@ -231,10 +254,6 @@ internal sealed unsafe partial class ManagedSession
 
         foreach (var child in children.Values)
         {
-            if (!includeCommittedTree && _snapshotVisited.Contains(child.View))
-            {
-                continue;
-            }
             _unmountStack.Push((child.View, false));
         }
     }
@@ -244,7 +263,4 @@ internal sealed unsafe partial class ManagedSession
 
     private static Dictionary<ChildSlot, ChildEntry> GetCandidates(RetainedViewState state) =>
         state.Candidates ??= [];
-
-    private static HashSet<ViewBase> GetWorkingViews(RetainedViewState state) =>
-        state.WorkingViews ??= new HashSet<ViewBase>(ViewIdentity);
 }

@@ -104,13 +104,13 @@ public sealed class GeneratorTests
             [GpuiView]
             public sealed partial class HeaderView : View<HeaderProps>
             {
-                protected override Element Render(ref RenderContext ui) => ui.Text(Props.Title);
+                protected override Element Render(in HeaderProps props, ref RenderContext ui) => ui.Text(props.Title);
             }
 
             [GpuiView]
             public sealed partial class ParentView : View
             {
-                protected override Element Render(ref RenderContext ui) => ui.Child<HeaderView>();
+                protected override Element Render(ref RenderContext ui) => ui.Child(HeaderView.Spec());
             }
             """;
 
@@ -119,7 +119,7 @@ public sealed class GeneratorTests
             .GetDiagnostics(TestContext.Current.CancellationToken)
             .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 
-        Assert.Contains(errors, diagnostic => diagnostic.Id == "CS0311");
+        Assert.Contains(errors, diagnostic => diagnostic.Id == "CS7036");
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public sealed class GeneratorTests
             public sealed partial class ParentView : View
             {
                 protected override Element Render(ref RenderContext ui) =>
-                    ui.Child<PlainView, HeaderProps>(new("Invalid"));
+                    ui.Child(PlainView.Spec(new("Invalid")));
             }
             """;
 
@@ -149,11 +149,11 @@ public sealed class GeneratorTests
             .GetDiagnostics(TestContext.Current.CancellationToken)
             .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 
-        Assert.Contains(errors, diagnostic => diagnostic.Id == "CS0311");
+        Assert.Contains(errors, diagnostic => diagnostic.Id == "CS1501");
     }
 
     [Fact]
-    public void PropsViewsCannotBeWindowRootsAtCompileTime()
+    public void PropsViewsCanBeWindowRootsWithTypedDeclarations()
     {
         const string source = """
             using Gpui;
@@ -163,13 +163,13 @@ public sealed class GeneratorTests
             [GpuiView]
             public sealed partial class HeaderView : View<HeaderProps>
             {
-                protected override Element Render(ref RenderContext ui) => ui.Text(Props.Title);
+                protected override Element Render(in HeaderProps props, ref RenderContext ui) => ui.Text(props.Title);
             }
 
             public static class Bootstrap
             {
                 public static void Open() =>
-                    new GpuiApplication().OpenWindow(new HeaderView());
+                    new GpuiApplication().OpenWindow(HeaderView.Spec(new("Root")));
             }
             """;
 
@@ -178,7 +178,7 @@ public sealed class GeneratorTests
             .GetDiagnostics(TestContext.Current.CancellationToken)
             .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 
-        Assert.Contains(errors, diagnostic => diagnostic.Id == "CS1503");
+        Assert.Empty(errors);
     }
 
     [Fact]
@@ -192,14 +192,14 @@ public sealed class GeneratorTests
             [GpuiView]
             public sealed partial class HeaderView : View<HeaderProps>
             {
-                protected override Element Render(ref RenderContext ui) => ui.Text(Props.Title);
+                protected override Element Render(in HeaderProps props, ref RenderContext ui) => ui.Text(props.Title);
             }
 
             [GpuiView]
             public sealed partial class ParentView : View
             {
                 protected override Element Render(ref RenderContext ui) =>
-                    ui.Child<HeaderView, HeaderProps>("header", new("Overview"));
+                    ui.Child("header", HeaderView.Spec(new("Overview")));
             }
             """;
 
@@ -210,7 +210,7 @@ public sealed class GeneratorTests
             output.GetDiagnostics(TestContext.Current.CancellationToken),
             diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
         );
-        Assert.Contains("IGeneratedViewFactory<HeaderView>", generated, StringComparison.Ordinal);
+        Assert.Contains("IGeneratedViewFactory<HeaderView, global::HeaderProps>", generated, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -228,7 +228,7 @@ public sealed class GeneratorTests
             [GpuiView]
             public sealed partial class HeaderView : View<HeaderProps>
             {
-                protected override Element Render(ref RenderContext ui) => ui.Text(Props.Title);
+                protected override Element Render(in HeaderProps props, ref RenderContext ui) => ui.Text(props.Title);
             }
             """;
 
@@ -238,6 +238,31 @@ public sealed class GeneratorTests
             .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
 
         Assert.Contains(errors, diagnostic => diagnostic.Id == "CS0315");
+    }
+
+    [Fact]
+    public void ExplicitConstructionAndPropsRowsCompileThroughTheGeneratedFactory()
+    {
+        const string source = """
+            using Gpui;
+            public readonly record struct Inputs(string Text);
+            [GpuiView]
+            public sealed partial class Items : View<Inputs>
+            {
+                private readonly string _initial;
+                public Items(ViewConstruction construction, Inputs initialProps) : base(construction)
+                    => _initial = initialProps.Text;
+                protected override Element Render(in Inputs props, ref RenderContext ui) => ui.Text(props.Text);
+                [GpuiListItem]
+                private Element Row(int index, in Inputs props, ref RenderContext ui) => ui.Text(props.Text);
+            }
+            """;
+        var (result, output) = RunGeneratorAndUpdateCompilation(source);
+        Assert.DoesNotContain(output.GetDiagnostics(TestContext.Current.CancellationToken),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        var generated = string.Join("\n", result.GeneratedTrees.Select(tree => tree.ToString()));
+        Assert.Contains("new Items(construction, initialProps)", generated);
+        Assert.Contains("Row(index, in CommittedProps, ref ui)", generated);
     }
 
     private static GeneratorDriverRunResult RunGenerator(string source)

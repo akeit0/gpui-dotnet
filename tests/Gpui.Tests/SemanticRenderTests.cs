@@ -257,8 +257,8 @@ public sealed class SemanticRenderTests
         var parentUi = parent.BeginRender();
         var host = parentUi.Div(parentUi.Text("parent-text"));
         var composed = ArenaWriter.AppendFragment(
-            parent.NativeArena,
-            child.NativeArena,
+            parent,
+            child,
             childRoot.Inner.Node
         );
         var root = host.Children(composed);
@@ -476,7 +476,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -592,7 +592,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -621,7 +621,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -660,12 +660,12 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
     [Fact]
-    public async Task SliderConfigurationAndEventsPassManagedValidation()
+    public void SliderConfigurationAndEventsPassManagedValidation()
     {
         var view = new ProbeView();
         Attach(view);
@@ -694,11 +694,11 @@ public sealed class SemanticRenderTests
 
             var changed = ReadCallbackEventId(arena, OpCode.SliderOnChanged);
             var released = ReadCallbackEventId(arena, OpCode.SliderOnReleased);
-            await view.DispatchSliderCore(
+            view.Runtime.Events.DispatchSliderCore(
                 changed,
                 new SliderEvent(SliderEventKind.Changed, 50, 50, false, 4)
             );
-            await view.DispatchSliderCore(
+            view.Runtime.Events.DispatchSliderCore(
                 released,
                 new SliderEvent(SliderEventKind.Released, 55, 55, false, 5)
             );
@@ -708,8 +708,32 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
+    }
+
+    [Fact]
+    public void SliderPartColorsPreserveAlphaAndLastDeclarationWins()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var slider = ui.Slider("volume", new SliderOptions(value: 40))
+                .TrackColor(Hex("#11223340"))
+                .FillColor(Hex("#44556680"))
+                .ThumbColor(Hex("#778899"))
+                .ThumbBorderColor(Hex("#AABBCC"))
+                .FillColor(Hex("#DDEEFF00"));
+            arena.Validate(slider);
+            Assert.Equal(0x11223340u, ReadLastU32Op(arena, OpCode.SliderTrackRgba));
+            Assert.Equal(0xDDEEFF00u, ReadLastU32Op(arena, OpCode.SliderFillRgba));
+            Assert.Equal(0x778899FFu, ReadLastU32Op(arena, OpCode.SliderThumbRgba));
+            Assert.Equal(0xAABBCCFFu, ReadLastU32Op(arena, OpCode.SliderThumbBorderRgba));
+        }
+        finally { view.Runtime.UnmountRuntime(); }
     }
 
     [Fact]
@@ -736,8 +760,10 @@ public sealed class SemanticRenderTests
         Assert.Equal(7UL, input.Revision);
     }
 
-    [Fact]
-    public void Utf8SetValueDoesNotAllocatePerCommand()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Utf8SetValueDoesNotAllocatePerCommand(bool conditional)
     {
         var view = new ProbeView();
         Attach(view);
@@ -745,16 +771,20 @@ public sealed class SemanticRenderTests
         {
             var controller = new InputController(view, "search");
             controller.SetValue("warmup"u8);
+            controller.SetValueIfCurrent("warmup"u8, 42);
 
             var before = GC.GetAllocatedBytesForCurrentThread();
-            controller.SetValue("allocation-free UTF-8"u8);
+            if (conditional)
+                controller.SetValueIfCurrent("allocation-free UTF-8"u8, 42);
+            else
+                controller.SetValue("allocation-free UTF-8"u8);
             var after = GC.GetAllocatedBytesForCurrentThread();
 
             Assert.Equal(before, after);
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -792,7 +822,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -843,7 +873,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -869,7 +899,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -912,7 +942,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -960,7 +990,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1002,7 +1032,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1032,7 +1062,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1065,7 +1095,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1093,7 +1123,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1118,7 +1148,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1138,12 +1168,12 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
     [Fact]
-    public async Task ViewBoundClickCallbackReusesAndUnregistersItsEntry()
+    public void ViewBoundClickCallbackReusesAndUnregistersItsEntry()
     {
         var view = new DynamicCallbackView();
         Attach(view);
@@ -1152,42 +1182,46 @@ public sealed class SemanticRenderTests
             using var arena = new RenderArenaOwner();
 
             var firstUi = arena.BeginRender(new NoopRenderer(), view);
-            var first = view.RenderCore(ref firstUi);
+            var first = view.Runtime.RenderCore(ref firstUi);
             arena.Validate(first);
             var firstEventId = ReadCallbackEventId(arena);
 
             var secondUi = arena.BeginRender(new NoopRenderer(), view);
-            var second = view.RenderCore(ref secondUi);
+            var second = view.Runtime.RenderCore(ref secondUi);
             arena.Validate(second);
             var secondEventId = ReadCallbackEventId(arena);
 
             Assert.Equal(firstEventId, secondEventId);
-            await view.DispatchClickCore(firstEventId, default);
+            view.Runtime.Events.DispatchClickCore(firstEventId, default);
             Assert.Equal(1, view.ClickCount);
 
             view.BindCallback = false;
             var thirdUi = arena.BeginRender(new NoopRenderer(), view);
-            var third = view.RenderCore(ref thirdUi);
+            var third = view.Runtime.RenderCore(ref thirdUi);
             arena.Validate(third);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                view.DispatchClickCore(firstEventId, default).AsTask()
-            );
+            view.Runtime.Events.DispatchClickCore(firstEventId, default);
+            Assert.Equal(1, view.ClickCount);
 
             view.BindCallback = true;
             var fourthUi = arena.BeginRender(new NoopRenderer(), view);
-            var fourth = view.RenderCore(ref fourthUi);
+            var fourth = view.Runtime.RenderCore(ref fourthUi);
             arena.Validate(fourth);
-            Assert.Equal(firstEventId, ReadCallbackEventId(arena));
+            var reboundEventId = ReadCallbackEventId(arena);
+            Assert.NotEqual(firstEventId, reboundEventId);
+            view.Runtime.Events.DispatchClickCore(firstEventId, default);
+            Assert.Equal(1, view.ClickCount);
+            view.Runtime.Events.DispatchClickCore(reboundEventId, default);
+            Assert.Equal(2, view.ClickCount);
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
     [Fact]
-    public async Task ViewBoundCallbackCanTargetAnotherMountedView()
+    public void ViewBoundCallbackCanTargetAnotherMountedView()
     {
         var owner = new DynamicCallbackView();
         var target = new CallbackTargetView();
@@ -1198,17 +1232,76 @@ public sealed class SemanticRenderTests
             using var arena = new RenderArenaOwner();
             owner.CallbackTarget = target;
             var ui = arena.BeginRender(new NoopRenderer(), owner);
-            var button = owner.RenderCore(ref ui);
+            var button = owner.Runtime.RenderCore(ref ui);
             arena.Validate(button);
 
             var eventId = ReadCallbackEventId(arena);
-            await owner.DispatchClickCore(eventId, default);
+            owner.Runtime.Events.DispatchClickCore(eventId, default);
             Assert.Equal(1, target.ClickCount);
         }
         finally
         {
-            target.UnmountRuntime();
-            owner.UnmountRuntime();
+            target.Runtime.UnmountRuntime();
+            owner.Runtime.UnmountRuntime();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CollectionActivationBindsTypedEventsForListAndTable(bool table)
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            Element root = table
+                ? ui.Table("grid", new ListDataSource(100, 7), view.Row, new TableColumn("name", "Name", 120))
+                    .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value))
+                : ui.List("rows", new ListDataSource(100, 7), view.Row)
+                    .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value));
+            arena.Validate(root);
+            var eventId = ReadCallbackEventId(arena, OpCode.ListOnActivated);
+            var activation = new ListActivationEvent(51, 1051, 7, ListActivationSource.Keyboard);
+            view.Runtime.Events.DispatchListActivationCore(eventId, activation);
+            Assert.Equal(activation, Assert.Single(view.ListActivations));
+        }
+        finally
+        {
+            view.Runtime.UnmountRuntime();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CollectionSelectionRequestsDoNotInvokeActivationBindings(bool table)
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            Element root = table
+                ? ui.Table("grid", new ListDataSource(100, 7), view.Row, new TableColumn("name", "Name", 120))
+                    .OnSelectionRequested(view, static (owner, value) => owner.ListSelections.Add(value))
+                    .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value))
+                : ui.List("rows", new ListDataSource(100, 7), view.Row)
+                    .OnSelectionRequested(view, static (owner, value) => owner.ListSelections.Add(value))
+                    .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value));
+            arena.Validate(root);
+            var eventId = ReadCallbackEventId(arena, OpCode.ListOnSelectionRequested);
+            var selection = new ListSelectionEvent(51, 1051, 7, ListSelectionSource.Keyboard);
+            view.Runtime.Events.DispatchListSelectionCore(eventId, selection);
+            Assert.Equal(selection, Assert.Single(view.ListSelections));
+            Assert.Empty(view.ListActivations);
+        }
+        finally
+        {
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1245,8 +1338,79 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
+    }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    [InlineData(3, false)]
+    public void TableHeadersMustMatchDeclaredColumns(int headerCount, bool valid)
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var table = ui.Table("grid", new ListDataSource(10, 1), view.Row,
+                new TableColumn("name", "Name", 120), new TableColumn("size", "Size", 80));
+            var headers = new Element[headerCount];
+            for (var i = 0; i < headers.Length; i++)
+                headers[i] = ui.Button($"header-{i}", ui.Text($"Column {i}"));
+            table.Header(headers);
+            if (valid) arena.Validate(table);
+            else Assert.Contains("child count", Assert.Throws<InvalidOperationException>(
+                () => arena.Validate(table)).Message);
+        }
+        finally { view.Runtime.UnmountRuntime(); }
+    }
+
+    [Fact]
+    public void TableHeaderColorsPreserveAlphaAndLastDeclarationWins()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var table = ui.Table("grid", new ListDataSource(10, 1), view.Row,
+                    new TableColumn("name", "Name", 120))
+                .HeaderBackground(Hex("#112233"))
+                .HeaderTextColor(Hex("#445566"))
+                .HeaderBorderColor(Hex("#77889940"))
+                .HeaderBackground(Hex("#AABBCC80"));
+            arena.Validate(table);
+            Assert.Equal(0xAABBCC80u, ReadLastU32Op(arena, OpCode.TableHeaderBackgroundRgba));
+            Assert.Equal(0x445566FFu, ReadLastU32Op(arena, OpCode.TableHeaderTextRgba));
+            Assert.Equal(0x77889940u, ReadLastU32Op(arena, OpCode.TableHeaderBorderRgba));
+        }
+        finally { view.Runtime.UnmountRuntime(); }
+    }
+
+    [Fact]
+    public void InputPartColorsAreTypedAndLastDeclarationWins()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var input = ui.Input("field", new InputOptions(placeholder: "Hint"))
+                .PlaceholderColor(Hex("#112233"))
+                .CaretColor(Hex("#445566"))
+                .SelectionColor(Hex("#77889940"))
+                .PlaceholderColor(Hex("#AABBCC"));
+            arena.Validate(input);
+            Assert.Equal(0xAABBCCFFu, ReadLastU32Op(arena, OpCode.InputPlaceholderRgba));
+            Assert.Equal(0x445566FFu, ReadLastU32Op(arena, OpCode.InputCaretRgba));
+            Assert.Equal(0x77889940u, ReadLastU32Op(arena, OpCode.InputSelectionRgba));
+        }
+        finally { view.Runtime.UnmountRuntime(); }
     }
 
     [Fact]
@@ -1277,7 +1441,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1313,7 +1477,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1356,7 +1520,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1381,7 +1545,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1397,7 +1561,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1413,7 +1577,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1429,7 +1593,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1452,7 +1616,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1472,7 +1636,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1582,7 +1746,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1603,7 +1767,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1670,7 +1834,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1698,7 +1862,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1729,7 +1893,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1786,7 +1950,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1827,12 +1991,12 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
     [Fact]
-    public async Task DockEventsBindAndDispatch()
+    public void DockEventsBindAndDispatch()
     {
         var view = new ProbeView();
         Attach(view, 17);
@@ -1851,15 +2015,15 @@ public sealed class SemanticRenderTests
 
             var layout = ReadCallbackEventId(arena, OpCode.DockOnLayout);
             var closed = ReadCallbackEventId(arena, OpCode.DockOnClosed);
-            await view.DispatchDockCore(
+            view.Runtime.Events.DispatchDockCore(
                 layout,
                 new DockEvent(DockEventKind.LayoutChanged, string.Empty, string.Empty, 1)
             );
-            await view.DispatchDockCore(
+            view.Runtime.Events.DispatchDockCore(
                 closed,
                 new DockEvent(DockEventKind.PanelClosed, "editor", string.Empty, 2)
             );
-            await view.DispatchDockCore(
+            view.Runtime.Events.DispatchDockCore(
                 layout,
                 new DockEvent(DockEventKind.LayoutExported, string.Empty, """{"v":1}""", 3)
             );
@@ -1872,12 +2036,12 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
     [Fact]
-    public async Task KeyAndMouseObserverBindingsPassValidationAndDispatch()
+    public void KeyAndMouseObserverBindingsPassValidationAndDispatch()
     {
         var view = new ProbeView();
         Attach(view, 17);
@@ -1912,32 +2076,32 @@ public sealed class SemanticRenderTests
             var scrollWheel = ReadCallbackEventId(arena, OpCode.OnScrollWheel);
             var fileDrop = ReadCallbackEventId(arena, OpCode.OnFileDrop);
 
-            await view.DispatchKeyCore(keyDown, new KeyEvent(KeyEventKind.Down, "s", 1, false));
-            await view.DispatchKeyCore(keyUp, new KeyEvent(KeyEventKind.Up, "s", 1, false));
-            await view.DispatchMouseCore(
+            view.Runtime.Events.DispatchKeyCore(keyDown, new KeyEvent(KeyEventKind.Down, "s", 1, false));
+            view.Runtime.Events.DispatchKeyCore(keyUp, new KeyEvent(KeyEventKind.Up, "s", 1, false));
+            view.Runtime.Events.DispatchMouseCore(
                 mouseDown,
                 new MouseEvent(MouseEventKind.Down, 12, 34, MouseButton.Right, 1, 1)
             );
-            await view.DispatchMouseCore(
+            view.Runtime.Events.DispatchMouseCore(
                 mouseUp,
                 new MouseEvent(MouseEventKind.Up, 12, 34, MouseButton.Right, 1, 1)
             );
-            await view.DispatchModifiersCore(modifiersChanged, new ModifiersEvent(1));
-            await view.DispatchHoverCore(hover, new HoverEvent(true));
-            await view.DispatchMouseCore(
+            view.Runtime.Events.DispatchModifiersCore(modifiersChanged, new ModifiersEvent(1));
+            view.Runtime.Events.DispatchHoverCore(hover, new HoverEvent(true));
+            view.Runtime.Events.DispatchMouseCore(
                 mouseDownOut,
                 new MouseEvent(MouseEventKind.DownOut, 1, 2, MouseButton.Left, 1, 0)
             );
-            await view.DispatchMouseCore(
+            view.Runtime.Events.DispatchMouseCore(
                 mouseUpOut,
                 new MouseEvent(MouseEventKind.UpOut, 1, 2, MouseButton.Left, 1, 0)
             );
-            await view.DispatchMouseMoveCore(mouseMove, new MouseMoveEvent(3, 4, null, 0));
-            await view.DispatchScrollWheelCore(
+            view.Runtime.Events.DispatchMouseMoveCore(mouseMove, new MouseMoveEvent(3, 4, null, 0));
+            view.Runtime.Events.DispatchScrollWheelCore(
                 scrollWheel,
                 new ScrollWheelEvent(5, 6, 0, -3, ScrollDeltaUnits.Lines, 0)
             );
-            await view.DispatchFileDropCore(
+            view.Runtime.Events.DispatchFileDropCore(
                 fileDrop,
                 new FileDropEvent(7, 8, ["/tmp/a.txt", "/tmp/b.txt"], 0)
             );
@@ -1964,7 +2128,7 @@ public sealed class SemanticRenderTests
         }
         finally
         {
-            view.UnmountRuntime();
+            view.Runtime.UnmountRuntime();
         }
     }
 
@@ -1979,15 +2143,19 @@ public sealed class SemanticRenderTests
         Assert.False(save.Matches("s", control: true, shift: true));
     }
 
-    private static void Attach(View view, uint handle = 1) =>
-        view.AttachRuntime(
+    private static void Attach(View view, uint handle = 1)
+    {
+        view.Runtime.PrepareRuntime(
             handle,
-            static callback => callback(),
+            static callback => callback.Invoke(),
             static _ => { },
             static (_, _) => { },
-            static (_, _, _) => { },
-            static (_, _, _, _, _, _, _, _, _, _) => { }
+            static (_, _, _, _, _, _) => { },
+            static (_, _, _, _, _, _, _, _, _, _) => { },
+            static () => { }
         );
+        view.Runtime.MountRuntime();
+    }
 
     private static void RenderInvalidMove()
     {
@@ -2217,6 +2385,9 @@ public sealed class SemanticRenderTests
 
     private sealed class ProbeView : View
     {
+        public ProbeView() : this(TestViews.Construction()) { }
+        public ProbeView(ViewConstruction construction) : base(construction) { }
+
         internal float SliderEvents;
         internal float SliderReleases;
         internal List<DockEvent> DockEvents = new();
@@ -2227,6 +2398,8 @@ public sealed class SemanticRenderTests
         internal List<MouseMoveEvent> MouseMoveEvents = new();
         internal List<ScrollWheelEvent> ScrollWheelEvents = new();
         internal List<FileDropEvent> FileDropEvents = new();
+        internal List<ListActivationEvent> ListActivations = new();
+        internal List<ListSelectionEvent> ListSelections = new();
 
         internal ListItemRenderer Row => BindListRenderer(1);
 
@@ -2237,6 +2410,9 @@ public sealed class SemanticRenderTests
 
     private sealed class DynamicCallbackView : View
     {
+        public DynamicCallbackView() : this(TestViews.Construction()) { }
+        public DynamicCallbackView(ViewConstruction construction) : base(construction) { }
+
         internal bool BindCallback = true;
         internal CallbackTargetView? CallbackTarget;
         internal int ClickCount;
@@ -2260,6 +2436,9 @@ public sealed class SemanticRenderTests
 
     private sealed class CallbackTargetView : View
     {
+        public CallbackTargetView() : this(TestViews.Construction()) { }
+        public CallbackTargetView(ViewConstruction construction) : base(construction) { }
+
         internal int ClickCount;
 
         protected override Element Render(ref RenderContext ui) => ui.Div();
@@ -2270,7 +2449,7 @@ public sealed class SemanticRenderTests
         public Element RenderChild<TView>(
             ViewBase parent,
             ChildSlot slot,
-            Gpui.Interop.RenderArena* destination
+            RenderArenaOwner destination
         )
             where TView : View, IGeneratedViewFactory<TView> => throw new NotSupportedException();
 
@@ -2278,10 +2457,10 @@ public sealed class SemanticRenderTests
             ViewBase parent,
             ChildSlot slot,
             in TProps props,
-            Gpui.Interop.RenderArena* destination
+            RenderArenaOwner destination
         )
             where TProps : IEquatable<TProps>
-            where TView : View<TProps>, IGeneratedViewFactory<TView> =>
+            where TView : View<TProps>, IGeneratedViewFactory<TView, TProps> =>
             throw new NotSupportedException();
     }
 }

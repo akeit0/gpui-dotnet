@@ -115,7 +115,7 @@ using static Gpui.Units;
 var application = new GpuiApplication();
 application.SetTheme(GpuiTheme.CreateDefault(GpuiThemeAppearance.Dark));
 application.OpenWindow(
-    new MainView(),
+    MainView.Spec(),
     new GpuiWindowOptions
     {
         Title = "Hello GPUI.NET",
@@ -128,16 +128,15 @@ application.Run();
 [GpuiView]
 internal sealed partial class MainView : View
 {
-    private int _count;
+    private readonly Signal<int> _count = new(0);
 
     protected override Element Render(ref RenderContext ui) =>
         ui.VStack(
-                ui.Text($"Count: {_count}"),
+                ui.Text($"Count: {_count.Value}"),
                 ui.Button("increment", "Increment")
                     .OnClick(this, (view, _) =>
                     {
-                        view._count++;
-                        view.Invalidate();
+                        view._count.Value++;
                     })
             )
             .Gap(Px(12))
@@ -149,8 +148,9 @@ internal sealed partial class MainView : View
 ```
 
 `[GpuiView]` generates the factory used for framework-owned child views and NativeAOT. `Render()`
-describes UI into a native-owned arena and may be retried when that arena grows, so state changes,
-I/O, and task creation belong in events or lifecycle methods rather than in `Render()`.
+describes UI into a reusable managed-owned arena that grows before writes without rerunning user
+rendering. Observable state changes, I/O, and task creation belong in events or accepted effects rather
+than in `Render()`. Rust synchronously decodes completed output into an owned snapshot.
 
 On Windows, the application executable must embed a Common Controls v6 manifest because the native
 host uses Windows common-control APIs. Set `ApplicationManifest` in the project file and use
@@ -163,7 +163,7 @@ C# application and View state
         │ dirty render
         ▼
 flat RenderArena: nodes, operations, children, UTF-8
-        │ ABI v2 + base/extension schema negotiation
+        │ ABI v7 + base/extension schema negotiation
         ▼
 Rust validation and retained snapshot
         │
@@ -174,6 +174,9 @@ Rust validation and retained snapshot
 Clean native repaints do not call managed `Render()`. High-frequency state such as scrolling,
 selection, pointer interaction, IME composition, and slider movement stays in Rust. Managed code
 is called for dirty renders, bound events, and coarse virtual-row batches.
+Rust acknowledges each accepted root snapshot before managed Views mount. The first render declares
+the UI; accepted effects then run with committed inputs and can command accepted resources. Commands
+queued before a resource's removal cannot reach a later resource using the same key.
 
 ## Views and events
 
@@ -182,8 +185,8 @@ Child views are retained by slot. Use a keyed slot when a route or tab may repla
 ```csharp
 var content = _page switch
 {
-    Page.Home => ui.Child<HomeView>("content"),
-    Page.Settings => ui.Child<SettingsView>("content"),
+    Page.Home => ui.Child("content", HomeView.Spec()),
+    Page.Settings => ui.Child("content", SettingsView.Spec()),
     _ => throw new InvalidOperationException(),
 };
 ```
@@ -193,15 +196,20 @@ key retains the same child instance and its local state. `TProps` must implement
 `IEquatable<TProps>`; records and record structs do so automatically:
 
 ```csharp
-ui.Child<CounterCardView, CounterCardProps>(
-    "account",
-    new("Account", revision)
-);
+ui.Child("account", CounterCardView.Spec(new("Account", revision)));
 ```
 
-`View` and `View<TProps>` are separate specializations of a shared runtime base, so calling
-`ui.Child<CounterCardView>()` for a props view is a compile-time error. The generated factory is
-used only for reflection-free, NativeAOT-safe child construction.
+Generated `Spec(...)` declarations enforce required props and use the same NativeAOT-safe factory
+for roots and children. Construction happens on the application thread. An explicit constructor takes
+`ViewConstruction` and initial props; the generator supplies it when no constructor is declared.
+Props views implement `Render(in TProps props, ref RenderContext ui)`. Event-time `CommittedProps`
+always means the accepted input.
+
+Construction can initialize readonly state, controller/work handles, and owner-local memos.
+`Memo<TInput, TResult>.Get` computes pure derived data in the first render and reuses equal inputs.
+Read Signals before assembling the memo input. Declare external relationships with `ui.Effect`;
+acceptance starts or replaces their scoped subscriptions and work. See [View lifecycle](docs/VIEW_LIFECYCLE.md).
+The **Analysis** sample exercises this model as both a retained child and an independent window.
 
 Events are bound at the element declaration and target a mounted view:
 
@@ -210,10 +218,11 @@ ui.Button("save", "Save").OnClick(this, (view, _) => view.Save());
 ui.Input("search"u8).OnChanged(this, (view, e) => view.Search(e));
 ```
 
-`Task` and `ValueTask` handlers are observed by the session. View lifetime follows UI ownership: a
+Event handlers are synchronous `Action` callbacks. Use [WorkScope.Start](docs/ASYNC_WORK.md) for
+asynchronous production; async-void handlers are rejected. View lifetime follows UI ownership: a
 window owns its root and a committed slot owns its child; an ordinary C# reference owns neither.
 Each View has one lazily allocated, stable `Lifetime` token, cancelled before terminal
-`OnUnmounted()` cleanup. An unmounted instance cannot be reused. See
+owned cleanup. An unmounted instance cannot be reused. See
 [View lifecycle](docs/VIEW_LIFECYCLE.md).
 
 Managed render and lifecycle work is confined to GPUI's application thread. `Invalidate()`,
@@ -247,7 +256,7 @@ window has its own root view tree, retained resources, render snapshots, and fai
 
 ```csharp
 var window = application.OpenWindow(
-    new DocumentView(),
+    DocumentView.Spec(),
     new GpuiWindowOptions
     {
         Title = "Document",
@@ -379,7 +388,7 @@ then requests a new frame. Compatible method-body edits are applied to existing 
 | Text, colors, spacing, layout, or compatible event bindings | Updated output or behavior with state preserved. |
 | Rust, native bindings, schema, ABI, NativeAOT, JSON, or file assets | Rebuild or restart required. |
 
-Constructors and `OnMounted()` are not rerun for existing Views. Unsupported CLR edits are handed
+Constructors are not rerun. Derived memos clear and declared effects restart after acceptance. Unsupported CLR edits are handed
 back to `dotnet watch`, which restarts the application when required.
 
 ## Repository layout
@@ -411,6 +420,9 @@ dotnet test Gpui.slnx --no-restore
 dotnet build samples/Gpui.Sample/Gpui.Sample.csproj --no-restore
 ```
 
+Ordinary tests exclude timing probes. Run `./eng/measure-runtime.ps1` in PowerShell for the
+separate Release measurements; see [Performance](docs/PERFORMANCE.md#running-timing-probes).
+
 When the base schema or a schema registered by `bindings/extensions.json` changes, regenerate the
 managed and Rust bindings:
 
@@ -429,6 +441,8 @@ Do not edit generated semantic or extension schema files by hand.
 - [Optional editor extension](docs/EDITOR.md)
 - [View lifecycle](docs/VIEW_LIFECYCLE.md)
 - [Lifecycle and threading](docs/THREADING.md)
+- [View-owned asynchronous work](docs/ASYNC_WORK.md)
+- [Signal reactivity and ownership](docs/REACTIVITY.md)
 - [Managed renderer Hot Reload](docs/HOT_RELOAD.md)
 - [ABI contract](docs/ABI.md)
 - [Binding generation](docs/BINDING_GENERATION.md)

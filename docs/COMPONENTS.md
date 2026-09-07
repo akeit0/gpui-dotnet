@@ -71,6 +71,38 @@ internal readonly record struct PrimaryButtonStyle(GpuiTheme Theme)
 `.Style(value)` invokes the typed recipe and returns the normal element builder. A later fluent call
 can override a value. Do not add application variant enums or style objects to the native ABI.
 
+Native component defaults are applied before explicit operations. Operations affecting the same
+property apply in declaration order, including pixel and percentage forms. For ordinary growing
+snapshot elements, `.Grow()` supplies zero minimum width and height so flex content can shrink;
+explicit `MinWidth` and `MinHeight` override those defaults regardless of where `.Grow()` appears.
+
+Interaction presentation follows a shared native contract:
+
+- Component defaults establish the base; application operations and style recipes override them
+  in declaration order. Product states such as selected or invalid are resolved by those recipes.
+- Hover paint overrides the base, and active paint overrides hover for the properties it declares.
+  With neither palette declared, the theme supplies hover/active backgrounds. An explicit hover
+  palette with no active palette retains its colors while pressed feedback multiplies authored
+  opacity by 0.72.
+- Button, Checkbox, Radio, List, Table, and Slider keyboard focus uses a two-pixel outer ring in
+  the theme's focused-border color. This paint layer preserves application borders, shadows,
+  dimensions, and padding. It follows ancestor clipping and does not change row measurement or
+  viewport geometry. Input retains its native caret/selection focus presentation.
+- Disabled Button, Checkbox, Radio, Input, and Slider multiply their authored opacity by 0.5.
+  An omitted opacity starts at 1; an explicit zero remains invisible. Disabled interactive controls
+  do not install hover/active feedback. Disabled behavior remains in the existing native control.
+
+These transitions remain native and require no managed render callback. Focus paint is independent
+of application border colors, so keyboard focus does not replace a recipe's validation border.
+
+Retained controls have separate internal presentation. Input text inherits typography and text color
+through its wrapper. `PlaceholderColor`, `CaretColor`, and `SelectionColor` override its native text
+parts and compose with `IGpuiElementStyle<InputTag>` recipes. Omitted parts use the current theme:
+placeholder text, accent caret, and accent selection at alpha 0x40. Explicit selection color preserves
+the supplied alpha. These declarations update presentation without replacing text, selection, IME
+composition, focus, or revision. Omitting a previous override on a later render restores its theme
+default. Other internal control parts require focused APIs rather than wrapper styling.
+
 ## Snapshot components
 
 ### Layout and content
@@ -97,6 +129,11 @@ can override a value. Do not add application variant enums or style objects to t
   device-independent pixels. `Circle` uses the smaller ViewBox axis scale for both radii so point
   markers remain circular; `Ellipse` scales each radius independently. A `Path` must be attached
   directly to exactly one `Drawing`.
+  Repeated native repaints can reuse tessellated geometry within the decoded snapshot. The first
+  use of new bounds renders without retaining geometry; the second admits it to a bounded cache.
+  Bounds include the origin and padding, so movement and resize rebuild geometry. A new accepted
+  snapshot clears the cache, including changes to path commands, view box, colors, fill/stroke, and
+  theme-resolved styles. Current clipping, opacity, and device scale still apply at paint time.
 - `Dynamic` is a transparent one-child wrapper. While active, native GPUI schedules one managed
   render per display frame for the wrapper's owning View. Multiple wrappers for one View are
   deduplicated. The application remains responsible for time, interpolation, and stopping.
@@ -134,9 +171,8 @@ protected override Element Render(ref RenderContext ui) =>
 `Ctrl+Shift+S` does not match `Ctrl+S`. Holding a key produces OS key-repeat `Down` events with
 `IsHeld` set, so one-shot hot-key actions should guard with `!key.IsHeld`. Modifier-only presses
 (e.g. holding Ctrl alone) never produce key events in GPUI; track them with `OnModifiersChanged`,
-which reports the current modifiers. Mouse movement never
-crosses the ABI; only discrete
-down/up for opted-in elements do. These bindings are render-pass declarations like `OnClick`
+which reports the current modifiers. Mouse movement and wheel events cross the ABI only when their
+observer bindings are declared. These bindings are render-pass declarations like `OnClick`
 (pure `Render`, state changes in the handler plus `Invalidate()`), and they are invalid inside
 virtualized List/Table row snapshots, which have no mounted View lifetime.
 
@@ -178,6 +214,56 @@ active-row keyboard navigation, and up to four aligned row batches. The managed 
 one synthetic root containing exactly the requested number of row roots. Actual measurements
 replace their hints, allowing native scroll geometry to converge without measuring the full list.
 
+Page Up/Down scroll by the current row viewport height, clamped to the native scroll range.
+Paging preserves partial-row offsets, including within a row taller than the viewport, and places
+the native keyboard cursor on the first visible row. It uses the current viewport even when wheel
+scrolling has moved the old cursor offscreen. Up/Down then move that cursor by one row; Home/End
+move it to the first/last row and reveal it. Keyboard navigation cancels pending wheel smoothing.
+Paging uses measured heights and estimates for unseen rows without requesting managed rows in the
+key handler. Hidden or not-yet-laid-out viewports do not page.
+
+The active cursor is a native navigation position, separate from application selection and row
+activation. Left mouse-down on a visible row updates it and focuses the collection before child
+handlers run; children may still take focus or consume the event. Existing row/child click bindings
+remain intact. Arrow and paging keys do not synthesize clicks or change application selection.
+Applications continue to own selected-item state and selected-row styling.
+
+Bind `.OnSelectionRequested(view, static (owner, e) => owner.SelectItem(e))` on List or Table for
+single-row selection requests. An unmodified primary single press requests its row unless a child
+consumes mouse-down. Unmodified Space requests the native cursor when the collection itself has
+focus; held repeats and keys intended for text input do not request selection. Enter and double
+press remain activation gestures. Modified presses, range selection, toggling, and selection that
+follows arrow navigation have no built-in policy.
+
+`ListSelectionEvent` carries `Index`, optional row-root `ItemId`, optional `ContentRevision`, and
+`Source` (`Pointer` or `Keyboard`). The request does not update native selection state. Applications
+may accept or ignore it; resolve `ItemId` against current data before acting on a retained event
+whose revision is stale. Updating application selection independently does not move the native
+cursor or emit an event. Row and child click bindings still run independently, so avoid binding the
+same selection update to both a row click and the collection request.
+
+Render accepted selection through application-owned styles. The table sample uses
+`SampleStyles.CollectionRow(theme, selected)`, an `IGpuiElementStyle<DivTag>` recipe using the
+theme's selected background, border, and inherited text roles. Its rows are plain containers, so
+presses leave focus on the table for Space and Enter. After a change, refresh the old and new row
+ranges through `ListController.RefreshRanges`; that also invalidates the owner so header selection
+labels update. Keep content revision stable for these targeted refreshes. Theme changes refresh
+row batches automatically. This presentation needs no retained View per row or native selection
+store, and application code can choose its own colors, indicators, and sizing.
+
+Bind `.OnActivated(view, static (owner, e) => owner.OpenItem(e))` on List or Table to opt into
+activation. Unmodified Enter activates the native cursor when the collection itself has focus;
+held repeats and keys intended for text input do not activate. An unmodified primary-button double
+press activates its row unless a child consumes mouse-down. Focused child controls keep their own
+Enter behavior. Activation does not synthesize clicks or change selection, and ordinary row click
+bindings still run independently.
+
+`ListActivationEvent` carries `Index`, optional row-root `ItemId`, optional `ContentRevision`, and
+`Source` (`Pointer` or `Keyboard`) from the accepted datasource. Revision zero is distinct from an
+absent revision. Keyboard activation or selection may request one aligned row batch to resolve an uncached row's
+identity; navigation alone does not. The event owns its scalar data, and callbacks run through the
+normal View event boundary after native resource borrows are released.
+
 Keep `contentRevision` stable when a managed render cannot change any row output. Increment it when
 row content, styling, or height can change. Theme changes invalidate batches automatically.
 
@@ -200,13 +286,52 @@ zero is reserved. An `OnClick` binding without an explicit payload receives that
 Structural commands preserve unaffected measurements and row batches when their declared result
 matches the next managed snapshot.
 
+The cursor belongs to the retained List/Table resource, so cache eviction, content refresh, theme
+changes, and layout-only rebuilds do not reset it. Accepted `Splice` hints also move it with surviving
+items: inserting/removing earlier rows shifts its index. Removing the active item chooses the first
+replacement or successor at the splice start, falling back to the final row. An empty list has no
+active cursor; inserting into it starts at the first row. `Reset`, a count change without matching
+hints, or invalid hints reset it to the first row. Pointer/keyboard handlers from a superseded row
+declaration cannot change the new cursor before the next paint.
+
+`ItemId` preserves element state and event payload identity; it is not a complete native datasource
+index. Native cursor preservation follows valid splices and does not search unseen rows for a moved
+ID. Use `Reset` for arbitrary reorder/replacement whose identity cannot be expressed by surviving
+splice ranges. A remove-then-insert sequence treats the removed active item as deleted.
+
 ## Retained Table
 
 `ui.Table` uses the List row engine and adds declarative `TableColumn[]` metadata. Rust materializes
 the header and applies the same column widths and alignment to `ui.TableCell(column, ...)` nodes.
 
+`.Header(...)` supplies one normal managed content element per column, in declaration order. Call it
+once; no header children means the native strip uses `TableColumn.Header` labels. Both validators
+reject a nonzero header count that differs from the number of columns. Header content supports
+ordinary buttons, icons, typed styles, and View composition; it is outside virtual row snapshots.
+The native strip preserves column widths/alignment and scrollbar gutter, with a minimum height of
+32 pixels that grows for taller content. `TableOptions(showHeader: false)` hides either header form.
+Header controls own their focus and keyboard activation; table navigation runs only while the table
+itself has focus.
+
+`HeaderBackground`, `HeaderTextColor`, and `HeaderBorderColor` compose with
+`IGpuiElementStyle<TableTag>`. Background and the one-pixel bottom border span the full strip,
+including its scrollbar gutter; header cells still exclude the gutter to align with rows. Header
+text color is inherited by both column labels and custom content, while explicit child colors win.
+Omitted colors use the current theme's element background, muted text, and border variant. The last
+declaration for each color wins and preserves alpha; omitting an override on a later render restores
+the theme default. Header paint is separate from column metadata, so changing it does not invalidate
+row batches or reset the retained cursor or scroll position.
+
+Sorting belongs to the application: a header button changes model order and content revision, then
+calls `ListController.Reset(count)` for an arbitrary reorder. Keep selection by model identity.
+Header content is separate from the column metadata used to reconcile row layout. See the
+[Table sample](../samples/Gpui.Sample/Views/TableView.cs) for a sortable service header and stable
+selection, and the [Input sample](../samples/Gpui.Sample/Views/InputGalleryView.cs) and
+[sample styles](../samples/Gpui.Sample/SampleStyles.cs) for composed fields with help/error text.
+
 Rows keep List semantics, including batching, model identity, keyboard navigation, refresh, and
 splice behavior. A changed column declaration invalidates row batches because cell layout changes.
+Page Up/Down use the row viewport below the header, so header height is excluded from a page.
 Managed row content should use a horizontal container; Table does not infer a row layout from plain
 Div children.
 
@@ -223,8 +348,28 @@ Bindings are opt-in: `OnChanged`, `OnSubmitted`, and `OnFocusChanged`. Without a
 editing does not cross into managed code. `Utf8InputOptions`, `InputEvent.Utf8Value`, and UTF-8
 controller overloads avoid unnecessary UTF-16 allocation. `InputEvent.Value` decodes lazily.
 
-`InputController` supports `Focus`, `Blur`, `SelectAll`, and `SetValue`. The declarative initial
-value is consumed only when the native keyed resource is created.
+`InputController` supports `Focus`, `Blur`, `SelectAll`, `SetValue`, and `SetValueIfCurrent`.
+The declarative initial value is consumed only when the native keyed resource is created.
+`SetValue` normalizes line breaks to spaces. If the resulting value already matches, it preserves
+selection, IME composition, and horizontal scrolling. A changed value moves the caret to the end,
+clears composition, and resets horizontal scrolling without emitting a change event. Replacement
+is unconditional.
+
+For asynchronous formatting or validation, retain the triggering `InputEvent.Revision` and call
+`controller.SetValueIfCurrent(result, inputEvent.Revision)` from an accepted event/effect continuation.
+Native delivery silently skips a stale revision or active IME composition. The default
+`InputSelectionPolicy.Preserve` keeps the current selection's UTF-16 offsets and direction, clamping
+forward to grapheme boundaries in the replacement (or its end). `MoveToEnd` instead moves the caret
+to the end. `InputCompositionPolicy.CancelComposition` explicitly permits a changed value to cancel
+composition. Identical normalized values preserve editing state regardless of these policies.
+Queueing is not confirmation that the replacement applied, and replacements emit no change event.
+Use the next native event's revision for subsequent conditional work.
+
+Revisions are nonzero opaque tokens, not edit counts. They change for controller writes, IME content
+and composition transitions, and resource recreation; caret movement and focus do not change them.
+An event remains safe to inspect asynchronously, but its revision may already be stale. Continue
+using the View's owned work/effect lifetime for cancellation and accepted delivery; revision checking
+protects native editing state and does not grant a retired View permission to issue commands.
 
 The retained GPUI.NET engine remains authoritative after comparison with the foundation Input.
 Foundation `InputState` uses a Rope-backed editor and emits change notifications without a value or
@@ -242,6 +387,15 @@ logarithmic mapping, bounds, and step size. GPUI owns pointer drag and keyboard 
 `OnChanged` fires for value changes; `OnReleased` marks the end of a pointer or keyboard
 interaction. `SliderController.SetValue` updates retained native state without synthesizing an
 interaction event.
+
+`TrackColor`, `FillColor`, `ThumbColor`, and `ThumbBorderColor` customize the retained parts through
+`IGpuiElementStyle<SliderTag>` recipes. Omitted colors resolve from the current theme: border variant
+for the track, accent for the fill and thumb border, and surface background for the thumb. Explicit
+colors preserve alpha; the last declaration for each part wins. Removing an override in a later
+render restores the current theme default. Presentation changes preserve value, active thumb,
+focus, drag/keyboard interaction, and event revision. Part overrides do not alter disabled behavior
+or the shared focus ring. The Input gallery demonstrates switching between a sample-owned recipe and theme
+defaults on the same retained slider.
 
 The retained GPUI.NET engine remains authoritative after comparison with the foundation Slider.
 It supports snapshot-time configuration reconciliation, focus and keyboard interaction, range

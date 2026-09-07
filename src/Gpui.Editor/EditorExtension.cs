@@ -242,7 +242,7 @@ public readonly struct EditorController
 
     /// <summary>
     /// Supplies the document once, independently from render snapshots. This command may be sent
-    /// during <c>OnMounted</c>, before the matching editor declaration is materialized.
+    /// during accepted effect setup, before the matching editor declaration is materialized.
     /// </summary>
     public void Bootstrap(string value)
     {
@@ -314,12 +314,12 @@ public readonly struct EditorController
 public static class EditorElements
 {
     /// <summary>Creates a controller for an editor declared by the same View.</summary>
-    public static EditorController CreateEditorController(this ViewContext context, string key) =>
+    public static EditorController CreateEditorController(this ViewConstruction context, string key) =>
         new(context.CreateNativeExtensionController(EditorExtension.Component, key));
 
     /// <summary>Creates a controller whose editor resource key is already UTF-8.</summary>
     public static EditorController CreateEditorController(
-        this ViewContext context,
+        this ViewConstruction context,
         ReadOnlySpan<byte> utf8Key
     ) => new(context.CreateNativeExtensionController(EditorExtension.Component, utf8Key));
 
@@ -379,6 +379,40 @@ public static class EditorElements
     )
     {
         return ui.NativeExtension(EditorExtension.Component, key, Configuration(options, 0, 0));
+    }
+
+    /// <summary>Declares a keyed editor with a document-change callback before mounting.</summary>
+    public static Element<NativeExtensionTag> Editor<TView>(
+        this RenderContext ui,
+        ReadOnlySpan<char> key,
+        TView view,
+        Action<TView, EditorChangedEvent> onChanged,
+        EditorOptions? options = null
+    )
+        where TView : ViewBase
+    {
+        var changed = ui.BindNativeExtensionEvent(view, onChanged);
+        return ui.NativeExtension(EditorExtension.Component, key, Configuration(options, changed.Token, 0));
+    }
+
+    /// <summary>Declares a keyed editor with change and command-rejection callbacks before mounting.</summary>
+    public static Element<NativeExtensionTag> Editor<TView>(
+        this RenderContext ui,
+        ReadOnlySpan<char> key,
+        TView view,
+        Action<TView, EditorChangedEvent> onChanged,
+        Action<TView, EditorCommandRejectedEvent> onCommandRejected,
+        EditorOptions? options = null
+    )
+        where TView : ViewBase
+    {
+        var changed = ui.BindNativeExtensionEvent(view, onChanged);
+        var rejected = ui.BindNativeExtensionEvent(view, onCommandRejected);
+        return ui.NativeExtension(
+            EditorExtension.Component,
+            key,
+            Configuration(options, changed.Token, rejected.Token)
+        );
     }
 
     internal static byte[] Configuration(

@@ -1,8 +1,13 @@
 use std::mem::size_of;
 
-pub const ABI_VERSION: u32 = 3;
-pub const ARENA_FLAG_NATIVE_OWNED: u32 = 1;
-pub const RENDER_GROW_REQUIRED: i32 = 1;
+pub const ABI_VERSION: u32 = 7;
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NativeArtifactKey {
+    pub source: u64,
+    pub artifact: u64,
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -45,6 +50,7 @@ pub struct RenderArena {
     pub utf8_length: i32,
     pub utf8_capacity: i32,
     pub generation: u32,
+    // ABI 4: flags and the legacy growth-request fields are reserved and must be zero.
     pub flags: u32,
     pub required_node_capacity: i32,
     pub required_op_capacity: i32,
@@ -170,10 +176,13 @@ pub struct NativeMenuRecord {
     pub reserved: u32,
 }
 
-pub type ManagedRenderFn = unsafe extern "C" fn(u64, *mut RenderArena, *mut u32) -> i32;
+pub type ManagedRenderFn = unsafe extern "C" fn(u64, *mut RenderArena, *mut u32, *mut u64) -> i32;
+pub type ManagedRenderCompletedFn = unsafe extern "C" fn(u64, u64, i32) -> i32;
 pub type ManagedClickFn = unsafe extern "C" fn(u64, u64, u64, *const NativeClickEvent) -> i32;
 pub type ManagedListRenderRangeFn =
-    unsafe extern "C" fn(u64, u64, u32, u32, *mut RenderArena, *mut u32) -> i32;
+    unsafe extern "C" fn(u64, u64, u64, u32, u32, *mut RenderArena, *mut u32, *mut u64) -> i32;
+pub type ManagedReleaseArtifactFn = unsafe extern "C" fn(u64, u64, u64, i32) -> i32;
+pub type ManagedAcceptArtifactFn = unsafe extern "C" fn(u64, u64, u64) -> i32;
 pub type ManagedDynamicFrameFn = unsafe extern "C" fn(u64, u32) -> i32;
 pub type ManagedControlEventFn = unsafe extern "C" fn(u64, u64, *const NativeControlEvent) -> i32;
 pub type ManagedApplicationStartedFn = unsafe extern "C" fn(u64) -> i32;
@@ -192,11 +201,45 @@ pub struct ManagedCallbacks {
     pub window_closed: Option<ManagedWindowClosedFn>,
     pub menu_action: Option<ManagedMenuActionFn>,
     pub dynamic_frame: Option<ManagedDynamicFrameFn>,
+    pub render_completed: Option<ManagedRenderCompletedFn>,
+    pub release_artifact: Option<ManagedReleaseArtifactFn>,
+    pub accept_artifact: Option<ManagedAcceptArtifactFn>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn acceptance_callback_extends_the_callback_table() {
+        let pointer_size = std::mem::size_of::<usize>();
+        assert_eq!(std::mem::size_of::<ManagedCallbacks>(), 12 * pointer_size);
+        assert_eq!(
+            std::mem::offset_of!(ManagedCallbacks, render_completed),
+            9 * pointer_size
+        );
+        assert_eq!(
+            std::mem::offset_of!(ManagedCallbacks, release_artifact),
+            10 * pointer_size
+        );
+        assert_eq!(
+            std::mem::offset_of!(ManagedCallbacks, accept_artifact),
+            11 * pointer_size
+        );
+        assert_eq!(std::mem::size_of::<NativeArtifactKey>(), 16);
+        assert_eq!(std::mem::offset_of!(NativeArtifactKey, artifact), 8);
+        assert_eq!(
+            std::mem::offset_of!(GpuiDotnetApiV3, invalidate_artifacts),
+            16 + 8 * pointer_size
+        );
+        assert_eq!(ABI_VERSION, 7);
+    }
 }
 
 pub type ValidateRenderFn = unsafe extern "C" fn(*const RenderArena, u32) -> i32;
 pub type RunApplicationFn = unsafe extern "C" fn(u64, *const ManagedCallbacks) -> i32;
 pub type NotifyViewFn = unsafe extern "C" fn(u64) -> i32;
+pub type InvalidateArtifactsFn = unsafe extern "C" fn(u64, *const NativeArtifactKey, i32) -> i32;
 pub type DispatchCommandFn = unsafe extern "C" fn(u64, *const NativeResourceCommand) -> i32;
 pub type DispatchExtensionCommandFn =
     unsafe extern "C" fn(u64, *const NativeExtensionCommand) -> i32;
@@ -218,6 +261,7 @@ pub struct GpuiDotnetApiV3 {
     pub dispatch_application_menu: Option<DispatchApplicationMenuFn>,
     pub supports_extension: Option<SupportsExtensionFn>,
     pub dispatch_extension_command: Option<DispatchExtensionCommandFn>,
+    pub invalidate_artifacts: Option<InvalidateArtifactsFn>,
 }
 
 impl GpuiDotnetApiV3 {

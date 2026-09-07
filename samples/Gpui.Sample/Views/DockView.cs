@@ -37,12 +37,12 @@ internal sealed partial class DockView : View
                     ui.DockPanel(
                         "editor-a",
                         "Editor A",
-                        ui.Child<CounterCardView, CounterCardProps>("editor-a", in alpha)
+                        ui.Child("editor-a", CounterCardView.Spec(alpha))
                     ),
                     ui.DockPanel(
                         "editor-b",
                         "Editor B",
-                        ui.Child<CounterCardView, CounterCardProps>("editor-b", in beta)
+                        ui.Child("editor-b", CounterCardView.Spec(beta))
                     ),
                 ]
             );
@@ -53,7 +53,7 @@ internal sealed partial class DockView : View
                 panels: ui.DockPanel(
                     "editor-a",
                     "Editor A",
-                    ui.Child<CounterCardView, CounterCardProps>("editor-a", in alpha)
+                    ui.Child("editor-a", CounterCardView.Spec(alpha))
                 )
             );
         }
@@ -63,7 +63,7 @@ internal sealed partial class DockView : View
                 panels: ui.DockPanel(
                     "editor-b",
                     "Editor B",
-                    ui.Child<CounterCardView, CounterCardProps>("editor-b", in beta)
+                    ui.Child("editor-b", CounterCardView.Spec(beta))
                 )
             );
         }
@@ -93,7 +93,7 @@ internal sealed partial class DockView : View
                     panels: ui.DockPanel(
                         "activity",
                         "Activity",
-                        ui.Child<ActivityView>("activity")
+                        ui.Child("activity", ActivityView.Spec())
                     )
                 )
             )

@@ -1,12 +1,13 @@
+using System.Buffers;
 using Gpui.Interop;
 
 namespace Gpui;
 
 internal static unsafe class ManagedValidator
 {
-    internal static void Validate(RenderArena* arena, Element root)
+    internal static void ValidateRoot(RenderArena* arena, Element root)
     {
-        if (root.Arena != arena || root.Generation != arena->Generation)
+        if (root.Owner is null || root.Owner.NativeArena != arena || root.Generation != arena->Generation)
         {
             throw new InvalidOperationException(
                 "Root does not belong to the active render generation."
@@ -17,10 +18,40 @@ internal static unsafe class ManagedValidator
         {
             throw new InvalidOperationException("Root node is outside the node arena.");
         }
+    }
 
+    internal static void Validate(RenderArena* arena, Element root)
+    {
+        ValidateRoot(arena, root);
+        using var access = root.Access();
+        Validate(arena, root.Node);
+    }
+
+    // Trusted borrowed descriptors are validated without manufacturing an authoring Element.
+    internal static void Validate(RenderArena* arena, uint root)
+    {
+        if (root >= (uint)arena->NodeLength)
+            throw new InvalidOperationException("Root node is outside the node arena.");
+        NodeInfo[]? rented = null;
+        Span<NodeInfo> nodes = arena->NodeLength <= 128
+            ? stackalloc NodeInfo[arena->NodeLength]
+            : (rented = ArrayPool<NodeInfo>.Shared.Rent(arena->NodeLength)).AsSpan(0, arena->NodeLength);
+        try { ValidateCore(arena, root, nodes); }
+        finally { if (rented is not null) ArrayPool<NodeInfo>.Shared.Return(rented); }
+    }
+
+    private static void ValidateCore(RenderArena* arena, uint root, Span<NodeInfo> nodes)
+    {
+        var panelCount = 0;
         for (var i = 0; i < arena->NodeLength; i++)
         {
             ref readonly var node = ref arena->Nodes[i];
+            nodes[i] = new NodeInfo
+            {
+                Parent = -1,
+                DockArea = UnknownArea,
+            };
+            if ((ComponentId)node.Component == ComponentId.DockPanel) panelCount++;
             if (node.Flags != 0)
             {
                 throw new InvalidOperationException(
@@ -129,7 +160,7 @@ internal static unsafe class ManagedValidator
             }
         }
 
-        var rootComponent = (ComponentId)arena->Nodes[root.Node].Component;
+        var rootComponent = (ComponentId)arena->Nodes[root].Component;
         if (
             rootComponent
             is ComponentId.DockSplit
@@ -250,264 +281,166 @@ internal static unsafe class ManagedValidator
                     $"Operation {i} has a payload that violates the schema constraint ({payloadError})."
                 );
             }
+            if (code is OpCode.DockActiveIndex or OpCode.DockRegionSide)
+                nodes[(int)operation.Node].ComponentValue = (uint)operation.A;
+            else if (code == OpCode.TableColumn)
+                nodes[(int)operation.Node].ComponentValue++;
         }
 
-        var markedChildren = 0;
-        try
+        for (var i = 0; i < arena->ChildLength; i++)
         {
-            for (var i = 0; i < arena->ChildLength; i++)
+            ref readonly var edge = ref arena->Children[i];
+            if (edge.Parent >= (uint)nodes.Length || edge.Child >= (uint)nodes.Length)
+                throw new InvalidOperationException($"Child edge {i} references an invalid node.");
+
+            ref var child = ref nodes[(int)edge.Child];
+            if (child.Parent != -1)
+                throw new InvalidOperationException($"Node {edge.Child} was attached more than once.");
+            if (edge.Child == root)
+                throw new InvalidOperationException("The root node cannot have a parent.");
+            child.Parent = (int)edge.Parent;
+            ref var parent = ref nodes[(int)edge.Parent];
+            parent.ChildCount++;
+
+            var parentComponent = (ComponentId)arena->Nodes[edge.Parent].Component;
+            var childComponent = (ComponentId)arena->Nodes[edge.Child].Component;
+            if ((parentComponent == ComponentId.Drawing) != (childComponent == ComponentId.Path))
+                throw new InvalidOperationException(
+                    "Drawing elements may contain only Path elements, and Path elements must belong to a Drawing.");
+
+            var validDockEdge = parentComponent switch
             {
-                ref readonly var edge = ref arena->Children[i];
-                if (edge.Parent >= (uint)arena->NodeLength || edge.Child >= (uint)arena->NodeLength)
-                {
-                    throw new InvalidOperationException(
-                        $"Child edge {i} references an invalid node."
-                    );
-                }
+                ComponentId.DockArea => childComponent is ComponentId.DockSplit or ComponentId.DockTabs or ComponentId.DockRegion,
+                ComponentId.DockSplit => childComponent is ComponentId.DockSplit or ComponentId.DockTabs,
+                ComponentId.DockTabs => childComponent == ComponentId.DockPanel,
+                ComponentId.DockRegion => childComponent is ComponentId.DockSplit or ComponentId.DockTabs,
+                _ => childComponent is not (ComponentId.DockSplit or ComponentId.DockTabs or ComponentId.DockPanel or ComponentId.DockRegion),
+            };
+            if (!validDockEdge)
+                throw new InvalidOperationException($"{childComponent} is not a valid child of {parentComponent}.");
 
-                // Flags are reserved-zero on the wire. Borrow bit 0 only while validating to
-                // perform an allocation-free O(E) single-parent check, then restore it below.
-                ref var childNode = ref arena->Nodes[edge.Child];
-                if ((childNode.Flags & 1) != 0)
-                {
-                    throw new InvalidOperationException(
-                        $"Node {edge.Child} was attached more than once."
-                    );
-                }
-                childNode.Flags |= 1;
-                markedChildren++;
-
-                var parentComponent = (ComponentId)arena->Nodes[edge.Parent].Component;
-                var childComponent = (ComponentId)childNode.Component;
-                if (
-                    (parentComponent == ComponentId.Drawing) != (childComponent == ComponentId.Path)
-                )
-                {
-                    throw new InvalidOperationException(
-                        "Drawing elements may contain only Path elements, and Path elements must belong to a Drawing."
-                    );
-                }
-
-                var validDockEdge = parentComponent switch
-                {
-                    ComponentId.DockArea => childComponent is ComponentId.DockSplit or ComponentId.DockTabs or ComponentId.DockRegion,
-                    ComponentId.DockSplit => childComponent is ComponentId.DockSplit or ComponentId.DockTabs,
-                    ComponentId.DockTabs => childComponent == ComponentId.DockPanel,
-                    ComponentId.DockRegion => childComponent is ComponentId.DockSplit or ComponentId.DockTabs,
-                    _ => childComponent is not (
-                        ComponentId.DockSplit
-                            or ComponentId.DockTabs
-                            or ComponentId.DockPanel
-                            or ComponentId.DockRegion
-                    ),
-                };
-                if (!validDockEdge)
-                {
-                    throw new InvalidOperationException(
-                        $"{childComponent} is not a valid child of {parentComponent}."
-                    );
-                }
-
-                if (edge.Child == root.Node)
-                {
-                    throw new InvalidOperationException("The root node cannot have a parent.");
-                }
-            }
-
-            for (var nodeIndex = 0; nodeIndex < arena->NodeLength; nodeIndex++)
+            if (parentComponent == ComponentId.DockArea)
             {
-                var component = (ComponentId)arena->Nodes[nodeIndex].Component;
-                if (component == ComponentId.Path && (arena->Nodes[nodeIndex].Flags & 1) == 0)
+                if (childComponent == ComponentId.DockRegion)
                 {
-                    throw new InvalidOperationException(
-                        $"Path node {nodeIndex} must belong to a Drawing."
-                    );
+                    var side = 1u << (int)child.ComponentValue;
+                    if ((parent.SideMask & side) != 0)
+                        throw new InvalidOperationException($"DockArea node {edge.Parent} declares the same side more than once.");
+                    parent.SideMask |= side;
                 }
-                if (
-                    component
-                    is not (
-                        ComponentId.Overlay
-                        or ComponentId.Tooltip
-                        or ComponentId.ContextMenu
-                        or ComponentId.PopoverMenu
-                        or ComponentId.Dynamic
-                        or ComponentId.DockArea
-                        or ComponentId.DockSplit
-                        or ComponentId.DockTabs
-                        or ComponentId.DockPanel
-                        or ComponentId.DockRegion
-                    )
-                )
-                {
-                    continue;
-                }
-
-                var childCount = 0;
-                for (var edgeIndex = 0; edgeIndex < arena->ChildLength; edgeIndex++)
-                {
-                    if (arena->Children[edgeIndex].Parent == (uint)nodeIndex)
-                    {
-                        childCount++;
-                    }
-                }
-                var validCount = component switch
-                {
-                    ComponentId.Overlay or ComponentId.Dynamic or ComponentId.DockPanel or ComponentId.DockRegion => childCount == 1,
-                    ComponentId.Tooltip or ComponentId.ContextMenu or ComponentId.PopoverMenu => childCount == 2,
-                    ComponentId.DockArea => childCount is >= 1 and <= 4,
-                    ComponentId.DockSplit or ComponentId.DockTabs => childCount > 0,
-                    _ => false,
-                };
-                if (!validCount)
-                {
-                    throw new InvalidOperationException(
-                        $"{component} node {nodeIndex} has an invalid child count."
-                    );
-                }
-                if (component == ComponentId.DockTabs)
-                {
-                    var activeIndex = 0u;
-                    for (var opIndex = 0; opIndex < arena->OpLength; opIndex++)
-                    {
-                        ref readonly var operation = ref arena->Ops[opIndex];
-                        if (
-                            operation.Node == (uint)nodeIndex
-                            && (OpCode)operation.Code == OpCode.DockActiveIndex
-                        )
-                        {
-                            activeIndex = checked((uint)operation.A);
-                        }
-                    }
-                    if (activeIndex >= childCount)
-                    {
-                        throw new InvalidOperationException(
-                            $"DockTabs node {nodeIndex} has an active index outside its panels."
-                        );
-                    }
-                }
-                if (component == ComponentId.DockArea)
-                {
-                    var centerCount = 0;
-                    var sideMask = 0u;
-                    for (var edgeIndex = 0; edgeIndex < arena->ChildLength; edgeIndex++)
-                    {
-                        ref readonly var edge = ref arena->Children[edgeIndex];
-                        if (edge.Parent != (uint)nodeIndex)
-                        {
-                            continue;
-                        }
-                        if (
-                            (ComponentId)arena->Nodes[edge.Child].Component
-                            != ComponentId.DockRegion
-                        )
-                        {
-                            centerCount++;
-                            continue;
-                        }
-
-                        var side = 0u;
-                        for (var opIndex = 0; opIndex < arena->OpLength; opIndex++)
-                        {
-                            ref readonly var operation = ref arena->Ops[opIndex];
-                            if (
-                                operation.Node == edge.Child
-                                && (OpCode)operation.Code == OpCode.DockRegionSide
-                            )
-                            {
-                                side = checked((uint)operation.A);
-                            }
-                        }
-                        var sideBit = 1u << checked((int)side);
-                        if ((sideMask & sideBit) != 0)
-                        {
-                            throw new InvalidOperationException(
-                                $"DockArea node {nodeIndex} declares the same side more than once."
-                            );
-                        }
-                        sideMask |= sideBit;
-                    }
-                    if (centerCount != 1)
-                    {
-                        throw new InvalidOperationException(
-                            $"DockArea node {nodeIndex} must declare exactly one center layout."
-                        );
-                    }
-                }
-            }
-
-            for (var left = 0; left < arena->NodeLength; left++)
-            {
-                if ((ComponentId)arena->Nodes[left].Component != ComponentId.DockPanel)
-                {
-                    continue;
-                }
-                var leftArea = FindDockAreaAncestor(arena, checked((uint)left));
-                for (var right = left + 1; right < arena->NodeLength; right++)
-                {
-                    if (
-                        (ComponentId)arena->Nodes[right].Component != ComponentId.DockPanel
-                        || FindDockAreaAncestor(arena, checked((uint)right)) != leftArea
-                    )
-                    {
-                        continue;
-                    }
-                    if (DockPanelId(arena, left).SequenceEqual(DockPanelId(arena, right)))
-                    {
-                        throw new InvalidOperationException(
-                            $"DockArea contains duplicate panel ID '{System.Text.Encoding.UTF8.GetString(DockPanelId(arena, left))}'."
-                        );
-                    }
-                }
-            }
-
-            // Edge validation above marks every attached child with Flags bit 0. Any
-            // non-root node left unmarked was declared but never attached to the tree,
-            // which native validation would only report as an opaque status code.
-            for (var nodeIndex = 0; nodeIndex < arena->NodeLength; nodeIndex++)
-            {
-                if (
-                    (uint)nodeIndex != root.Node
-                    && (arena->Nodes[nodeIndex].Flags & 1) == 0
-                )
-                {
-                    var component = (ComponentId)arena->Nodes[nodeIndex].Component;
-                    throw new InvalidOperationException(
-                        $"Node {nodeIndex} ({component}) was declared but never attached to the render tree."
-                    );
-                }
+                else parent.CenterCount++;
             }
         }
-        finally
+
+        for (var index = 0; index < nodes.Length; index++)
         {
-            for (var i = 0; i < markedChildren; i++)
+            ref var node = ref nodes[index];
+            var component = (ComponentId)arena->Nodes[index].Component;
+            if (component == ComponentId.Path && node.Parent == -1)
+                throw new InvalidOperationException($"Path node {index} must belong to a Drawing.");
+            if ((uint)index != root && node.Parent == -1)
+                throw new InvalidOperationException($"Node {index} ({component}) was declared but never attached to the render tree.");
+
+            var validCount = component switch
             {
-                arena->Nodes[arena->Children[i].Child].Flags &= unchecked((ushort)~1);
+                ComponentId.Overlay or ComponentId.Dynamic or ComponentId.DockPanel or ComponentId.DockRegion => node.ChildCount == 1,
+                ComponentId.Tooltip or ComponentId.ContextMenu or ComponentId.PopoverMenu => node.ChildCount == 2,
+                ComponentId.DockArea => node.ChildCount is >= 1 and <= 4,
+                ComponentId.DockSplit or ComponentId.DockTabs => node.ChildCount > 0,
+                ComponentId.Table => node.ChildCount == 0 || node.ChildCount == node.ComponentValue,
+                _ => true,
+            };
+            if (!validCount)
+                throw new InvalidOperationException($"{component} node {index} has an invalid child count.");
+            if (component == ComponentId.DockTabs && node.ComponentValue >= node.ChildCount)
+                throw new InvalidOperationException($"DockTabs node {index} has an active index outside its panels.");
+            if (component == ComponentId.DockArea && node.CenterCount != 1)
+                throw new InvalidOperationException($"DockArea node {index} must declare exactly one center layout.");
+        }
+
+        // Resolve each parent path once, independent of declaration/edge order. The scratch
+        // chain unwinds ancestor-first to compute nearest Dock areas and detect disconnected cycles.
+        for (var index = 0; index < nodes.Length; index++)
+        {
+            if (nodes[index].DockArea != UnknownArea) continue;
+            var current = index;
+            var path = -1;
+            while (current != -1 && nodes[current].DockArea == UnknownArea)
+            {
+                nodes[current].DockArea = VisitingArea;
+                nodes[current].PathPrevious = path;
+                path = current;
+                current = nodes[current].Parent;
             }
+            if (current != -1 && nodes[current].DockArea == VisitingArea)
+                throw new InvalidOperationException("The render tree contains a cycle.");
+            var area = current == -1 ? -1 : nodes[current].DockArea;
+            while (path != -1)
+            {
+                if ((ComponentId)arena->Nodes[path].Component == ComponentId.DockArea) area = path;
+                nodes[path].DockArea = area;
+                path = nodes[path].PathPrevious;
+            }
+        }
+        ValidatePanelIds(arena, nodes, panelCount);
+    }
+
+    private const int UnknownArea = -2;
+    private const int VisitingArea = -3;
+
+    private struct NodeInfo
+    {
+        internal int Parent;
+        internal int ChildCount;
+        // Dock active index/region side, or Table column count; component kinds are exclusive.
+        internal uint ComponentValue;
+        internal int CenterCount;
+        internal uint SideMask;
+        internal int DockArea;
+        internal int PathPrevious;
+    }
+
+    private readonly unsafe struct PanelId(int area, byte* bytes, int length) : IComparable<PanelId>
+    {
+        internal readonly int Area = area;
+        internal readonly byte* Bytes = bytes;
+        internal readonly int Length = length;
+
+        public int CompareTo(PanelId other)
+        {
+            var areaOrder = Area.CompareTo(other.Area);
+            return areaOrder != 0 ? areaOrder
+                : new ReadOnlySpan<byte>(Bytes, Length).SequenceCompareTo(new ReadOnlySpan<byte>(other.Bytes, other.Length));
         }
     }
 
-    private static uint FindDockAreaAncestor(RenderArena* arena, uint node)
+    private static void ValidatePanelIds(RenderArena* arena, ReadOnlySpan<NodeInfo> nodes, int count)
     {
-        while (true)
+        if (count < 2) return;
+        PanelId[]? rented = null;
+        Span<PanelId> panels = count <= 128 ? stackalloc PanelId[count]
+            : (rented = ArrayPool<PanelId>.Shared.Rent(count)).AsSpan(0, count);
+        try
         {
-            var parent = uint.MaxValue;
-            for (var index = 0; index < arena->ChildLength; index++)
+            var next = 0;
+            for (var index = 0; index < nodes.Length; index++)
             {
-                if (arena->Children[index].Child == node)
-                {
-                    parent = arena->Children[index].Parent;
-                    break;
-                }
+                if ((ComponentId)arena->Nodes[index].Component != ComponentId.DockPanel) continue;
+                var id = DockPanelId(arena, index);
+                panels[next++] = new PanelId(nodes[index].DockArea, arena->Utf8 + arena->Nodes[index].DataOffset, id.Length);
             }
-            if (parent == uint.MaxValue)
-            {
-                return parent;
-            }
-            if ((ComponentId)arena->Nodes[parent].Component == ComponentId.DockArea)
-            {
-                return parent;
-            }
-            node = parent;
+            // Sort UTF-8 slices, without allocating strings or hashing application-controlled IDs.
+            panels.Sort();
+            for (var index = 1; index < panels.Length; index++)
+                if (panels[index - 1].CompareTo(panels[index]) == 0)
+                    throw new InvalidOperationException(
+                        $"DockArea contains duplicate panel ID '{System.Text.Encoding.UTF8.GetString(new ReadOnlySpan<byte>(panels[index].Bytes, panels[index].Length))}'.");
+        }
+        finally
+        {
+            // Scratch never retains pointers into a completed arena borrow.
+            panels.Clear();
+            if (rented is not null) ArrayPool<PanelId>.Shared.Return(rented);
         }
     }
 

@@ -7,18 +7,18 @@ internal sealed partial class ActivityView : View
     private const int ItemCount = 20_000;
     private ListController _list;
     private int _selected = -1;
-    private ulong _contentRevision;
 
     private void SelectRow(ClickEvent e)
     {
         var next = checked((int)e.Payload);
+        if (next == _selected)
+        {
+            return;
+        }
+
         var previous = _selected;
         _selected = next;
-        _contentRevision++;
-
-        // The item count and ordering did not change. Refresh only the affected measurements
-        // with one queued command; the controller also invalidates this View so the row
-        // content is regenerated.
+        // Selection changes only these rows, including measurements outside cached batches.
         if (previous >= 0)
         {
             _list.RefreshRanges((previous, 1), (next, 1));
@@ -66,7 +66,8 @@ internal sealed partial class ActivityView : View
 
         var list = ui.List(
                 ref _list,
-                new ListDataSource(ItemCount, _contentRevision),
+                // Range refreshes carry content changes; a revision bump would evict every batch.
+                new ListDataSource(ItemCount, contentRevision: 0),
                 Rows.ActivityRow,
                 new ListOptions(
                     batchSize: 48,

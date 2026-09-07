@@ -1,3 +1,4 @@
+using Gpui.Interop.Internal;
 using System.Runtime.CompilerServices;
 using Gpui.Interop;
 
@@ -8,25 +9,33 @@ namespace Gpui;
 /// </summary>
 public readonly unsafe ref partial struct RenderContext
 {
-    private readonly RenderArena* _arena;
+    private readonly RenderArenaOwner _storage;
+    private readonly uint _generation;
+    private RenderArenaOwner _arena
+    {
+        get { _storage.GetArena(_generation); return _storage; }
+    }
+    internal RenderArenaOwner.AccessScope Access() => _storage.Access(_generation);
+    internal RenderArenaOwner Storage => _arena;
     private readonly IViewRenderer? _views;
     private readonly ViewBase? _owner;
     private readonly GpuiTheme _theme;
 
     internal RenderContext(
-        RenderArena* arena,
+        RenderArenaOwner arena,
         IViewRenderer? views = null,
         ViewBase? owner = null,
         GpuiTheme? theme = null
     )
     {
-        _arena = arena;
+        _storage = arena;
+        _generation = arena.NativeArena->Generation;
         _views = views;
         _owner = owner;
         _theme = theme ?? GpuiTheme.Default;
     }
 
-    internal RenderArena* NativeArena => _arena;
+    internal RenderArena* NativeArena => _arena.NativeArena;
 
     /// <summary>
     /// The active application theme. Element-only contexts use <see cref="GpuiTheme.Default"/>.
@@ -34,7 +43,7 @@ public readonly unsafe ref partial struct RenderContext
     public GpuiTheme Theme => _theme;
 
     internal ViewBase EventBindingOwner =>
-        ViewBase.CurrentEventBindingOwner
+        ViewEventRegistry.CurrentEventBindingOwner
         ?? _owner
         ?? throw new InvalidOperationException(
             "Managed title-bar menu actions require an owning View during rendering."
@@ -43,65 +52,53 @@ public readonly unsafe ref partial struct RenderContext
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void AddInteractiveOwner(Element element)
     {
-        var owner = ViewBase.CurrentEventBindingOwner ?? _owner;
-        var handle = owner?.RuntimeViewHandle ?? 0;
+        var owner = ViewEventRegistry.CurrentEventBindingOwner ?? _owner;
+        var handle = owner?.Runtime.RuntimeViewHandle ?? 0;
         if (handle != 0)
         {
             ArenaWriter.AddU32(element, OpCode.ElementOwner, handle);
         }
     }
 
-    /// <summary>
-    /// Renders a framework-owned child in the next positional child slot. The instance is created
-    /// once per retained slot and reused while the slot continues to request the same view type.
-    /// Removing the slot permanently unmounts the child; a C# reference does not retain it.
-    /// </summary>
-    public Element Child<TView>()
+    public Element Child<TView>(ViewSpec<TView> spec)
         where TView : View, IGeneratedViewFactory<TView> =>
         RenderManagedChild<TView>(ChildSlot.Auto);
 
-    /// <summary>
-    /// Renders a framework-owned child in a stable keyed slot. If the same key later requests a
-    /// different view type, the old view is unmounted after the new tree commits and the slot is
-    /// replaced.
-    /// </summary>
-    public Element Child<TView>(ChildKey key)
+    public Element Child<TView>(ChildKey key, ViewSpec<TView> spec)
         where TView : View, IGeneratedViewFactory<TView> =>
         RenderManagedChild<TView>(ChildSlot.Keyed(key));
 
-    /// <summary>
-    /// Renders a framework-owned child with parent-supplied props. The positional slot owns the
-    /// retained instance until that slot is removed.
-    /// </summary>
-    public Element Child<TView, TProps>(in TProps props)
+    public Element Child<TView, TProps>(ViewSpec<TView, TProps> spec)
         where TProps : IEquatable<TProps>
-        where TView : View<TProps>, IGeneratedViewFactory<TView> =>
-        RenderManagedChild<TView, TProps>(ChildSlot.Auto, in props);
+        where TView : View<TProps>, IGeneratedViewFactory<TView, TProps> =>
+        RenderManagedChild<TView, TProps>(ChildSlot.Auto, spec.Props);
 
-    /// <summary>
-    /// Renders a keyed framework-owned child with parent-supplied props. Replacing or removing the
-    /// slot permanently unmounts its current instance.
-    /// </summary>
-    public Element Child<TView, TProps>(ChildKey key, in TProps props)
+    public Element Child<TView, TProps>(ChildKey key, ViewSpec<TView, TProps> spec)
         where TProps : IEquatable<TProps>
-        where TView : View<TProps>, IGeneratedViewFactory<TView> =>
-        RenderManagedChild<TView, TProps>(ChildSlot.Keyed(key), in props);
+        where TView : View<TProps>, IGeneratedViewFactory<TView, TProps> =>
+        RenderManagedChild<TView, TProps>(ChildSlot.Keyed(key), spec.Props);
+
+    public void Effect<TInput>(Effect<TInput> effect, TInput input) where TInput : IEquatable<TInput>
+    {
+        ArgumentNullException.ThrowIfNull(effect);
+        if (_views is null || _owner is null)
+            throw new InvalidOperationException("Effects belong to retained View rendering, not virtual rows.");
+        effect.Declare(_owner, input);
+    }
 
     private Element RenderManagedChild<TView>(ChildSlot slot)
         where TView : View, IGeneratedViewFactory<TView>
     {
         var renderer = _views ?? throw ChildRuntimeRequired();
-        var owner = _owner ?? throw ChildOwnerRequired();
-        return renderer.RenderChild<TView>(owner, slot, _arena);
+        return renderer.RenderChild<TView>(_owner ?? throw ChildOwnerRequired(), slot, _arena);
     }
 
-    private Element RenderManagedChild<TView, TProps>(ChildSlot slot, in TProps props)
+    private Element RenderManagedChild<TView, TProps>(ChildSlot slot, TProps props)
         where TProps : IEquatable<TProps>
-        where TView : View<TProps>, IGeneratedViewFactory<TView>
+        where TView : View<TProps>, IGeneratedViewFactory<TView, TProps>
     {
         var renderer = _views ?? throw ChildRuntimeRequired();
-        var owner = _owner ?? throw ChildOwnerRequired();
-        return renderer.RenderChild<TView, TProps>(owner, slot, in props, _arena);
+        return renderer.RenderChild<TView, TProps>(_owner ?? throw ChildOwnerRequired(), slot, in props, _arena);
     }
 
     private static InvalidOperationException ChildRuntimeRequired() =>
@@ -113,7 +110,7 @@ public readonly unsafe ref partial struct RenderContext
     private static InvalidOperationException ChildOwnerRequired() =>
         new("A retained child view requires an owning managed View.");
 
-    public uint Generation => _arena->Generation;
+    public uint Generation => _arena.NativeArena->Generation;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Element<DivTag> VStack(params ReadOnlySpan<Element> children)
@@ -151,7 +148,7 @@ public readonly unsafe ref partial struct RenderContext
     )
     {
         text.Complete(out var arena, out var offset, out var length);
-        if (arena != _arena)
+        if (arena != NativeArena)
         {
             throw new InvalidOperationException(
                 "The interpolated text belongs to a different render context."

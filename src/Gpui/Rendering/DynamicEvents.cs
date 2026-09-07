@@ -10,6 +10,42 @@ namespace Gpui;
 /// </summary>
 public static partial class ElementExtensions
 {
+    /// <summary>
+    /// Requests single-row selection on unmodified Space or an unconsumed primary single press.
+    /// The application owns selection state and row styling; navigation alone does not select.
+    /// </summary>
+    public static Element<TTag> OnSelectionRequested<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Action<TView, ListSelectionEvent> callback
+    )
+        where TTag : unmanaged, IVirtualizedElementTag
+        where TView : ViewBase
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.ListOnSelectionRequested, view.Runtime.Events.BindListSelection(callback));
+        return element;
+    }
+
+    /// <summary>
+    /// Activates a List/Table row on unmodified Enter or an unconsumed primary double press.
+    /// Does not change selection or synthesize row/child click events.
+    /// </summary>
+    public static Element<TTag> OnActivated<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Action<TView, ListActivationEvent> callback
+    )
+        where TTag : unmanaged, IVirtualizedElementTag
+        where TView : ViewBase
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.ListOnActivated, view.Runtime.Events.BindListActivation(callback));
+        return element;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Element<TTag> OnClick<TTag, TView>(
         this Element<TTag> element,
@@ -21,7 +57,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnClick, view.BindClick(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.OnClick, view.Runtime.Events.BindClick(callback));
         return element;
     }
 
@@ -37,69 +73,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnClick, view.BindClick(callback), payload);
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnClick<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, ClickEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, IInteractiveElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnClick, view.BindClick(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnClick<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, ClickEvent, ValueTask> callback,
-        ulong payload
-    )
-        where TTag : unmanaged, IInteractiveElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnClick, view.BindClick(callback), payload);
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnClick<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, ClickEvent, Task> callback
-    )
-        where TTag : unmanaged, IInteractiveElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnClick, view.BindClick(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnClick<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, ClickEvent, Task> callback,
-        ulong payload
-    )
-        where TTag : unmanaged, IInteractiveElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnClick, view.BindClick(callback), payload);
+        ArenaWriter.AddCallback(element.Inner, OpCode.OnClick, view.Runtime.Events.BindClick(callback), payload);
         return element;
     }
 
@@ -114,7 +88,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.InputOnChanged, view.BindInput(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.InputOnChanged, view.Runtime.Events.BindInput(callback));
         return element;
     }
 
@@ -129,7 +103,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.InputOnSubmitted, view.BindInput(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.InputOnSubmitted, view.Runtime.Events.BindInput(callback));
         return element;
     }
 
@@ -147,7 +121,7 @@ public static partial class ElementExtensions
         ArenaWriter.AddCallback(
             element.Inner,
             OpCode.InputOnFocusChanged,
-            view.BindInput(callback)
+            view.Runtime.Events.BindInput(callback)
         );
         return element;
     }
@@ -163,37 +137,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnChanged, view.BindSlider(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnChanged<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, SliderEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, ISliderElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnChanged, view.BindSlider(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnChanged<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, SliderEvent, Task> callback
-    )
-        where TTag : unmanaged, ISliderElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnChanged, view.BindSlider(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnChanged, view.Runtime.Events.BindSlider(callback));
         return element;
     }
 
@@ -208,37 +152,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnReleased, view.BindSlider(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnReleased<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, SliderEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, ISliderElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnReleased, view.BindSlider(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnReleased<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, SliderEvent, Task> callback
-    )
-        where TTag : unmanaged, ISliderElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnReleased, view.BindSlider(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnReleased, view.Runtime.Events.BindSlider(callback));
         return element;
     }
 
@@ -257,37 +171,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnLayout, view.BindDock(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnDockLayoutChanged<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, DockEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, IDockAreaElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnLayout, view.BindDock(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnDockLayoutChanged<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, DockEvent, Task> callback
-    )
-        where TTag : unmanaged, IDockAreaElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnLayout, view.BindDock(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnLayout, view.Runtime.Events.BindDock(callback));
         return element;
     }
 
@@ -308,37 +192,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnClosed, view.BindDock(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnDockPanelClosed<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, DockEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, IDockAreaElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnClosed, view.BindDock(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnDockPanelClosed<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, DockEvent, Task> callback
-    )
-        where TTag : unmanaged, IDockAreaElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnClosed, view.BindDock(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnClosed, view.Runtime.Events.BindDock(callback));
         return element;
     }
 
@@ -352,7 +206,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OverlayOnDismiss, view.BindClick(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.OverlayOnDismiss, view.Runtime.Events.BindClick(callback));
         return element;
     }
 
@@ -370,7 +224,7 @@ public static partial class ElementExtensions
         ArenaWriter.AddCallback(
             element.Inner,
             OpCode.OverlayOnDismiss,
-            view.BindClick(callback),
+            view.Runtime.Events.BindClick(callback),
             payload
         );
         return element;
@@ -392,37 +246,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnKeyDown, view.BindKey(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnKeyDown<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, KeyEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnKeyDown, view.BindKey(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnKeyDown<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, KeyEvent, Task> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnKeyDown, view.BindKey(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.OnKeyDown, view.Runtime.Events.BindKey(callback));
         return element;
     }
 
@@ -438,37 +262,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnKeyUp, view.BindKey(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnKeyUp<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, KeyEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnKeyUp, view.BindKey(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnKeyUp<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, KeyEvent, Task> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnKeyUp, view.BindKey(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.OnKeyUp, view.Runtime.Events.BindKey(callback));
         return element;
     }
 
@@ -484,37 +278,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseDown, view.BindMouse(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnMouseDown<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, MouseEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseDown, view.BindMouse(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnMouseDown<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, MouseEvent, Task> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseDown, view.BindMouse(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseDown, view.Runtime.Events.BindMouse(callback));
         return element;
     }
 
@@ -530,37 +294,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseUp, view.BindMouse(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnMouseUp<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, MouseEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseUp, view.BindMouse(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnMouseUp<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, MouseEvent, Task> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseUp, view.BindMouse(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseUp, view.Runtime.Events.BindMouse(callback));
         return element;
     }
 
@@ -583,45 +317,7 @@ public static partial class ElementExtensions
         ArenaWriter.AddCallback(
             element.Inner,
             OpCode.OnModifiersChanged,
-            view.BindModifiers(callback)
-        );
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnModifiersChanged<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, ModifiersEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(
-            element.Inner,
-            OpCode.OnModifiersChanged,
-            view.BindModifiers(callback)
-        );
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnModifiersChanged<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, ModifiersEvent, Task> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(
-            element.Inner,
-            OpCode.OnModifiersChanged,
-            view.BindModifiers(callback)
+            view.Runtime.Events.BindModifiers(callback)
         );
         return element;
     }
@@ -641,37 +337,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnHover, view.BindHover(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnHover<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, HoverEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnHover, view.BindHover(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnHover<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, HoverEvent, Task> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnHover, view.BindHover(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.OnHover, view.Runtime.Events.BindHover(callback));
         return element;
     }
 
@@ -687,37 +353,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseDownOut, view.BindMouse(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnMouseDownOut<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, MouseEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseDownOut, view.BindMouse(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnMouseDownOut<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, MouseEvent, Task> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseDownOut, view.BindMouse(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseDownOut, view.Runtime.Events.BindMouse(callback));
         return element;
     }
 
@@ -733,37 +369,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseUpOut, view.BindMouse(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnMouseUpOut<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, MouseEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseUpOut, view.BindMouse(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnMouseUpOut<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, MouseEvent, Task> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseUpOut, view.BindMouse(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseUpOut, view.Runtime.Events.BindMouse(callback));
         return element;
     }
 
@@ -782,37 +388,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseMove, view.BindMouseMove(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnMouseMove<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, MouseMoveEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseMove, view.BindMouseMove(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnMouseMove<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, MouseMoveEvent, Task> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseMove, view.BindMouseMove(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseMove, view.Runtime.Events.BindMouseMove(callback));
         return element;
     }
 
@@ -832,37 +408,7 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnScrollWheel, view.BindScrollWheel(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnScrollWheel<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, ScrollWheelEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnScrollWheel, view.BindScrollWheel(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnScrollWheel<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, ScrollWheelEvent, Task> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnScrollWheel, view.BindScrollWheel(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.OnScrollWheel, view.Runtime.Events.BindScrollWheel(callback));
         return element;
     }
 
@@ -882,37 +428,8 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnFileDrop, view.BindFileDrop(callback));
+        ArenaWriter.AddCallback(element.Inner, OpCode.OnFileDrop, view.Runtime.Events.BindFileDrop(callback));
         return element;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnFileDrop<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, FileDropEvent, ValueTask> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnFileDrop, view.BindFileDrop(callback));
-        return element;
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Element<TTag> OnFileDrop<TTag, TView>(
-        this Element<TTag> element,
-        TView view,
-        Func<TView, FileDropEvent, Task> callback
-    )
-        where TTag : unmanaged, IKeyMouseElementTag
-        where TView : ViewBase
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnFileDrop, view.BindFileDrop(callback));
-        return element;
-    }
 }

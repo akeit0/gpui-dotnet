@@ -113,7 +113,7 @@ public readonly struct ScrollController
                 "Scroll position must be finite and non-negative."
             );
         }
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.Scroll,
                 ResourceCommandKind.ScrollToOffset,
@@ -126,7 +126,7 @@ public readonly struct ScrollController
     }
 
     public void ScrollToTop() =>
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.Scroll,
                 ResourceCommandKind.ScrollToTop,
@@ -138,7 +138,7 @@ public readonly struct ScrollController
         );
 
     public void ScrollToBottom() =>
-        Owner.DispatchResourceCommand(
+        Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(
                 ResourceKind.Scroll,
                 ResourceCommandKind.ScrollToBottom,

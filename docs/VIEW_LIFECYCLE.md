@@ -1,222 +1,213 @@
 # View lifecycle
 
-View lifetime follows UI ownership, not CLR reachability:
+Construction establishes local state and owned facilities. Rendering computes a declaration.
+Native acceptance activates its external relationships. Retirement permanently ends ownership.
 
-- an open `GpuiWindow` owns its root View;
-- a parent View owns each child through one committed slot;
-- an ordinary C# reference to a View or controller does not keep that View mounted.
+## Construction and declarations
 
-The framework is the lifetime owner. Views deliberately do not implement `IDisposable`, and there
-is no API for manually retaining a child outside a slot. Removing a child declaration or closing a
-window permanently unmounts the affected View instances.
+A window owns its root and a committed child slot owns its child. CLR references do not retain UI
+ownership. Views are not publicly disposable and cannot remount after removal.
 
-```text
-Created
-   │ first session attachment
-   ▼
-OnMounted(ref ViewContext)
-   │
-   ▼
-Mounted  ◄──── dirty rerenders and successful slot/props commits
-   │ slot removed/replaced, window closed, or mount failed
-   ▼
-cancel Lifetime
-   │
-   ▼
-OnUnmounted()  (child-first, cleanup only)
-   │
-   ▼
-Unmounted  (terminal)
-```
-
-A View instance has one stable `Lifetime` token. Its cancellation source is allocated lazily only
-if the token is requested. Unmount cancels it, calls `OnUnmounted()` exactly once if mounting began,
-releases framework-retained state, and makes the instance unusable. The same instance cannot be
-mounted again or used as another window root.
-
-If `Lifetime` is never read, the View allocates no `CancellationTokenSource`; terminal access uses
-a shared cancelled token. Once requested, the token and its source are permanently identity-bound
-to that View and are never pooled or reused.
-
-Runtime/session state is separate from that permanent identity. Mount creates a non-pooled,
-any-thread `ViewCommandRoute` and a GPUI-thread-only `MountedViewAttachment`. The route carries an
-immutable owner handle and serializes commands against deactivation. The attachment contains the
-render/event/resource-key state; unmount removes and completely resets it before returning it to a
-bounded pool. A stale command can retain only its route and therefore cannot observe recycled
-attachment state.
-
-Unmount deactivates runtime access before cancelling `Lifetime` and invoking `OnUnmounted()`, so a
-terminal View retained by application code does not retain its session or event tables. See
-[Lifecycle and threading](THREADING.md) for the GPUI entity model and exact thread boundaries.
-
-A queued root whose window closes before mounting goes directly from `Created` to `Unmounted`.
-Because mounting never began, neither lifecycle callback runs, but its `Lifetime` is still
-cancelled and the instance is still terminal.
-
-## Child slots and ownership
-
-`ui.Child<TView>()` uses the next positional slot. `ui.Child<TView>(key)` uses a keyed slot. A slot
-retains the same View instance while its requested concrete type remains the same.
-
-Positional slots are intended for unconditional children in a fixed declaration order. Use keys
-for conditional children, repeated instances of the same type, routes, and declarations that can
-reorder. A key belongs to its parent; props are not part of child identity.
-
-A keyed slot can replace the child type, which is the normal route/tab pattern:
+Both roots and children use generated typed declarations:
 
 ```csharp
-var page = _route switch
-{
-    Route.Home => ui.Child<HomeView>("page"),
-    Route.Settings => ui.Child<SettingsView>("page"),
-    _ => throw new InvalidOperationException(),
-};
+application.OpenWindow(DocumentView.Spec(props), options);
+ui.Child("document", DocumentView.Spec(props));
 ```
 
-After the replacement commits, the old subtree unmounts and cannot be reused. Durable navigation
-or domain state should therefore live in a parent View or application service. State local to the
-removed child is intentionally released with that child.
+Creating a `ViewSpec<TView>` or `ViewSpec<TView, TProps>` does not allocate a View or execute its
+constructor. Window opening may be requested from another thread. The framework constructs the
+root on the application thread during its first render callback. Closing a pending window releases
+its declaration without construction. Child creation uses the same factory and ownership scope.
 
-The same View instance cannot be supplied to multiple parents or rendered in multiple slots.
-Child slots create their own framework-owned instances through generated factories; keeping a
-reference to a child, its callback, or one of its controllers does not extend slot ownership.
-
-Use `View<TProps>` when the parent supplies render inputs. The props overload is mandatory at
-compile time:
+Apply `[GpuiView]` to a partial class. An explicit constructor takes `ViewConstruction`, followed
+by initial props for a props-bearing View. When the class has no explicit constructor, the generator
+supplies that constructor. Generated factories use direct calls and support NativeAOT.
 
 ```csharp
-var card = ui.Child<CounterCardView, CounterCardProps>(
-    "account",
-    new("Account", revision)
-);
-```
-
-Each declaration stages a new props value, like a constructor call for the retained slot. The same
-key and concrete type retain the View instance and local state. Changed props rerender that child;
-a successful whole-tree commit promotes staged props to committed props. A failed render discards
-them, so event handlers continue to observe the last committed value.
-
-The implementation retains two `TProps` payloads, not three: the committed value observed outside
-rendering and the latest declaration used during rendering and for fragment comparison. The
-fragment's required/rendered versions determine whether that latest declaration produced valid
-cached output, including after a failed render or arena-growth retry.
-
-`TProps` must implement `IEquatable<TProps>`, enforced by the `View<TProps>` generic constraint, so
-`EqualityComparer<TProps>.Default` has a strongly typed comparison path. Records and record structs
-supply it automatically; ordinary types must implement it explicitly.
-
-`View` and `View<TProps>` are sibling API types over `ViewBase`. This makes the no-props and props
-child overloads mutually exclusive through normal generic constraints; generated factories only
-provide reflection-free activation.
-
-## Mount and unmount
-
-Constructors initialize ordinary managed state only. Runtime-dependent work belongs in
-`OnMounted(ref ViewContext)`:
-
-```csharp
-private ScrollController _scroll;
-private IDisposable? _subscription;
-
-protected override void OnMounted(ref ViewContext context)
+[GpuiView]
+internal sealed partial class DocumentView : View<DocumentProps>
 {
-    _scroll = context.CreateScrollController("content");
-    _subscription = service.Subscribe(OnServiceChanged);
-}
+    private readonly Signal<string> _draft;
+    private readonly Memo<AnalysisInput, Analysis> _analysis;
 
-protected override void OnUnmounted()
-{
-    _subscription?.Dispose();
-    _subscription = null;
-}
-```
-
-`OnUnmounted()` is for releasing application-owned subscriptions, timers, registrations, and other
-resources acquired for the mounted View. `Lifetime` has already been cancelled, `IsMounted` is
-false, and runtime commands are disabled. Do not call `Invalidate()`, post through `Dispatcher`, or
-use a controller there. Committed props remain readable during the callback. A candidate that never
-committed exposes its latest supplied props instead. Retained props are released after the callback
-returns.
-
-If `OnMounted` throws, the framework still performs terminal cleanup and calls `OnUnmounted()` once.
-This lets one cleanup path handle partially initialized fields. Descendants unmount before their
-parent.
-
-Input, List, and Slider controllers can also be default-initialized fields and passed by `ref` in
-`Render()`. The first render assigns a stable per-View key retained by that controller. Creating a
-controller does not eagerly create a native resource; the resource appears when a matching
-semantic declaration is committed.
-
-## Transactional rendering
-
-The native host may retry a render after growing its arena. `Render()` must not:
-
-- mutate application or View state;
-- perform I/O;
-- start tasks;
-- call controllers;
-- call `Invalidate()`;
-- depend on one-time side effects.
-
-Declaring event bindings and allowing a ref-bound framework controller to initialize its stable key
-are supported render-time operations. Event bindings are render-pass state rather than a separately
-committed managed tree. Arena-growth retries reuse the declared bindings; if a render fails, the
-native host presents its managed-render error surface and the failed snapshot does not become
-interactive. `[GpuiListItem]` renderers follow the same purity rule.
-
-A newly requested child is attached before its first render so its callbacks and controllers have
-a stable owner identity. It is a session-owned candidate until the complete tree commits and can
-survive an arena-growth retry. The previously committed tree remains active during that attempt.
-After success, the candidate becomes the slot's committed child and the replaced subtree unmounts;
-an abandoned candidate is unmounted during reconciliation or session shutdown.
-
-Application code should not depend on when a candidate becomes committed. `OnMounted` may acquire
-resources, but all visible state changes still belong in event or lifecycle work outside
-`Render()` and must tolerate cleanup before the candidate is ever displayed.
-
-## Invalidation and async work
-
-`Invalidate()` marks the current View fragment dirty and propagates the required version to its
-ancestors. Repeated native notifications are coalesced while one render is already pending.
-
-Root rendering always uses the current `GpuiApplication.Theme`. Retained child fragments receive
-the same theme. A theme change invalidates every fragment in each window because ambient theme
-input is not represented by props.
-
-Event handlers run against mounted View targets and may change state, call controllers, and request
-rerender. `Task` and `ValueTask` handlers are observed by the session.
-
-Pass `Lifetime` to asynchronous work that must not outlive route replacement or window closure:
-
-```csharp
-private async ValueTask LoadAsync()
-{
-    try
+    public DocumentView(ViewConstruction construction, DocumentProps initialProps)
+        : base(construction)
     {
-        var data = await service.LoadAsync(Lifetime);
-        if (!IsMounted)
-        {
-            return; // Protect against APIs that complete despite cancellation.
-        }
-
-        _data = data;
-        Invalidate();
+        _draft = new(initialProps.InitialText);
+        _analysis = construction.Memo<AnalysisInput, Analysis>();
     }
-    catch (OperationCanceledException) when (Lifetime.IsCancellationRequested)
+
+    protected override Element Render(in DocumentProps props, ref RenderContext ui)
     {
-        // Normal View teardown.
+        var analysis = _analysis.Get(
+            new(_draft.Value, props.Options),
+            static input => Analyze(input));
+        return ui.Text(analysis.Summary);
     }
 }
 ```
 
-Avoid retaining View and controller references beyond their owner's lifetime. Such references keep
-ordinary managed objects reachable, but they neither keep the UI mounted nor make runtime methods
-valid after unmount.
+Here the application supplies equatable input records and its pure `Analyze` calculation.
+Constructor inputs seed one instance. Later declarations change render inputs without resetting
+its draft. Use a different child key when a new document should create a new editing session.
+State that should survive View removal belongs to a document, workspace, or application model.
 
-## Virtual rows
+`ViewConstruction` is a short-lived readonly ref struct. It supplies:
 
-A virtual List/Table row is a cached element snapshot produced by its owning View, not a mounted
-View. It has no `OnMounted`, `OnUnmounted`, child slots, or independent controller lifetime.
+- `Own(resource)` for local synchronous disposable storage;
+- `Memo<TInput, TResult>()` and `Effect<TInput>(setup)`;
+- `Work`, `Dispatcher`, and controller handles;
+- the owning `Window` and `Application`.
 
-Row cache eviction is a virtualization concern. Stable `.ItemId` values preserve native element
-identity across datasource splices; they do not create managed row objects.
+The scope exists before field initializers and user construction. If construction throws, registered
+resources are released even if the factory never returns a View. Construction can seed fresh Signals
+and create handles, but cannot mutate existing Signals, start work, subscribe to external services,
+or issue runtime commands. Signal sampling during construction is untracked and does not subscribe
+the parent's render. The context cannot be retained or reused for another instance.
+
+## Props and slots
+
+`View<TProps>` renders through `Render(in TProps props, ref RenderContext ui)`.
+`TProps : IEquatable<TProps>` remains mandatory. Prefer immutable records or record structs.
+Equality does not turn a mutable object into an immutable snapshot.
+
+Every child declaration supplies current props. The parent, key, and concrete type retain local
+View identity; props are not identity. `ui.Child(MyView.Spec())` uses the next positional slot.
+Use `ui.Child(key, MyView.Spec(...))` for conditional, repeated, or reorderable content.
+A positional slot cannot change its accepted View type; a keyed slot can.
+
+The framework stages the latest props during rendering and commits accepted props throughout the
+tree before activating effects. `CommittedProps` always means the accepted value, including when
+read from an event. It throws before the first acceptance. Render methods use their explicit
+argument. Bind a particular displayed value as event state when an event needs that snapshot.
+
+Props-bearing `[GpuiListItem]` methods receive accepted props explicitly:
+`Element Row(int index, in TProps props, ref RenderContext ui)`.
+No-props methods use `Element Row(int index, ref RenderContext ui)`.
+
+## Render work and caches
+
+Rendering may allocate local data, mutate scratch storage, and populate correctly keyed pure caches.
+It must not change observable application state, perform I/O, start tasks, issue commands, invalidate
+a View, or rely on a one-time side effect. Signal writes remain forbidden, including equal writes.
+Event binding, effect declarations, and ref-bound controller identity are supported declarations.
+Managed arenas grow before writes without retrying user rendering.
+
+Elements belong to one arena generation on its creating thread. Reusing the arena invalidates old
+elements and contexts; disposing it or retiring its child View releases the buffers and invalidates
+all remaining handles. Invalid use throws before reading freed memory. An Element contains a managed
+owner reference, so it cannot be used with `stackalloc`. Span composition remains supported; use a
+local `[InlineArray(N)]` buffer for a fixed number of elements, or reusable array storage for variable
+counts. Clear reusable arrays after composition so they do not retain arena owners unnecessarily.
+
+A `Memo<TInput, TResult>` stores one input/result entry. Its first `Get(input, calculate)` computes
+and returns the result in that same render. Equal inputs reuse it. Read Signals while assembling
+the input, before calling `Get`; the calculation and equality comparison cannot read Signals or
+perform framework effects. This keeps reactive dependencies alive on cache hits.
+
+Cache inputs must cover every dependency, including relevant data revisions and environmental
+values. Results must be ordinary recomputable data, not editing state, subscriptions, native handles,
+or arena-bound `Element` values. The framework does not deeply inspect the result object graph.
+A cache can retain a correctly keyed calculation from unaccepted output: it does not represent
+committed application state. A thrown calculation does not replace the previous entry.
+
+Retirement clears framework-owned cached inputs/results. Hot Reload clears them before rerendering.
+Ordinary application fields remain application-owned. A memo cannot eliminate the first computation's
+cost; use precomputed data or explicit background work and a loading/cached state when necessary.
+
+## Accepted effects
+
+Create an effect handle once in construction, then declare its current input during rendering:
+
+```csharp
+private readonly Effect<Document> _watch;
+
+public InspectorView(ViewConstruction construction, InspectorProps initialProps)
+    : base(construction)
+{
+    _watch = construction.Effect<Document>(Watch);
+}
+
+private void Watch(EffectScope scope, Document document)
+{
+    scope.Own(document.Subscribe(scope.Bind(this, static view => view.Invalidate())));
+}
+
+protected override Element Render(in InspectorProps props, ref RenderContext ui)
+{
+    ui.Effect(_watch, props.Document);
+    return ui.Text(props.Document.Title);
+}
+```
+
+The application's `Document` supplies an equality contract and a disposable subscription.
+The handle identifies the effect without positional hook ordering. Declare it at most once in an
+owning View render. Effects are not permitted in virtual-row or standalone element contexts.
+
+| Accepted declaration | Behavior |
+| --- | --- |
+| First declaration | Create an active scope and invoke setup |
+| Equal input | Keep the current scope |
+| Changed input | Revoke and dispose the old scope, then run new setup |
+| Omitted declaration | Revoke and dispose the scope |
+| View retired | Revoke and dispose all owned scopes |
+| Rejected output | Start no proposed effects; terminal failure retires existing ownership |
+
+Use `Effect<NoProps>` with `default` for constant input. A reused clean fragment retains its
+accepted effects. Setup receives the accepted input value; cleanup should retain the old registration
+or input it actually owns. Register cleanup as acquisition succeeds. A setup exception still disposes
+all registrations already made.
+
+`EffectScope.Own` releases registrations in reverse order. `Lifetime` is cancelled on replacement
+or retirement. `Work` owns operations for that particular effect generation.
+`Post(state, callback)` queues foreground delivery. `Bind(state, callback)` supplies a repeatable
+parameterless callback suitable for subscriptions; invoking it queues delivery through that scope.
+Both release queued callback state and reject stale delivery when the scope ends. Callbacks and
+effect setup are synchronous; use owned work for asynchronous production.
+
+## Acceptance and retirement order
+
+Native validates and reconciles resource presence before acknowledging a root publication.
+The managed acceptance sequence is:
+
+1. Commit reachable composition, props, reactive reads, and effect declarations.
+2. Retire removed subtrees child-first; stop replaced or omitted effects.
+3. Activate every newly accepted View route.
+4. Start new/replacement effects parent-before-child.
+
+Reused clean subtrees keep their accepted dependencies and effects. Their boundary View still
+accepts newly supplied equal props, including a distinct but equal object; descendants receive
+new props only when that View renders and declares them again.
+
+All newly accepted routes are active before any setup callback. Do not depend on sibling setup order.
+Acceptance authorizes commands against accepted resources even before materialization. It does not
+mean layout or painting completed. Effect state changes request a subsequent render; they do not
+rewrite the already accepted output. External events and nested rendering cannot enter the barrier.
+
+Unmount revokes the View route and effect/work delivery, resets pooled attachment storage, cancels
+lifetime, disposes effect registrations and local resources, and releases props. Cleanup is terminal
+and must not command the retiring View. It may run before the View was ever painted. Cleanup failures
+do not prevent the remaining registrations or descendants from being released.
+
+Unexpected render, callback, or setup failure faults that window session. Owned Views retire at the
+application callback boundary; an off-thread failure is retired on application-thread ingress.
+Artifact release and acceptance failures defer user cleanup to a normal ingress wake so cleanup
+cannot reenter native resource reconciliation.
+The original failure remains authoritative. Other windows remain independent.
+
+## Hot Reload and virtual rows
+
+Code updates preserve semantic state, View identity, and native resources. They clear memo entries
+and replace effects on the next accepted render, even when inputs are equal. Setup method-body edits
+therefore take effect; constructors and field initializers are not rerun. Pending effect work and
+subscriptions may be replaced. Constructor/factory-shape changes require the normal runtime restart.
+
+Virtual rows remain cached element snapshots, not Views. They have no constructors, effects, child
+slots, or independent controllers. Native artifacts own their events and reactive dependencies.
+Eviction, source removal, and retirement release those artifacts precisely. Cache row-derived data
+by stable item identity/revision under an explicitly bounded owner.
+
+See [asynchronous work](ASYNC_WORK.md), [reactivity](REACTIVITY.md), and
+[threading](THREADING.md). The sample's Analysis page demonstrates a props-bearing View as both
+a child and a root, with a local query, pure memo, document subscription, and latest-request work.

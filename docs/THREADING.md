@@ -28,22 +28,36 @@ Each native window owns one GPUI `Entity<ManagedView>`. The C# root and child `V
 not separate GPUI entities. They form a binding-managed retained tree whose fragments are combined
 into the snapshot consumed by that native `ManagedView`.
 
-Native-to-managed render, virtual-row, dynamic-frame, event, startup, and window-close callbacks
+Native-to-managed render, acceptance, virtual-row, dynamic-frame, event, startup, and window-close callbacks
 originate from GPUI foreground work. Managed mounting, rendering, event-table access,
-reconciliation, and unmounting therefore stay serialized on that thread once a View begins
-mounting. A root retired before its first native render has never mounted, so neither lifecycle
-hook runs.
+reconciliation, and unmounting therefore stay serialized on that thread once a View is prepared.
+Roots and children construct on this thread under a pre-existing local ownership scope. Candidates
+retired before acceptance release local resources without activating effects.
 
-During native callbacks, the binding installs a per-window `GpuiSynchronizationContext`. Normal
-`await` continuations from an event handler are posted to that session and drained at the start of
-a later root-render callback. `ConfigureAwait(false)` deliberately leaves this context; code
-running there must use one of the any-thread entry points to return to the View.
+One application-owned execution guard binds to the actual GPUI callback thread and is shared
+by every window. It checks root/range rendering, acceptance, dynamic-frame callbacks, event dispatch, and
+cleanup before they access retained state. External callback entry cannot reenter an active
+callback, including through another window. Internal child rendering remains part of the root
+callback. Synchronous synchronization-context dispatch cannot bypass this guard.
 
-`OnMounted` means that a C# View has joined a managed window session. It does not mean that GPUI
-created another entity or that the View has already appeared in a committed snapshot.
-`OnUnmounted` means that the window or committed child slot no longer owns that C# View. It is not
-triggered merely because GPUI skipped a paint. Terminal, one-shot C# View lifetime is a binding API
-contract, not a constraint imposed by GPUI's entity map.
+During native callbacks, the binding installs a per-window `GpuiSynchronizationContext` for
+foreground dispatch. Events are synchronous and do not return `Task` or `ValueTask`. The context
+does not confer View ownership on manually detached work; use the explicit owned-work boundary.
+
+Use `WorkScope.Start` for View-owned production. It invokes a static producer with an explicit request
+and lifetime token on the calling application thread. The application owns offloading and its
+async continuation/context policy; the framework does not schedule the producer onto a worker.
+Acquire a View work handle through `ViewConstruction.Work`, or use `EffectScope.Work` for
+production that ends when an accepted relationship is replaced. It owns pending operations and clears their UI state
+and route references on retirement. Results return through the stable command route
+and are applied only while that owner remains mounted. Retirement drops pending callbacks before
+cancellation, even when a producer ignores its token. See [Asynchronous work](ASYNC_WORK.md).
+
+Acceptance commits the reachable tree and its props, retires replaced relationships, and activates
+all new View routes before effect setup runs parent-first. It does not imply a separate GPUI entity,
+native materialization, or completed paint. Effect replacement can end a subscription while its View
+stays mounted. View removal ends all local ownership; skipping a paint does neither. Terminal,
+one-shot View lifetime is the binding's contract, not a constraint imposed by GPUI's entity map.
 
 ## State split inside a managed View
 
@@ -60,9 +74,9 @@ Mounted Views keep two different runtime objects:
 This split prevents a stale worker-thread command from observing an attachment after it has been
 recycled. The command route serializes dispatch against deactivation and carries its own immutable
 owner handle; it never reads pooled state. Internal access to a live `MountedViewAttachment`
-asserts the managed thread that mounted it.
+asserts the managed thread that prepared it. All newly accepted command routes activate before effect setup begins.
 
-Lifecycle identity remains directly on `ViewBase`: the terminal state and lazily allocated
+Lifecycle identity belongs to the View's non-pooled `ViewRuntime`: the terminal state and lazily allocated
 `CancellationTokenSource` are never pooled. If `Lifetime` is never requested, no source is
 allocated.
 
@@ -71,30 +85,84 @@ allocation are foreground-thread-only. The remaining lifecycle lock protects onl
 mount/unmount and lazy-token races. The command-route lock is also outside rendering; it makes
 deactivation linear with any command already entering from another thread.
 
+`Dispatcher` is a readonly value handle over that identity. Copies share the same terminal
+lifetime; a default handle rejects posting. Prefer `Post(state, static callback)` when dispatching
+per-call data, so the caller need not allocate a capturing delegate. The application explicitly
+chooses when to post; the framework does not move producers to a different thread.
+
 ## Allowed calls by thread
 
 | Operation | Thread contract |
 | --- | --- |
-| `Render()`, `[GpuiListItem]`, lifecycle hooks, event callbacks | GPUI application thread |
+| Constructors, Render, virtual-row renderers, effect setup/cleanup, events | GPUI application thread |
 | Child reconciliation, props commit, event binding | GPUI application thread |
+| Bound Signal reads and writes | Owning application's GPUI thread; writes forbidden during rendering |
 | Read or mutate ordinary View fields | GPUI application thread unless the application adds its own synchronization |
-| `Invalidate()` | Any thread while mounted |
+| `Invalidate()` | Any thread while mounted; queues a coalesced request |
 | `Dispatcher.Post(...)` | Any thread while mounted; callback runs on the GPUI application thread |
 | Window and retained-resource controller commands | Any thread while mounted; GPUI mutation runs on the GPUI application thread |
 | `Lifetime` cancellation observation | Any thread |
 
-Any-thread support is an ingress guarantee, not general thread safety for a View. A worker should
-compute or perform I/O, then use `Dispatcher.Post` or a captured synchronization-context
-continuation to modify View state. Passing `Lifetime` to the work prevents a continuation from
-treating a terminal View as mounted.
+Any-thread support is an ingress guarantee, not general thread safety for a View. Use `WorkScope.Start`
+to compute or perform I/O and apply live results through foreground ingress. Cancellation alone
+does not establish ownership: producers may ignore their token, so completion must recheck the
+original View's route. `Dispatcher.Post` provides that check for manually posted synchronous work.
+
+Any-thread effect APIs reject calls made by the thread currently executing Render or DemandRender.
+The check uses thread-local execution state: a worker may still enqueue while the application
+thread renders. Dispatcher callbacks must be synchronous. Events, menus, and WorkScope completions have the same contract;
+compile-time diagnostics catch visible async callbacks without runtime delegate inspection.
+
+Retained-resource commands also require an accepted declaration. Native ingress reads a small
+thread-safe presence index and stamps the queued command with its generation. Delivery rechecks
+the generation on the application thread; removal and reappearance cannot revive queued commands.
+This index contains identities and generations, never GPUI entities or managed retained trees.
 
 ## Render and teardown ordering
 
-Managed render and row callbacks are synchronous. Native arena growth can retry them, so they must
-remain deterministic and side-effect free. Posted callbacks are drained before root rendering;
-their state changes are included in that render.
+Managed render and row callbacks are synchronous. Their managed-owned buffers grow before writes
+without capacity retry. They must remain free of observable effects. Posted callbacks are drained before root rendering;
+their state changes are included in that render. Each drain has a bounded work budget so a
+self-posting callback cannot prevent rendering indefinitely; excess work requests a later frame.
+
+Successful root output awaits a matching native acknowledgement before another render, demand
+request, or user event can enter. Rust releases borrowed arena data and publishes resource presence
+before acknowledging. Acceptance commits all props and composition before activating routes and effects.
+Effect commands may queue at this point; invalidations remain queued for a later frame.
+
+Artifact release is a framework-only cleanup callback. Native batch eviction or source removal
+may invoke it while root acceptance is pending; it releases event slots without running user
+callbacks or resetting output arenas. Release is also admitted after a session fault, and is
+idempotent after owner or session teardown. A failure in artifact release or acceptance requests
+a normal ingress wake; user cleanup waits for that ingress instead of running inside native
+resource reconciliation.
+
+Artifact acceptance commits reactive dependencies after native decoding. Signal changes queue
+artifact keys and flush one batch per affected session at the outer callback boundary. Native
+delivery requests repaint without managed root invalidation. Ordinary bound Signal writes outside
+a callback use a short application mutation scope to provide the same flush boundary.
+
+Invalidation publishes a stable, never-pooled View identity with an atomic pending bit. Repeated
+requests coalesce before reaching the application thread. Only ingress consumption touches the
+retained tree. Its tables, ownership edges, and dirty flags are application-thread-owned and need
+no locks. Dirty propagation stops at an already-dirty ancestor, and acceptance clears only the
+staged compositions it commits. Requests arriving during rendering or pending acceptance apply
+on a later render. Theme and metadata updates likewise enqueue full-tree invalidation. Native
+wakeups coalesce per session.
+
+View-bound posted callbacks and owned-work completions recheck their stable command route when
+consumed and are discarded after owner retirement. Event dispatch does not retain pending tasks
+or install task-completion observers.
+
+The first unexpected render, demand-render, event, lifecycle, or posted-callback failure is
+terminal for normal session execution. Later render/event callbacks fail without invoking user
+code, queued user work is discarded, and resource commands are no longer forwarded. Other windows
+remain usable. Metadata updates cannot clear a terminal fault. Cleanup still visits all owned
+Views and preserves the original failure even if cleanup also throws.
 
 Unmount proceeds child-first. For each View, the binding marks it unmounting, removes and
-deactivates runtime access, cancels `Lifetime`, invokes `OnUnmounted`, then releases retained props
-and marks the instance terminal. Session/native commands are unavailable inside `OnUnmounted`.
+deactivates runtime access and effect/work delivery, cancels Lifetime, disposes owned registrations,
+then releases retained props and marks the instance terminal. Commands targeting the retiring View
+are unavailable during cleanup. Unexpected session faults perform this teardown at callback exit;
+off-thread failure is retired on the next application-thread ingress.
 See [View lifecycle](VIEW_LIFECYCLE.md) for slot and transactional-render details.

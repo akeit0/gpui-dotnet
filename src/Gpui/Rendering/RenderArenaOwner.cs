@@ -5,16 +5,98 @@ using Gpui.Interop;
 namespace Gpui;
 
 /// <summary>
-/// Managed test/benchmark owner for the unmanaged render arena.
-///
-/// Production rendering uses a Rust-owned arena lent to managed Render(). This
-/// owner remains useful for isolated builder tests and allocation measurements.
+/// Owns reusable unmanaged render buffers allocated and resized by managed code.
+/// Rust borrows completed output only while synchronously decoding an owned snapshot.
+/// Authoring, validation, reset, and explicit disposal must run on the creating thread.
 /// </summary>
 public sealed unsafe class RenderArenaOwner : IDisposable
 {
     private RenderArena* _arena;
+    private readonly int _threadId = Environment.CurrentManagedThreadId;
+    private int _accessCount;
+    private bool _formatting;
 
-    internal RenderArena* NativeArena => _arena;
+    internal RenderArena* NativeArena
+    {
+        get { AssertThread(); return _arena; }
+    }
+
+    private void AssertThread()
+    {
+        if (_threadId != Environment.CurrentManagedThreadId)
+            throw new InvalidOperationException("Render arenas can only be used on their rendering thread.");
+    }
+
+    internal RenderArena* GetArena(uint generation)
+    {
+        AssertThread();
+        ObjectDisposedException.ThrowIf(_arena == null, this);
+        if (_arena->Generation != generation)
+            throw new InvalidOperationException("Element or context escaped its render generation.");
+        return _arena;
+    }
+
+    internal AccessScope Access(uint generation)
+    {
+        var arena = GetArena(generation);
+        if (_formatting)
+            throw new InvalidOperationException("Render arena access cannot reenter an active formatter.");
+        _accessCount++;
+        return new AccessScope(this, arena);
+    }
+
+    internal AccessScope Access()
+    {
+        AssertThread();
+        ObjectDisposedException.ThrowIf(_arena == null, this);
+        return Access(_arena->Generation);
+    }
+
+    internal FormattingScope EnterFormatter()
+    {
+        AssertThread();
+        if (_accessCount == 0 || _formatting)
+            throw new InvalidOperationException("Formatting requires an exclusive active arena write.");
+        _formatting = true;
+        return new FormattingScope(this);
+    }
+
+    internal readonly struct FormattingScope(RenderArenaOwner owner) : IDisposable
+    {
+        public void Dispose() => owner._formatting = false;
+    }
+
+    // Keep the owner rooted through the last pointer use, including calls into formatters.
+    // Explicit reset/disposal cannot invalidate memory while an access is active.
+    internal readonly struct AccessScope(RenderArenaOwner owner, RenderArena* arena) : IDisposable
+    {
+        internal RenderArena* Arena => arena;
+        public void Dispose()
+        {
+            owner._accessCount--;
+            GC.KeepAlive(owner);
+        }
+    }
+
+    /// <summary>
+    /// Publishes a descriptor, not a second copy of the buffers. The receiver must finish
+    /// decoding before this owner is reset, written again, or disposed.
+    /// </summary>
+    internal void PublishTo(RenderArena* output, Element root)
+    {
+        using var access = Access();
+        if (output == null || output == _arena)
+        {
+            throw new ArgumentException("Output must be a separate writable descriptor.", nameof(output));
+        }
+        if (root.Arena != _arena || root.Generation != _arena->Generation
+            || root.Node >= (uint)_arena->NodeLength)
+        {
+            throw new InvalidOperationException("Cannot publish a foreign or stale render root.");
+        }
+
+        *output = *_arena;
+    }
 
     public RenderArenaOwner(
         int nodeCapacity = 256,
@@ -60,34 +142,36 @@ public sealed unsafe class RenderArenaOwner : IDisposable
     public RenderContext BeginRender()
     {
         BeginRenderCore();
-        return new RenderContext(_arena);
+        return new RenderContext(this);
     }
 
     internal RenderContext BeginRender(IViewRenderer views, ViewBase owner, GpuiTheme? theme = null)
     {
         BeginRenderCore();
-        return new RenderContext(_arena, views, owner, theme ?? GpuiTheme.Default);
+        return new RenderContext(this, views, owner, theme ?? GpuiTheme.Default);
     }
 
     private void BeginRenderCore()
     {
+        AssertThread();
         ObjectDisposedException.ThrowIf(_arena == null, this);
+        if (_accessCount != 0)
+            throw new InvalidOperationException("Cannot reset an arena during an active write or validation.");
+
+        // Never let a stale Element become current again through generation wraparound.
+        var generation = checked(_arena->Generation + 1);
 
         _arena->NodeLength = 0;
         _arena->OpLength = 0;
         _arena->ChildLength = 0;
         _arena->Utf8Length = 0;
 
-        _arena->Generation = unchecked(_arena->Generation + 1);
-        if (_arena->Generation == 0)
-        {
-            _arena->Generation = 1;
-        }
+        _arena->Generation = generation;
     }
 
     public ArenaStats GetStats()
     {
-        ObjectDisposedException.ThrowIf(_arena == null, this);
+        using var access = Access();
         return new ArenaStats(
             _arena->NodeLength,
             _arena->OpLength,
@@ -99,13 +183,13 @@ public sealed unsafe class RenderArenaOwner : IDisposable
 
     public void Validate(Element root)
     {
-        ObjectDisposedException.ThrowIf(_arena == null, this);
+        using var access = Access();
         ManagedValidator.Validate(_arena, root);
     }
 
     public string Dump(Element root)
     {
-        ObjectDisposedException.ThrowIf(_arena == null, this);
+        using var access = Access();
         ManagedValidator.Validate(_arena, root);
 
         var sb = new StringBuilder();
@@ -157,6 +241,15 @@ public sealed unsafe class RenderArenaOwner : IDisposable
 
     public void Dispose()
     {
+        AssertThread();
+        if (_accessCount != 0)
+            throw new InvalidOperationException("Cannot dispose an arena during an active write or validation.");
+        Free();
+        GC.SuppressFinalize(this);
+    }
+
+    private void Free()
+    {
         if (_arena == null)
         {
             return;
@@ -168,11 +261,9 @@ public sealed unsafe class RenderArenaOwner : IDisposable
         NativeMemory.Free(_arena->Utf8);
         NativeMemory.Free(_arena);
         _arena = null;
-
-        GC.SuppressFinalize(this);
     }
 
-    ~RenderArenaOwner() => Dispose();
+    ~RenderArenaOwner() => Free();
 
     private static T* Allocate<T>(int count)
         where T : unmanaged

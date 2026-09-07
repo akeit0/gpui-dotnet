@@ -13,30 +13,30 @@ public sealed class ViewLifetimeTests
 
         Assert.True(lifetime.CanBeCanceled);
         Assert.False(lifetime.IsCancellationRequested);
-        Assert.Equal(0u, view.RuntimeViewHandle);
+        Assert.Equal(0u, view.Runtime.RuntimeViewHandle);
 
         Attach(view);
 
         Assert.True(view.Mounted);
         Assert.False(view.Unmounted);
-        Assert.Equal(1u, view.RuntimeViewHandle);
+        Assert.Equal(1u, view.Runtime.RuntimeViewHandle);
         Assert.Equal(lifetime, view.ViewLifetime);
         Assert.Equal(1, view.MountCount);
 
         view.AllocateEventStorage();
 
-        view.UnmountRuntime();
+        view.Runtime.UnmountRuntime();
 
         Assert.False(view.Mounted);
         Assert.True(view.Unmounted);
-        Assert.Equal(0u, view.RuntimeViewHandle);
+        Assert.Equal(0u, view.Runtime.RuntimeViewHandle);
         Assert.True(lifetime.IsCancellationRequested);
         Assert.True(view.LifetimeWasCancelledDuringUnmount);
         Assert.False(view.RuntimeWasAvailableDuringUnmount);
         Assert.True(view.InvalidateWasRejectedDuringUnmount);
         Assert.Equal(1, view.UnmountCount);
 
-        view.UnmountRuntime();
+        view.Runtime.UnmountRuntime();
         Assert.Equal(1, view.UnmountCount);
         Assert.Throws<ObjectDisposedException>(() => Attach(view, 2));
     }
@@ -51,7 +51,7 @@ public sealed class ViewLifetimeTests
         Assert.Equal(1, view.MountCount);
         Assert.Equal(1, view.UnmountCount);
         Assert.True(view.Unmounted);
-        Assert.Equal(0u, view.RuntimeViewHandle);
+        Assert.Equal(0u, view.Runtime.RuntimeViewHandle);
         Assert.True(view.ViewLifetime.IsCancellationRequested);
         Assert.Throws<ObjectDisposedException>(() => Attach(view, 2));
     }
@@ -61,7 +61,7 @@ public sealed class ViewLifetimeTests
     {
         var view = new LifecycleView();
 
-        view.UnmountRuntime();
+        view.Runtime.UnmountRuntime();
         var lifetime = view.ViewLifetime;
 
         Assert.Equal(0, view.MountCount);
@@ -78,12 +78,12 @@ public sealed class ViewLifetimeTests
         var view = new LifecycleView { ThrowDuringUnmount = true };
         Attach(view);
 
-        Assert.Throws<InvalidOperationException>(view.UnmountRuntime);
+        Assert.Throws<AggregateException>(view.Runtime.UnmountRuntime);
 
         Assert.True(view.Unmounted);
         Assert.True(view.ViewLifetime.IsCancellationRequested);
         Assert.Equal(1, view.UnmountCount);
-        view.UnmountRuntime();
+        view.Runtime.UnmountRuntime();
         Assert.Throws<ObjectDisposedException>(() => Attach(view, 2));
     }
 
@@ -95,23 +95,23 @@ public sealed class ViewLifetimeTests
         Attach(view);
         view.Commit();
 
-        view.UnmountRuntime();
+        view.Runtime.UnmountRuntime();
 
         Assert.Equal("account", view.UnmountedValue);
         Assert.Throws<InvalidOperationException>(view.ReadValue);
     }
 
     [Fact]
-    public void UncommittedCandidatePropsRemainAvailableForUnmountCleanup()
+    public void UncommittedCandidateNeverPublishesCleanupProps()
     {
         var view = new PropsLifecycleView();
         view.Stage(new PropsPayload("candidate"));
         Attach(view);
         view.RollBack();
 
-        view.UnmountRuntime();
+        view.Runtime.UnmountRuntime();
 
-        Assert.Equal("candidate", view.UnmountedValue);
+        Assert.Null(view.UnmountedValue);
         Assert.Throws<InvalidOperationException>(view.ReadValue);
     }
 
@@ -142,7 +142,7 @@ public sealed class ViewLifetimeTests
                 view.RequestInvalidate();
                 view.RequestPost(static () => { });
                 view.RequestResourceCommand();
-                _ = view.RuntimeViewHandle;
+                _ = view.Runtime.RuntimeViewHandle;
             }
             catch (Exception exception)
             {
@@ -157,31 +157,31 @@ public sealed class ViewLifetimeTests
         Assert.Equal(17u, Volatile.Read(ref commandOwner));
         Assert.IsType<InvalidOperationException>(failure);
 
-        view.UnmountRuntime();
+        view.Runtime.UnmountRuntime();
     }
 
     [Fact]
-    public async Task ReusedUiAttachmentDoesNotRetainEventEntries()
+    public void ReusedUiAttachmentDoesNotRetainEventEntries()
     {
         var first = new LifecycleView();
         Attach(first, 1);
         var staleEventId = first.AllocateEventStorage();
         Assert.Equal(1ul, first.AllocateResourceKey());
         Assert.Equal(2ul, first.AllocateResourceKey());
-        first.UnmountRuntime();
+        first.Runtime.UnmountRuntime();
 
         var second = new LifecycleView();
         Attach(second, 2);
         try
         {
             Assert.Equal(1ul, second.AllocateResourceKey());
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                second.DispatchClickCore(staleEventId, default).AsTask()
+            Assert.Throws<InvalidOperationException>(() =>
+                second.Runtime.Events.DispatchClickCore(staleEventId, default)
             );
         }
         finally
         {
-            second.UnmountRuntime();
+            second.Runtime.UnmountRuntime();
         }
     }
 
@@ -191,18 +191,30 @@ public sealed class ViewLifetimeTests
         Action<Action>? post = null,
         Action<ViewBase>? invalidate = null,
         Action<uint, ResourceCommand>? resourceCommand = null
-    ) =>
-        view.AttachRuntime(
+    )
+    {
+        view.Runtime.PrepareRuntime(
             handle,
-            post ?? (static callback => callback()),
+            post is null ? static callback => callback.Invoke() : callback => post(callback.Invoke),
             invalidate ?? (static _ => { }),
             resourceCommand ?? (static (_, _) => { }),
-            static (_, _, _) => { },
-            static (_, _, _, _, _, _, _, _, _, _) => { }
+            static (_, _, _, _, _, _) => { },
+            static (_, _, _, _, _, _, _, _, _, _) => { },
+            static () => { }
         );
+        view.Runtime.MountRuntime();
+        try
+        {
+            if (view is LifecycleView lifecycle) lifecycle.Activate();
+        }
+        catch { view.Runtime.UnmountRuntime(); throw; }
+    }
 
     private sealed class LifecycleView : View
     {
+        public LifecycleView() : this(TestViews.Construction()) { }
+        public LifecycleView(ViewConstruction construction) : base(construction) { }
+
         internal bool ThrowDuringMount { get; init; }
         internal bool ThrowDuringUnmount { get; init; }
         internal int MountCount { get; private set; }
@@ -215,16 +227,16 @@ public sealed class ViewLifetimeTests
         internal CancellationToken ViewLifetime => Lifetime;
 
         internal uint AllocateEventStorage() =>
-            (uint)BindClick<LifecycleView>(static (_, _) => { });
+            (uint)Runtime.Events.BindClick<LifecycleView>(static (_, _) => { });
 
-        internal ulong AllocateResourceKey() => NextResourceKeyId();
+        internal ulong AllocateResourceKey() => Runtime.NextResourceKeyId();
 
         internal void RequestInvalidate() => Invalidate();
 
         internal void RequestPost(Action callback) => Dispatcher.Post(callback);
 
         internal void RequestResourceCommand() =>
-            DispatchResourceCommand(
+            Runtime.DispatchResourceCommand(
                 new ResourceCommand(
                     ResourceKind.Scroll,
                     ResourceCommandKind.ScrollToTop,
@@ -234,8 +246,9 @@ public sealed class ViewLifetimeTests
                 )
             );
 
-        protected override void OnMounted(ref ViewContext context)
+        internal void Activate()
         {
+            Ownership.Own(new TestCleanup(Retire));
             MountCount++;
             if (ThrowDuringMount)
             {
@@ -243,7 +256,7 @@ public sealed class ViewLifetimeTests
             }
         }
 
-        protected override void OnUnmounted()
+        private void Retire()
         {
             UnmountCount++;
             LifetimeWasCancelledDuringUnmount = Lifetime.IsCancellationRequested;
@@ -269,6 +282,11 @@ public sealed class ViewLifetimeTests
 
     private sealed class PropsLifecycleView : View<PropsPayload>
     {
+        public PropsLifecycleView() : this(TestViews.Construction()) { }
+        private bool _committed;
+        public PropsLifecycleView(ViewConstruction construction) : base(construction) =>
+            construction.Own(new TestCleanup(() => UnmountedValue = _committed ? CommittedProps.Value : null));
+
         internal string? UnmountedValue { get; private set; }
 
         internal void Stage(PropsPayload props) => StageProps(in props);
@@ -277,14 +295,13 @@ public sealed class ViewLifetimeTests
         {
             ValidateRenderInputs();
             CommitStagedProps();
+            _committed = true;
         }
 
         internal void RollBack() => RollBackStagedProps();
 
-        internal string ReadValue() => Props.Value;
+        internal string ReadValue() => CommittedProps.Value;
 
-        protected override void OnUnmounted() => UnmountedValue = Props.Value;
-
-        protected override Element Render(ref RenderContext ui) => ui.Div();
+        protected override Element Render(in PropsPayload props, ref RenderContext ui) => ui.Div();
     }
 }

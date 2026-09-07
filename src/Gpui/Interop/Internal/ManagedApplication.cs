@@ -50,8 +50,8 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
         try
         {
-            // Managed state is dirty before native schedules the frame, so the callback cannot
-            // consume an unchanged retained fragment after this command.
+            // Invalidation is queued before native schedules the frame. The render callback
+            // consumes it on the application thread before using retained fragments.
             Dispatch(9, 0);
         }
         catch
@@ -68,6 +68,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     internal void Start()
     {
+        _application.Execution.BindThread();
         // Theme precedes every initial Open command, so native defaults are correct on the first
         // materialized frame instead of flashing the fallback light palette.
         SetTheme(_application.Theme);
@@ -85,6 +86,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     public void SetMenuBar(IReadOnlyList<GpuiMenu> menus)
     {
+        ApplicationExecution.AssertEffectsAllowed();
         ArgumentNullException.ThrowIfNull(menus);
 
         var records = new List<NativeMenuRecord>();
@@ -116,10 +118,11 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
                     reserved2 = 0,
                 };
                 var status = _runtime.Api->dispatch_application_menu(_applicationId, &native);
+            GC.KeepAlive(_runtime);
                 if (status != 0)
                 {
                     throw new InvalidOperationException(
-                        $"Native application menu update failed with status {status}."
+                        $"Native menu update failed for application {_applicationId}: {NativeStatus.Describe(NativeStatusDomain.ApplicationMenu, status)}."
                     );
                 }
             }
@@ -128,6 +131,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     public void SetTheme(GpuiTheme theme)
     {
+        ApplicationExecution.AssertEffectsAllowed();
         ArgumentNullException.ThrowIfNull(theme);
         var payload = NativeThemePayload.From(theme);
         unsafe
@@ -148,10 +152,11 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
                 height = 0,
             };
             var status = _runtime.Api->dispatch_application_command(_applicationId, &native);
+            GC.KeepAlive(_runtime);
             if (status != 0)
             {
                 throw new InvalidOperationException(
-                    $"Native application theme update failed with status {status}."
+                    $"Native theme update failed for application {_applicationId}: {NativeStatus.Describe(NativeStatusDomain.ApplicationCommand, status)}."
                 );
             }
         }
@@ -164,6 +169,10 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     internal int MenuAction(ulong actionId)
     {
+        if (Failure is not null || Volatile.Read(ref _stopped) != 0)
+        {
+            return -65;
+        }
         if (!_menuActions.TryGetValue(actionId, out var callback))
         {
             return -64;
@@ -171,6 +180,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
         try
         {
+            using var execution = _application.Execution.Enter(ExecutionPhase.Event);
             callback();
             return 0;
         }
@@ -239,12 +249,13 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     public void OpenWindow(GpuiWindow window, GpuiWindowSnapshot snapshot)
     {
+        ApplicationExecution.AssertEffectsAllowed();
         if (Volatile.Read(ref _stopped) != 0)
         {
             throw new InvalidOperationException("The GPUI application is stopping.");
         }
 
-        var session = new ManagedSession(_runtime, _application, window.Id, window.RootView);
+        var session = new ManagedSession(_runtime, _application, window.Id, window.TakeRootDeclaration(), window);
         if (!_sessions.TryAdd(window.Id, session))
         {
             throw new InvalidOperationException("Failed to register the managed window session.");
@@ -372,6 +383,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
         ushort flags = 0
     )
     {
+        ApplicationExecution.AssertEffectsAllowed();
         if (Volatile.Read(ref _stopped) != 0)
         {
             throw new InvalidOperationException("The GPUI application is stopping.");
@@ -395,10 +407,11 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
                 height = height,
             };
             var status = _runtime.Api->dispatch_application_command(_applicationId, &native);
+            GC.KeepAlive(_runtime);
             if (status != 0)
             {
                 throw new InvalidOperationException(
-                    $"Native application command {command} failed with status {status}."
+                    $"Native application command {command} failed for application {_applicationId}, window {windowId}: {NativeStatus.Describe(NativeStatusDomain.ApplicationCommand, status)}."
                 );
             }
         }

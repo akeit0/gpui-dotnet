@@ -50,7 +50,7 @@ namespace Gpui
     public readonly struct TooltipTag : IParentElementTag, INativeStateElementTag, ITooltipElementTag { }
     public readonly struct ContextMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IContextMenuElementTag { }
     public readonly struct PopoverMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IPopoverMenuElementTag { }
-    public readonly struct TableTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag, ITableElementTag { }
+    public readonly struct TableTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IVirtualizedElementTag, ITableElementTag { }
     public readonly struct SliderTag : IStyledElementTag, INativeStateElementTag, ISliderElementTag { }
     public readonly struct DrawingTag : IStyledElementTag, IParentElementTag, IDrawingElementTag { }
     public readonly struct PathTag : IPathElementTag { }
@@ -61,6 +61,30 @@ namespace Gpui
     public readonly struct DockPanelTag : IParentElementTag, IDockPanelElementTag { }
     public readonly struct DockRegionTag : IParentElementTag, IDockContainerElementTag, IDockRegionElementTag { }
     public readonly struct NativeExtensionTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IExtensionElementTag { }
+
+    public enum ListSelectionSource : uint
+    {
+        Pointer = 0,
+        Keyboard = 1,
+    }
+
+    public enum ListActivationSource : uint
+    {
+        Pointer = 0,
+        Keyboard = 1,
+    }
+
+    public enum InputSelectionPolicy : uint
+    {
+        Preserve = 0,
+        MoveToEnd = 1,
+    }
+
+    public enum InputCompositionPolicy : uint
+    {
+        RejectWhileComposing = 0,
+        CancelComposition = 1,
+    }
 
     public enum FlexWrap : uint
     {
@@ -135,6 +159,14 @@ namespace Gpui
     {
         Normal = 0,
         Italic = 1,
+    }
+
+    public enum ListEventKind : ushort
+    {
+        /// <summary>Opt-in single-row selection request. Uses the List Activated payload and flag layout; selection and presentation remain application-owned.</summary>
+        SelectionRequested = 21,
+        /// <summary>Opt-in row activation. Data is 16 little-endian bytes: u32 index, zero u32 reserved, u64 ItemId (zero when absent). Flags bit 0 selects keyboard instead of pointer, bit 1 indicates a datasource content revision in revision; all other bits are zero. Without bit 1, revision is zero.</summary>
+        Activated = 20,
     }
 
     public enum InputEventKind : ushort
@@ -910,6 +942,96 @@ namespace Gpui
             }
 
             ArenaWriter.AddU64(element.Inner, OpCode.ListItemId, itemId);
+            return element;
+        }
+
+        /// <summary>Overrides Input placeholder text color. Omission uses the current theme.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> PlaceholderColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInputElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.InputPlaceholderRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Input caret color. Omission uses the current theme accent.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> CaretColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInputElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.InputCaretRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Input selection background, including alpha. Omission uses the translucent theme accent.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelectionColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInputElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.InputSelectionRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides the Table header background, including its scrollbar gutter. Omission uses the current theme element background.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HeaderBackground<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ITableElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.TableHeaderBackgroundRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Sets inherited Table header text color for labels and custom content. Omission uses the current theme muted text.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HeaderTextColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ITableElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.TableHeaderTextRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides the Table header bottom border, including its scrollbar gutter. Omission uses the current theme border variant.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HeaderBorderColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ITableElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.TableHeaderBorderRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Slider track background, including alpha. Omission uses the current theme border variant.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> TrackColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ISliderElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SliderTrackRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Slider filled track color, including alpha. Omission uses the current theme accent.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> FillColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ISliderElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SliderFillRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Slider thumb background, including alpha. Omission uses the current theme surface background.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ThumbColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ISliderElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SliderThumbRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Slider thumb border color, including alpha. Omission uses the current theme accent.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ThumbBorderColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ISliderElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SliderThumbBorderRgba, color.Rgba);
             return element;
         }
 

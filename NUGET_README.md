@@ -21,7 +21,7 @@ using static Gpui.Units;
 
 var application = new GpuiApplication();
 application.OpenWindow(
-    new MainView(),
+    MainView.Spec(),
     new GpuiWindowOptions { Title = "Hello GPUI.NET", Width = 900, Height = 600 }
 );
 application.Run();

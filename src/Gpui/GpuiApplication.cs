@@ -63,18 +63,19 @@ public sealed class GpuiWindowOptions
 public sealed class GpuiWindow
 {
     private readonly GpuiApplication _application;
+    internal GpuiApplication Application => _application;
     private int _closed;
 
     internal GpuiWindow(
         GpuiApplication application,
         ulong id,
-        View rootView,
+        RootViewDeclaration rootView,
         GpuiWindowSnapshot snapshot
     )
     {
         _application = application;
         Id = id;
-        RootView = rootView;
+        _rootDeclaration = rootView;
         Snapshot = snapshot;
     }
 
@@ -83,7 +84,9 @@ public sealed class GpuiWindow
 
     public bool IsClosed => Volatile.Read(ref _closed) != 0;
 
-    internal View RootView { get; }
+    private RootViewDeclaration? _rootDeclaration;
+    internal RootViewDeclaration TakeRootDeclaration() => Interlocked.Exchange(ref _rootDeclaration, null)
+        ?? throw new InvalidOperationException("The window root was already consumed or closed.");
     internal GpuiWindowSnapshot Snapshot { get; set; }
     internal bool CloseRequested { get; set; }
 
@@ -102,7 +105,11 @@ public sealed class GpuiWindow
     /// <summary>Changes native window content size. Runtime repositioning is not exposed by GPUI.</summary>
     public void Resize(float width, float height) => _application.ResizeWindow(this, width, height);
 
-    internal void MarkClosed() => Volatile.Write(ref _closed, 1);
+    internal void MarkClosed()
+    {
+        Interlocked.Exchange(ref _rootDeclaration, null);
+        Volatile.Write(ref _closed, 1);
+    }
 }
 
 /// <summary>
@@ -134,11 +141,12 @@ public sealed class NativeRuntimeOptions
 /// </summary>
 public sealed class GpuiApplication
 {
+    internal Interop.Internal.ApplicationExecution Execution { get; } = new();
+
     private static long _nextWindowId;
 
     private readonly object _gate = new();
     private readonly Dictionary<ulong, GpuiWindow> _windows = [];
-    private readonly HashSet<View> _roots = new(ReferenceEqualityComparer.Instance);
     private readonly NativeRuntimeOptions? _runtimeOptions;
     private GpuiMenu[]? _menuBar;
     private GpuiTheme _theme = GpuiTheme.Default;
@@ -176,6 +184,7 @@ public sealed class GpuiApplication
     /// </summary>
     public void SetTheme(GpuiTheme theme)
     {
+        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
         ArgumentNullException.ThrowIfNull(theme);
         IGpuiApplicationHost? host;
         lock (_gate)
@@ -198,6 +207,7 @@ public sealed class GpuiApplication
     /// </summary>
     public void SetMenuBar(params GpuiMenu[] menus)
     {
+        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
         ArgumentNullException.ThrowIfNull(menus);
         if (menus.Any(menu => menu is null))
         {
@@ -231,11 +241,20 @@ public sealed class GpuiApplication
     /// <summary>
     /// Adds a window. Before Run it is queued as an initial window; while Run is active it is
     /// opened through the same application event loop and may be called from any thread. The
-    /// window owns <paramref name="rootView"/> until close; closing permanently unmounts it.
+    /// window owns <paramref name="root"/> until close; closing permanently unmounts it.
     /// </summary>
-    public GpuiWindow OpenWindow(View rootView, GpuiWindowOptions? options = null)
+    public GpuiWindow OpenWindow<TView>(ViewSpec<TView> root, GpuiWindowOptions? options = null)
+        where TView : View, IGeneratedViewFactory<TView> =>
+        OpenWindowCore(new RootViewDeclaration<TView>(root), options);
+
+    public GpuiWindow OpenWindow<TView, TProps>(ViewSpec<TView, TProps> root, GpuiWindowOptions? options = null)
+        where TProps : IEquatable<TProps>
+        where TView : View<TProps>, IGeneratedViewFactory<TView, TProps> =>
+        OpenWindowCore(new RootViewDeclaration<TView, TProps>(root), options);
+
+    private GpuiWindow OpenWindowCore(RootViewDeclaration rootView, GpuiWindowOptions? options)
     {
-        ArgumentNullException.ThrowIfNull(rootView);
+        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
         var snapshot = (options ?? new GpuiWindowOptions()).ValidateAndSnapshot();
         var id = checked((ulong)Interlocked.Increment(ref _nextWindowId));
         var window = new GpuiWindow(this, id, rootView, snapshot);
@@ -246,19 +265,6 @@ public sealed class GpuiApplication
             if (_state == ApplicationState.Stopped)
             {
                 throw new InvalidOperationException("The GPUI application has already stopped.");
-            }
-            if (rootView.IsUnmountedCore)
-            {
-                throw new ObjectDisposedException(
-                    rootView.GetType().FullName,
-                    "An unmounted View instance cannot own another window."
-                );
-            }
-            if (rootView.IsMountedCore || !_roots.Add(rootView))
-            {
-                throw new InvalidOperationException(
-                    "A View instance can be the root of only one open GPUI window."
-                );
             }
             if (snapshot.Activate)
             {
@@ -286,6 +292,7 @@ public sealed class GpuiApplication
     /// <summary>Runs until the last application-owned window closes.</summary>
     public void Run()
     {
+        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
         lock (_gate)
         {
             if (_state != ApplicationState.Created)
@@ -303,84 +310,41 @@ public sealed class GpuiApplication
             _state = ApplicationState.Running;
         }
 
-        Exception? runFailure = null;
         try
         {
             RunOnUiThread(() => NativeRuntime.Load(_runtimeOptions).Run(this));
         }
-        catch (Exception exception)
-        {
-            runFailure = exception;
-        }
-
-        var cleanupFailures = FinishRun();
-        if (runFailure is not null)
-        {
-            if (cleanupFailures.Count == 0)
-            {
-                ExceptionDispatchInfo.Capture(runFailure).Throw();
-            }
-            cleanupFailures.Insert(0, runFailure);
-            throw new AggregateException("GPUI run and View cleanup both failed.", cleanupFailures);
-        }
-        if (cleanupFailures.Count == 1)
-        {
-            ExceptionDispatchInfo.Capture(cleanupFailures[0]).Throw();
-        }
-        if (cleanupFailures.Count > 1)
-        {
-            throw new AggregateException(
-                "Multiple Views failed during application cleanup.",
-                cleanupFailures
-            );
-        }
+        finally { FinishRun(); }
     }
 
-    private List<Exception> FinishRun()
+    private void FinishRun()
     {
-        View[] roots;
         lock (_gate)
         {
             _state = ApplicationState.Stopped;
             _host = null;
-            foreach (var window in _windows.Values)
-            {
-                window.MarkClosed();
-            }
+            foreach (var window in _windows.Values) window.MarkClosed();
             _windows.Clear();
-            roots = _roots.ToArray();
         }
-
-        List<Exception> failures = [];
-        foreach (var root in roots)
-        {
-            try
-            {
-                UnmountRoot(root);
-            }
-            catch (Exception exception)
-            {
-                failures.Add(exception);
-            }
-        }
-        return failures;
     }
 
-    /// <summary>One-window convenience over the application/window ownership model.</summary>
-    public static void Run(View rootView, GpuiWindowOptions? options = null) =>
-        Run(rootView, options, null);
-
-    /// <summary>
-    /// One-window convenience that selects an explicit native host.
-    /// </summary>
-    public static void Run(
-        View rootView,
-        GpuiWindowOptions? options,
-        NativeRuntimeOptions? runtimeOptions
-    )
+    /// <summary>Runs one framework-owned root with the selected native runtime.</summary>
+    public static void Run<TView>(ViewSpec<TView> root, GpuiWindowOptions? options = null,
+        NativeRuntimeOptions? runtimeOptions = null)
+        where TView : View, IGeneratedViewFactory<TView>
     {
         var application = new GpuiApplication(runtimeOptions);
-        application.OpenWindow(rootView, options);
+        application.OpenWindow(root, options);
+        application.Run();
+    }
+
+    public static void Run<TView, TProps>(ViewSpec<TView, TProps> root, GpuiWindowOptions? options = null,
+        NativeRuntimeOptions? runtimeOptions = null)
+        where TProps : IEquatable<TProps>
+        where TView : View<TProps>, IGeneratedViewFactory<TView, TProps>
+    {
+        var application = new GpuiApplication(runtimeOptions);
+        application.OpenWindow(root, options);
         application.Run();
     }
 
@@ -413,7 +377,6 @@ public sealed class GpuiApplication
 
     internal void NativeWindowClosed(ulong id)
     {
-        View root;
         lock (_gate)
         {
             if (!_windows.Remove(id, out var window))
@@ -421,15 +384,13 @@ public sealed class GpuiApplication
                 return;
             }
             window.MarkClosed();
-            root = window.RootView;
         }
-        UnmountRoot(root);
     }
 
     internal void CloseWindow(GpuiWindow window)
     {
+        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
         IGpuiApplicationHost? host;
-        View? root = null;
         lock (_gate)
         {
             ValidateOwnedWindow(window);
@@ -442,7 +403,6 @@ public sealed class GpuiApplication
             {
                 _windows.Remove(window.Id);
                 window.MarkClosed();
-                root = window.RootView;
             }
             else
             {
@@ -450,11 +410,7 @@ public sealed class GpuiApplication
             }
         }
 
-        if (root is not null)
-        {
-            UnmountRoot(root);
-            return;
-        }
+        if (host is null) return;
 
         try
         {
@@ -473,23 +429,9 @@ public sealed class GpuiApplication
         }
     }
 
-    private void UnmountRoot(View root)
-    {
-        try
-        {
-            root.UnmountRuntime();
-        }
-        finally
-        {
-            lock (_gate)
-            {
-                _roots.Remove(root);
-            }
-        }
-    }
-
     internal void ActivateWindow(GpuiWindow window)
     {
+        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
         IGpuiApplicationHost? host;
         lock (_gate)
         {
@@ -507,6 +449,7 @@ public sealed class GpuiApplication
 
     internal void MinimizeWindow(GpuiWindow window)
     {
+        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
         IGpuiApplicationHost host;
         lock (_gate)
         {
@@ -520,6 +463,7 @@ public sealed class GpuiApplication
 
     internal void ToggleMaximizeWindow(GpuiWindow window)
     {
+        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
         IGpuiApplicationHost host;
         lock (_gate)
         {
@@ -533,6 +477,7 @@ public sealed class GpuiApplication
 
     internal void SetWindowTitle(GpuiWindow window, string title)
     {
+        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         IGpuiApplicationHost? host;
         lock (_gate)
@@ -546,6 +491,7 @@ public sealed class GpuiApplication
 
     internal void ResizeWindow(GpuiWindow window, float width, float height)
     {
+        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
         GpuiWindowOptions.ValidateSize(width, height);
         IGpuiApplicationHost? host;
         lock (_gate)

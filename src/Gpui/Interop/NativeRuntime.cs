@@ -26,7 +26,6 @@ public sealed unsafe class NativeRuntime
     {
         get
         {
-            GC.KeepAlive(_libraryHandle);
             return _api;
         }
     }
@@ -109,6 +108,7 @@ public sealed unsafe class NativeRuntime
                 || api->dispatch_application_menu == null
                 || api->supports_extension == null
                 || api->dispatch_extension_command == null
+                || api->invalidate_artifacts == null
         )
         {
             throw new InvalidOperationException(
@@ -165,7 +165,7 @@ public sealed unsafe class NativeRuntime
                 if (status != 0)
                 {
                     throw new InvalidOperationException(
-                        $"Native host rejected extension '{requirement.Id}' with status {status}."
+                        $"Native host rejected extension '{requirement.Id}': {NativeStatus.Describe(NativeStatusDomain.ExtensionSupport, status)}."
                     );
                 }
             }
@@ -175,6 +175,7 @@ public sealed unsafe class NativeRuntime
     public void Validate(RenderArenaOwner owner, Element root)
     {
         ArgumentNullException.ThrowIfNull(owner);
+        ObjectDisposedException.ThrowIf(owner.NativeArena == null, owner);
         // Without this check, a root element from another arena could validate an unrelated
         // node index in the owner's arena.
         if (root.Arena != owner.NativeArena || root.Generation != owner.NativeArena->Generation)
@@ -183,11 +184,17 @@ public sealed unsafe class NativeRuntime
                 "Root does not belong to the owner's active render generation."
             );
         }
-        var status = _api->validate_render(owner.NativeArena, root.Node);
+        int status;
+        try { status = _api->validate_render(owner.NativeArena, root.Node); }
+        finally
+        {
+            GC.KeepAlive(owner);
+            GC.KeepAlive(this);
+        }
         if (status != 0)
         {
             throw new InvalidOperationException(
-                $"Native render validation failed with status {status}."
+                $"Native render validation failed: {NativeStatus.Describe(NativeStatusDomain.Snapshot, status)}."
             );
         }
     }
@@ -209,6 +216,9 @@ public sealed unsafe class NativeRuntime
             {
                 struct_size = (uint)sizeof(ManagedCallbacks),
                 render = &NativeCallbacks.Render,
+                render_completed = &NativeCallbacks.RenderCompleted,
+                release_artifact = &NativeCallbacks.ReleaseArtifact,
+                accept_artifact = &NativeCallbacks.AcceptArtifact,
                 click = &NativeCallbacks.Click,
                 list_render_range = &NativeCallbacks.ListRenderRange,
                 dynamic_frame = &NativeCallbacks.DynamicFrame,
@@ -244,7 +254,9 @@ public sealed unsafe class NativeRuntime
 
     internal void NotifyView(ulong sessionId)
     {
-        var status = _api->notify_view(sessionId);
+        int status;
+        try { status = _api->notify_view(sessionId); }
+        finally { GC.KeepAlive(this); }
         if (status is -30 or -31)
         {
             // A late continuation may race normal native teardown.
@@ -253,7 +265,7 @@ public sealed unsafe class NativeRuntime
         if (status != 0)
         {
             throw new InvalidOperationException(
-                $"Native view notification failed with status {status}."
+                $"Native view notification failed for session {sessionId}: {NativeStatus.Describe(NativeStatusDomain.Notification, status)}."
             );
         }
     }

@@ -4,13 +4,16 @@ using static Gpui.Units;
 [GpuiView]
 internal sealed partial class DashboardView : View
 {
+    [System.Runtime.CompilerServices.InlineArray(36)]
+    private struct CardBuffer { private Element _element; }
+
     private ScrollController _scroll;
     private int _propsRevision;
     private bool _reverseCounters;
     private bool _foundationChecked;
     private int _foundationRadio;
 
-    protected override void OnMounted(ref ViewContext context)
+    public DashboardView(ViewConstruction context) : base(context)
     {
         _scroll = context.CreateScrollController("overview-scroll");
     }
@@ -23,13 +26,13 @@ internal sealed partial class DashboardView : View
         Element secondCounter;
         if (_reverseCounters)
         {
-            firstCounter = ui.Child<CounterCardView, CounterCardProps>("beta", in betaProps);
-            secondCounter = ui.Child<CounterCardView, CounterCardProps>("alpha", in alphaProps);
+            firstCounter = ui.Child("beta", CounterCardView.Spec(betaProps));
+            secondCounter = ui.Child("alpha", CounterCardView.Spec(alphaProps));
         }
         else
         {
-            firstCounter = ui.Child<CounterCardView, CounterCardProps>("alpha", in alphaProps);
-            secondCounter = ui.Child<CounterCardView, CounterCardProps>("beta", in betaProps);
+            firstCounter = ui.Child("alpha", CounterCardView.Spec(alphaProps));
+            secondCounter = ui.Child("beta", CounterCardView.Spec(betaProps));
         }
 
         var controls = ui.HStack(
@@ -127,7 +130,8 @@ internal sealed partial class DashboardView : View
             )
             .Gap(Px(8));
 
-        Span<Element> cards = stackalloc Element[36];
+        CardBuffer buffer = default;
+        Span<Element> cards = buffer;
         for (var index = 0; index < cards.Length; index++)
         {
             cards[index] = ui.VStack(

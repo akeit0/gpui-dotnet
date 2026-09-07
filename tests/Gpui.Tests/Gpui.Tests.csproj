@@ -4,6 +4,7 @@
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <VSTestTestCaseFilter Condition="'$(VSTestTestCaseFilter)' == ''">Category!=Performance</VSTestTestCaseFilter>
     </PropertyGroup>
 
     <ItemGroup>
@@ -14,6 +15,7 @@
         <ProjectReference Include="../../src/Gpui.Core/Gpui.Core.csproj" />
         <ProjectReference Include="../../src/Gpui.Generators/Gpui.Generators.csproj" />
         <ProjectReference Include="../../src/Gpui.Editor/Gpui.Editor.csproj" />
+        <ProjectReference Include="../../samples/Gpui.Sample/Gpui.Sample.csproj" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
     </ItemGroup>
 </Project>

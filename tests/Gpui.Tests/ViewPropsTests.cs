@@ -5,20 +5,20 @@ namespace Gpui.Tests;
 public sealed class ViewPropsTests
 {
     [Fact]
-    public void PropsRemainConstructorLikeAcrossCommitAndRollback()
+    public void CommittedPropsNeverExposeStagedRenderInputs()
     {
         var view = new ProbeView();
 
         Assert.Throws<InvalidOperationException>(() => view.ReadProps());
 
         Assert.True(view.StageProps(1));
-        Assert.Equal(1, view.ReadProps());
+        Assert.Throws<InvalidOperationException>(() => view.ReadProps());
         view.ValidateRenderInputs();
         view.CommitStagedProps();
         Assert.Equal(1, view.ReadProps());
 
         Assert.True(view.StageProps(2));
-        Assert.Equal(2, view.ReadProps());
+        Assert.Equal(1, view.ReadProps());
         view.ValidateRenderInputs();
         view.RollBackStagedProps();
         Assert.Equal(1, view.ReadProps());
@@ -30,8 +30,11 @@ public sealed class ViewPropsTests
 
     private sealed class ProbeView : View<int>
     {
-        internal int ReadProps() => Props;
+        public ProbeView() : this(TestViews.Construction()) { }
+        public ProbeView(ViewConstruction construction) : base(construction) { }
 
-        protected override Element Render(ref RenderContext ui) => ui.Text($"{Props}");
+        internal int ReadProps() => CommittedProps;
+
+        protected override Element Render(in int props, ref RenderContext ui) => ui.Text($"{props}");
     }
 }

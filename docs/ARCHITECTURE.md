@@ -1,5 +1,9 @@
 # Architecture
 
+Cross-layer acceptance, displayed-row ownership, and callback-admission invariants are specified
+in [Runtime boundaries](RUNTIME_BOUNDARIES.md). Allocation measurements are reported separately in
+[Performance](PERFORMANCE.md); architectural guarantees do not imply measured end-to-end costs.
+
 GPUI.NET is a semantic bridge between a managed application model and a native GPUI renderer. It
 does not expose Rust objects to C# or translate each fluent builder call through FFI. Managed code
 writes a compact render arena; Rust validates that arena, retains a decoded snapshot, and owns the
@@ -19,7 +23,7 @@ C# owns:
 Rust owns:
 
 - `gpui::Application`, native windows, and the event loop;
-- render-arena allocation, validation, and retained snapshots;
+- native validation and owned retained snapshots;
 - semantic component materialization;
 - scrolling, list/table viewport state, measurements, and row caches;
 - retained Input, Slider, and Dock entities;
@@ -51,31 +55,76 @@ native validation
 ValidatedSnapshot ──► semantic adapters ──► GPUI elements
 ```
 
-The native host owns the arena memory. A managed render may return `RenderGrowRequired`, after
-which Rust grows the arena and retries the render. This is why `Render()` and `[GpuiListItem]`
-methods must be deterministic and free of application-side effects.
+Managed code owns reusable root, retained-fragment, and range-output arenas. Buffers grow before
+writes without rerunning user rendering. Rust receives a borrowed completed descriptor and
+synchronously decodes it into an owned snapshot before any further managed callback. Native row
+caches retain decoded snapshots, not the borrowed buffers. `Render()` and `[GpuiListItem]` remain
+free of observable application-side effects while allowing pure owned caches; this requirement is independent of capacity.
+Elements and render contexts retain the managed arena owner. Authoring validates its thread,
+disposal state, and captured generation before accessing native memory. Each write keeps the owner
+alive until pointer use ends; disposal and reset cannot interrupt an active write or formatter.
+Disposal still releases buffers immediately, even when an escaped Element retains the disposed owner.
+Row engines reuse numeric validation/grouping scratch across serial batch decodes. A batch keeps
+only its decoded snapshot, artifact lease, and cache metadata. Its temporary string interner ends
+after decoding; the snapshot owns its strings independently. Root snapshots retain their interner
+across renders so consecutive values can reuse allocations.
+Reactive invalidation sorts the owned ingress message by source and artifact once. Each row
+engine searches its source range, skipping its cache entirely when that range is empty; no
+additional artifact registry or persistent index is retained.
+Child fragment boundaries check arena identity, generation, and root index before copying. Full
+managed semantic validation runs once on the assembled root or row batch before publication;
+native decoding independently validates the complete snapshot before acceptance.
+Decoded snapshots lazily own a drawing geometry cache. Each Drawing retains at most one bounds
+variant after repeated use, with a shared limit of 256 entries and 16 MiB of path/vector capacity
+per snapshot. New descriptions detach the old cache after validation; frame-owned handles may keep
+it alive until the old frame is released. Cache entries hold geometry and resolved colors only, with
+no View callbacks or borrowed arena memory. Snapshots without materialized Drawings allocate no
+drawing cache. This is native derived data and does not add a retained resource or managed row View.
+Drawing canvases copy commands into one owned buffer per Drawing. A lazy snapshot-owned pool
+recycles buffers after prepaint consumes their commands or the canvas is dropped, retaining at
+most 256 free buffers and 4 MiB of free command capacity. Live captures exclusively own their
+buffers, so decoding a replacement cannot overwrite an earlier frame's commands. Free buffers
+can span accepted replacements; a replacement without Drawings detaches the pool. Snapshot and
+surviving canvas handles own its lifetime. This scratch budget is separate from geometry retention
+and excludes live canvas buffers.
+Each root publication returns a non-reused revision. After decoding and resource reconciliation,
+Rust acknowledges it through `render_completed`. Managed props and composition commit throughout
+the tree, replaced ownership retires, all new routes activate, and effects start parent-first before native materialization.
+Normal external callbacks cannot enter between publication and acceptance.
+
+Acceptance follows staged compositions and their immediate child declarations. A reused clean
+child accepts any newly supplied equal props, then keeps its descendants' committed state without
+walking them. Comparing each rendered parent's previous and staged slots identifies removed
+subtree roots for child-first retirement. Exclusive slot ownership makes a full-tree reachability
+set unnecessary. Session failure and shutdown still enumerate every attached owner, including
+unaccepted construction candidates.
 
 The native `ManagedView` keeps the last valid snapshot. A clean GPUI repaint materializes or paints
-that snapshot without calling managed code. `View.Invalidate()` increments the managed retained
-version and sends a coalesced native notification.
+that snapshot without calling managed code. `View.Invalidate()` queues a coalesced request using
+stable View identity. The application thread consumes it before rendering, marks the View and its
+ancestors dirty, and rerenders the required fragments. Propagation stops at an already-dirty
+ancestor. Retained tree state uses the application execution guard and needs no locks.
 
 ## Managed view tree
 
-Each window has one `ManagedSession` and one root `View`. Framework-owned children are resolved by
-slot through source-generated factories. A slot retains the same child while its requested type is
+Each window has one `ManagedSession` and one root `View` or `View<TProps>`. Roots and children consume
+typed Spec declarations and construct through the same generated factory under a pre-existing ownership
+scope on the application thread. Framework-owned children are resolved by slot. A slot retains the same child while its requested type is
 unchanged; a keyed slot can replace its child type for routes and tabs.
 
 UI ownership, rather than CLR reachability, defines lifetime. An open window owns its root and a
 committed parent slot owns its child. Holding a managed reference does not retain either ownership.
 Unmount is terminal; an instance that leaves its window or slot cannot join another tree.
 
-`ViewBase` keeps one-shot identity/lifecycle state separate from mounted runtime state. A stable,
-non-pooled `ViewCommandRoute` admits any-thread invalidation and controller commands without
-touching UI state. A `MountedViewAttachment` owns the GPUI-thread-only native handle,
-resource-key sequence, and lazy event-binding collections. Unmount deactivates the route, removes
-and resets the attachment, and returns the attachment to a bounded pool before user cleanup.
+`ViewBase` is the authoring boundary. Its composed `ViewRuntime` coordinates one-shot identity,
+lifetime, and mounting. A stable, non-pooled `ViewCommandRoute` admits any-thread commands.
+`ViewOwnership` owns construction cleanup, memos, and effect handles. `ViewRuntime` owns the optional
+View work handle. `MountedViewAttachment` owns the UI handle, resource-key sequence, and
+`ViewEventRegistry`; the registry owns event tokens and artifact leases. Unmount deactivates the
+route, retires optional capabilities, and resets pooled attachment storage before user cleanup.
+See [Managed View runtime](VIEW_RUNTIME.md) for responsibility and lifetime boundaries.
 
-`View` and `View<TProps>` are sibling authoring shapes over the shared `ViewBase` runtime. Their
+`View` and `View<TProps>` are sibling authoring shapes over the shared `ViewBase` authoring contract. Their
 type relationship makes required props a compile-time child declaration constraint.
 
 Child views render into retained fragment arenas. The parent snapshot copies those fragments into
@@ -83,12 +132,37 @@ the current root arena. Staged props changes and child invalidation mark the nec
 its ancestors dirty. Application-wide theme changes invalidate every retained fragment because a
 theme is ambient render input rather than child props.
 
-New children are session-owned candidates while a transactional render is retried. Tree
-replacement commits the new composition before terminally unmounting the old subtree; abandoned
-candidates are also unmounted during reconciliation. Unmount proceeds child-first. See
+Completing a managed fragment only stages it. Dirty flags clear for reachable staged compositions
+when native accepts the root, before effect setup runs. Rejection faults the session and retires its Views. Requests
+queued during rendering or pending acceptance are consumed by a later render, so accepting the
+current snapshot cannot erase a newer invalidation.
+
+New children construct owned local state and remain session-owned candidates until native acceptance. Tree replacement commits the new composition before terminally unmounting the old
+subtree; abandoned candidates release local ownership without starting effects. Unmount proceeds child-first. See
 [VIEW_LIFECYCLE.md](VIEW_LIFECYCLE.md).
 
+## Reactive state
+
+`Signal<T>` tracks reads against the current View or demand artifact. Reusable edges become
+subscriptions only when native accepts that consumer's output. Changed values dirty only their
+accepted consumers; conditional reads remove obsolete edges at acceptance. Change revisions
+close the gap between observation and acceptance. Bound reads and writes assert the application's
+thread and identity. Teardown detaches edges before user cleanup. See [Reactivity](REACTIVITY.md).
+
 ## Retained resource path
+
+Demand rendering is a shared artifact lifecycle, not a List ownership model. Managed request
+adapters validate and render an element tree under the session's demand scope. That scope supplies
+theme, render-purity guards, dependency tracking, and artifact-owned event bindings. Native
+`demand::load_artifact` decodes borrowed output, validates the adapter's expected shape, accepts
+the artifact, and returns an owned snapshot and release lease. Source IDs come from the shared
+demand module. Neither the common loader nor the managed demand scope assumes rows or indices.
+
+List/Table currently provide the production request adapter: a bounded contiguous range rendered
+under a synthetic root, with one child per requested row. Their cache eviction and measurement
+policies remain in the row engine. Non-range snapshot tests exercise the same lifecycle. Public
+custom demand-renderer registration and a general request ABI are not exposed yet; the existing
+`list_render_range` callback remains this adapter's wire entry point.
 
 Scroll, List, Table, Input, Slider, and Dock are declarations plus stable resource identities.
 Identity is `(window session, owner View handle, UTF-8 key)`. Rust stores the mutable resource object and
@@ -101,11 +175,14 @@ use the same View route with an extension-neutral envelope and schema-owned payl
 managed controller ──► native resource/extension command ──► retained GPUI resource
 ```
 
-Resource commands execute on the GPUI thread. Declarative snapshots remain authoritative. List
+Resource commands require an accepted declaration and execute on the GPUI thread. Native ingress
+stamps commands with the current presence generation; delivery discards them after that generation
+ends. A later declaration under the same key creates a new generation. Declarative snapshots remain authoritative. List
 measurement hints such as `Splice` and `Refresh` are committed with the next compatible snapshot;
 a mismatch falls back to a safe reset.
 Extension payloads are copied before returning through FFI and may wait for the first matching
-resource materialization.
+resource materialization within that generation. Presence is published before effect setup, so
+accepted effect setup can command its resources before they materialize.
 
 ## Virtual datasource path
 
@@ -119,7 +196,7 @@ GPUI item request
 Rust row-batch cache ── hit ──► retained row snapshot
       │ miss
       ▼
-list_render_range(start, count)
+list_render_range(source, start, count) → artifact
       │
       ▼
 one arena containing count row roots
@@ -128,6 +205,20 @@ one arena containing count row roots
 `ListDataSource.ContentRevision` controls row-snapshot validity independently from the root snapshot
 revision. Theme changes also evict row batches because rows contain resolved theme colors. List
 viewport and measurement state survive either invalidation.
+
+Every native row engine owns a non-reused source identity, separate from its generated renderer
+method. Every loaded batch owns a managed artifact lease that keeps only that batch's event
+bindings live. Eviction, revision/theme invalidation, source removal, and shutdown release those
+bindings explicitly. Native decode failure releases the unpublished batch's lease and faults the
+session. Artifact release runs no application code, including during root reconciliation.
+
+After range decode, `accept_artifact` commits its reactive observations. Row-only Signal changes
+batch source/artifact keys at the managed callback boundary; native evicts and remeasures those
+batches without requiring managed root rendering. These identities never reach application code.
+
+Dynamic event tokens identify a never-reused ID under a one-shot View handle. Live IDs map to
+recyclable slots. Root rendering retires only root bindings; each artifact releases only its own
+bindings. Stale tokens are harmless and released slots no longer retain targets or delegates.
 
 ## Applications, windows, and threading
 
@@ -138,8 +229,8 @@ as render-session IDs.
 Window and resource commands may originate from managed threads, but all GPUI mutations occur on
 the native event-loop thread. The application exits after its final registered window closes. A
 failure is recorded against its managed session; other windows continue until normal shutdown.
-See [THREADING.md](THREADING.md) for GPUI entity release, managed callback serialization, async
-continuations, and the binding's any-thread ingress contract.
+See [THREADING.md](THREADING.md) for GPUI entity release, managed callback serialization,
+owned-work completion, and the binding's any-thread ingress contract.
 
 ## Themes and styles
 

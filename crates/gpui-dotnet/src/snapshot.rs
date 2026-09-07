@@ -1,4 +1,9 @@
-use std::{collections::HashSet, slice, sync::Arc};
+use std::{
+    cell::{OnceCell, RefCell},
+    collections::HashSet,
+    rc::Rc,
+    sync::Arc,
+};
 
 use gpui::{FontFallbacks, FontFeatures, SharedString};
 
@@ -8,11 +13,11 @@ use crate::{
         COMPONENT_CONTEXT_MENU, COMPONENT_DOCK_AREA, COMPONENT_DOCK_PANEL, COMPONENT_DOCK_REGION,
         COMPONENT_DOCK_SPLIT, COMPONENT_DOCK_TABS, COMPONENT_DRAWING, COMPONENT_DYNAMIC,
         COMPONENT_INPUT, COMPONENT_LIST, COMPONENT_NATIVE_EXTENSION, COMPONENT_OVERLAY,
-        COMPONENT_PATH, COMPONENT_POPOVER_MENU, COMPONENT_SLIDER, COMPONENT_TABLE,
-        COMPONENT_TOOLTIP, DataKind, OP_DOCK_ACTIVE_INDEX, OP_DOCK_REGION_SIDE,
+        COMPONENT_PATH, COMPONENT_POPOVER_MENU, COMPONENT_SCROLL, COMPONENT_SLIDER,
+        COMPONENT_TABLE, COMPONENT_TOOLTIP, DataKind, OP_DOCK_ACTIVE_INDEX, OP_DOCK_REGION_SIDE,
         OP_DRAWING_VIEW_BOX_SIZE, OP_FONT_FALLBACKS, OP_FONT_FEATURES, OP_PATH_ARC_RADII,
-        OP_RESOURCE_OWNER, ValueKind, allows_payload, component_metadata, operation_metadata,
-        payload_error,
+        OP_RESOURCE_OWNER, OP_TABLE_COLUMN, ValueKind, allows_payload, component_metadata,
+        operation_metadata, payload_error,
     },
 };
 
@@ -33,9 +38,59 @@ pub struct ValidatedSnapshot {
     ops: Vec<OpRecord>,
     children: Vec<u32>,
     op_data: Vec<Option<SharedString>>,
+    drawing_cache: OnceCell<Rc<RefCell<crate::drawing_cache::DrawingCache>>>,
+    drawing_command_pool: OnceCell<Rc<RefCell<crate::drawing_commands::DrawingCommandPool>>>,
 }
 
 impl ValidatedSnapshot {
+    pub(crate) fn drawing_commands(
+        &self,
+        node: &SnapshotNode,
+    ) -> crate::drawing_commands::DrawingCommands {
+        let children = self.children(node);
+        let count = children
+            .iter()
+            .map(|child| self.ops(&self.nodes[*child as usize]).len())
+            .sum();
+        let pool = self.drawing_command_pool.get_or_init(Default::default);
+        let mut commands =
+            crate::drawing_commands::DrawingCommandPool::acquire(pool.clone(), count);
+        for child in children {
+            commands.extend_from_slice(self.ops(&self.nodes[*child as usize]));
+        }
+        commands
+    }
+
+    pub(crate) fn drawing_cache(&self) -> Rc<RefCell<crate::drawing_cache::DrawingCache>> {
+        self.drawing_cache.get_or_init(Default::default).clone()
+    }
+
+    pub(crate) fn clear_drawing_cache(&mut self) {
+        self.drawing_cache.take();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn drawing_cache_bytes(&self) -> usize {
+        self.drawing_cache
+            .get()
+            .map_or(0, |cache| cache.borrow().retained_bytes())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn drawing_command_pool_bytes(&self) -> usize {
+        self.drawing_command_pool
+            .get()
+            .map_or(0, |pool| pool.borrow().retained_bytes())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn buffer_capacity_bytes(&self) -> usize {
+        self.nodes.capacity() * size_of::<SnapshotNode>()
+            + self.ops.capacity() * size_of::<OpRecord>()
+            + self.children.capacity() * size_of::<u32>()
+            + self.op_data.capacity() * size_of::<Option<SharedString>>()
+    }
+
     pub fn decode_into(
         &mut self,
         arena: &RenderArena,
@@ -44,6 +99,9 @@ impl ValidatedSnapshot {
         scratch: &mut SnapshotScratch,
     ) -> Result<(), i32> {
         validate_with_scratch(arena, root, scratch)?;
+        // Old painted elements may retain the previous cache until their frame is released.
+        // Replacement snapshots must never reuse geometry from the old description.
+        self.clear_drawing_cache();
 
         let nodes = unsafe { slice_or_empty(arena.nodes, arena.node_length as usize) };
         let ops = unsafe { slice_or_empty(arena.ops, arena.op_length as usize) };
@@ -73,12 +131,16 @@ impl ValidatedSnapshot {
 
         retained_strings.begin_snapshot();
         self.op_data.clear();
-        self.op_data.resize(self.ops.len(), None);
         for (index, op) in self.ops.iter().enumerate() {
             let is_data = operation_metadata(op.code)
                 .is_some_and(|metadata| metadata.value_kind == ValueKind::Data);
             if !is_data {
                 continue;
+            }
+            // Most row operations are numeric or callbacks. Keep the indexed string table
+            // absent unless a data operation actually needs it; subsequent decodes reuse capacity.
+            if self.op_data.is_empty() {
+                self.op_data.resize(self.ops.len(), None);
             }
             let start = op.a as usize;
             let end = start + op.b as usize;
@@ -109,6 +171,16 @@ impl ValidatedSnapshot {
             });
         }
         self.root = root;
+        // Scratch can span decoded replacements, but a description without Drawings should
+        // release it. Older command captures keep their own pool handle until released.
+        if self.drawing_command_pool.get().is_some()
+            && !self
+                .nodes
+                .iter()
+                .any(|node| node.component == COMPONENT_DRAWING)
+        {
+            self.drawing_command_pool.take();
+        }
         Ok(())
     }
 
@@ -187,9 +259,32 @@ pub struct SnapshotScratch {
     op_offsets: Vec<usize>,
     op_cursor: Vec<usize>,
     resource_keys: Vec<(u32, u32, u32, u16)>,
+    dock: Vec<DockInfo>,
+}
+
+#[derive(Clone, Copy, Default)]
+struct DockInfo {
+    value: u32,
+    area: u32,
 }
 
 impl SnapshotScratch {
+    #[cfg(test)]
+    pub(crate) fn buffer_capacity_bytes(&self) -> usize {
+        (self.parents.capacity() + self.pending.capacity() + self.grouped_children.capacity())
+            * size_of::<u32>()
+            + self.visited.capacity()
+            + (self.child_counts.capacity()
+                + self.child_offsets.capacity()
+                + self.child_cursor.capacity()
+                + self.op_counts.capacity()
+                + self.op_offsets.capacity()
+                + self.op_cursor.capacity())
+                * size_of::<usize>()
+            + self.resource_keys.capacity() * size_of::<(u32, u32, u32, u16)>()
+            + self.dock.capacity() * size_of::<DockInfo>()
+    }
+
     fn prepare_nodes(&mut self, node_len: usize, child_len: usize) {
         reset_vec(&mut self.parents, node_len, u32::MAX);
         reset_vec(&mut self.visited, node_len, 0);
@@ -240,9 +335,8 @@ pub fn validate(arena: &RenderArena, root: u32) -> Result<(), i32> {
 
 /// Virtualized lists and tables share one row-engine namespace per owner view, so a List and a
 /// Table (or two of either) must not declare the same `(owner, key)`. Slider resources use a
-/// separate kind namespace and are checked independently. The count of retained nodes per
-/// snapshot is tiny, so the O(K²) pairwise comparison over reusable scratch memory is cheaper
-/// than hashing strings.
+/// separate kind namespace and are checked independently. Sorting reusable offset records
+/// bounds comparisons without allocating or retaining key strings.
 fn validate_resource_key_uniqueness(
     nodes: &[NodeRecord],
     ops: &[OpRecord],
@@ -267,6 +361,26 @@ fn validate_resource_key_uniqueness(
         // key is the whole payload. The kind keeps Slider's separate resource namespace apart.
         let (kind, key_length) = match node.component {
             COMPONENT_LIST => (2, node.data_length),
+            COMPONENT_SCROLL => (1, node.data_length),
+            COMPONENT_INPUT => (
+                3,
+                utf8[node.data_offset as usize
+                    ..node.data_offset as usize + node.data_length as usize]
+                    .iter()
+                    .position(|byte| *byte == 0)
+                    .unwrap() as u32,
+            ),
+            COMPONENT_NATIVE_EXTENSION => (
+                6,
+                utf8[node.data_offset as usize
+                    ..node.data_offset as usize + node.data_length as usize]
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, byte)| **byte == 0)
+                    .nth(2)
+                    .unwrap()
+                    .0 as u32,
+            ),
             COMPONENT_TABLE => (
                 2,
                 utf8[node.data_offset as usize
@@ -283,21 +397,28 @@ fn validate_resource_key_uniqueness(
         if owner == 0 || key_length == 0 {
             continue;
         }
-        for previous in &owners[..count] {
-            if previous.0 == owner
-                && previous.3 == kind
-                && previous.2 == key_length
-                && utf8[previous.1 as usize..previous.1 as usize + key_length as usize]
-                    == utf8
-                        [node.data_offset as usize..node.data_offset as usize + key_length as usize]
-            {
-                return Err(-56);
-            }
-        }
         owners[count] = (owner, node.data_offset, key_length, kind);
         count += 1;
     }
+    owners.truncate(count);
+    if duplicate_keys(owners, utf8) {
+        return Err(-56);
+    }
     Ok(())
+}
+
+// Store offsets, never borrowed pointers or allocated strings. Resource namespaces and
+// Dock areas both reduce to (owner/area, kind, UTF-8 key) uniqueness after validation.
+fn duplicate_keys(keys: &mut [(u32, u32, u32, u16)], utf8: &[u8]) -> bool {
+    let compare = |left: &(u32, u32, u32, u16), right: &(u32, u32, u32, u16)| {
+        (left.0, left.3).cmp(&(right.0, right.3)).then_with(|| {
+            utf8[left.1 as usize..left.1 as usize + left.2 as usize]
+                .cmp(&utf8[right.1 as usize..right.1 as usize + right.2 as usize])
+        })
+    };
+    keys.sort_unstable_by(compare);
+    keys.windows(2)
+        .any(|pair| compare(&pair[0], &pair[1]).is_eq())
 }
 
 fn validate_with_scratch(
@@ -329,6 +450,13 @@ fn validate_with_scratch(
         return Err(-4);
     }
 
+    if !crate::pointer::valid(arena.nodes, node_len)
+        || !crate::pointer::valid(arena.ops, op_len)
+        || !crate::pointer::valid(arena.children, child_len)
+        || !crate::pointer::valid(arena.utf8, utf8_len)
+    {
+        return Err(-4);
+    }
     let nodes = unsafe { slice_or_empty(arena.nodes, node_len) };
     let ops = unsafe { slice_or_empty(arena.ops, op_len) };
     let children = unsafe { slice_or_empty(arena.children, child_len) };
@@ -461,6 +589,25 @@ fn validate_with_scratch(
     }
 
     scratch.prepare_nodes(node_len, child_len);
+    let has_dock = nodes.iter().any(|node| {
+        matches!(
+            node.component,
+            COMPONENT_DOCK_AREA
+                | COMPONENT_DOCK_SPLIT
+                | COMPONENT_DOCK_TABS
+                | COMPONENT_DOCK_PANEL
+                | COMPONENT_DOCK_REGION
+        )
+    });
+    scratch.dock.clear();
+    if has_dock {
+        scratch.dock.resize(node_len, DockInfo::default());
+        for op in ops {
+            if matches!(op.code, OP_DOCK_ACTIVE_INDEX | OP_DOCK_REGION_SIDE) {
+                scratch.dock[op.node as usize].value = op.a as u32;
+            }
+        }
+    }
     for edge in children {
         if edge.parent as usize >= node_len || edge.child as usize >= node_len {
             return Err(-7);
@@ -509,6 +656,26 @@ fn validate_with_scratch(
     }) {
         return Err(-32);
     }
+    if nodes
+        .iter()
+        .enumerate()
+        .any(|(index, node)| node.component == COMPONENT_TABLE && scratch.child_counts[index] != 0)
+    {
+        // Reuse decode scratch only when custom headers need structural validation.
+        reset_vec(&mut scratch.op_counts, node_len, 0);
+        for op in ops {
+            if op.code == OP_TABLE_COLUMN {
+                scratch.op_counts[op.node as usize] += 1;
+            }
+        }
+        if nodes.iter().enumerate().any(|(index, node)| {
+            node.component == COMPONENT_TABLE
+                && scratch.child_counts[index] != 0
+                && scratch.child_counts[index] != scratch.op_counts[index]
+        }) {
+            return Err(-57);
+        }
+    }
     if nodes.iter().enumerate().any(|(index, node)| {
         node.component == COMPONENT_TOOLTIP && scratch.child_counts[index] != 2
     }) {
@@ -539,17 +706,22 @@ fn validate_with_scratch(
     }) {
         return Err(-61);
     }
+    prefix_offsets(&scratch.child_counts, &mut scratch.child_offsets);
+    scratch
+        .child_cursor
+        .copy_from_slice(&scratch.child_offsets[..node_len]);
+    for edge in children {
+        let parent = edge.parent as usize;
+        let destination = scratch.child_cursor[parent];
+        scratch.grouped_children[destination] = edge.child;
+        scratch.child_cursor[parent] += 1;
+    }
+
     for (index, node) in nodes.iter().enumerate() {
         if node.component != COMPONENT_DOCK_TABS {
             continue;
         }
-        let active_index = ops
-            .iter()
-            .rev()
-            .find(|operation| {
-                operation.node as usize == index && operation.code == OP_DOCK_ACTIVE_INDEX
-            })
-            .map_or(0, |operation| operation.a as usize);
+        let active_index = scratch.dock[index].value as usize;
         if active_index >= scratch.child_counts[index] {
             return Err(-61);
         }
@@ -560,18 +732,14 @@ fn validate_with_scratch(
         }
         let mut center_count = 0usize;
         let mut side_mask = 0u32;
-        for edge in children.iter().filter(|edge| edge.parent as usize == index) {
-            if nodes[edge.child as usize].component != COMPONENT_DOCK_REGION {
+        let start = scratch.child_offsets[index];
+        let end = start + scratch.child_counts[index];
+        for &child in &scratch.grouped_children[start..end] {
+            if nodes[child as usize].component != COMPONENT_DOCK_REGION {
                 center_count += 1;
                 continue;
             }
-            let side = ops
-                .iter()
-                .rev()
-                .find(|operation| {
-                    operation.node == edge.child && operation.code == OP_DOCK_REGION_SIDE
-                })
-                .map_or(0, |operation| operation.a as u32);
+            let side = scratch.dock[child as usize].value;
             let bit = 1u32 << side;
             if side_mask & bit != 0 {
                 return Err(-61);
@@ -594,33 +762,6 @@ fn validate_with_scratch(
         return Err(-11);
     }
 
-    for left in 0..nodes.len() {
-        if nodes[left].component != COMPONENT_DOCK_PANEL {
-            continue;
-        }
-        let left_area = dock_area_ancestor(left, nodes, &scratch.parents);
-        let left_id = dock_panel_id(&nodes[left], utf8);
-        for right in left + 1..nodes.len() {
-            if nodes[right].component == COMPONENT_DOCK_PANEL
-                && dock_area_ancestor(right, nodes, &scratch.parents) == left_area
-                && dock_panel_id(&nodes[right], utf8) == left_id
-            {
-                return Err(-61);
-            }
-        }
-    }
-
-    prefix_offsets(&scratch.child_counts, &mut scratch.child_offsets);
-    scratch
-        .child_cursor
-        .copy_from_slice(&scratch.child_offsets[..node_len]);
-    for edge in children {
-        let parent = edge.parent as usize;
-        let destination = scratch.child_cursor[parent];
-        scratch.grouped_children[destination] = edge.child;
-        scratch.child_cursor[parent] += 1;
-    }
-
     scratch.pending.push(root);
     while let Some(parent) = scratch.pending.pop() {
         let visited = &mut scratch.visited[parent as usize];
@@ -628,6 +769,17 @@ fn validate_with_scratch(
             return Err(-12);
         }
         *visited = 1;
+        if has_dock {
+            let ancestor = scratch.parents[parent as usize];
+            scratch.dock[parent as usize].area =
+                if nodes[parent as usize].component == COMPONENT_DOCK_AREA {
+                    parent
+                } else if ancestor == u32::MAX {
+                    u32::MAX
+                } else {
+                    scratch.dock[ancestor as usize].area
+                };
+        }
         let start = scratch.child_offsets[parent as usize];
         let end = start + scratch.child_counts[parent as usize];
         scratch
@@ -641,21 +793,25 @@ fn validate_with_scratch(
 
     validate_resource_key_uniqueness(nodes, ops, utf8, scratch)?;
 
-    Ok(())
-}
-
-fn dock_area_ancestor(index: usize, nodes: &[NodeRecord], parents: &[u32]) -> Option<u32> {
-    let mut current = index;
-    loop {
-        let parent = parents[current];
-        if parent == u32::MAX {
-            return None;
+    if has_dock {
+        let panels = &mut scratch.resource_keys;
+        panels.clear();
+        for (index, node) in nodes.iter().enumerate() {
+            if node.component == COMPONENT_DOCK_PANEL {
+                panels.push((
+                    scratch.dock[index].area,
+                    node.data_offset,
+                    dock_panel_id(node, utf8).len() as u32,
+                    0,
+                ));
+            }
         }
-        if nodes[parent as usize].component == COMPONENT_DOCK_AREA {
-            return Some(parent);
+        if duplicate_keys(panels, utf8) {
+            return Err(-61);
         }
-        current = parent as usize;
     }
+
+    Ok(())
 }
 
 fn dock_panel_id<'a>(node: &NodeRecord, utf8: &'a [u8]) -> &'a [u8] {
@@ -685,12 +841,13 @@ unsafe fn slice_or_empty<'a, T>(pointer: *const T, len: usize) -> &'a [T] {
     if len == 0 {
         &[]
     } else {
-        unsafe { slice::from_raw_parts(pointer, len) }
+        unsafe { std::slice::from_raw_parts(pointer, len) }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    mod validation_workloads;
     use super::*;
     use crate::{
         abi::{ChildRecord, NodeRecord, OpRecord},
@@ -1504,6 +1661,104 @@ mod tests {
     }
 
     #[test]
+    fn disconnected_dock_cycles_fail_before_ancestor_queries() {
+        for two_nodes in [false, true] {
+            let mut nodes = [
+                COMPONENT_DIV,
+                COMPONENT_DOCK_SPLIT,
+                COMPONENT_DOCK_TABS,
+                COMPONENT_DOCK_PANEL,
+                COMPONENT_DIV,
+                COMPONENT_DOCK_SPLIT,
+            ]
+            .map(|component| NodeRecord {
+                component,
+                ..Default::default()
+            });
+            let mut data = *b"p\0Panel\0";
+            nodes[3].data_length = data.len() as u32;
+            let mut arena = arena_with(&mut nodes[0], None);
+            let mut children = vec![
+                ChildRecord {
+                    parent: 1,
+                    child: 2,
+                },
+                ChildRecord {
+                    parent: 2,
+                    child: 3,
+                },
+                ChildRecord {
+                    parent: 3,
+                    child: 4,
+                },
+            ];
+            if two_nodes {
+                children.extend([
+                    ChildRecord {
+                        parent: 1,
+                        child: 5,
+                    },
+                    ChildRecord {
+                        parent: 5,
+                        child: 1,
+                    },
+                ]);
+            } else {
+                children.push(ChildRecord {
+                    parent: 1,
+                    child: 1,
+                });
+            }
+            arena.nodes = nodes.as_mut_ptr();
+            arena.node_length = if two_nodes { 6 } else { 5 };
+            arena.node_capacity = 6;
+            arena.children = children.as_mut_ptr();
+            arena.child_length = children.len() as i32;
+            arena.child_capacity = children.capacity() as i32;
+            arena.utf8 = data.as_mut_ptr();
+            arena.utf8_length = data.len() as i32;
+            arena.utf8_capacity = data.len() as i32;
+            assert_eq!(validate(&arena, 0), Err(-13));
+        }
+    }
+
+    #[test]
+    fn input_scroll_and_extension_keys_are_unique_per_owner() {
+        for (component, data) in [
+            (COMPONENT_INPUT, "key\0value\0placeholder"),
+            (COMPONENT_SCROLL, "key"),
+            (
+                COMPONENT_NATIVE_EXTENSION,
+                "editor\0document\0key\x001\x000000000000000001\0config",
+            ),
+        ] {
+            let mut utf8 = data.as_bytes().to_vec();
+            let mut nodes = [
+                NodeRecord {
+                    component: COMPONENT_DIV,
+                    ..Default::default()
+                },
+                NodeRecord {
+                    component,
+                    data_length: utf8.len() as u32,
+                    ..Default::default()
+                },
+                NodeRecord {
+                    component,
+                    data_length: utf8.len() as u32,
+                    ..Default::default()
+                },
+            ];
+            let mut owners = [OpRecord::default(); 2];
+            let (arena, _children) = resource_collision_arena(&mut nodes, &mut utf8, &mut owners);
+            assert_eq!(validate(&arena, 0), Err(-56));
+            owners[1].a = 5;
+            std::hint::black_box(&owners);
+            assert_eq!(validate(&arena, 0), Ok(()));
+        }
+    }
+
+    #[test]
     fn rejects_list_and_table_sharing_a_resource_key() {
         let mut utf8 = b"grid\0name\x1FName\x1F120\x1F0\x1F0".to_vec();
         let mut nodes = [
@@ -1765,5 +2020,71 @@ mod tests {
         strings.begin_snapshot();
         let after_eviction = strings.intern(VALUE);
         assert_ne!(first.as_str().as_ptr(), after_eviction.as_str().as_ptr());
+    }
+
+    #[test]
+    fn data_operation_storage_is_lazy_and_cleared_across_decode_transitions() {
+        use crate::semantic::OP_FONT_FAMILY;
+        let mut nodes = [NodeRecord {
+            component: COMPONENT_DIV,
+            ..Default::default()
+        }];
+        let numeric = OpRecord {
+            code: OP_GAP_PX,
+            value_kind: ValueKind::F32 as u16,
+            a: 4f32.to_bits() as u64,
+            ..Default::default()
+        };
+        let font = OpRecord {
+            code: OP_FONT_FAMILY,
+            value_kind: ValueKind::Data as u16,
+            a: 0,
+            b: 5,
+            ..Default::default()
+        };
+        let mut ops = [numeric, font, numeric, OpRecord { a: 5, b: 7, ..font }];
+        let mut utf8 = b"InterGeorgia".to_vec();
+        let mut arena: RenderArena = unsafe { std::mem::zeroed() };
+        arena.nodes = nodes.as_mut_ptr();
+        arena.node_length = 1;
+        arena.node_capacity = 1;
+        arena.ops = ops.as_mut_ptr();
+        arena.op_length = 1;
+        arena.op_capacity = ops.len() as i32;
+        arena.utf8 = utf8.as_mut_ptr();
+        arena.utf8_length = utf8.len() as i32;
+        arena.utf8_capacity = utf8.len() as i32;
+        arena.generation = 1;
+        let mut snapshot = ValidatedSnapshot::default();
+        let mut strings = RetainedStrings::default();
+        let mut scratch = SnapshotScratch::default();
+
+        snapshot
+            .decode_into(&arena, 0, &mut strings, &mut scratch)
+            .unwrap();
+        assert_eq!(snapshot.op_data.capacity(), 0);
+        for _ in 0..3 {
+            arena.op_length = 4;
+            snapshot
+                .decode_into(&arena, 0, &mut strings, &mut scratch)
+                .unwrap();
+            let retained = snapshot
+                .last_data_op(&snapshot.nodes[0], OP_FONT_FAMILY)
+                .unwrap();
+            assert_eq!(retained.as_ref(), "Georgia");
+            // Borrowed output may be reused immediately; snapshot strings remain owned.
+            utf8.fill(b'x');
+            assert_eq!(retained.as_ref(), "Georgia");
+            arena.op_length = 1;
+            snapshot
+                .decode_into(&arena, 0, &mut strings, &mut scratch)
+                .unwrap();
+            assert!(snapshot.op_data.is_empty());
+            assert_eq!(
+                snapshot.last_data_op(&snapshot.nodes[0], OP_FONT_FAMILY),
+                None
+            );
+            utf8.copy_from_slice(b"InterGeorgia");
+        }
     }
 }

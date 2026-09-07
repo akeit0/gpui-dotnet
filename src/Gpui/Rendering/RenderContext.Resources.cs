@@ -549,7 +549,7 @@ public readonly unsafe ref partial struct RenderContext
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private uint CurrentResourceOwner()
     {
-        var handle = OwnerView.RuntimeViewHandle;
+        var handle = OwnerView.Runtime.RuntimeViewHandle;
         return handle != 0
             ? handle
             : throw new InvalidOperationException("The owning View is not mounted.");
@@ -576,7 +576,7 @@ public readonly unsafe ref partial struct RenderContext
         var owner = OwnerView;
         controller = new InputController(
             owner,
-            ResourceKeys.EncodeAutoKey(owner.NextResourceKeyId())
+            ResourceKeys.EncodeAutoKey(owner.Runtime.NextResourceKeyId())
         );
         return controller;
     }
@@ -591,7 +591,7 @@ public readonly unsafe ref partial struct RenderContext
         var owner = OwnerView;
         controller = new ScrollController(
             owner,
-            ResourceKeys.EncodeAutoKey(owner.NextResourceKeyId())
+            ResourceKeys.EncodeAutoKey(owner.Runtime.NextResourceKeyId())
         );
         return controller;
     }
@@ -606,7 +606,7 @@ public readonly unsafe ref partial struct RenderContext
         var owner = OwnerView;
         controller = new ListController(
             owner,
-            ResourceKeys.EncodeAutoKey(owner.NextResourceKeyId())
+            ResourceKeys.EncodeAutoKey(owner.Runtime.NextResourceKeyId())
         );
         return controller;
     }
@@ -621,7 +621,7 @@ public readonly unsafe ref partial struct RenderContext
         var owner = OwnerView;
         controller = new SliderController(
             owner,
-            ResourceKeys.EncodeAutoKey(owner.NextResourceKeyId())
+            ResourceKeys.EncodeAutoKey(owner.Runtime.NextResourceKeyId())
         );
         return controller;
     }
