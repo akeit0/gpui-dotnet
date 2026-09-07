@@ -250,6 +250,12 @@ The native ABI does not carry product variant names or component style objects. 
 variants with `IGpuiElementStyle<TTag>` and flatten them to ordinary semantic operations. Native
 hover and active operations are transient paint states, not application variant identifiers.
 
+`SurfaceColors` pairs a background and inherited foreground; `InteractionColors` groups complete
+normal/hover/pressed pairs. Their `Surface` and `Paint` compositions write existing operations,
+without new ABI records or native state. GPUI remains unmodified and provides one inherited
+foreground. Secondary child colors stay explicit in application recipes. See
+[Styling](STYLING.md) and the [upstream content-color proposal](proposals/GPUI_CONTENT_COLORS.md).
+
 The managed window root is one native tab group. Button, Checkbox, and Radio delegate focus,
 Enter/Space activation, accessibility roles/state, and disabled behavior to `gpui-base`; their
 foundation callbacks are translated into the existing semantic click packet. Checkbox and Radio

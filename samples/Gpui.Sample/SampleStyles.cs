@@ -13,10 +13,7 @@ internal enum SampleButtonVariant
 /// vocabulary and its semantic-token mapping belong to this application.
 /// </summary>
 internal readonly record struct SampleButtonStyle(
-    Color Background,
-    Color HoverBackground,
-    Color ActiveBackground,
-    Color Text,
+    InteractionColors Colors,
     Color Border,
     Pixels Padding,
     Pixels Radius
@@ -26,10 +23,7 @@ internal readonly record struct SampleButtonStyle(
         button
             .Padding(Padding)
             .Radius(Radius)
-            .Background(Background)
-            .HoverBackground(HoverBackground)
-            .ActiveBackground(ActiveBackground)
-            .TextColor(Text)
+            .Paint(Colors)
             .BorderWidth(Px(1))
             .BorderColor(Border);
 }
@@ -45,18 +39,18 @@ internal readonly record struct SampleCollectionRowStyle(
         row
             .Padding(Padding)
             .Radius(Px(6))
-            .Background(Background)
+            .Surface(new(Background, Text))
             .BorderColor(Border)
-            .BorderWidth(Px(1))
-            .TextColor(Text);
+            .BorderWidth(Px(1));
 }
 
 internal readonly record struct SampleTableRowStyle(GpuiTheme Theme, bool Selected)
     : IGpuiElementStyle<DivTag>
 {
     public Element<DivTag> Apply(Element<DivTag> row) => row
-        .Background(Selected ? Theme.Colors.ElementSelected : Theme.Colors.SurfaceBackground)
-        .TextColor(Selected ? Theme.Colors.TextAccent : Theme.Colors.Text)
+        .Surface(new(
+            Selected ? Theme.Colors.ElementSelected : Theme.Colors.SurfaceBackground,
+            Selected ? Theme.Colors.TextAccent : Theme.Colors.Text))
         .PaddingY(Px(8));
 }
 
@@ -68,8 +62,7 @@ internal readonly record struct SampleInputStyle(GpuiTheme Theme, bool Invalid)
         var colors = Theme.Colors;
         var accent = Invalid ? colors.Error : colors.Accent;
         return input
-            .Background(colors.SurfaceBackground)
-            .TextColor(colors.Text)
+            .Surface(new(colors.SurfaceBackground, colors.Text))
             .BorderColor(Invalid ? colors.Error : colors.Border)
             .PlaceholderColor(Invalid ? colors.Error : colors.TextMuted)
             .CaretColor(accent)
@@ -81,7 +74,7 @@ internal readonly record struct SampleTableStyle(GpuiTheme Theme)
     : IGpuiElementStyle<TableTag>
 {
     public Element<TableTag> Apply(Element<TableTag> table) => table
-        .Background(Theme.Colors.SurfaceBackground)
+        .Surface(new(Theme.Colors.SurfaceBackground, Theme.Colors.Text))
         .BorderColor(Theme.Colors.BorderVariant)
         .BorderWidth(Px(1))
         .Radius(Px(8))
@@ -111,10 +104,10 @@ internal static class SampleStyles
     internal static SampleInputStyle Input(GpuiTheme theme, bool invalid = false) => new(theme, invalid);
 
     internal static SampleButtonStyle TableHeader(GpuiTheme theme) => new(
-        new Color(0),
-        theme.Colors.ElementHover,
-        theme.Colors.ElementActive,
-        theme.Colors.Info,
+        new(
+            new(new Color(0), theme.Colors.Info),
+            new(theme.Colors.ElementHover, theme.Colors.Info),
+            new(theme.Colors.ElementActive, theme.Colors.Info)),
         new Color(0),
         Px(6),
         Px(4)
@@ -143,37 +136,37 @@ internal static class SampleStyles
         return variant switch
         {
             SampleButtonVariant.Primary => new SampleButtonStyle(
-                colors.Accent,
-                colors.AccentHover,
-                colors.AccentActive,
-                colors.TextOnAccent,
+                new(
+                    new(colors.Accent, colors.TextOnAccent),
+                    new(colors.AccentHover, colors.TextOnAccent),
+                    new(colors.AccentActive, colors.TextOnAccent)),
                 colors.Accent,
                 padding,
                 radius
             ),
             SampleButtonVariant.Navigation when selected => new SampleButtonStyle(
-                colors.Accent,
-                colors.AccentHover,
-                colors.AccentActive,
-                colors.TextOnAccent,
+                new(
+                    new(colors.Accent, colors.TextOnAccent),
+                    new(colors.AccentHover, colors.TextOnAccent),
+                    new(colors.AccentActive, colors.TextOnAccent)),
                 colors.BorderFocused,
                 padding,
                 radius
             ),
             SampleButtonVariant.Navigation => new SampleButtonStyle(
-                colors.TitleBarBackground,
-                colors.TitleBarHover,
-                colors.TitleBarInactiveBackground,
-                colors.TitleBarText,
+                new(
+                    new(colors.TitleBarBackground, colors.TitleBarText),
+                    new(colors.TitleBarHover, colors.TitleBarText),
+                    new(colors.TitleBarInactiveBackground, colors.TitleBarText)),
                 colors.TitleBarHover,
                 padding,
                 radius
             ),
             _ => new SampleButtonStyle(
-                colors.ElementBackground,
-                colors.ElementHover,
-                colors.ElementActive,
-                colors.Text,
+                new(
+                    new(colors.ElementBackground, colors.Text),
+                    new(colors.ElementHover, colors.Text),
+                    new(colors.ElementActive, colors.Text)),
                 colors.Border,
                 padding,
                 radius

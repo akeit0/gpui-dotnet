@@ -1,6 +1,6 @@
 namespace Gpui;
 
-/// <summary>Warm light theme plus the default dark theme for the Wander sample.</summary>
+/// <summary>Warm light and dark themes with content colors matched to Wander's surfaces.</summary>
 internal static class WanderThemes
 {
     internal static GpuiTheme Light { get; } =
@@ -16,16 +16,16 @@ internal static class WanderThemes
                 ElementActive = Colors.Hex("#E7E0D2"),
                 ElementSelected = Colors.Hex("#FFE7C2"),
                 Text = Colors.Hex("#22301F"),
-                TextMuted = Colors.Hex("#7A7466"),
+                TextMuted = Colors.Hex("#686254"),
                 TextPlaceholder = Colors.Hex("#A8A294"),
                 TextDisabled = Colors.Hex("#A8A294"),
-                TextAccent = Colors.Hex("#C25700"),
+                TextAccent = Colors.Hex("#A54A00"),
                 TextOnAccent = Colors.Hex("#FFFFFF"),
-                Accent = Colors.Hex("#E06A00"),
-                AccentHover = Colors.Hex("#C25700"),
-                AccentActive = Colors.Hex("#9E4400"),
+                Accent = Colors.Hex("#BC5400"),
+                AccentHover = Colors.Hex("#A54A00"),
+                AccentActive = Colors.Hex("#903F00"),
                 Icon = Colors.Hex("#3E4A3A"),
-                IconMuted = Colors.Hex("#7A7466"),
+                IconMuted = Colors.Hex("#686254"),
                 TitleBarBackground = Colors.Hex("#1E2B1F"),
                 TitleBarHover = Colors.Hex("#2C3D2A"),
                 TitleBarText = Colors.Hex("#F7F3EA"),
@@ -44,5 +44,15 @@ internal static class WanderThemes
         );
 
     internal static GpuiTheme Dark { get; } =
-        GpuiTheme.CreateDefault(GpuiThemeAppearance.Dark, "Wander Dark");
+        GpuiTheme.FromJson("""
+            {
+              "name": "Wander Dark",
+              "appearance": "dark",
+              "colors": {
+                "text.muted": "#CBD5E1",
+                "icon.muted": "#CBD5E1",
+                "accent.active": "#7578F5"
+              }
+            }
+            """);
 }

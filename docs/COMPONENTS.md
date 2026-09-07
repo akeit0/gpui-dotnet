@@ -65,9 +65,8 @@ The application theme supplies semantic tokens:
 ```csharp
 var card = ui.VStack(content)
     .Padding(Px(16))
-    .Background(ui.Theme.Colors.SurfaceBackground)
-    .BorderColor(ui.Theme.Colors.BorderVariant)
-    .TextColor(ui.Theme.Colors.Text);
+    .Surface(new(ui.Theme.Colors.SurfaceBackground, ui.Theme.Colors.Text))
+    .BorderColor(ui.Theme.Colors.BorderVariant);
 ```
 
 Native controls receive a resolved subset of the same theme. Product variants remain in the
@@ -79,15 +78,20 @@ internal readonly record struct PrimaryButtonStyle(GpuiTheme Theme)
 {
     public Element<ButtonTag> Apply(Element<ButtonTag> button) =>
         button
-            .Background(Theme.Colors.Accent)
-            .HoverBackground(Theme.Colors.AccentHover)
-            .ActiveBackground(Theme.Colors.AccentActive)
-            .TextColor(Theme.Colors.TextOnAccent);
+            .Paint(new InteractionColors(
+                new(Theme.Colors.Accent, Theme.Colors.TextOnAccent),
+                new(Theme.Colors.AccentHover, Theme.Colors.TextOnAccent),
+                new(Theme.Colors.AccentActive, Theme.Colors.TextOnAccent)));
 }
 ```
 
 `.Style(value)` invokes the typed recipe and returns the normal element builder. A later fluent call
 can override a value. Do not add application variant enums or style objects to the native ABI.
+
+`SurfaceColors` and `InteractionColors` pair backgrounds with inherited foregrounds. `Surface`
+and `Paint` write existing operations; no additional schema or native state is needed. `Paint`
+declares every state's foreground explicitly, so a subsequent `TextColor` overrides only the
+normal state. See [Styling](STYLING.md) for the full contract and current inheritance limits.
 
 Composite control recipes should resolve their backgrounds and content colors together. Let primary
 content inherit the control's text color. If a child needs secondary emphasis, expose a typed child

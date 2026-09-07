@@ -246,8 +246,11 @@ var card = ui.VStack(content)
 Theme changes update managed views, virtual rows, and native control defaults. Theme tokens cover
 semantic colors and typography. Product-specific names such as `Primary`, `Danger`, or
 `Navigation` remain application-owned: implement `IGpuiElementStyle<TTag>` and apply the value
-with `.Style(...)`. Styles compose ordinary fluent operations, including native `Hover*` and
-`Active*` paint states.
+with `.Style(...)`. Use `.Surface(new(background, foreground))` for a matching base pair and
+`.Paint(new InteractionColors(normal, hover, pressed))` for complete native interaction pairs.
+Both compose existing fluent operations and preserve ordinary text inheritance. Secondary child
+colors remain explicit in component recipes; see [Styling](docs/STYLING.md) for precedence,
+component boundaries, and the upstream limitation on contextual roles.
 
 ## Windows, title bars, and menus
 
@@ -438,6 +441,7 @@ Do not edit generated semantic or extension schema files by hand.
 - [Architecture](docs/ARCHITECTURE.md)
 - [gpui-base migration](docs/GPUI_BASE_MIGRATION.md)
 - [Components and retained resources](docs/COMPONENTS.md)
+- [Surface and interaction styling](docs/STYLING.md)
 - [Optional editor extension](docs/EDITOR.md)
 - [View lifecycle](docs/VIEW_LIFECYCLE.md)
 - [Lifecycle and threading](docs/THREADING.md)

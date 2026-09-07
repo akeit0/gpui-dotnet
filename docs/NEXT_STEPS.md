@@ -24,6 +24,11 @@ Preserve the semantic batching and ownership boundaries. Native-retained fragmen
 general item-scoped editors, universal state styling, and scoped themes require separate design
 and measurements; they are not prerequisites for the focused improvements above.
 
+Ambient Primary/Secondary content roles require a general native capability beyond the pinned
+GPUI's single inherited foreground. The [upstream proposal](proposals/GPUI_CONTENT_COLORS.md)
+records the evidence, alternatives, and acceptance criteria. Pursue upstream discussion if other
+GPUI applications need it; do not maintain a GPUI fork or expose unsupported role semantics.
+
 ## Default native host size
 
 The Dock skin no longer links the complete `gpui-component` facade: Dock wears a small in-repo

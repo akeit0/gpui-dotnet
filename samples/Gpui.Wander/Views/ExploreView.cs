@@ -186,9 +186,8 @@ internal sealed partial class ExploreView : View<ExploreProps>
                         ui.Badge(
                                 ui.Text(WanderStyles.TagLabel(dest?.Tag ?? PlaceTag.City))
                                     .FontSize(Px(theme.Typography.Caption))
-                                    .TextColor(theme.Colors.TextMuted)
                             )
-                            .Background(theme.Colors.ElementActive)
+                            .Surface(new(theme.Colors.ElementActive, theme.Colors.TextMuted))
                             .Padding(Px(6))
                     )
                     .ItemsCenter()
@@ -197,12 +196,12 @@ internal sealed partial class ExploreView : View<ExploreProps>
                     .FontSize(Px(theme.Typography.Body))
                     .TextColor(theme.Colors.Text),
                 ui.HStack(
-                        ui.Button("like", $"♥ {entry.Likes:N0}")
+                        ui.Button("like", $"{(entry.Liked ? "♥" : "♡")} {entry.Likes:N0}")
                             .OnClick(this, static (view, e) => view.ToggleLike(e.Payload), checked((ulong)entry.Id))
                             .Style(
                                 WanderStyles.Button(
                                     theme,
-                                    WanderButtonVariant.Chip,
+                                    WanderButtonVariant.Like,
                                     entry.Liked
                                 )
                             ),
@@ -391,7 +390,7 @@ internal sealed partial class ExploreView : View<ExploreProps>
                 ui.HStack(
                         ui.Button("sheet-like", $"{(dest.Liked ? "♥" : "♡")} {dest.Likes:N0}")
                             .OnClick(this, static (view, e) => view.ToggleDestLike(e.Payload), checked((ulong)dest.Id))
-                            .Style(WanderStyles.Button(theme, WanderButtonVariant.Chip, dest.Liked)),
+                            .Style(WanderStyles.Button(theme, WanderButtonVariant.Like, dest.Liked)),
                         ui.Button("sheet-add", "＋ Add to current trip")
                             .OnClick(this, static (view, e) => view.AddToTrip(e.Payload), checked((ulong)dest.Id))
                             .Style(WanderStyles.Button(theme, WanderButtonVariant.Primary))

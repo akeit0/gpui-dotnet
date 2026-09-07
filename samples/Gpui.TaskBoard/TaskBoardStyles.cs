@@ -16,10 +16,7 @@ internal enum BoardButtonVariant
 }
 
 internal readonly record struct BoardButtonStyle(
-    Color Background,
-    Color HoverBackground,
-    Color ActiveBackground,
-    Color Text,
+    InteractionColors Colors,
     Color SecondaryText,
     Color Border
 ) : IGpuiElementStyle<ButtonTag>
@@ -30,10 +27,7 @@ internal readonly record struct BoardButtonStyle(
         button
             .Padding(Px(8))
             .Radius(Px(6))
-            .Background(Background)
-            .HoverBackground(HoverBackground)
-            .ActiveBackground(ActiveBackground)
-            .TextColor(Text)
+            .Paint(Colors)
             .BorderWidth(Px(1))
             .BorderColor(Border);
 }
@@ -47,15 +41,18 @@ internal readonly record struct BoardHeaderButtonStyle(GpuiTheme Theme, bool Sel
     : IGpuiElementStyle<ButtonTag>
 {
     // Compact chrome for table headers: a full button recipe overflows narrow columns.
-    public Element<ButtonTag> Apply(Element<ButtonTag> button) =>
-        button
+    public Element<ButtonTag> Apply(Element<ButtonTag> button)
+    {
+        var foreground = Selected ? Theme.Colors.TextAccent : Theme.Colors.Text;
+        return button
             .Padding(Px(6))
             .Radius(Px(4))
-            .Background(new Color(0))
-            .HoverBackground(Theme.Colors.ElementHover)
-            .ActiveBackground(Theme.Colors.ElementActive)
-            .TextColor(Selected ? Theme.Colors.TextAccent : Theme.Colors.Text)
+            .Paint(new InteractionColors(
+                new(new Color(0), foreground),
+                new(Theme.Colors.ElementHover, foreground),
+                new(Theme.Colors.ElementActive, foreground)))
             .BorderWidth(Px(0));
+    }
 }
 
 internal readonly record struct BoardCardStyle(GpuiTheme Theme) : IGpuiElementStyle<DivTag>
@@ -64,10 +61,9 @@ internal readonly record struct BoardCardStyle(GpuiTheme Theme) : IGpuiElementSt
         card
             .Padding(Px(12))
             .Radius(Px(10))
-            .Background(Theme.Colors.SurfaceBackground)
+            .Surface(new(Theme.Colors.SurfaceBackground, Theme.Colors.Text))
             .BorderWidth(Px(1))
-            .BorderColor(Theme.Colors.BorderVariant)
-            .TextColor(Theme.Colors.Text);
+            .BorderColor(Theme.Colors.BorderVariant);
 }
 
 internal readonly record struct BoardRowStyle(GpuiTheme Theme, bool Selected)
@@ -75,8 +71,9 @@ internal readonly record struct BoardRowStyle(GpuiTheme Theme, bool Selected)
 {
     public Element<DivTag> Apply(Element<DivTag> row) =>
         row
-            .Background(Selected ? Theme.Colors.ElementSelected : Theme.Colors.SurfaceBackground)
-            .TextColor(Selected ? Theme.Colors.TextAccent : Theme.Colors.Text)
+            .Surface(new(
+                Selected ? Theme.Colors.ElementSelected : Theme.Colors.SurfaceBackground,
+                Selected ? Theme.Colors.TextAccent : Theme.Colors.Text))
             .PaddingY(Px(7));
 }
 
@@ -84,7 +81,7 @@ internal readonly record struct BoardTableStyle(GpuiTheme Theme) : IGpuiElementS
 {
     public Element<TableTag> Apply(Element<TableTag> table) =>
         table
-            .Background(Theme.Colors.SurfaceBackground)
+            .Surface(new(Theme.Colors.SurfaceBackground, Theme.Colors.Text))
             .BorderColor(Theme.Colors.BorderVariant)
             .BorderWidth(Px(1))
             .Radius(Px(10))
@@ -100,8 +97,7 @@ internal readonly record struct BoardFieldStyle(GpuiTheme Theme, bool Invalid)
     {
         var colors = Theme.Colors;
         return input
-            .Background(colors.SurfaceBackground)
-            .TextColor(colors.Text)
+            .Surface(new(colors.SurfaceBackground, colors.Text))
             .BorderColor(Invalid ? colors.Error : colors.Border)
             .PlaceholderColor(Invalid ? colors.Error : colors.TextMuted)
             .CaretColor(Invalid ? colors.Error : colors.Accent)
@@ -126,11 +122,36 @@ internal static class BoardStyles
         var colors = theme.Colors;
         return variant switch
         {
-            BoardButtonVariant.Primary => new(colors.Accent, colors.AccentHover, colors.AccentActive, colors.TextOnAccent, colors.TextOnAccent, colors.Accent),
-            BoardButtonVariant.Danger => new(colors.ErrorBackground, colors.ErrorBackground, colors.ErrorBackground, colors.Error, colors.Error, colors.Error),
-            BoardButtonVariant.Navigation when selected => new(colors.Accent, colors.AccentHover, colors.AccentActive, colors.TextOnAccent, colors.TextOnAccent, colors.BorderFocused),
-            BoardButtonVariant.Navigation => new(colors.ElementBackground, colors.ElementHover, colors.ElementActive, colors.Text, colors.TextMuted, colors.BorderVariant),
-            _ => new(colors.ElementBackground, colors.ElementHover, colors.ElementActive, colors.Text, colors.TextMuted, colors.Border),
+            BoardButtonVariant.Primary => new(
+                new(
+                    new(colors.Accent, colors.TextOnAccent),
+                    new(colors.AccentHover, colors.TextOnAccent),
+                    new(colors.AccentActive, colors.TextOnAccent)),
+                colors.TextOnAccent, colors.Accent),
+            BoardButtonVariant.Danger => new(
+                new(
+                    new(colors.ErrorBackground, colors.Error),
+                    new(colors.ErrorBackground, colors.Error),
+                    new(colors.ErrorBackground, colors.Error)),
+                colors.Error, colors.Error),
+            BoardButtonVariant.Navigation when selected => new(
+                new(
+                    new(colors.Accent, colors.TextOnAccent),
+                    new(colors.AccentHover, colors.TextOnAccent),
+                    new(colors.AccentActive, colors.TextOnAccent)),
+                colors.TextOnAccent, colors.BorderFocused),
+            BoardButtonVariant.Navigation => new(
+                new(
+                    new(colors.ElementBackground, colors.Text),
+                    new(colors.ElementHover, colors.Text),
+                    new(colors.ElementActive, colors.Text)),
+                colors.TextMuted, colors.BorderVariant),
+            _ => new(
+                new(
+                    new(colors.ElementBackground, colors.Text),
+                    new(colors.ElementHover, colors.Text),
+                    new(colors.ElementActive, colors.Text)),
+                colors.TextMuted, colors.Border),
         };
     }
 

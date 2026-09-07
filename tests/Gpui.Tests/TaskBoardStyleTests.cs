@@ -15,12 +15,12 @@ public sealed class TaskBoardStyleTests
     {
         var theme = dark ? Board.TaskBoardThemes.Dark : Board.TaskBoardThemes.Light;
         var style = Board.BoardStyles.Button(theme, Board.BoardButtonVariant.Navigation, selected);
-        foreach (var background in new[] { style.Background, style.HoverBackground, style.ActiveBackground })
+        foreach (var surface in new[] { style.Colors.Normal, style.Colors.Hover, style.Colors.Pressed })
         {
-            foreach (var foreground in new[] { style.Text, style.SecondaryText })
+            foreach (var foreground in new[] { surface.Foreground, style.SecondaryText })
             {
-                var ratio = Contrast(foreground, background);
-                Assert.True(ratio >= 4.5, $"{theme.Name}, selected={selected}: {foreground} on {background} has contrast {ratio:F2}.");
+                var ratio = Contrast(foreground, surface.Background);
+                Assert.True(ratio >= 4.5, $"{theme.Name}, selected={selected}: {foreground} on {surface.Background} has contrast {ratio:F2}.");
             }
         }
     }

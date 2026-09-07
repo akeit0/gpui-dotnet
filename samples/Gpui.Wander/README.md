@@ -33,6 +33,13 @@ dotnet run --project samples/Gpui.Wander -- --dark
 
 ## Architecture notes
 
+Button recipes declare complete normal/hover/pressed background and foreground pairs with
+`InteractionColors`. Selected navigation and filter/rating chips use warm amber surfaces; liked
+buttons use rose-pink surfaces and a filled heart. Unliked buttons use an outline heart. Selected
+labels have a heavier weight, and tab icons, labels, and counts inherit their navigation foreground.
+Both Wander themes keep button text readable across state backgrounds; badges use a matched
+surface too. See [Styling](../../docs/STYLING.md).
+
 Profile synchronizes model fields through an accepted effect. External changes to the same field
 replace its local draft; unrelated field edits preserve drafts. Save rechecks the current model
 before committing, and document reset discards all drafts. Input replacement is unconditional,

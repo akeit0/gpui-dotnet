@@ -3389,6 +3389,117 @@ mod tests {
     }
 
     #[gpui::test]
+    fn paired_foregrounds_reach_nested_text_paint_and_preserve_literal_children(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        use std::{cell::Cell, rc::Rc};
+
+        fn text_probe(observed: Rc<Cell<Hsla>>) -> impl IntoElement {
+            canvas(
+                |_, window, _| {
+                    let run = window.text_style().to_run(4);
+                    let color = run.color;
+                    let line =
+                        window
+                            .text_system()
+                            .shape_line("text".into(), px(14.), &[run], None);
+                    (color, line)
+                },
+                move |bounds, (color, line), window, cx| {
+                    line.paint(bounds.origin, px(20.), TextAlign::Left, None, window, cx)
+                        .unwrap();
+                    observed.set(color);
+                },
+            )
+            .w(px(60.))
+            .h(px(20.))
+        }
+
+        struct PaintProbe {
+            snapshot: ValidatedSnapshot,
+            inherited: Rc<Cell<Hsla>>,
+            literal: Rc<Cell<Hsla>>,
+            disabled: bool,
+        }
+        impl gpui::Render for PaintProbe {
+            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+                let theme = NativeTheme::default();
+                let node = &self.snapshot.nodes[0];
+                let button = components::button("paired-paint".into(), self.disabled, theme)
+                    .w(px(200.))
+                    .h(px(80.))
+                    .on_click(|_, _, _| {})
+                    .child(div().child(div().child(text_probe(self.inherited.clone()))))
+                    .child(
+                        div()
+                            .text_color(rgba(0x998877FF))
+                            .child(text_probe(self.literal.clone())),
+                    );
+                let mut button = apply_styles(button, node, &self.snapshot);
+                if !self.disabled {
+                    button = apply_interaction_styles(button, node, &self.snapshot, theme);
+                }
+                presentation::disabled(button, self.disabled)
+            }
+        }
+
+        let inherited = Rc::new(Cell::new(Hsla::default()));
+        let literal = Rc::new(Cell::new(Hsla::default()));
+        let mut ops = [
+            (OP_BACKGROUND_RGBA, 0x112233FF),
+            (OP_TEXT_RGBA, 0xAABBCCFF),
+            (OP_HOVER_BACKGROUND_RGBA, 0x223344FF),
+            (OP_HOVER_TEXT_RGBA, 0xBBCCDDFF),
+            (OP_ACTIVE_BACKGROUND_RGBA, 0x334455FF),
+            (OP_ACTIVE_TEXT_RGBA, 0xCCDDEEFF),
+        ]
+        .map(|(code, a)| OpRecord {
+            code,
+            a,
+            value_kind: ValueKind::U32 as u16,
+            ..Default::default()
+        });
+        let (view, cx) = cx.add_window_view(|_, _| PaintProbe {
+            snapshot: style_snapshot(COMPONENT_BUTTON, "paired-paint", &mut ops),
+            inherited: inherited.clone(),
+            literal: literal.clone(),
+            disabled: false,
+        });
+        cx.simulate_resize(gpui::size(px(320.), px(160.)));
+        let outside = point(px(300.), px(140.));
+        let inside = point(px(100.), px(40.));
+        let assert_colors = |color| {
+            assert_eq!(inherited.get(), rgba(color).into());
+            assert_eq!(literal.get(), rgba(0x998877FF).into());
+        };
+        cx.simulate_mouse_move(outside, None, gpui::Modifiers::none());
+        assert_colors(0xAABBCCFF);
+        cx.simulate_mouse_move(inside, None, gpui::Modifiers::none());
+        assert_colors(0xBBCCDDFF);
+        cx.simulate_mouse_down(inside, MouseButton::Left, gpui::Modifiers::none());
+        assert_colors(0xCCDDEEFF);
+        cx.simulate_mouse_move(outside, MouseButton::Left, gpui::Modifiers::none());
+        cx.simulate_mouse_up(outside, MouseButton::Left, gpui::Modifiers::none());
+        assert_colors(0xAABBCCFF);
+
+        view.update(cx, |view, cx| {
+            view.disabled = true;
+            cx.notify();
+        });
+        cx.simulate_mouse_move(inside, None, gpui::Modifiers::none());
+        cx.simulate_mouse_down(inside, MouseButton::Left, gpui::Modifiers::none());
+        assert_colors(0xAABBCCFF);
+        cx.simulate_mouse_up(inside, MouseButton::Left, gpui::Modifiers::none());
+
+        view.update(cx, |view, cx| {
+            view.snapshot = style_snapshot(COMPONENT_BUTTON, "paired-paint", &mut []);
+            cx.notify();
+        });
+        cx.update(|window, _| window.refresh());
+        assert_colors(NativeTheme::default().text);
+    }
+
+    #[gpui::test]
     fn input_text_inherits_through_native_wrappers_and_explicit_style_wins(
         cx: &mut gpui::TestAppContext,
     ) {

@@ -170,7 +170,7 @@ internal sealed partial class WanderShellView : View
             )
             .Width(Px(430))
             .Height(Percent(100))
-            .Background(theme.Colors.Background)
+            .Surface(new(theme.Colors.Background, theme.Colors.Text))
             .BorderWidth(Px(1))
             .BorderColor(theme.Colors.BorderVariant);
 
@@ -198,7 +198,7 @@ internal sealed partial class WanderShellView : View
             )
             .Gap(Px(6))
             .Padding(Px(10))
-            .Background(theme.Colors.SurfaceBackground);
+            .Surface(new(theme.Colors.SurfaceBackground, theme.Colors.Text));
     }
 
     private static Element TabButton(
@@ -220,20 +220,17 @@ internal sealed partial class WanderShellView : View
                 TabIds[(int)tab],
                 ui.VStack(
                         ui.Text(TabGlyph(tab))
-                            .FontSize(Px(18))
-                            .TextColor(selected ? theme.Colors.Accent : theme.Colors.TextMuted),
+                            .FontSize(Px(18)),
                         ui.Text(TabLabel(tab))
-                            .FontSize(Px(theme.Typography.Caption))
-                            .TextColor(selected ? theme.Colors.Text : theme.Colors.TextMuted),
+                            .FontSize(Px(theme.Typography.Caption)),
                         badge
                             .FontSize(Px(theme.Typography.Caption))
-                            .TextColor(theme.Colors.TextAccent)
                     )
                     .Gap(Px(1))
                     .ItemsCenter()
             )
             .OnClick(view, static (v, e) => v.SelectTab(e.Payload), (ulong)tab)
-            .Style(WanderStyles.Button(theme, WanderButtonVariant.Chip, selected))
+            .Style(WanderStyles.Button(theme, WanderButtonVariant.Navigation, selected))
             .Grow()
             .Width(Percent(25));
     }
