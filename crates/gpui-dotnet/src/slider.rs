@@ -71,6 +71,14 @@ impl Render for SliderDrag {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct SliderPresentation {
+    pub(crate) track: Option<u32>,
+    pub(crate) fill: Option<u32>,
+    pub(crate) thumb: Option<u32>,
+    pub(crate) thumb_border: Option<u32>,
+}
+
 pub(crate) struct ManagedSlider {
     session_id: u64,
     callbacks: ManagedCallbacks,
@@ -87,6 +95,7 @@ pub(crate) struct ManagedSlider {
     active_thumb_is_start: bool,
     keyboard_active: bool,
     bindings: SliderBindings,
+    presentation: SliderPresentation,
     revision: u64,
     callback_error: Option<i32>,
     theme: SharedTheme,
@@ -120,6 +129,7 @@ impl ManagedSlider {
             active_thumb_is_start: false,
             keyboard_active: false,
             bindings: configuration.bindings,
+            presentation: configuration.presentation,
             revision: 0,
             callback_error: None,
             theme,
@@ -138,6 +148,7 @@ impl ManagedSlider {
             || self.axis != configuration.axis
             || self.disabled != configuration.disabled
             || self.logarithmic != configuration.logarithmic
+            || self.presentation != configuration.presentation
             || self.bindings.changed != configuration.bindings.changed
             || self.bindings.released != configuration.bindings.released;
         self.min = configuration.min;
@@ -147,6 +158,7 @@ impl ManagedSlider {
         self.disabled = configuration.disabled;
         self.logarithmic = configuration.logarithmic;
         self.bindings = configuration.bindings;
+        self.presentation = configuration.presentation;
         if disabled_changed {
             self.focus_handle = self.focus_handle.clone().tab_stop(!self.disabled);
         }
@@ -454,7 +466,9 @@ impl Render for ManagedSlider {
                         this.top(px(0.)).bottom(px(0.)).left(px(9.)).w(px(6.))
                     })
                     .rounded_full()
-                    .bg(rgba(theme.border_variant)),
+                    .bg(rgba(
+                        self.presentation.track.unwrap_or(theme.border_variant),
+                    )),
             )
             .child(
                 div()
@@ -472,7 +486,7 @@ impl Render for ManagedSlider {
                             .w(px(6.))
                     })
                     .rounded_full()
-                    .bg(rgba(theme.accent)),
+                    .bg(rgba(self.presentation.fill.unwrap_or(theme.accent))),
             );
 
         let bounds_owner = slider.clone();
@@ -512,9 +526,11 @@ impl Render for ManagedSlider {
                     .w(px(16.))
                     .h(px(16.))
                     .rounded_full()
-                    .bg(rgba(theme.surface_background))
+                    .bg(rgba(
+                        self.presentation.thumb.unwrap_or(theme.surface_background),
+                    ))
                     .border(px(1.))
-                    .border_color(rgba(theme.accent));
+                    .border_color(rgba(self.presentation.thumb_border.unwrap_or(theme.accent)));
                 thumb = if axis == Axis::Horizontal {
                     thumb.left(relative(position)).top(px(4.)).ml(-px(8.))
                 } else {
@@ -594,6 +610,142 @@ mod tests {
     }
 
     #[test]
+    fn snapshot_part_colors_use_the_last_declaration_and_preserve_alpha() {
+        use crate::{native_workloads::WorkloadArena, semantic::*};
+
+        let mut arena = WorkloadArena::default();
+        let node = arena.node_with_data(COMPONENT_SLIDER, None, "volume");
+        arena.op(node, OP_RESOURCE_OWNER, 1);
+        arena.op(node, OP_SLIDER_TRACK_RGBA, 0x11223340);
+        arena.op(node, OP_SLIDER_FILL_RGBA, 0x44556680);
+        arena.op(node, OP_SLIDER_THUMB_RGBA, 0x778899FF);
+        arena.op(node, OP_SLIDER_THUMB_BORDER_RGBA, 0xAABBCCFF);
+        arena.op(node, OP_SLIDER_FILL_RGBA, 0xDDEEFF00);
+        let snapshot = arena.decode();
+        let configuration =
+            crate::resources::slider_configuration(&snapshot, &snapshot.nodes[0]).unwrap();
+        assert_eq!(
+            configuration.presentation,
+            SliderPresentation {
+                track: Some(0x11223340),
+                fill: Some(0xDDEEFF00),
+                thumb: Some(0x778899FF),
+                thumb_border: Some(0xAABBCCFF),
+            }
+        );
+
+        let mut arena = WorkloadArena::default();
+        let node = arena.node_with_data(COMPONENT_SLIDER, None, "volume");
+        arena.op(node, OP_RESOURCE_OWNER, 1);
+        let snapshot = arena.decode();
+        let configuration =
+            crate::resources::slider_configuration(&snapshot, &snapshot.nodes[0]).unwrap();
+        assert_eq!(configuration.presentation, SliderPresentation::default());
+
+        for op in [
+            OP_SLIDER_TRACK_RGBA,
+            OP_SLIDER_FILL_RGBA,
+            OP_SLIDER_THUMB_RGBA,
+            OP_SLIDER_THUMB_BORDER_RGBA,
+        ] {
+            let mut arena = WorkloadArena::default();
+            let node = arena.node(COMPONENT_DIV, None);
+            arena.op(node, op, 0x112233FF);
+            assert!(
+                arena
+                    .decode_into(&mut crate::snapshot::ValidatedSnapshot::default())
+                    .is_err()
+            );
+        }
+    }
+
+    #[gpui::test]
+    fn presentation_reconfiguration_preserves_pointer_and_keyboard_interactions(
+        cx: &mut TestAppContext,
+    ) {
+        for axis in [Axis::Horizontal, Axis::Vertical] {
+            for initial in [SliderValue::Single(25.), SliderValue::Range(25., 75.)] {
+                clear_events();
+                let mut configuration = configuration(initial);
+                configuration.axis = axis;
+                let shared_theme = theme();
+                let (slider, cx) = cx.add_window_view(|_, cx| {
+                    ManagedSlider::new(20, callbacks(), &configuration, shared_theme.clone(), cx)
+                });
+                cx.simulate_resize(size(px(240.), px(240.)));
+                cx.update(|window, _| window.refresh());
+                let bounds = cx.debug_bounds("managed-slider-track").unwrap();
+                let position = if axis == Axis::Horizontal {
+                    point(bounds.left() + bounds.size.width * 0.6, bounds.center().y)
+                } else {
+                    point(
+                        bounds.center().x,
+                        bounds.bottom() - bounds.size.height * 0.6,
+                    )
+                };
+                cx.simulate_mouse_down(position, MouseButton::Left, Modifiers::none());
+                let value = if initial.is_range() {
+                    SliderValue::Range(25., 60.)
+                } else {
+                    SliderValue::Single(60.)
+                };
+                assert_eq!(events(), vec![(EVENT_SLIDER_CHANGED, 1, value)]);
+
+                configuration.presentation = SliderPresentation {
+                    track: Some(0x11223340),
+                    fill: Some(0x445566FF),
+                    thumb: Some(0x778899FF),
+                    thumb_border: Some(0xAABBCCFF),
+                };
+                cx.update(|window, app| {
+                    slider.update(app, |slider, cx| {
+                        slider.configure(&configuration, cx);
+                        assert_eq!(slider.value, value);
+                        assert_eq!(slider.revision, 1);
+                        assert!(slider.dragging);
+                        assert!(slider.focus_handle.is_focused(window));
+                        assert_eq!(slider.presentation, configuration.presentation);
+                    });
+                });
+                assert_eq!(events().len(), 1);
+                cx.simulate_mouse_up(position, MouseButton::Left, Modifiers::none());
+                assert_eq!(events().last(), Some(&(EVENT_SLIDER_RELEASED, 1, value)));
+
+                let key = if axis == Axis::Horizontal {
+                    "right"
+                } else {
+                    "up"
+                };
+                cx.simulate_keystrokes(key);
+                let value = if initial.is_range() {
+                    SliderValue::Range(25., 65.)
+                } else {
+                    SliderValue::Single(65.)
+                };
+                assert_eq!(events().last(), Some(&(EVENT_SLIDER_CHANGED, 2, value)));
+                configuration.presentation = SliderPresentation::default();
+                shared_theme.borrow_mut().accent = 0x123456FF;
+                cx.update(|window, app| {
+                    slider.update(app, |slider, cx| {
+                        slider.configure(&configuration, cx);
+                        assert_eq!(slider.value, value);
+                        assert_eq!(slider.revision, 2);
+                        assert!(slider.keyboard_active);
+                        assert!(slider.focus_handle.is_focused(window));
+                        assert_eq!(slider.presentation, SliderPresentation::default());
+                    });
+                    window.refresh();
+                });
+                assert_eq!(events().len(), 3);
+                cx.simulate_event(KeyUpEvent {
+                    keystroke: Keystroke::parse(key).unwrap(),
+                });
+                assert_eq!(events().last(), Some(&(EVENT_SLIDER_RELEASED, 2, value)));
+            }
+        }
+    }
+
+    #[test]
     fn slider_values_clamp_without_changing_their_shape() {
         assert_eq!(
             SliderValue::Single(-1.).clamp(0., 10.),
@@ -617,6 +769,7 @@ mod tests {
             disabled: false,
             logarithmic: false,
             bindings: SliderBindings::default(),
+            presentation: SliderPresentation::default(),
         };
         let (slider, _) = cx.add_window_view(|_, cx| {
             ManagedSlider::new(1, callbacks(), &configuration, theme(), cx)
@@ -830,6 +983,7 @@ mod tests {
                 changed: 1,
                 released: 2,
             },
+            presentation: SliderPresentation::default(),
         }
     }
 

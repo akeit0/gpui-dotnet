@@ -7,6 +7,7 @@ internal sealed partial class InputGalleryView : View
     private InputController _search;
     private bool _invalid;
     private SliderController _volume;
+    private bool _customSliderStyle = true;
     private string _value = "Type in the first field";
     private string _lastEvent = "No input event yet";
     private string _lastSliderEvent = "No slider event yet";
@@ -75,13 +76,18 @@ internal sealed partial class InputGalleryView : View
             ui.Input("disabled"u8, new Utf8InputOptions("Cannot focus or edit"u8, disabled: true))
                 .Width(Percent(100))
         );
+        var volumeInput = ui.Slider(
+            ref _volume,
+            new SliderOptions(min: 0, max: 100, step: 5, value: _volumeValue)
+        );
+        if (_customSliderStyle)
+        {
+            volumeInput = volumeInput.Style(SampleStyles.Slider(theme));
+        }
         var volume = Field(
             ref ui,
             "Slider + native Change/Release events",
-            ui.Slider(
-                    ref _volume,
-                    new SliderOptions(min: 0, max: 100, step: 5, value: _volumeValue)
-                )
+            volumeInput
                 .OnChanged(
                     this,
                     (view, slider) =>
@@ -99,7 +105,8 @@ internal sealed partial class InputGalleryView : View
                         view.Invalidate();
                     }
                 )
-                .Width(Percent(100))
+                .Width(Percent(100)),
+            _customSliderStyle ? "Custom track and thumb colors" : "Theme track and thumb colors"
         );
 
         var controls = ui.HStack(
@@ -126,7 +133,17 @@ internal sealed partial class InputGalleryView : View
                     .TextColor(theme.Colors.TextMuted),
                 ui.HStack(search, password).Gap(Px(14)),
                 ui.HStack(readOnly, disabled).Gap(Px(14)),
-                ui.HStack(volume).Gap(Px(14)),
+                ui.HStack(
+                        volume,
+                        ui.Button("toggle-slider-style", _customSliderStyle ? "Use theme colors" : "Use custom colors")
+                            .Style(SampleStyles.Button(theme))
+                            .OnClick(this, (view, _) =>
+                            {
+                                view._customSliderStyle = !view._customSliderStyle;
+                                view.Invalidate();
+                            })
+                    )
+                    .Gap(Px(14)),
                 controls,
                 ui.VStack(
                         ui.Text($"Value: {_value}").TextColor(theme.Colors.Text),

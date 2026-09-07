@@ -184,6 +184,10 @@ namespace Gpui.Interop
         SliderRangeEnd = 338,
         SliderOnChanged = 339,
         SliderOnReleased = 340,
+        SliderTrackRgba = 341,
+        SliderFillRgba = 342,
+        SliderThumbRgba = 343,
+        SliderThumbBorderRgba = 344,
         DockAxis = 350,
         DockActiveIndex = 351,
         DockInitialSizePx = 352,
@@ -356,7 +360,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0xD9C7A79AD3010B5CUL;
+        internal const ulong SchemaHash = 0x5446672F05E8BCDFUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -562,6 +566,10 @@ namespace Gpui.Interop
             OpCode.SliderRangeEnd => ValueKind.F32,
             OpCode.SliderOnChanged => ValueKind.Callback,
             OpCode.SliderOnReleased => ValueKind.Callback,
+            OpCode.SliderTrackRgba => ValueKind.U32,
+            OpCode.SliderFillRgba => ValueKind.U32,
+            OpCode.SliderThumbRgba => ValueKind.U32,
+            OpCode.SliderThumbBorderRgba => ValueKind.U32,
             OpCode.DockAxis => ValueKind.U32,
             OpCode.DockActiveIndex => ValueKind.U32,
             OpCode.DockInitialSizePx => ValueKind.F32,
@@ -857,6 +865,10 @@ namespace Gpui.Interop
             OpCode.SliderRangeEnd => 0x0000000000020000UL,
             OpCode.SliderOnChanged => 0x0000000000020000UL,
             OpCode.SliderOnReleased => 0x0000000000020000UL,
+            OpCode.SliderTrackRgba => 0x0000000000020000UL,
+            OpCode.SliderFillRgba => 0x0000000000020000UL,
+            OpCode.SliderThumbRgba => 0x0000000000020000UL,
+            OpCode.SliderThumbBorderRgba => 0x0000000000020000UL,
             OpCode.DockAxis => 0x0000000000800000UL,
             OpCode.DockActiveIndex => 0x0000000001000000UL,
             OpCode.DockInitialSizePx => 0x0000000000400000UL,

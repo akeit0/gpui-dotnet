@@ -31,12 +31,13 @@ use crate::{
         OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_ITEM_ID,
         OP_LIST_ON_ACTIVATED, OP_LIST_ON_SELECTION_REQUESTED, OP_LIST_OVERDRAW_PX,
         OP_LIST_RENDERER, OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH,
-        OP_SLIDER_AXIS, OP_SLIDER_DISABLED, OP_SLIDER_MAX, OP_SLIDER_MIN, OP_SLIDER_ON_CHANGED,
-        OP_SLIDER_ON_RELEASED, OP_SLIDER_RANGE_END, OP_SLIDER_RANGE_START, OP_SLIDER_SCALE,
-        OP_SLIDER_STEP, OP_SLIDER_VALUE, OP_TABLE_COLUMN, RESOURCE_DOCK, RESOURCE_INPUT,
+        OP_SLIDER_AXIS, OP_SLIDER_DISABLED, OP_SLIDER_FILL_RGBA, OP_SLIDER_MAX, OP_SLIDER_MIN,
+        OP_SLIDER_ON_CHANGED, OP_SLIDER_ON_RELEASED, OP_SLIDER_RANGE_END, OP_SLIDER_RANGE_START,
+        OP_SLIDER_SCALE, OP_SLIDER_STEP, OP_SLIDER_THUMB_BORDER_RGBA, OP_SLIDER_THUMB_RGBA,
+        OP_SLIDER_TRACK_RGBA, OP_SLIDER_VALUE, OP_TABLE_COLUMN, RESOURCE_DOCK, RESOURCE_INPUT,
         RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER, component_metadata,
     },
-    slider::{ManagedSlider, SliderValue},
+    slider::{ManagedSlider, SliderPresentation, SliderValue},
     snapshot::{SnapshotScratch, ValidatedSnapshot},
     theme::{NativeTheme, SharedTheme},
 };
@@ -586,6 +587,7 @@ pub(crate) struct SliderConfiguration {
     pub(crate) disabled: bool,
     pub(crate) logarithmic: bool,
     pub(crate) bindings: SliderBindings,
+    pub(crate) presentation: SliderPresentation,
 }
 
 pub(crate) struct ListConfiguration {
@@ -1549,6 +1551,12 @@ pub(crate) fn slider_configuration(
         axis,
         disabled: last_u32(snapshot, node, OP_SLIDER_DISABLED).unwrap_or(0) != 0,
         logarithmic,
+        presentation: SliderPresentation {
+            track: last_u32(snapshot, node, OP_SLIDER_TRACK_RGBA),
+            fill: last_u32(snapshot, node, OP_SLIDER_FILL_RGBA),
+            thumb: last_u32(snapshot, node, OP_SLIDER_THUMB_RGBA),
+            thumb_border: last_u32(snapshot, node, OP_SLIDER_THUMB_BORDER_RGBA),
+        },
         bindings: SliderBindings {
             changed: last_callback(snapshot, node, OP_SLIDER_ON_CHANGED),
             released: last_callback(snapshot, node, OP_SLIDER_ON_RELEASED),

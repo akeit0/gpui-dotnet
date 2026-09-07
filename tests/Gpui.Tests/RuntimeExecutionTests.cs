@@ -1125,7 +1125,9 @@ public sealed unsafe partial class RuntimeExecutionTests
             Session.RenderRootOutput(&arena);
         }
 
-        internal int NativePublish(out ulong revision)
+        internal int NativePublish(out ulong revision) => NativePublish(out revision, out _);
+
+        internal int NativePublish(out ulong revision, out RenderArena output)
         {
             delegate* unmanaged[Cdecl]<ulong, RenderArena*, uint*, ulong*, int> callback = &NativeCallbacks.Render;
             RenderArena arena = default;
@@ -1133,6 +1135,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             ulong value = 0;
             var status = callback(_id, &arena, &root, &value);
             revision = value;
+            output = arena;
             return status;
         }
 

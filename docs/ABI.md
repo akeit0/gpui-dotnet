@@ -38,6 +38,11 @@ content, not virtual row batches. Input part colors use U32 RGBA operations 506 
 Omitted colors resolve from the current native theme. These semantic additions change the schema
 hash without changing ABI 7, C layouts, entry points, or callback packets.
 
+Slider part colors use U32 RGBA operations 341 (track), 342 (fill), 343 (thumb), and 344 (thumb
+border), restricted to Slider nodes. The last declaration for each part wins, including alpha;
+omission restores the current theme default when the retained configuration is reconciled.
+These operations change the schema hash only and preserve ABI 7 and the existing event packets.
+
 An optional extension has its own ID, protocol version, and schema hash. `supports_extension`
 checks that tuple before application startup. Extension-specific definitions never enter the base
 schema; the generic NativeExtension node carries the tuple, component kind, retained key, and an

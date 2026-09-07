@@ -1789,6 +1789,42 @@
       "managedApi": null
     },
     {
+      "id": 341,
+      "name": "slider_track_rgba",
+      "csharp": "SliderTrackRgba",
+      "value": "u32",
+      "requires": "slider",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "TrackColor", "param": "color", "doc": "Overrides Slider track background, including alpha. Omission uses the current theme border variant." }
+    },
+    {
+      "id": 342,
+      "name": "slider_fill_rgba",
+      "csharp": "SliderFillRgba",
+      "value": "u32",
+      "requires": "slider",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "FillColor", "param": "color", "doc": "Overrides Slider filled track color, including alpha. Omission uses the current theme accent." }
+    },
+    {
+      "id": 343,
+      "name": "slider_thumb_rgba",
+      "csharp": "SliderThumbRgba",
+      "value": "u32",
+      "requires": "slider",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "ThumbColor", "param": "color", "doc": "Overrides Slider thumb background, including alpha. Omission uses the current theme surface background." }
+    },
+    {
+      "id": 344,
+      "name": "slider_thumb_border_rgba",
+      "csharp": "SliderThumbBorderRgba",
+      "value": "u32",
+      "requires": "slider",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "ThumbBorderColor", "param": "color", "doc": "Overrides Slider thumb border color, including alpha. Omission uses the current theme accent." }
+    },
+    {
       "id": 350,
       "name": "dock_axis",
       "csharp": "DockAxis",

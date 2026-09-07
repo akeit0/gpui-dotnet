@@ -359,6 +359,15 @@ logarithmic mapping, bounds, and step size. GPUI owns pointer drag and keyboard 
 interaction. `SliderController.SetValue` updates retained native state without synthesizing an
 interaction event.
 
+`TrackColor`, `FillColor`, `ThumbColor`, and `ThumbBorderColor` customize the retained parts through
+`IGpuiElementStyle<SliderTag>` recipes. Omitted colors resolve from the current theme: border variant
+for the track, accent for the fill and thumb border, and surface background for the thumb. Explicit
+colors preserve alpha; the last declaration for each part wins. Removing an override in a later
+render restores the current theme default. Presentation changes preserve value, active thumb,
+focus, drag/keyboard interaction, and event revision. Disabled behavior and the native focus ring
+remain unchanged. The Input gallery demonstrates switching between a sample-owned recipe and theme
+defaults on the same retained slider.
+
 The retained GPUI.NET engine remains authoritative after comparison with the foundation Slider.
 It supports snapshot-time configuration reconciliation, focus and keyboard interaction, range
 thumb selection, release events for pointer and keyboard input, and controller updates without

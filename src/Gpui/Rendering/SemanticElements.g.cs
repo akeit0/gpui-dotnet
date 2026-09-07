@@ -972,6 +972,42 @@ namespace Gpui
             return element;
         }
 
+        /// <summary>Overrides Slider track background, including alpha. Omission uses the current theme border variant.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> TrackColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ISliderElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SliderTrackRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Slider filled track color, including alpha. Omission uses the current theme accent.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> FillColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ISliderElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SliderFillRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Slider thumb background, including alpha. Omission uses the current theme surface background.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ThumbColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ISliderElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SliderThumbRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Slider thumb border color, including alpha. Omission uses the current theme accent.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ThumbBorderColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ISliderElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SliderThumbBorderRgba, color.Rgba);
+            return element;
+        }
+
         /// <summary>Declares the preferred aspect ratio (width divided by height) of an item. Must be finite and positive.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Element<TTag> AspectRatio<TTag>(this Element<TTag> element, float ratio)

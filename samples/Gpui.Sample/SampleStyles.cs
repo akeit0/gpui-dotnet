@@ -77,8 +77,20 @@ internal readonly record struct SampleInputStyle(GpuiTheme Theme, bool Invalid)
     }
 }
 
+internal readonly record struct SampleSliderStyle(GpuiTheme Theme)
+    : IGpuiElementStyle<SliderTag>
+{
+    public Element<SliderTag> Apply(Element<SliderTag> slider) => slider
+        .TrackColor(Theme.Colors.SuccessBackground)
+        .FillColor(Theme.Colors.Success)
+        .ThumbColor(Theme.Colors.SurfaceBackground)
+        .ThumbBorderColor(Theme.Colors.Success);
+}
+
 internal static class SampleStyles
 {
+    internal static SampleSliderStyle Slider(GpuiTheme theme) => new(theme);
+
     internal static SampleTableRowStyle TableRow(GpuiTheme theme, bool selected) => new(theme, selected);
 
     internal static SampleInputStyle Input(GpuiTheme theme, bool invalid = false) => new(theme, invalid);

@@ -713,6 +713,30 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void SliderPartColorsPreserveAlphaAndLastDeclarationWins()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var slider = ui.Slider("volume", new SliderOptions(value: 40))
+                .TrackColor(Hex("#11223340"))
+                .FillColor(Hex("#44556680"))
+                .ThumbColor(Hex("#778899"))
+                .ThumbBorderColor(Hex("#AABBCC"))
+                .FillColor(Hex("#DDEEFF00"));
+            arena.Validate(slider);
+            Assert.Equal(0x11223340u, ReadLastU32Op(arena, OpCode.SliderTrackRgba));
+            Assert.Equal(0xDDEEFF00u, ReadLastU32Op(arena, OpCode.SliderFillRgba));
+            Assert.Equal(0x778899FFu, ReadLastU32Op(arena, OpCode.SliderThumbRgba));
+            Assert.Equal(0xAABBCCFFu, ReadLastU32Op(arena, OpCode.SliderThumbBorderRgba));
+        }
+        finally { view.Runtime.UnmountRuntime(); }
+    }
+
+    [Fact]
     public void SliderOptionsRejectInvalidRangesAndScales()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new SliderOptions(min: 10, max: 10));
