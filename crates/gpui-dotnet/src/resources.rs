@@ -1090,28 +1090,37 @@ impl ManagedListResource {
 
     fn trim_batches(&mut self) {
         const MAX_BATCHES: usize = 4;
-        let mut idle_count = self
-            .batches
-            .values()
-            .filter(|batch| batch.last_used <= self.frame_start)
-            .count();
-        while idle_count > MAX_BATCHES {
-            let Some((&oldest, _)) = self
-                .batches
-                .iter()
-                .filter(|(_, batch)| batch.last_used <= self.frame_start)
-                .min_by_key(|(_, batch)| batch.last_used)
-            else {
-                break;
-            };
-            self.batches.remove(&oldest);
-            self.telemetry.batch_evictions += 1;
-            idle_count -= 1;
+        if self.batches.len() <= MAX_BATCHES {
+            return;
         }
+        // Select the four newest idle batches once. Repeatedly finding the oldest batch
+        // rescans the entire map for each eviction after a large viewport contracts.
+        let mut newest = [(0u32, 0u64); MAX_BATCHES];
+        let mut idle_count = 0;
+        for (&key, batch) in &self.batches {
+            if batch.last_used > self.frame_start {
+                continue;
+            }
+            if idle_count < MAX_BATCHES {
+                newest[idle_count] = (key, batch.last_used);
+            } else {
+                let oldest = newest.iter_mut().min_by_key(|entry| entry.1).unwrap();
+                if batch.last_used > oldest.1 {
+                    *oldest = (key, batch.last_used);
+                }
+            }
+            idle_count += 1;
+        }
+        if idle_count <= MAX_BATCHES {
+            return;
+        }
+        let before = self.batches.len();
+        self.batches.retain(|key, batch| {
+            batch.last_used > self.frame_start || newest.iter().any(|entry| entry.0 == *key)
+        });
+        self.telemetry.batch_evictions += (before - self.batches.len()) as u64;
     }
 
-    /// Reads the monotonic telemetry counters. The ABI does not expose them yet, so this is
-    /// currently only reachable from native tests and future benchmarks.
     /// Reads the monotonic telemetry counters for diagnostics aggregation.
     pub(crate) fn telemetry(&self) -> ListTelemetry {
         self.telemetry
@@ -1476,6 +1485,7 @@ fn shared(value: &str) -> SharedString {
 
 #[cfg(test)]
 mod tests {
+    mod measurements;
     use super::*;
 
     #[derive(Default)]
@@ -1942,6 +1952,98 @@ mod tests {
     }
 
     #[test]
+    fn offscreen_refresh_preserves_full_scrollbar_range_after_configuration() {
+        let mut config = configuration(Some(1));
+        config.item_count = 20_000;
+        let mut resource = ManagedListResource::new(1, callbacks(), &config, 1);
+        resource.apply_command(&command(COMMAND_LIST_REFRESH, 10_000, 1_000, ""));
+        resource.configure(&config, 2);
+        assert_eq!(resource.state.max_offset_for_scrollbar().y, px(800_000.));
+        resource.scroll_to_item(19_000);
+        assert_eq!(
+            resource.state.scroll_px_offset_for_scrollbar().y,
+            px(-760_000.)
+        );
+    }
+
+    #[test]
+    fn mixed_changes_wait_for_acceptance_and_reconcile_with_content_revision() {
+        for changed_revision in [false, true] {
+            let mut config = configuration(Some(1));
+            config.item_count = 200;
+            let mut resource = ManagedListResource::new(1, callbacks(), &config, 1);
+            for start in [0, 48, 96, 144] {
+                resource.batches.insert(start, CachedBatch::new());
+            }
+            resource.apply_command(&command(COMMAND_LIST_REFRESH, 50, 2, ""));
+            resource.apply_command(&command(COMMAND_LIST_SPLICE, 150, (3_u64 << 32) | 8, ""));
+            resource.apply_command(&command(COMMAND_LIST_REFRESH, 201, 4, ""));
+            resource.configure(&config, 1);
+            assert_eq!(resource.item_count, 200);
+            assert_eq!(batch_keys(&resource), vec![0, 48, 96, 144]);
+            config.item_count = 205;
+            if changed_revision {
+                config.content_revision = Some(2);
+            }
+            resource.configure(&config, 2);
+            assert_eq!(resource.item_count, 205);
+            assert_eq!(resource.state.max_offset_for_scrollbar().y, px(8_200.));
+            assert!(resource.pending_commands.is_empty());
+            assert_eq!(
+                batch_keys(&resource),
+                if changed_revision {
+                    vec![]
+                } else {
+                    vec![0, 96]
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn invalid_mixed_hints_reset_to_the_accepted_shape() {
+        let mut config = configuration(Some(1));
+        let mut resource = ManagedListResource::new(1, callbacks(), &config, 1);
+        resource.batches.insert(0, CachedBatch::new());
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 90, (11_u64 << 32) | 1, ""));
+        resource.apply_command(&command(COMMAND_LIST_REFRESH, 0, 1, ""));
+        config.item_count = 90;
+        resource.configure(&config, 2);
+        assert_eq!(resource.item_count, 90);
+        assert_eq!(resource.state.max_offset_for_scrollbar().y, px(3_600.));
+        assert!(resource.batches.is_empty());
+        assert!(resource.pending_commands.is_empty());
+    }
+
+    #[test]
+    fn trimming_keeps_every_displayed_batch_and_the_four_newest_idle_batches() {
+        for tied in [false, true] {
+            let mut resource = resource_with_batches(&[]);
+            resource.frame_start = 100;
+            for key in 0..40 {
+                let mut batch = CachedBatch::new();
+                batch.last_used = if key >= 32 {
+                    101
+                } else if tied {
+                    1
+                } else {
+                    key as u64
+                };
+                resource.batches.insert(key, batch);
+            }
+            resource.trim_batches();
+            assert_eq!(resource.batches.len(), 12);
+            assert!((32..40).all(|key| resource.batches.contains_key(&key)));
+            if !tied {
+                assert_eq!(batch_keys(&resource), (28..40).collect::<Vec<_>>());
+            }
+            assert_eq!(resource.telemetry.batch_evictions, 28);
+            resource.trim_batches();
+            assert_eq!(resource.telemetry.batch_evictions, 28);
+        }
+    }
+
+    #[test]
     fn changing_estimated_height_rebuilds_native_height_hints() {
         let mut resource = ManagedListResource::new(1, callbacks(), &configuration(Some(1)), 1);
         let mut changed = configuration(Some(1));
@@ -2195,7 +2297,7 @@ mod tests {
     #[test]
     fn binding_a_changed_table_spec_invalidates_row_batches() {
         let store = ResourceStore::new(1, callbacks(), theme());
-        let configuration = configuration(None);
+        let configuration = configuration(Some(1));
         let engine = store.list_resource(&ResourceKey::new(7, shared("rows")), &configuration, 1);
 
         let spec = TableSpec {
@@ -2223,7 +2325,18 @@ mod tests {
         );
         assert_eq!(engine.borrow().batches.len(), 1);
 
-        // A changed column table invalidates every cached row batch.
+        engine.borrow_mut().batches.insert(48, CachedBatch::new());
+        engine
+            .borrow_mut()
+            .apply_command(&command(COMMAND_LIST_REFRESH, 50, 1, ""));
+        engine
+            .borrow_mut()
+            .apply_command(&command(COMMAND_LIST_SPLICE, 90, (1_u64 << 32) | 1, ""));
+        let retained = store.list_resource(&ResourceKey::new(7, shared("rows")), &configuration, 2);
+        assert!(Rc::ptr_eq(&engine, &retained));
+        assert_eq!(batch_keys(&engine.borrow()), vec![0]);
+
+        // Column changes still invalidate rows preserved by targeted refresh/splice hints.
         let changed = TableSpec {
             columns: vec![
                 spec.columns[0].clone(),

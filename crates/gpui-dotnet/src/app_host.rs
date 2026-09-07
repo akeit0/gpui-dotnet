@@ -1377,7 +1377,9 @@ mod tests {
 
     #[test]
     fn queued_commands_cannot_reach_a_recreated_resource() {
-        use crate::semantic::{COMMAND_SCROLL_TO_OFFSET, RESOURCE_SCROLL};
+        use crate::semantic::{
+            COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_SCROLL_TO_OFFSET, RESOURCE_LIST, RESOURCE_SCROLL,
+        };
         use crate::{extension, resources::ResourceKey};
 
         let callbacks = ManagedCallbacks {
@@ -1454,6 +1456,50 @@ mod tests {
                 .take_commands(&extension_key)
                 .len(),
             1
+        );
+
+        let list_key = ResourceKey::new(7, "rows".into());
+        let list_presence = HashSet::from([(RESOURCE_LIST, list_key.clone())]);
+        presence
+            .lock()
+            .unwrap()
+            .accept(&list_presence, &HashSet::new(), 4);
+        presence
+            .lock()
+            .unwrap()
+            .accept(&HashSet::new(), &HashSet::new(), 5);
+        presence
+            .lock()
+            .unwrap()
+            .accept(&list_presence, &HashSet::new(), 6);
+        let config = crate::resources::ListConfiguration {
+            item_count: 100,
+            renderer_token: 1,
+            batch_size: 48,
+            overdraw: px(240.),
+            alignment: gpui::ListAlignment::Top,
+            estimated_item_height: px(40.),
+            content_revision: Some(1),
+            scrollbar: crate::scrolling::ScrollbarMetrics::new(px(8.), false),
+        };
+        let list = view.resources.list_resource(&list_key, &config, 6);
+        let command = ResourceCommand {
+            key: list_key,
+            resource_kind: RESOURCE_LIST,
+            command: COMMAND_LIST_SCROLL_TO_ITEM,
+            a: 50,
+            b: 0,
+            data: "".into(),
+        };
+        assert!(!view.deliver_resource_command(command.clone(), 4));
+        assert_eq!(
+            list.borrow().state.scroll_px_offset_for_scrollbar().y,
+            px(0.)
+        );
+        assert!(view.deliver_resource_command(command, 6));
+        assert_eq!(
+            list.borrow().state.scroll_px_offset_for_scrollbar().y,
+            px(-2_000.)
         );
     }
 

@@ -451,6 +451,50 @@ The allocation contracts cover both 1-row and 512-row batches; timing is explora
 The earlier 2,800-byte churn result included 1,152 bytes of fixture closure allocation and 1,488
 bytes of assertion overhead. The comparable framework-only baseline is 160 bytes, not 2,800.
 
+### Native decoding and cache workloads
+
+Run the opt-in native probes separately from correctness tests:
+
+```powershell
+./eng/measure-native.ps1
+```
+
+The script runs the ignored `native_workload_measurements` test in Release on one test thread and
+restores the working directory. Windows x64 measurements use five measured batches after four
+warmups. Decode and load/release use 64 operations per batch; trimming measures one fully prepared
+cache per batch. Each row has a keyed Button with width, height, and a shared click token.
+
+| Workload | Median µs/op |
+| --- | ---: |
+| Decode 48 rows into reused storage | 3.75 |
+| Decode 512 rows into reused storage | 38.29 |
+| Load, accept, and release a new 48-row batch | 5.55 |
+| Load, accept, and release a new 512-row batch | 42.95 |
+
+Warm decode reuses the snapshot, string interner, and validation scratch against an unchanged
+borrowed arena. Load/release creates and destroys a native cached batch through the production
+range/accept/release paths. Its Rust callback fixture constructs the arena and records callbacks
+in preallocated vectors; it measures no managed runtime or cross-language transition. Neither
+probe includes native materialization, text layout, painting, or complete frame time.
+
+Idle trimming selects the four newest idle batches in one scan and releases the rest in another.
+All batches requested by the current frame remain pinned. Selection uses four stack entries,
+without another heap buffer. Compared with repeated oldest-batch searches at `9c5d872`:
+
+| Idle 48-row batches | Repeated search µs/op | Selection µs/op | Snapshot/scratch buffer capacity before → after |
+| --- | ---: | ---: | ---: |
+| 16 | 6.20 | 5.60 | 211,792 → 52,948 bytes |
+| 128 | 77.20 | 27.90 | 1,694,336 → 52,948 bytes |
+| 512 | 854.10 | 213.90 | 6,777,344 → 52,948 bytes |
+
+Trimming includes native batch destruction and release callbacks, with loading outside the timed
+interval. Large cases stress viewport contraction; they are not typical idle cache sizes.
+The memory column sums `capacity × element size` for snapshot and validation/grouping vectors.
+It excludes string allocations, hash-table storage, allocator overhead, ListState, GPUI elements,
+and GPU memory, so it is a retained-buffer measure rather than total heap usage. A 512-row batch
+uses 139,909 bytes of these buffers, compared with 13,237 for a 48-row batch. Separate runs have
+no CPU affinity or clock control; small differences are inconclusive.
+
 ### Dispatcher callback validation cost
 
 `DispatcherAdmissionCost` compares current Post admission with an experimental call to

@@ -36,6 +36,14 @@ pub struct ValidatedSnapshot {
 }
 
 impl ValidatedSnapshot {
+    #[cfg(test)]
+    pub(crate) fn buffer_capacity_bytes(&self) -> usize {
+        self.nodes.capacity() * size_of::<SnapshotNode>()
+            + self.ops.capacity() * size_of::<OpRecord>()
+            + self.children.capacity() * size_of::<u32>()
+            + self.op_data.capacity() * size_of::<Option<SharedString>>()
+    }
+
     pub fn decode_into(
         &mut self,
         arena: &RenderArena,
@@ -190,6 +198,21 @@ pub struct SnapshotScratch {
 }
 
 impl SnapshotScratch {
+    #[cfg(test)]
+    pub(crate) fn buffer_capacity_bytes(&self) -> usize {
+        (self.parents.capacity() + self.pending.capacity() + self.grouped_children.capacity())
+            * size_of::<u32>()
+            + self.visited.capacity()
+            + (self.child_counts.capacity()
+                + self.child_offsets.capacity()
+                + self.child_cursor.capacity()
+                + self.op_counts.capacity()
+                + self.op_offsets.capacity()
+                + self.op_cursor.capacity())
+                * size_of::<usize>()
+            + self.resource_keys.capacity() * size_of::<(u32, u32, u32, u16)>()
+    }
+
     fn prepare_nodes(&mut self, node_len: usize, child_len: usize) {
         reset_vec(&mut self.parents, node_len, u32::MAX);
         reset_vec(&mut self.visited, node_len, 0);
