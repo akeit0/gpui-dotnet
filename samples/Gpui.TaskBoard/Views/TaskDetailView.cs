@@ -92,11 +92,11 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
         Invalidate();
         _work.StartLatest(
             (View: this, Store: props.Store, Source: task),
-            (TaskId: task.Id, Title: task.Title),
+            (TaskId: task.Id, Revision: task.Revision, Title: task.Title),
             static async (request, lifetime) =>
             {
                 await Task.Delay(350, lifetime).ConfigureAwait(false);
-                return (request.TaskId, Hours: Math.Clamp(1 + request.Title.Length / 8, 1, 16));
+                return (request.TaskId, request.Revision, Hours: Math.Clamp(1 + request.Title.Length / 8, 1, 16));
             },
             static (state, result) =>
             {
@@ -104,16 +104,13 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
                 if (!ReferenceEquals(view.CommittedProps.Store, state.Store)
                     || view.CommittedProps.TaskId != result.TaskId)
                     return;
-                // Immutable record identity is a conservative per-entity edit token here.
-                // A production store should expose an explicit model revision / CAS operation.
-                if (!ReferenceEquals(state.Store.Find(result.TaskId), state.Source))
+                if (!state.Store.TrySetEstimate(result.TaskId, result.Revision, result.Hours))
                 {
                     view._suggestion = "Task changed; suggestion discarded.";
                     view.Invalidate();
                     return;
                 }
                 view._suggestion = $"Suggested {result.Hours}h for “{state.Source.Title}”. Applied.";
-                state.Store.SetEstimate(result.TaskId, result.Hours);
                 view.Invalidate();
             },
             static (state, failure) =>

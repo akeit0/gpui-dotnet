@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace Gpui;
 
 /// <summary>
@@ -32,8 +34,12 @@ public sealed record TaskItem(
     string Assignee,
     float EstimateHours,
     bool Completed,
-    string[] Attachments
-);
+    ImmutableArray<string> Attachments
+)
+{
+    /// <summary>Per-task edit token, advanced only by committed model changes.</summary>
+    public ulong Revision { get; init; } = 1;
+}
 
 /// <summary>
 /// In-memory document for the sample. Owns the revision that drives virtual-row cache
@@ -45,14 +51,16 @@ public sealed class TaskStore
     private long _nextId = 1;
     private ulong _revision = 1;
     private event Action? Changed;
+    private readonly List<TaskItem> _tasks = [];
 
     public List<Project> Projects { get; } = [];
-    public List<TaskItem> Tasks { get; } = [];
+    public IReadOnlyList<TaskItem> Tasks { get; }
     public List<string> Activity { get; } = [];
     public ulong Revision => _revision;
 
     public TaskStore()
     {
+        Tasks = _tasks.AsReadOnly();
         Seed();
     }
 
@@ -78,7 +86,19 @@ public sealed class TaskStore
         public void Dispose() => store.Changed -= callback;
     }
 
-    public TaskItem? Find(long id) => Tasks.Find(t => t.Id == id);
+    private int FindIndex(long id)
+    {
+        for (var index = 0; index < _tasks.Count; index++)
+            if (_tasks[index].Id == id)
+                return index;
+        return -1;
+    }
+
+    public TaskItem? Find(long id)
+    {
+        var index = FindIndex(id);
+        return index < 0 ? null : _tasks[index];
+    }
 
     public TaskItem AddTask(
         string projectId,
@@ -96,24 +116,24 @@ public sealed class TaskStore
             status,
             priority,
             string.IsNullOrWhiteSpace(assignee) ? "Unassigned" : assignee.Trim(),
-            Math.Clamp(estimateHours, 0, 120),
+            NormalizeEstimate(estimateHours),
             false,
             []
         );
-        Tasks.Add(task);
+        _tasks.Add(task);
         Notify($"Added “{task.Title}”");
         return task;
     }
 
     public void RemoveTask(long id)
     {
-        var index = Tasks.FindIndex(t => t.Id == id);
+        var index = FindIndex(id);
         if (index < 0)
         {
             return;
         }
         var removed = Tasks[index];
-        Tasks.RemoveAt(index);
+        _tasks.RemoveAt(index);
         Notify($"Removed “{removed.Title}”");
     }
 
@@ -124,19 +144,27 @@ public sealed class TaskStore
         {
             return;
         }
-        var copy = task with { Id = _nextId++, Title = task.Title + " (copy)" };
-        Tasks.Add(copy);
+        var copy = task with { Id = _nextId++, Title = task.Title + " (copy)", Revision = 1 };
+        _tasks.Add(copy);
         Notify($"Duplicated “{task.Title}”");
     }
 
     private void Replace(long id, Func<TaskItem, TaskItem> update, string activity)
     {
-        var index = Tasks.FindIndex(t => t.Id == id);
+        var index = FindIndex(id);
         if (index < 0)
         {
             return;
         }
-        Tasks[index] = update(Tasks[index]);
+        CommitReplacement(index, update(_tasks[index]), activity);
+    }
+
+    private void CommitReplacement(int index, TaskItem updated, string activity)
+    {
+        var current = _tasks[index];
+        if (updated == current)
+            return;
+        _tasks[index] = updated with { Revision = checked(current.Revision + 1) };
         Notify(activity);
     }
 
@@ -166,8 +194,33 @@ public sealed class TaskStore
     public void SetPriority(long id, TaskPriority priority) =>
         Replace(id, t => t with { Priority = priority }, $"Reprioritized task #{id}");
 
-    public void SetEstimate(long id, float hours) =>
-        Replace(id, t => t with { EstimateHours = Math.Clamp(hours, 0, 120) }, $"Re-estimated task #{id}");
+    public void SetEstimate(long id, float hours)
+    {
+        var normalized = NormalizeEstimate(hours);
+        Replace(id, t => t with { EstimateHours = normalized }, $"Re-estimated task #{id}");
+    }
+
+    /// <summary>
+    /// Applies a result only to the expected task version. Check and commit run together on the
+    /// application's UI thread. Unrelated tasks do not invalidate the token. Equal values succeed
+    /// without advancing revisions or appending activity; deleted or edited tasks return false.
+    /// </summary>
+    public bool TrySetEstimate(long id, ulong expectedRevision, float hours)
+    {
+        var normalized = NormalizeEstimate(hours);
+        var index = FindIndex(id);
+        if (index < 0 || _tasks[index].Revision != expectedRevision)
+            return false;
+        CommitReplacement(index, _tasks[index] with { EstimateHours = normalized }, $"Re-estimated task #{id}");
+        return true;
+    }
+
+    private static float NormalizeEstimate(float hours)
+    {
+        if (!float.IsFinite(hours))
+            throw new ArgumentOutOfRangeException(nameof(hours));
+        return Math.Clamp(hours, 0, 120);
+    }
 
     public void ToggleCompleted(long id)
     {
@@ -260,7 +313,7 @@ public sealed class TaskStore
         for (var i = 0; i < 180; i++)
         {
             var status = (TaskStatus)(i % 7 == 6 ? 3 : i % 4);
-            Tasks.Add(
+            _tasks.Add(
                 new TaskItem(
                     _nextId++,
                     projects[i % projects.Length],

@@ -41,6 +41,10 @@ dotnet run --project samples/Gpui.TaskBoard -- --dark
 
 - `Models/TaskStore.cs` owns all domain state, a monotonic `Revision`, and a
   subscribe/notify contract. Views never own task data.
+  Tasks expose immutable snapshots through a read-only collection. Each task has its own revision;
+  `TrySetEstimate` checks that revision and commits on the UI thread. Intervening edits or deletion
+  reject an async result, while unrelated task edits do not. Equal normalized edits preserve the
+  task and store revisions and add no activity entry.
 - `TaskBoardShellView` owns filter state, selection, dialogs, controllers, two
   `Signal`s, one `Memo<BoardFilter, List<TaskItem>>`, two effects (store watch,
   menu install), and one `WorkScope` (sync). Table cache validity is explicit:
