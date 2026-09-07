@@ -1,4 +1,4 @@
-//! Fixtures for opt-in, isolated native preparation measurements. No GPUI window is opened.
+//! Fixtures for opt-in native measurements. Frame probes use GPUI's test backend.
 
 use crate::{
     abi::{ChildRecord, NodeRecord, OpRecord, RenderArena},
@@ -97,4 +97,19 @@ pub(crate) fn measure(label: &str, iterations: usize, mut operation: impl FnMut(
         "{label}: median_us={:.3} min_us={:.3} max_us={:.3}",
         samples[2], samples[0], samples[4]
     );
+    #[cfg(feature = "allocation-tracking")]
+    {
+        // Separate from the timing batches. Count successful requests, not retained/live bytes.
+        let counts = crate::allocation_tracking::count(|| {
+            for _ in 0..iterations {
+                operation();
+            }
+        });
+        println!(
+            "{label}: allocations_per_op={:.2} reallocations_per_op={:.2} requested_bytes_per_op={:.2}",
+            counts.allocations as f64 / iterations as f64,
+            counts.reallocations as f64 / iterations as f64,
+            counts.requested_bytes as f64 / iterations as f64
+        );
+    }
 }

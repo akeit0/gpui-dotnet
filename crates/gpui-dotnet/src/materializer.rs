@@ -4132,6 +4132,101 @@ mod tests {
         }
     }
 
+    struct DrawingFrameWorkload {
+        snapshots: [ValidatedSnapshot; 2],
+        active: usize,
+        renders: std::rc::Rc<std::cell::Cell<usize>>,
+        viewport: std::rc::Rc<std::cell::Cell<gpui::Size<Pixels>>>,
+    }
+
+    impl gpui::Render for DrawingFrameWorkload {
+        fn render(&mut self, window: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            self.renders.set(self.renders.get() + 1);
+            self.viewport.set(window.viewport_size());
+            let snapshot = &self.snapshots[self.active];
+            materialize_drawing(&snapshot.nodes[0], snapshot)
+        }
+    }
+
+    fn drawing_frame_snapshot(paths: usize, segments: usize, changed: bool) -> ValidatedSnapshot {
+        use crate::native_workloads::WorkloadArena;
+        let mut arena = WorkloadArena::default();
+        let root = arena.node(crate::semantic::COMPONENT_DRAWING, None);
+        arena.point(root, OP_DRAWING_VIEW_BOX_ORIGIN, 0., 0.);
+        arena.point(root, OP_DRAWING_VIEW_BOX_SIZE, 512., 128.);
+        arena.op(root, OP_WIDTH_PERCENT, 100f32.to_bits() as u64);
+        arena.op(root, OP_HEIGHT_PERCENT, 100f32.to_bits() as u64);
+        for _ in 0..paths {
+            let path = arena.node(crate::semantic::COMPONENT_PATH, Some(root));
+            arena.op(
+                path,
+                OP_PATH_STROKE_RGBA,
+                if changed { 0x445566FF } else { 0x112233FF },
+            );
+            arena.op(path, OP_PATH_STROKE_WIDTH_PX, 2f32.to_bits() as u64);
+            arena.point(path, OP_PATH_MOVE_TO, 0., 0.);
+            for segment in 1..=segments {
+                arena.point(
+                    path,
+                    OP_PATH_LINE_TO,
+                    segment as f32,
+                    (segment % 17) as f32 + if changed { 8. } else { 0. },
+                );
+            }
+        }
+        arena.decode()
+    }
+
+    #[gpui::test]
+    #[ignore = "opt-in Release measurement; run eng/measure-native.ps1"]
+    fn native_workload_measurements_drawing_frames(cx: &mut gpui::TestAppContext) {
+        use crate::native_workloads::measure;
+        for (paths, segments) in [(0, 0), (1, 64), (64, 64), (64, 512)] {
+            let renders = std::rc::Rc::new(std::cell::Cell::new(0));
+            let viewport = std::rc::Rc::new(std::cell::Cell::new(gpui::Size::default()));
+            let (view, window_cx) = cx.add_window_view(|_, _| DrawingFrameWorkload {
+                snapshots: [
+                    drawing_frame_snapshot(paths, segments, false),
+                    drawing_frame_snapshot(paths, segments, true),
+                ],
+                active: 0,
+                renders: renders.clone(),
+                viewport: viewport.clone(),
+            });
+            for (width, height, replace) in [
+                (512., 128., false),
+                (1024., 256., false),
+                (512., 128., true),
+            ] {
+                window_cx.simulate_resize(gpui::size(px(width), px(height)));
+                let before = renders.get();
+                let mut frames = 0;
+                measure(
+                    &format!("drawing-frame-{paths}x{segments}-{width}x{height}-replace-{replace}"),
+                    16,
+                    || {
+                        window_cx.update(|window, cx| {
+                            if replace {
+                                view.update(cx, |view, _| view.active ^= 1);
+                            }
+                            // Force native materialization on each frame while keeping snapshot input
+                            // stable unless the case explicitly swaps the predecoded description.
+                            window.refresh();
+                            window.draw(cx).clear(cx);
+                        });
+                        frames += 1;
+                    },
+                );
+                assert_eq!(
+                    renders.get() - before,
+                    frames,
+                    "the native view must render every measured frame"
+                );
+                assert_eq!(viewport.get(), gpui::size(px(width), px(height)));
+            }
+        }
+    }
+
     #[test]
     fn drawing_path_builds_in_view_box_coordinates() {
         fn point_op(code: u16, x: f32, y: f32) -> OpRecord {

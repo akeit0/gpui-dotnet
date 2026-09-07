@@ -1,4 +1,6 @@
 pub mod abi;
+#[cfg(all(test, feature = "allocation-tracking"))]
+mod allocation_tracking;
 mod app_host;
 mod arena;
 mod components;

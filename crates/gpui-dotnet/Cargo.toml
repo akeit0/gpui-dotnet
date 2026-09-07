@@ -26,6 +26,10 @@ workspace = true
 [lib]
 crate-type = ["rlib"]
 
+[features]
+# Instrument only the unit-test executable; production libraries keep their allocator unchanged.
+allocation-tracking = []
+
 [dependencies]
 async-channel = "2"
 # The submodule pins the validated foundation revision. Keep this crate's direct GPUI source

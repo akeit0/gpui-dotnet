@@ -5,9 +5,10 @@ documents.
 
 ## Implementation priorities
 
-1. Native frame performance: measure drawing tessellation and allocations in full frames before
-   introducing geometry caches. Extend isolated fragment measurements to mixed retained-tree updates
-   before changing transport; preserve full validation and snapshot/lifetime boundaries.
+1. Drawing performance: evaluate geometry reuse and tessellation-buffer growth against the CPU
+   frame/allocation probes, including bounds, style, snapshot, and lifetime invalidation and retained
+   memory. Measure platform presentation/GPU work and mixed retained-tree updates before changing
+   transport; preserve full validation and ownership boundaries.
 2. Input editing: word navigation, undo/redo, richer pointer selection, platform IME tests, and
    controlled-binding helpers built on conditional replacement.
 3. Virtual-row menus and tooltips: design window-owned overlays anchored to stable item identities,
@@ -142,10 +143,10 @@ Runtime performance and platform verification are tracked in
 Measure large static trees with a changing leaf, dense drawings with stable geometry, variable-height
 collection churn, IME with async completion, and multi-window navigation. Include native allocations,
 bytes copied, retained capacity, and layout/paint or input latency beyond `ManagedView::render`.
-Use the isolated preparation and copying probes in [PERFORMANCE.md](PERFORMANCE.md) to select
-full-frame workloads. Validate any drawing or Dynamic owner cache against snapshot replacement,
-resource lifetime, theme changes, and resize, and include native allocation counts before claiming
-an allocation improvement.
+Use the preparation, copying, and CPU drawing-frame probes in [PERFORMANCE.md](PERFORMANCE.md)
+to select application workloads. Validate any drawing or Dynamic owner cache against snapshot
+replacement, resource lifetime, theme changes, and resize. Extend current-thread Rust allocation
+counts with retained-memory and platform measurements before claiming an end-to-end improvement.
 
 ## ABI, diagnostics, and CI
 - generate and verify a public C header with `sizeof`/`offsetof` assertions per RID;

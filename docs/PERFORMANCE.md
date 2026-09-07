@@ -633,7 +633,8 @@ minimum, and maximum. Dynamic discovery uses 256 iterations per batch, drawing m
 are outside these timed intervals. Returned vectors, elements, and paths are destroyed inside
 their respective intervals. These are isolated CPU costs, with no window, managed callback,
 GPU submission, text shaping, or full-frame latency. No CPU affinity or clock control is applied;
-small differences are inconclusive. Native allocation counts and total heap usage are not measured.
+small differences are inconclusive. This timing run has no allocation instrumentation; optional
+request counters and their limits are described in the CPU-frame section below.
 
 Dynamic discovery scans all snapshot nodes, reads active/owner operations on Dynamic wrappers,
 and deduplicates owners in first-occurrence order. Each wrapper in this fixture has one Div child.
@@ -689,6 +690,61 @@ copying through a deep retained View tree, native decoding, or layout. Validatio
 copying in these cases; avoiding copies alone cannot remove the full publication cost. Keep any
 transport proposal separate from these measurements until mixed-update and full-frame evidence
 shows the expected benefit.
+
+### Drawing CPU frames and allocation requests
+
+The frame probe runs `Window::draw` and clears the GPUI element arena using the test backend.
+It includes native View rendering, drawing materialization, layout, prepaint/tessellation, scene
+construction, and previous-frame cleanup. It forces a native refresh every iteration and asserts
+one View render per frame. This measures a complete CPU drawing-frame path, but excludes platform
+presentation, GPU work, event-loop/vsync latency, and managed publication/decoding. It is not visual
+verification or an end-to-end application frame measurement.
+
+Run timing without instrumentation, then allocation requests separately:
+
+```powershell
+./eng/measure-native.ps1 -Filter native_workload_measurements_drawing_frames
+./eng/measure-native.ps1 -TrackAllocations -Filter native_workload_measurements_drawing
+```
+
+`-TrackAllocations` enables the `allocation-tracking` Cargo feature only for the test allocator.
+The shipped library has no allocator override, including when built with that feature. The shim
+delegates to Rust's System allocator and counts successful allocation, zeroed-allocation, and
+reallocation requests on the current test thread. Reallocation bytes count the entire requested
+new size, even if growth happens in place; deallocation does not subtract bytes. These are cumulative
+request sizes, not live/peak memory, physical bytes copied, or total process heap traffic. Background
+threads and allocations bypassing Rust's global allocator are excluded. Counters use allocation-free
+thread-local storage and restore their disabled state on unwinding; focused tests cover both.
+Timing from instrumented builds includes shim overhead and should not be compared with ordinary
+builds as a runtime regression.
+
+The same Windows x64 / i7-13700F / Rust Release environment and stroked-path geometry as the
+preparation probe are used. Each case runs four warmup and five timing batches of 16 frames;
+counts average a separate 16-frame interval after timing. Fixtures retain two predecoded snapshots.
+The replacement case alternates stroke color and geometry between those snapshots, excluding their
+construction/decode costs. Resizing the test window occurs before warmup, so the large-viewport case
+measures steady frames after resize, not resize-event latency. The 64 paths overlap deliberately to
+stress tessellation; this is not a typical application layout. An empty Drawing measures fixture
+and GPUI frame overhead without paths.
+
+| Paths × segments | CPU frame at 512 × 128 µs | At 1,024 × 256 µs | Alternating snapshot at 512 × 128 µs | Allocations/frame | Reallocations/frame | Requested bytes/frame |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0 × 0 | 1.656 | 1.650 | 1.662 | 6 | 0 | 3,832 |
+| 1 × 64 | 9.500 | 9.344 | 9.163 | 16 | 18 | 72,026 |
+| 64 × 64 | 442.350 | 438.581 | 438.275 | 521 | 1,152 | 4,379,000 |
+| 64 × 512 | 3,382.887 | 4,040.631 | 3,465.056 | 521 | 1,984 | 34,406,776 |
+
+Allocation counts matched across the three viewport/replacement modes. Large-viewport dense timing
+ranged from 3,412.581 to 4,285.956 µs across the five batches; this variance prevents attributing
+the higher median to viewport size alone. There are no CI timing thresholds.
+
+The separately instrumented dense preparation probe attributes 66 allocation requests and 792,624
+requested bytes to drawing materialization, versus 320 allocations, 1,984 reallocations, and
+20,994,176 requested bytes to path building. The remaining frame requests include GPUI scene
+construction and other frame work. Request totals are not additive estimates of retained memory.
+This evidence supports investigating geometry reuse and tessellation-buffer growth before changing
+the managed transport. Any prototype must include bound/style/snapshot invalidation, scene ownership,
+and retained-memory measurements; platform presentation and GPU measurements remain open.
 
 ### End-to-end targets
 
