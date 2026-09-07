@@ -6,7 +6,7 @@ measured cost and a clear ownership purpose.
 
 | Invariant | Enforcement point | Failure behavior |
 | --- | --- | --- |
-| Every node belongs to one rooted acyclic tree | Existing native graph pass precedes ancestor queries; managed Dock diagnostic walks are bounded | Reject output before materialization without another managed graph pass |
+| Every node belongs to one rooted acyclic tree | Indexed managed publication validation and authoritative native graph validation precede ancestor queries | Reject invalid output before materialization |
 | Retained declarations have unique owner/kind/key identities | Existing native resource validation | Reject duplicate declarations; List and Table share one namespace |
 | Displayed row callbacks and dependencies retain their artifact authority | Batches requested in frame layout/prepaint are pinned until the next frame; trimming follows prepaint | Only idle batches are cache-evicted; explicit invalidation and source removal revoke artifacts |
 | Acceptance cannot conceal a dirty reused descendant | Signal invalidations during pending acceptance enter coalesced ingress | Next render propagates dirtiness after staged ancestors commit |

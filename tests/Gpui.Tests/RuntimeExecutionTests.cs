@@ -1143,13 +1143,13 @@ public sealed unsafe partial class RuntimeExecutionTests
             return callback(_id, revision ?? Session.PendingRenderRevision, status);
         }
 
-        internal ulong Range(uint start, ulong source = 1, bool accept = true, uint count = 1)
+        internal ulong Range(uint start, ulong source = 1, bool accept = true, uint count = 1, ProbeView? owner = null)
         {
             RenderArena arena = default;
             uint root = 0;
             ulong artifact = 0;
             delegate* unmanaged[Cdecl]<ulong, ulong, ulong, uint, uint, RenderArena*, uint*, ulong*, int> callback = &NativeCallbacks.ListRenderRange;
-            Assert.Equal(0, callback(_id, ((ulong)View.Runtime.RuntimeViewHandle << 32) | 1, source, start, count, &arena, &root, &artifact));
+            Assert.Equal(0, callback(_id, ((ulong)(owner ?? View).Runtime.RuntimeViewHandle << 32) | 1, source, start, count, &arena, &root, &artifact));
             if (accept)
                 Assert.Equal(0, Accept(source, artifact));
             return artifact;
@@ -1221,6 +1221,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         internal int SecondClickCount;
         internal ulong RowToken;
         internal object? RowCapture;
+        internal bool RowsWithoutEvents;
         internal int UnmountCount;
         internal ulong ClickToken;
         internal Action? DuringRender;
@@ -1260,6 +1261,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         protected override Element RenderListItem(uint rendererId, int index, ref RenderContext ui)
         {
             DuringRow?.Invoke(index);
+            if (RowsWithoutEvents) return ui.Text("row");
             Action<ProbeView, ClickEvent> callback = index == 0
                 ? static (view, _) => view.ClickCount++
                 : static (view, _) => view.SecondClickCount++;

@@ -90,7 +90,7 @@ internal sealed unsafe partial class ManagedSession
         {
             owner.Runtime.Events.BeginEventBindingPass(ViewEventBindingScope.ListRange, artifact);
             ViewEventRegistry.CurrentEventBindingOwner = owner;
-            using var reads = _demandArtifacts[artifact].Begin();
+            using var reads = _demandArtifacts[artifact].Consumer.Begin();
             var ui = new RenderContext(arena, theme: _application.Theme);
             var batchRoot = ui.Div();
             for (uint offset = 0; offset < count; offset++)
@@ -117,8 +117,7 @@ internal sealed unsafe partial class ManagedSession
                 owner.Runtime.Events.CompleteEventBindingPass(ViewEventBindingScope.ListRange, completed);
                 if (!completed)
                 {
-                    if (_demandArtifacts.Remove(artifact, out var failed))
-                        failed.Dispose();
+                    RemoveDemandArtifact(artifact);
                 }
             }
             finally

@@ -58,7 +58,7 @@ cancellation source. The construction probe stores every instance in a prealloca
 the objects observable while excluding array allocation. It warms type initialization; these are
 fresh object costs, not process startup costs.
 
-The first accepted render of an already constructed test root returning only constant Text allocates **1,408 managed
+The first accepted render of an already constructed test root returning only constant Text allocates **1,416 managed
 bytes** in the session fixture. This includes preparation, retained/render bookkeeping, first
 capacity growth, and acceptance/mounting. View/application/session construction and disposal are
 outside that interval. The fixture renders roots sequentially, so the bounded attachment pool is
@@ -320,6 +320,11 @@ Each batch retains its own managed event lease. Eviction or invalidation adds on
 callback per retired batch, never per row. Cache hits require no managed call. Binding storage is
 reused after release, while external event IDs never alias a later binding. Two row engines using
 the same generated renderer have independent source IDs and leases.
+Each View with demand artifacts keeps a dense lease index. Eviction removes an entry by moving
+the last lease into its slot; View retirement visits only that owner's leases, including pending
+publications and rows without events. The index adds one optional reference per retained View,
+one slot number per session artifact entry, and a lazily allocated list of artifact IDs per row
+owner. Empty lists retain their capacity for reuse until the View retires.
 Equivalent row bindings search only their current artifact's live slots. Root bindings have a
 separate slot index for lookup and retirement, independent of cached batches and unused storage.
 Root retirement compacts this index; released entries still receive fresh external IDs on reuse.
@@ -403,6 +408,29 @@ The simple deep trees show no speedup; indexed graph validation adds some work t
 Separate before/after runs had no CPU affinity or clock control, so small timing differences should
 not be interpreted as portable regressions or guarantees. The large Dock improvement addresses
 repeated diagnostic scans, not the cost of displaying 512 panels.
+
+### Artifact ownership workloads
+
+`RetirementWithUnrelatedArtifactsCost` measures acceptance removing 64 child Views while the root
+retains unrelated 48-row batches. Windows x64 / .NET 10.0.11 Release with tiering disabled:
+
+| Unrelated batches | Session scan µs/op (`705e8aa`) | Owner index µs/op |
+| --- | ---: | ---: |
+| 0 | 16.36 | 15.85 |
+| 512 | 116.25 | 16.61 |
+| 4,096 | 782.88 | 16.20 |
+
+Each value is the median of five measured batches of eight operations after four warmup batches.
+All measured batches allocated zero managed bytes per operation. Child creation, row loading,
+root publication, assertions, and reporting are outside the interval; acceptance and teardown are
+inside it. The large cache is a scaling stress case, not a typical viewport.
+
+`RowArtifactChurnCost` loads, accepts, and releases one 48-row batch per operation with 0, 64, or
+512 unrelated batches retained. Five measured batches of 32 operations after four warmup batches
+allocated 2,800 managed bytes per operation both before and after indexing. The indexed timings
+were 6.55–9.05 µs/op, compared with 6.89–9.66 µs/op for the session scan. This includes rendering
+and fixture assertions; it does not isolate lease bookkeeping or native row decoding. These
+separate runs have no CPU affinity or clock control, so small differences are inconclusive.
 
 ### Dispatcher callback validation cost
 

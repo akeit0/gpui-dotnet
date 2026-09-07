@@ -138,9 +138,9 @@ internal sealed unsafe partial class ManagedSession
 
     private void Unmount(ViewBase view)
     {
-        RetireDemandArtifacts(view);
-        if (_renderStates.TryGetValue(view, out var retiring))
-            retiring.Consumer?.Dispose();
+        _renderStates.TryGetValue(view, out var retiring);
+        RetireDemandArtifacts(retiring);
+        retiring?.Consumer?.Dispose();
         var handle = view.Runtime.RuntimeViewHandle;
         Exception? lifecycleFailure = null;
         try
