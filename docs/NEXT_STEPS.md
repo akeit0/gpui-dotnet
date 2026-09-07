@@ -11,8 +11,8 @@ documents.
    methods or sample variants.
 2. Input and focus foundations: word navigation, undo/redo, richer pointer selection, platform IME
    tests, controlled-binding helpers, and scoped key consumption/focus targets for custom composites.
-3. Virtual-row menus and tooltips: design window-owned overlays anchored to stable item identities,
-   with explicit behavior on scrolling, eviction, movement, and removal.
+3. Virtual-row tooltips: extend window-owned anchoring to delayed hover content when a sample
+   needs it. Keep content ownership outside row batches, as with RowContextMenu.
 4. Performance: optimize a measured application bottleneck. Evaluate GPUI tessellation/scene-buffer
    APIs only when workloads justify the work; its current public API consumes these buffers.
 
@@ -101,7 +101,7 @@ deltas across the managed boundary while a pointer is moving.
 
 ## Menus and deferred layers
 
-- window-owned row menus and tooltips with stable anchors and explicit dismissal on anchor loss;
+- window-owned row tooltips with stable anchors and explicit dismissal on anchor loss;
 - keyboard navigation and roving selection for menu items;
 - disabled, checked, radio, and submenu semantics;
 - keyboard/focus-triggered tooltips;

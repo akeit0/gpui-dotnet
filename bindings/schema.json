@@ -1455,6 +1455,14 @@
       "managedApi": null
     },
     {
+      "id": 329,
+      "name": "list_on_context_menu_requested",
+      "csharp": "OnContextMenuRequested",
+      "value": "callback",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
       "id": 400,
       "name": "image_object_fit",
       "csharp": "Fit",
@@ -1696,6 +1704,14 @@
       "requires": "context_menu",
       "managedApi": null,
       "validation": { "kind": "f32Min", "min": 0, "status": -40 }
+    },
+    {
+      "id": 622,
+      "name": "context_menu_row_anchor",
+      "csharp": "ContextMenuRowAnchor",
+      "value": "u64",
+      "requires": "context_menu",
+      "managedApi": null
     },
     {
       "id": 630,
@@ -3109,6 +3125,7 @@
   "controlEvents": [
     { "id": 22, "name": "input_write_completed", "csharp": "Completed", "group": "input_write", "doc": "Opt-in conditional write result. Payload: u64 request ID (1..2^62-1), u32 input_write_outcome, zero u32 reserved, all little-endian. Revision is the nonzero native revision at decision time; flags are zero. Delivered after native borrows are released, while the event binding remains live." },
     { "id": 21, "name": "list_selection_requested", "csharp": "SelectionRequested", "group": "list", "doc": "Opt-in single-row selection request. Uses the List Activated payload and flag layout; selection and presentation remain application-owned." },
+    { "id": 23, "name": "list_context_menu_requested", "csharp": "ContextMenuRequested", "group": "list", "doc": "Right-click on a row with a stable ItemId. Carries the 16-byte row identity packet followed by a nonzero U64 native anchor. Only flag 1 (content revision present) is allowed." },
     { "id": 20, "name": "list_activated", "csharp": "Activated", "group": "list", "doc": "Opt-in row activation. Data is 16 little-endian bytes: u32 index, zero u32 reserved, u64 ItemId (zero when absent). Flags bit 0 selects keyboard instead of pointer, bit 1 indicates a datasource content revision in revision; all other bits are zero. Without bit 1, revision is zero." },
     { "id": 1, "name": "input_changed", "csharp": "Changed", "group": "input", "doc": "The input value changed." },
     { "id": 2, "name": "input_submitted", "csharp": "Submitted", "group": "input", "doc": "The input value was submitted." },

@@ -79,6 +79,7 @@ impl ResourceCommand {
 }
 
 pub(crate) struct ResourceStore {
+    pub(crate) row_menus: Rc<crate::row_menu::RowMenus>,
     session_id: u64,
     callbacks: ManagedCallbacks,
     theme: SharedTheme,
@@ -142,6 +143,7 @@ impl ResourceStore {
 
     pub(crate) fn new(session_id: u64, callbacks: ManagedCallbacks, theme: SharedTheme) -> Self {
         Self {
+            row_menus: Rc::new(crate::row_menu::RowMenus::default()),
             session_id,
             callbacks,
             theme,
@@ -1202,6 +1204,26 @@ impl ManagedListResource {
         if (self.activation_token == 0 && self.selection_token == 0) || index >= self.item_count {
             return None;
         }
+        self.cached_row_identity(index)
+    }
+
+    pub(crate) fn row_menu_identity(&self, index: usize) -> Option<(u64, ListRowEvents)> {
+        let start = (index / self.batch_size) * self.batch_size;
+        let artifact = self
+            .batches
+            .get(&(start as u32))?
+            .lease
+            .as_ref()?
+            .artifact_id;
+        let events = self.cached_row_identity(index)?;
+        events.item_id?;
+        Some((artifact, events))
+    }
+
+    fn cached_row_identity(&self, index: usize) -> Option<ListRowEvents> {
+        if index >= self.item_count {
+            return None;
+        }
         let start = (index / self.batch_size) * self.batch_size;
         let batch = self.batches.get(&(start as u32))?;
         let parent = &batch.snapshot.nodes[batch.snapshot.root as usize];
@@ -2110,6 +2132,202 @@ mod tests {
             }
             capture.click_status
         })
+    }
+
+    struct RowMenuView {
+        store: Rc<ResourceStore>,
+        resource: Rc<RefCell<ManagedListResource>>,
+        focus: gpui::FocusHandle,
+        paints: Rc<Cell<usize>>,
+        show_rows: bool,
+        show_menu: bool,
+    }
+
+    impl gpui::Render for RowMenuView {
+        fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            use gpui::Styled;
+            self.paints.set(0);
+            self.store.row_menus.begin_frame(window, cx);
+            self.resource.borrow_mut().begin_frame();
+            let resource = self.resource.clone();
+            let store = self.store.clone();
+            let cursor = resource.borrow().cursor.clone();
+            let focus = self.focus.clone();
+            let mut root = div().flex().flex_col().w(px(300.)).h(px(240.));
+            if self.show_rows {
+                let state = resource.borrow().state.clone();
+                let rows = gpui::list(state, move |index, _, _| {
+                    let row = resource.borrow_mut().render_item(
+                        index,
+                        &store,
+                        &ResourceKey::new(1, "rows".into()),
+                    );
+                    crate::materializer::CollectionRow::new(
+                        div().h(px(40.)).w_full().child(row).into_any_element(),
+                        cursor.clone(),
+                        focus.clone(),
+                        index,
+                    )
+                    .with_context_menu((1u64 << 32) | 44, store.row_menus.clone(), resource.clone())
+                    .into_any_element()
+                })
+                .size_full();
+                root = root.child(rows);
+            }
+            let request = ARTIFACTS.with(|capture| {
+                capture
+                    .borrow()
+                    .activations
+                    .last()
+                    .map(|event| u64::from_le_bytes(event.3[16..24].try_into().unwrap()))
+            });
+            if self.show_menu
+                && let Some(id) = request
+            {
+                let stack = crate::overlay::OverlayStack::new();
+                let key = ResourceKey::new(1, "row-menu".into());
+                let token = stack.register(
+                    key.clone(),
+                    crate::overlay::OverlayKind::ContextMenu,
+                    300,
+                    false,
+                );
+                let paints = self.paints.clone();
+                let content = div().w(px(100.)).h(px(80.)).child(gpui::canvas(
+                    |_, _, _| (),
+                    move |_, _, _, _| paints.set(paints.get() + 1),
+                ));
+                root = root.child(crate::context_menu::context_menu(
+                    key,
+                    div(),
+                    div().into_any_element(),
+                    content.into_any_element(),
+                    crate::context_menu::ContextMenuConfiguration {
+                        priority: 300,
+                        margin: 8.,
+                    },
+                    stack,
+                    token,
+                    Some((self.store.row_menus.clone(), id)),
+                    window,
+                    cx,
+                ));
+            }
+            self.store.row_menus.finish_declarations(window, cx);
+            root
+        }
+    }
+
+    unsafe extern "C" fn capture_row_menu(
+        _: u64,
+        token: u64,
+        event: *const NativeControlEvent,
+    ) -> i32 {
+        let event = unsafe { &*event };
+        let bytes = unsafe { std::slice::from_raw_parts(event.data, event.data_length as usize) };
+        ARTIFACTS.with(|capture| {
+            capture.borrow_mut().activations.push((
+                token,
+                event.flags,
+                event.revision,
+                bytes.to_vec(),
+            ))
+        });
+        0
+    }
+
+    #[gpui::test]
+    fn row_context_menu_uses_stable_identity_and_expires_with_its_displayed_anchor(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        cx.update(gpui_base::init);
+        for change in 0..9 {
+            ARTIFACTS.with(|capture| {
+                *capture.borrow_mut() = ArtifactCapture {
+                    item_ids: true,
+                    ..Default::default()
+                }
+            });
+            let callbacks = ManagedCallbacks {
+                control_event: Some(capture_row_menu),
+                ..artifact_callbacks()
+            };
+            let store = Rc::new(ResourceStore::new(1, callbacks, theme()));
+            let mut config = configuration(Some(7));
+            config.item_count = 20;
+            let resource = Rc::new(RefCell::new(ManagedListResource::new(
+                1, callbacks, &config, 1,
+            )));
+            let paints = Rc::new(Cell::new(0));
+            let (view, cx) = cx.add_window_view(|_, cx| RowMenuView {
+                store,
+                resource: resource.clone(),
+                focus: cx.focus_handle(),
+                paints: paints.clone(),
+                show_rows: true,
+                show_menu: true,
+            });
+            let draw = |cx: &mut gpui::VisualTestContext| {
+                cx.update(|window, cx| {
+                    window.refresh();
+                    window.draw(cx).clear(cx);
+                });
+            };
+            draw(cx);
+            cx.simulate_mouse_down(
+                point(px(50.), px(60.)),
+                gpui::MouseButton::Right,
+                gpui::Modifiers::none(),
+            );
+            draw(cx);
+            assert_eq!(paints.get(), 1, "menu was not painted");
+            // Ordinary root renders replace callback tokens without replacing row identity.
+            resource.borrow().cursor.invalidate_rows();
+            draw(cx);
+            assert_eq!(paints.get(), 1, "rebinding row events dismissed the menu");
+            ARTIFACTS.with(|capture| {
+                let capture = capture.borrow();
+                let (token, flags, revision, bytes) = capture.activations.last().unwrap();
+                assert_eq!((*token, *flags, *revision), ((1u64 << 32) | 44, 2, 7));
+                assert_eq!(u32::from_le_bytes(bytes[..4].try_into().unwrap()), 1);
+                assert_eq!(u64::from_le_bytes(bytes[8..16].try_into().unwrap()), 1001);
+            });
+            match change {
+                0 => resource.borrow_mut().scroll_to_item(19),
+                1 => resource.borrow_mut().clear_batches(),
+                2 => {
+                    config.projection_revision = Some(2);
+                    resource.borrow_mut().configure(&config, 2);
+                }
+                3 => view.update(cx, |view, _| view.show_rows = false),
+                4 => view.update(cx, |view, _| view.show_menu = false),
+                5 => cx.simulate_keystrokes("escape"),
+                6 => cx.simulate_click(point(px(290.), px(220.)), Default::default()),
+                7 => {
+                    cx.simulate_event(gpui::ScrollWheelEvent {
+                        position: point(px(100.), px(100.)),
+                        delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-40.))),
+                        ..Default::default()
+                    });
+                }
+                _ => {
+                    config.content_revision = Some(8);
+                    resource.borrow_mut().configure(&config, 2);
+                }
+            }
+            draw(cx);
+            assert_eq!(paints.get(), 0, "menu survived change {change}");
+            view.update(cx, |view, _| {
+                view.show_rows = true;
+                view.show_menu = true;
+            });
+            draw(cx);
+            assert_eq!(
+                paints.get(),
+                0,
+                "expired request reopened after change {change}"
+            );
+        }
     }
 
     struct VisibleRows {

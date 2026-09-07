@@ -6,6 +6,25 @@ namespace Gpui;
 public readonly unsafe ref partial struct RenderContext
 {
     /// <summary>
+    /// Declares window-owned menu content for an accepted List/Table right-click request.
+    /// Declare outside the row renderer. Movement, eviction, replacement, and dismissal expire
+    /// the native anchor; rendering an expired request does not reopen it.
+    /// </summary>
+    public Element<ContextMenuTag> RowContextMenu(
+        ReadOnlySpan<char> key,
+        ListContextMenuEvent request,
+        Element content,
+        ContextMenuOptions options = default
+    )
+    {
+        if (request.AnchorId == 0)
+            throw new ArgumentException("A native row context-menu request is required.", nameof(request));
+        var element = ContextMenu(key, Div(), content, options);
+        ArenaWriter.AddU64(element.Inner, OpCode.ContextMenuRowAnchor, request.AnchorId);
+        return element;
+    }
+
+    /// <summary>
     /// Wraps a trigger with native right-click handling and paints managed menu content in a
     /// pointer-anchored deferred layer. Outside click, Escape, and menu selection dismiss natively.
     /// </summary>

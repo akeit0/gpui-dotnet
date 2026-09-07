@@ -1,14 +1,13 @@
 use std::rc::Rc;
 
 use gpui::{
-    Anchor, AnyElement, App, Context, ElementId, Entity, Focusable, InteractiveElement,
-    IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, ParentElement, Point, Styled, Window,
-    anchored, deferred, div, point, px,
+    Anchor, AnyElement, App, ElementId, Entity, Focusable, InteractiveElement, IntoElement,
+    KeyDownEvent, MouseButton, MouseDownEvent, ParentElement, Point, Styled, Window, anchored,
+    deferred, div, point, px,
 };
 use gpui_base::{PopoverState, Positioner};
 
 use crate::{
-    app_host::ManagedView,
     overlay::{OverlayStack, OverlayToken},
     resources::ResourceKey,
 };
@@ -28,25 +27,46 @@ pub(crate) fn context_menu(
     configuration: ContextMenuConfiguration,
     overlay_stack: Rc<OverlayStack>,
     overlay_token: OverlayToken,
+    row_anchor: Option<(Rc<crate::row_menu::RowMenus>, u64)>,
     window: &mut Window,
-    cx: &mut Context<ManagedView>,
+    cx: &mut App,
 ) -> AnyElement {
     let menu_id: ElementId = gpui::SharedString::from(format!(
         "managed-context-menu-{}-{}",
         key.owner_view, key.key
     ))
     .into();
-    let state = window.use_keyed_state((menu_id.clone(), "popover"), cx, |_, cx| {
-        PopoverState::new(false, cx)
-    });
+    let row_binding = if let Some((menus, id)) = &row_anchor {
+        let Some(binding) = menus.bind(*id, key.owner_view, window, cx) else {
+            return div().into_any_element();
+        };
+        Some(binding)
+    } else {
+        None
+    };
+    let state = row_binding
+        .as_ref()
+        .map(|(state, _)| state.clone())
+        .unwrap_or_else(|| {
+            window.use_keyed_state((menu_id.clone(), "popover"), cx, |_, cx| {
+                PopoverState::new(false, cx)
+            })
+        });
     let position =
         window.use_keyed_state((menu_id.clone(), "position"), cx, |_, _| Point::default());
 
     let open_state = state.clone();
     let open_position = position.clone();
-    let mut host = host
-        .id((menu_id.clone(), "trigger"))
-        .on_mouse_down(
+    let host = if row_anchor.is_some() {
+        host.absolute()
+    } else {
+        host
+    };
+    let host = host.id((menu_id.clone(), "trigger"));
+    let mut host = if row_anchor.is_some() {
+        host
+    } else {
+        host.on_mouse_down(
             MouseButton::Right,
             move |event: &MouseDownEvent, window, cx| {
                 cx.stop_propagation();
@@ -59,14 +79,15 @@ pub(crate) fn context_menu(
                 window.refresh();
             },
         )
-        .child(trigger);
+        .child(trigger)
+    };
 
     if !state.read(cx).is_open() {
         return host.into_any_element();
     }
 
     let focus = state.read(cx).focus_handle(cx);
-    let position = *position.read(cx);
+    let position = row_binding.map_or_else(|| *position.read(cx), |(_, position)| position);
     overlay_stack.set_captures_input(&overlay_token, true);
 
     let selected_state = state.clone();
@@ -75,6 +96,17 @@ pub(crate) fn context_menu(
     let right_pressed_state = state.clone();
     let right_pressed_stack = overlay_stack.clone();
     let right_pressed_token = overlay_token.clone();
+    let scroll_dismiss = {
+        let state = state.clone();
+        let stack = overlay_stack.clone();
+        let token = overlay_token.clone();
+        move |_: &gpui::ScrollWheelEvent, window: &mut Window, cx: &mut App| {
+            if stack.is_topmost(&token) {
+                cx.stop_propagation();
+                close_context_menu(&state, window, cx);
+            }
+        }
+    };
     let content = div()
         .id((menu_id.clone(), "content"))
         .occlude()
@@ -93,6 +125,11 @@ pub(crate) fn context_menu(
             close_context_menu(&right_pressed_state, window, cx);
         })
         .child(content);
+    let content = if row_anchor.is_some() {
+        content.on_scroll_wheel(scroll_dismiss.clone())
+    } else {
+        content
+    };
     let menu = Positioner::corner(Anchor::TopLeft, position)
         .margin(px(configuration.margin))
         .occlude()
@@ -126,9 +163,15 @@ pub(crate) fn context_menu(
             close_context_menu(&right_backdrop_state, window, cx);
         });
 
+    let backdrop = if row_anchor.is_some() {
+        backdrop.on_scroll_wheel(scroll_dismiss)
+    } else {
+        backdrop
+    };
+
     let escape_state = state;
-    let escape_stack = overlay_stack;
-    let escape_token = overlay_token;
+    let escape_stack = overlay_stack.clone();
+    let escape_token = overlay_token.clone();
     let viewport = window.viewport_size();
     let layer = div()
         .relative()
@@ -148,6 +191,18 @@ pub(crate) fn context_menu(
         .child(backdrop)
         .child(menu);
     let layer = anchored().position(point(px(0.), px(0.))).child(layer);
+    let layer = if let Some((menus, id)) = row_anchor {
+        crate::row_menu::Guard {
+            child: layer.into_any_element(),
+            menus,
+            id,
+            stack: overlay_stack,
+            token: overlay_token,
+        }
+        .into_any_element()
+    } else {
+        layer.into_any_element()
+    };
     host = host.child(deferred(layer).with_priority(configuration.priority as usize));
     host.into_any_element()
 }
