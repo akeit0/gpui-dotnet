@@ -44,7 +44,7 @@ internal sealed unsafe partial class ManagedSession
                 var status = _runtime.Api->invalidate_artifacts(_sessionId, pointer, keys.Count);
                 GC.KeepAlive(_runtime);
                 if (status is not (0 or -30 or -31))
-                    throw new InvalidOperationException($"Native artifact invalidation failed with status {status}.");
+                    throw new InvalidOperationException($"Native artifact invalidation failed for session {_sessionId}: {NativeStatus.Describe(NativeStatusDomain.ArtifactInvalidation, status)}.");
             }
         }
         finally { keys.Clear(); }

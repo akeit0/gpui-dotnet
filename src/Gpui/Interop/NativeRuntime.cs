@@ -165,7 +165,7 @@ public sealed unsafe class NativeRuntime
                 if (status != 0)
                 {
                     throw new InvalidOperationException(
-                        $"Native host rejected extension '{requirement.Id}' with status {status}."
+                        $"Native host rejected extension '{requirement.Id}': {NativeStatus.Describe(NativeStatusDomain.ExtensionSupport, status)}."
                     );
                 }
             }
@@ -194,7 +194,7 @@ public sealed unsafe class NativeRuntime
         if (status != 0)
         {
             throw new InvalidOperationException(
-                $"Native render validation failed with status {status}."
+                $"Native render validation failed: {NativeStatus.Describe(NativeStatusDomain.Snapshot, status)}."
             );
         }
     }
@@ -265,7 +265,7 @@ public sealed unsafe class NativeRuntime
         if (status != 0)
         {
             throw new InvalidOperationException(
-                $"Native view notification failed with status {status}."
+                $"Native view notification failed for session {sessionId}: {NativeStatus.Describe(NativeStatusDomain.Notification, status)}."
             );
         }
     }

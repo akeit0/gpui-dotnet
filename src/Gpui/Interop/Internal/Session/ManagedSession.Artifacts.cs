@@ -60,7 +60,7 @@ internal sealed unsafe partial class ManagedSession
         }
         if (status != 0)
         {
-            throw new InvalidOperationException($"Native demand snapshot validation failed with status {status}.");
+            throw new InvalidOperationException($"Native demand snapshot validation failed for session {_sessionId}, source {source}, artifact {artifact}: {NativeStatus.Describe(NativeStatusDomain.Snapshot, status)}.");
         }
     }
 

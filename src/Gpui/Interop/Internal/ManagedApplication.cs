@@ -122,7 +122,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
                 if (status != 0)
                 {
                     throw new InvalidOperationException(
-                        $"Native application menu update failed with status {status}."
+                        $"Native menu update failed for application {_applicationId}: {NativeStatus.Describe(NativeStatusDomain.ApplicationMenu, status)}."
                     );
                 }
             }
@@ -156,7 +156,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
             if (status != 0)
             {
                 throw new InvalidOperationException(
-                    $"Native application theme update failed with status {status}."
+                    $"Native theme update failed for application {_applicationId}: {NativeStatus.Describe(NativeStatusDomain.ApplicationCommand, status)}."
                 );
             }
         }
@@ -411,7 +411,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
             if (status != 0)
             {
                 throw new InvalidOperationException(
-                    $"Native application command {command} failed with status {status}."
+                    $"Native application command {command} failed for application {_applicationId}, window {windowId}: {NativeStatus.Describe(NativeStatusDomain.ApplicationCommand, status)}."
                 );
             }
         }

@@ -14,7 +14,7 @@ internal sealed unsafe partial class ManagedSession
             }
             if (status != 0)
             {
-                throw new InvalidOperationException($"Native snapshot validation failed with status {status}.");
+                throw new InvalidOperationException($"Native snapshot validation failed for session {_sessionId}, revision {revision}: {NativeStatus.Describe(NativeStatusDomain.Snapshot, status)}.");
             }
 
             // External entry remains excluded while every reachable View commits its props

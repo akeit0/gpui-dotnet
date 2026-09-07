@@ -1079,6 +1079,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         private static readonly ConcurrentDictionary<ulong, List<NativeArtifactKey[]>> ArtifactCalls = new();
         private static readonly ConcurrentDictionary<ulong, int> NotifyStatuses = new();
         private static readonly ConcurrentDictionary<ulong, int> ArtifactStatuses = new();
+        private static readonly ConcurrentDictionary<ulong, int> ResourceStatuses = new();
         private readonly GpuiDotnetApiV3* _api;
         private readonly ulong _id;
         internal ProbeView View { get; }
@@ -1087,6 +1088,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         internal List<NativeArtifactKey[]> ArtifactBatches => ArtifactCalls[_id];
         internal int NotifyStatus { set => NotifyStatuses[_id] = value; }
         internal int ArtifactStatus { set => ArtifactStatuses[_id] = value; }
+        internal int ResourceStatus { set => ResourceStatuses[_id] = value; }
         internal ChildView Child => (ChildView)State(View).Children!.Values.Single().View;
         internal ChildView CandidateChild => (ChildView)State(View).StagedChildren!.Values.Single().View;
 
@@ -1100,6 +1102,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             _api = (GpuiDotnetApiV3*)NativeMemory.AllocZeroed((nuint)sizeof(GpuiDotnetApiV3));
             _api->notify_view = &Notify;
             _api->invalidate_artifacts = &InvalidateArtifacts;
+            _api->dispatch_command = &DispatchResource;
             var constructor = typeof(NativeRuntime).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic).Single();
             var runtime = (NativeRuntime)constructor.Invoke([Pointer.Box(_api, typeof(GpuiDotnetApiV3*)), null]);
             Session = declaration is null
@@ -1195,6 +1198,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             ArtifactCalls.TryRemove(_id, out _);
             NotifyStatuses.TryRemove(_id, out _);
             ArtifactStatuses.TryRemove(_id, out _);
+            ResourceStatuses.TryRemove(_id, out _);
             NativeMemory.Free(_api);
         }
 
@@ -1204,6 +1208,10 @@ public sealed unsafe partial class RuntimeExecutionTests
             ArtifactCalls[id].Add(new ReadOnlySpan<NativeArtifactKey>(keys, count).ToArray());
             return ArtifactStatuses.GetValueOrDefault(id);
         }
+
+        [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+        private static int DispatchResource(ulong id, NativeResourceCommand* command) =>
+            ResourceStatuses.GetValueOrDefault(id);
 
         [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
         private static int Notify(ulong id)

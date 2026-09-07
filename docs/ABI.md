@@ -452,6 +452,20 @@ validation/runtime failures. Render output has no capacity-retry status. Managed
 window session and never unwind through native code. Normal late notifications or commands racing a
 closed session are ignored only for documented closed-session statuses.
 
+Managed diagnostics decode statuses in the context of the native operation. For example, `-30`
+means `ResourceCommand.SessionMissing` during command delivery, but `Snapshot.InvalidImageObjectFit`
+during render validation. A resource-command failure includes the session, owner, resource kind,
+command, and UTF-8 key. Input values and extension payloads are excluded from diagnostic text.
+Snapshot acknowledgement includes its revision; demand rejection includes the source and artifact.
+Formatting occurs only on failure and adds no successful-call crossing or allocation.
+
+The internal `NativeStatus` catalog preserves numeric values and reports `UnknownStatus` for
+unmapped values. Some render codes are ambiguous even within that operation: `-56` can mean
+duplicate retained-resource identity or invalid border style; `-63` can mean empty operation data
+or wrong row count; `-64` can mean invalid font data or a missing row artifact. Diagnostics name
+these alternatives rather than claiming a precise cause unavailable from the current ABI.
+This diagnostic catalog does not change wire layouts, entry points, or ABI version.
+
 All exported Rust FFI functions must validate pointer/length pairs before dereference and prevent
 panics from crossing the C boundary.
 

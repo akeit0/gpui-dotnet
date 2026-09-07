@@ -55,9 +55,9 @@ internal sealed unsafe partial class ManagedSession
             if (status != 0)
             {
                 throw new InvalidOperationException(
-                    status == -34
-                        ? "The extension resource is not declared in the accepted snapshot."
-                        : $"Native extension command failed with status {status}."
+                    $"Native extension command {command} failed for session {_sessionId}, owner {ownerView}, "
+                        + $"extension '{Encoding.UTF8.GetString(extensionId)}', component '{Encoding.UTF8.GetString(componentKind)}', "
+                        + $"key '{Encoding.UTF8.GetString(utf8Key)}': {NativeStatus.Describe(NativeStatusDomain.ExtensionCommand, status)}."
                 );
             }
         }
@@ -103,9 +103,9 @@ internal sealed unsafe partial class ManagedSession
             if (status != 0)
             {
                 throw new InvalidOperationException(
-                    status == -34
-                        ? "The resource is not declared in the accepted snapshot."
-                        : $"Native resource command failed with status {status}."
+                    $"Native {command.Command} failed for session {_sessionId}, owner {ownerView}, "
+                        + $"resource {command.ResourceKind}, key '{Encoding.UTF8.GetString(keyUtf8)}': "
+                        + $"{NativeStatus.Describe(NativeStatusDomain.ResourceCommand, status)}."
                 );
             }
         }
@@ -151,9 +151,8 @@ internal sealed unsafe partial class ManagedSession
             if (status != 0)
             {
                 throw new InvalidOperationException(
-                    status == -34
-                        ? "The Input resource is not declared in the accepted snapshot."
-                        : $"Native input value command failed with status {status}."
+                    $"Native InputSetValue failed for session {_sessionId}, owner {ownerView}, "
+                        + $"key '{Encoding.UTF8.GetString(utf8Key)}': {NativeStatus.Describe(NativeStatusDomain.ResourceCommand, status)}."
                 );
             }
         }

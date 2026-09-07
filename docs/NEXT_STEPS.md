@@ -107,6 +107,7 @@ Runtime performance and platform verification are tracked in
 
 ## ABI, diagnostics, and CI
 - generate and verify a public C header with `sizeof`/`offsetof` assertions per RID;
-- add symbolic native status diagnostics;
+- enrich ambiguous render failures with structured node/operation context if a future ABI change
+  justifies it; current diagnostics preserve operation-specific symbols and numeric statuses;
 - define coalescing policies for high-frequency window commands;
 - run NativeAOT smoke tests for every supported RID.
