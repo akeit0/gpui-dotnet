@@ -664,12 +664,85 @@ enum ListChange {
     },
 }
 
+/// Foreground-only keyboard position, independent of row-batch cache lifetime and selection.
+pub(crate) struct CollectionCursor {
+    index: Cell<usize>,
+    count: Cell<usize>,
+    epoch: Cell<u64>,
+}
+
+impl CollectionCursor {
+    pub(crate) fn new(count: usize) -> Self {
+        Self {
+            index: Cell::new(0),
+            count: Cell::new(count),
+            epoch: Cell::new(1),
+        }
+    }
+
+    pub(crate) fn active(&self) -> Option<usize> {
+        (self.count.get() != 0).then(|| self.index.get())
+    }
+
+    pub(crate) fn set(&self, index: usize) -> bool {
+        if index >= self.count.get() {
+            return false;
+        }
+        self.index.set(index);
+        true
+    }
+
+    pub(crate) fn epoch(&self) -> u64 {
+        self.epoch.get()
+    }
+
+    pub(crate) fn set_from_row(&self, index: usize, epoch: u64) -> bool {
+        self.epoch.get() == epoch && self.set(index)
+    }
+
+    fn invalidate_rows(&self) {
+        self.epoch.set(
+            self.epoch
+                .get()
+                .checked_add(1)
+                .expect("collection cursor epoch exhausted"),
+        );
+    }
+
+    fn reset(&self, count: usize) {
+        self.index.set(0);
+        self.count.set(count);
+        self.invalidate_rows();
+    }
+
+    fn splice(&self, start: usize, removed: usize, inserted: usize) {
+        let count = self.count.get() - removed + inserted;
+        let index = self.index.get();
+        let next = if self.count.get() == 0 {
+            0
+        } else if index < start {
+            index
+        } else if index >= start + removed {
+            index - removed + inserted
+        } else {
+            // The active item was removed: choose its replacement/successor, or the final row.
+            start
+        };
+        self.index.set(next.min(count.saturating_sub(1)));
+        self.count.set(count);
+        if removed != 0 || inserted != 0 {
+            self.invalidate_rows();
+        }
+    }
+}
+
 pub(crate) struct ManagedListResource {
     source_id: u64,
     session_id: u64,
     callbacks: ManagedCallbacks,
     pub(crate) state: ListState,
     pub(crate) interaction: Rc<ScrollInteraction>,
+    pub(crate) cursor: Rc<CollectionCursor>,
     pub(crate) item_count: usize,
     renderer_token: u64,
     batch_size: usize,
@@ -707,6 +780,7 @@ impl ManagedListResource {
             )
             .with_uniform_item_height(configuration.estimated_item_height),
             interaction: Rc::new(ScrollInteraction::default()),
+            cursor: Rc::new(CollectionCursor::new(configuration.item_count)),
             item_count: configuration.item_count,
             renderer_token: configuration.renderer_token,
             batch_size: configuration.batch_size,
@@ -737,9 +811,16 @@ impl ManagedListResource {
             || self.overdraw != configuration.overdraw
             || self.estimated_item_height != configuration.estimated_item_height;
 
+        // Reconcile positional identity before a simultaneous layout rebuild discards measurements.
+        if revision_changed && !self.pending_commands.is_empty() {
+            self.commit_pending_commands(configuration.item_count);
+        }
+        if self.item_count != configuration.item_count {
+            self.reset_native_state(configuration.item_count);
+        }
+
         if layout_changed {
-            // Rebuilding ListState already discards all measurements, so structural hints that
-            // were waiting for this managed commit no longer provide any additional value.
+            // Rebuild measurements while keeping the cursor reconciled with the accepted items.
             self.state = ListState::new(
                 configuration.item_count,
                 configuration.alignment,
@@ -753,17 +834,7 @@ impl ManagedListResource {
             self.hinted_viewport_width = None;
             self.pending_commands.clear();
             self.clear_batches();
-        } else if revision_changed && !self.pending_commands.is_empty() {
-            self.commit_pending_commands(configuration.item_count);
-        } else if self.item_count != configuration.item_count {
-            // A normal declarative count change without a ListController splice hint still has to
-            // be correct; it simply cannot preserve the old per-item measurements precisely.
-            self.state.reset_with_uniform_height(
-                configuration.item_count,
-                configuration.estimated_item_height,
-            );
-            self.item_count = configuration.item_count;
-            self.clear_batches();
+            self.cursor.invalidate_rows();
         }
 
         if self.renderer_token != configuration.renderer_token
@@ -772,12 +843,14 @@ impl ManagedListResource {
             self.renderer_token = configuration.renderer_token;
             self.batch_size = configuration.batch_size;
             self.clear_batches();
+            self.cursor.invalidate_rows();
         }
         if revision_changed {
             self.snapshot_revision = snapshot_revision;
         }
         if content_changed {
             self.clear_batches();
+            self.cursor.invalidate_rows();
         }
         self.content_revision = configuration.content_revision;
     }
@@ -858,11 +931,13 @@ impl ManagedListResource {
                     let batch = self.batch_size.max(1) as u32;
                     self.invalidate_batches_from((start as u32 / batch) * batch);
                     self.state.splice(start..start + removed, inserted);
+                    self.cursor.splice(start, removed, inserted);
                     inserted_unmeasured_items |= inserted > 0;
                     current_count = current_count - removed + inserted;
                 }
                 ListChange::Reset(count) => {
                     current_count = count;
+                    self.cursor.reset(count);
                     self.state
                         .reset_with_uniform_height(count, self.estimated_item_height);
                     inserted_unmeasured_items = false;
@@ -910,6 +985,7 @@ impl ManagedListResource {
     }
 
     fn reset_native_state(&mut self, declared_item_count: usize) {
+        self.cursor.reset(declared_item_count);
         self.state
             .reset_with_uniform_height(declared_item_count, self.estimated_item_height);
         self.item_count = declared_item_count;
@@ -2231,6 +2307,108 @@ mod tests {
         let telemetry = resource.telemetry();
         assert_eq!(telemetry.batch_invalidations, 1);
         assert_eq!(telemetry.full_invalidations, 0);
+    }
+
+    #[test]
+    fn collection_cursor_tracks_surviving_items_through_committed_splices() {
+        let mut resource = resource_with_batches(&[0, 48, 96]);
+        let cursor = resource.cursor.clone();
+        cursor.set(70);
+        let old_epoch = cursor.epoch();
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 10, 5, ""));
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 20, 3_u64 << 32, ""));
+        assert_eq!(cursor.active(), Some(70)); // Hints have not been accepted yet.
+        assert!(cursor.set_from_row(70, old_epoch));
+        resource.commit_pending_commands(102);
+        assert_eq!(cursor.active(), Some(72));
+        assert!(!cursor.set_from_row(70, old_epoch));
+        assert_eq!(cursor.active(), Some(72));
+        assert!(cursor.set_from_row(80, cursor.epoch()));
+
+        // Insertion exactly at the active position moves the existing item after the new rows.
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 80, 2, ""));
+        resource.commit_pending_commands(104);
+        assert_eq!(cursor.active(), Some(82));
+        // Cache eviction and stable-range refresh do not own the keyboard position.
+        resource.clear_batches();
+        resource.apply_command(&command(COMMAND_LIST_REFRESH, 80, 5, ""));
+        resource.commit_pending_commands(104);
+        assert_eq!(cursor.active(), Some(82));
+    }
+
+    #[test]
+    fn collection_cursor_chooses_successor_after_removal_and_clears_for_empty_lists() {
+        let mut resource = resource_with_batches(&[]);
+        let cursor = resource.cursor.clone();
+        cursor.set(50);
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 48, (5_u64 << 32) | 2, ""));
+        resource.commit_pending_commands(97);
+        assert_eq!(cursor.active(), Some(48));
+        cursor.set(96);
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 95, 2_u64 << 32, ""));
+        resource.commit_pending_commands(95);
+        assert_eq!(cursor.active(), Some(94));
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 0, 95_u64 << 32, ""));
+        resource.commit_pending_commands(0);
+        assert_eq!(cursor.active(), None);
+        assert!(!cursor.set(0));
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 0, 3, ""));
+        resource.commit_pending_commands(3);
+        assert_eq!(cursor.active(), Some(0));
+    }
+
+    #[test]
+    fn collection_cursor_resets_when_structural_identity_is_unknown() {
+        for reset_kind in ["explicit", "mismatch", "invalid", "declarative"] {
+            let mut resource = resource_with_batches(&[]);
+            resource.cursor.set(70);
+            let old_epoch = resource.cursor.epoch();
+            match reset_kind {
+                "explicit" => {
+                    resource.apply_command(&command(COMMAND_LIST_RESET, 100, 0, ""));
+                    resource.commit_pending_commands(100);
+                }
+                "mismatch" => {
+                    resource.apply_command(&command(COMMAND_LIST_SPLICE, 0, 1, ""));
+                    resource.commit_pending_commands(100);
+                }
+                "invalid" => {
+                    resource.apply_command(&command(COMMAND_LIST_SPLICE, 101, 1, ""));
+                    resource.commit_pending_commands(100);
+                }
+                _ => {
+                    let mut config = configuration(Some(1));
+                    config.item_count = 99;
+                    resource.configure(&config, 2);
+                }
+            }
+            assert_eq!(resource.cursor.active(), Some(0), "{reset_kind}");
+            assert!(!resource.cursor.set_from_row(70, old_epoch));
+        }
+    }
+
+    #[test]
+    fn collection_cursor_survives_content_and_layout_changes_including_simultaneous_splices() {
+        let mut config = configuration(Some(1));
+        let mut resource = ManagedListResource::new(1, callbacks(), &config, 1);
+        let cursor = resource.cursor.clone();
+        cursor.set(70);
+        config.content_revision = Some(2);
+        resource.configure(&config, 2);
+        assert_eq!(cursor.active(), Some(70));
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 5, 3, ""));
+        config.item_count = 103;
+        config.estimated_item_height = px(60.);
+        resource.configure(&config, 3);
+        assert_eq!(cursor.active(), Some(73));
+        assert!(Rc::ptr_eq(&cursor, &resource.cursor));
+        config.batch_size = 32;
+        resource.configure(&config, 4);
+        assert_eq!(cursor.active(), Some(73));
+        // A removed/recreated native resource starts a new independent cursor.
+        let recreated = ManagedListResource::new(1, callbacks(), &config, 4);
+        assert_eq!(recreated.cursor.active(), Some(0));
+        assert!(!Rc::ptr_eq(&cursor, &recreated.cursor));
     }
 
     #[test]

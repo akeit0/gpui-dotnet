@@ -191,8 +191,14 @@ the native keyboard cursor on the first visible row. It uses the current viewpor
 scrolling has moved the old cursor offscreen. Up/Down then move that cursor by one row; Home/End
 move it to the first/last row and reveal it. Keyboard navigation cancels pending wheel smoothing.
 Paging uses measured heights and estimates for unseen rows without requesting managed rows in the
-key handler. Hidden or not-yet-laid-out viewports do not page. This cursor does not declare managed
-selection or activate a row.
+key handler. Hidden or not-yet-laid-out viewports do not page.
+
+The active cursor is a native navigation position, separate from application selection and row
+activation. Left mouse-down on a visible row updates it and focuses the collection before child
+handlers run; children may still take focus or consume the event. Existing row/child click bindings
+remain intact. Arrow and paging keys do not synthesize clicks or change application selection.
+Applications continue to own selected-item state, selected-row styling, and explicit activation
+through their event bindings; there is no implicit Enter-to-activate behavior.
 
 Keep `contentRevision` stable when a managed render cannot change any row output. Increment it when
 row content, styling, or height can change. Theme changes invalidate batches automatically.
@@ -215,6 +221,19 @@ zero is reserved. An `OnClick` binding without an explicit payload receives that
 `ListController` supports `ScrollToItem`, `Refresh`, `RefreshRanges`, `Splice`, and `Reset`.
 Structural commands preserve unaffected measurements and row batches when their declared result
 matches the next managed snapshot.
+
+The cursor belongs to the retained List/Table resource, so cache eviction, content refresh, theme
+changes, and layout-only rebuilds do not reset it. Accepted `Splice` hints also move it with surviving
+items: inserting/removing earlier rows shifts its index. Removing the active item chooses the first
+replacement or successor at the splice start, falling back to the final row. An empty list has no
+active cursor; inserting into it starts at the first row. `Reset`, a count change without matching
+hints, or invalid hints reset it to the first row. Pointer/keyboard handlers from a superseded row
+declaration cannot change the new cursor before the next paint.
+
+`ItemId` preserves element state and event payload identity; it is not a complete native datasource
+index. Native cursor preservation follows valid splices and does not search unseen rows for a moved
+ID. Use `Reset` for arbitrary reorder/replacement whose identity cannot be expressed by surviving
+splice ranges. A remove-then-insert sequence treats the removed active item as deleted.
 
 ## Retained Table
 
