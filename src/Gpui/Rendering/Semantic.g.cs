@@ -146,6 +146,7 @@ namespace Gpui.Interop
         InputReadOnly = 501,
         InputPassword = 502,
         InputOnChanged = 503,
+        InputOnWriteCompleted = 509,
         InputOnSubmitted = 504,
         InputOnFocusChanged = 505,
         InputPlaceholderRgba = 506,
@@ -349,6 +350,8 @@ namespace Gpui.Interop
         InputSelectAll = 23,
         /// <summary>Replaces UTF-8 data without events only when a matches the nonzero native revision. Word b packs input_selection_policy in bit 0 and input_composition_policy in bit 1; other bits are reserved zero. Identical normalized values preserve editing state.</summary>
         InputSetValueIfCurrent = 24,
+        /// <summary>Conditional UTF-8 replacement with opt-in input_write_completed delivery. Word a is the nonzero expected revision; b contains policies in bits 0-1 and a nonzero caller request ID in bits 2-63. No result is delivered after resource removal or binding retirement.</summary>
+        InputSetValueIfCurrentWithResult = 25,
         /// <summary>Sets the slider value without emitting events.</summary>
         SliderSetValue = 30,
         /// <summary>Removes a panel natively and fires the closed event.</summary>
@@ -364,7 +367,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x59BF0A88D6E2FF52UL;
+        internal const ulong SchemaHash = 0xC76010D29B9E9390UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -532,6 +535,7 @@ namespace Gpui.Interop
             OpCode.InputReadOnly => ValueKind.U32,
             OpCode.InputPassword => ValueKind.U32,
             OpCode.InputOnChanged => ValueKind.Callback,
+            OpCode.InputOnWriteCompleted => ValueKind.Callback,
             OpCode.InputOnSubmitted => ValueKind.Callback,
             OpCode.InputOnFocusChanged => ValueKind.Callback,
             OpCode.InputPlaceholderRgba => ValueKind.U32,
@@ -835,6 +839,7 @@ namespace Gpui.Interop
             OpCode.InputReadOnly => 0x0000000000000400UL,
             OpCode.InputPassword => 0x0000000000000400UL,
             OpCode.InputOnChanged => 0x0000000000000400UL,
+            OpCode.InputOnWriteCompleted => 0x0000000000000400UL,
             OpCode.InputOnSubmitted => 0x0000000000000400UL,
             OpCode.InputOnFocusChanged => 0x0000000000000400UL,
             OpCode.InputPlaceholderRgba => 0x0000000000000400UL,

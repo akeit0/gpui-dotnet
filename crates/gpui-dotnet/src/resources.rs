@@ -26,10 +26,10 @@ use crate::{
         COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP,
         EVENT_LIST_ACTIVATED, EVENT_LIST_SELECTION_REQUESTED, NativeAdapter, OP_INPUT_CARET_RGBA,
         OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED, OP_INPUT_ON_SUBMITTED,
-        OP_INPUT_PASSWORD, OP_INPUT_PLACEHOLDER_RGBA, OP_INPUT_READ_ONLY, OP_INPUT_SELECTION_RGBA,
-        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION,
-        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_ITEM_ID,
-        OP_LIST_ON_ACTIVATED, OP_LIST_ON_SELECTION_REQUESTED, OP_LIST_OVERDRAW_PX,
+        OP_INPUT_ON_WRITE_COMPLETED, OP_INPUT_PASSWORD, OP_INPUT_PLACEHOLDER_RGBA,
+        OP_INPUT_READ_ONLY, OP_INPUT_SELECTION_RGBA, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
+        OP_LIST_CONTENT_REVISION, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT,
+        OP_LIST_ITEM_ID, OP_LIST_ON_ACTIVATED, OP_LIST_ON_SELECTION_REQUESTED, OP_LIST_OVERDRAW_PX,
         OP_LIST_PROJECTION_REVISION, OP_LIST_RENDERER, OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER,
         OP_SCROLLBAR_WIDTH, OP_SLIDER_AXIS, OP_SLIDER_DISABLED, OP_SLIDER_FILL_RGBA, OP_SLIDER_MAX,
         OP_SLIDER_MIN, OP_SLIDER_ON_CHANGED, OP_SLIDER_ON_RELEASED, OP_SLIDER_RANGE_END,
@@ -294,7 +294,13 @@ impl ResourceStore {
             .remove(&(RESOURCE_INPUT, configuration.key.clone()))
             .unwrap_or_default();
         for command in pending {
-            resource.update(cx, |input, cx| input.apply_command(&command, window, cx));
+            let completion = resource.update(cx, |input, cx| {
+                input.apply_command_with_result(&command, window, cx)
+            });
+            if let Some(completion) = completion {
+                // No managed callbacks while either the input or materializing root is borrowed.
+                window.defer(cx, move |_, _| completion.emit());
+            }
         }
         resource
     }
@@ -1514,6 +1520,7 @@ pub(crate) fn input_configuration(
             changed: last_callback(snapshot, node, OP_INPUT_ON_CHANGED),
             submitted: last_callback(snapshot, node, OP_INPUT_ON_SUBMITTED),
             focus_changed: last_callback(snapshot, node, OP_INPUT_ON_FOCUS_CHANGED),
+            write_completed: last_callback(snapshot, node, OP_INPUT_ON_WRITE_COMPLETED),
         },
     })
 }

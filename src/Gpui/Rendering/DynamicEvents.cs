@@ -107,6 +107,19 @@ public static partial class ElementExtensions
         return element;
     }
 
+    /// <summary>Observes opt-in conditional-write decisions while this binding remains live.</summary>
+    public static Element<TTag> OnWriteCompleted<TTag, TView>(
+        this Element<TTag> element, TView view, Action<TView, InputWriteResult> callback)
+        where TTag : unmanaged, IInputElementTag
+        where TView : ViewBase
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.InputOnWriteCompleted,
+            view.Runtime.Events.BindInputWrite(callback));
+        return element;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Element<TTag> OnFocusChanged<TTag, TView>(
         this Element<TTag> element,

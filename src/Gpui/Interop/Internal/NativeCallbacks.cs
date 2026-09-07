@@ -297,6 +297,20 @@ internal static unsafe class NativeCallbacks
                         )
                     );
                 }
+                else if (nativeEvent->kind == (ushort)InputWriteEventKind.Completed)
+                {
+                    if (nativeEvent->flags != 0 || nativeEvent->revision == 0 || nativeEvent->data_length != 16)
+                        return -112;
+                    var data = new ReadOnlySpan<byte>(nativeEvent->data, 16);
+                    var requestId = BinaryPrimitives.ReadUInt64LittleEndian(data);
+                    var outcome = BinaryPrimitives.ReadUInt32LittleEndian(data[8..]);
+                    if (requestId == 0 || requestId > (ulong.MaxValue >> 2)
+                        || outcome > (uint)InputWriteOutcome.Composing
+                        || BinaryPrimitives.ReadUInt32LittleEndian(data[12..]) != 0)
+                        return -112;
+                    session.DispatchInputWrite(eventToken,
+                        new InputWriteResult(requestId, (InputWriteOutcome)outcome, nativeEvent->revision));
+                }
                 else if (nativeEvent->kind is (ushort)ListEventKind.Activated or (ushort)ListEventKind.SelectionRequested)
                 {
                     if ((nativeEvent->flags & ~3u) != 0 || nativeEvent->data_length != 16

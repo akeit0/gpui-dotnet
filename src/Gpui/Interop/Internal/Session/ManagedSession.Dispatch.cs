@@ -167,6 +167,9 @@ internal sealed unsafe partial class ManagedSession
     internal void DispatchInput(ulong eventToken, InputEvent value) =>
         DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchInputCore(id, data));
 
+    internal void DispatchInputWrite(ulong eventToken, InputWriteResult value) =>
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchInputWriteCore(id, data));
+
     internal void DispatchListActivation(ulong eventToken, ListActivationEvent value) =>
         DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchListActivationCore(id, data));
 

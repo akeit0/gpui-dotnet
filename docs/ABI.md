@@ -4,6 +4,17 @@ GPUI.NET currently uses ABI version 7. Managed startup requires an exact ABI ver
 API-table prefix, all required function entries, and the semantic schema hash generated from
 `bindings/schema.json`.
 
+Conditional input write acknowledgements use semantic command 25 (`InputSetValueIfCurrentWithResult`),
+Input callback operation 509, and control event 22. Command word `a` is the nonzero expected native
+revision; `b` packs the existing selection/composition policy in bits 0–1 and a nonzero request ID
+in bits 2–63. UTF-8 data is validated as for command 24, whose reserved-bit rules remain unchanged.
+Event 22 carries 16 little-endian bytes: U64 request ID, U32 `input_write_outcome` (0–3), and zero
+U32 reserved. Its flags are zero and its revision is the nonzero decision-time native revision.
+Managed validation rejects malformed lengths, reserved fields, IDs, outcomes, flags, and revisions
+before dispatch. Native delivery is deferred until input and root borrows end and follows the live
+binding lifetime. This changes the semantic hash only; C layouts, callback tables, and ABI 7 remain
+unchanged.
+
 The ABI is an internal C contract between `GPUI.NET.Core` and a native host. Application code does
 not manipulate pointers or wire records directly.
 

@@ -385,6 +385,24 @@ composition. Identical normalized values preserve editing state regardless of th
 Queueing is not confirmation that the replacement applied, and replacements emit no change event.
 Use the next native event's revision for subsequent conditional work.
 
+For an observable decision, bind `.OnWriteCompleted(this, static (view, result) => ...)` and call
+`controller.SetValueIfCurrentWithResult(value, expectedRevision, requestId)`. The UTF-8 overload
+uses the same policies. Request IDs are application-owned values from 1 through `2^62 - 1`;
+use distinct IDs for outstanding requests. `InputWriteResult` contains `RequestId`, `Outcome`,
+and the native `Revision` at decision time, with no text payload:
+
+- `Applied`: the value changed and the native revision advanced.
+- `Unchanged`: normalized text matched; selection, scrolling, and composition were preserved.
+- `Stale`: the expected revision did not match; no editing state changed.
+- `Composing`: the revision matched but composition policy rejected the write.
+
+Revision checking precedes composition checking; `Unchanged` requires both checks to allow the
+write. The result is delivered after native borrows are released. Further edits can occur before
+delivery, so the result revision is not a guarantee of current state. These are ordinary live
+View-bound events, not guaranteed task completions: resource removal, rebinding, or owner retirement
+can drop delivery. With no binding the write still executes, without a callback. Existing
+`SetValue` and `SetValueIfCurrent` remain silent. The Input gallery demonstrates reporting results.
+
 Revisions are nonzero opaque tokens, not edit counts. They change for controller writes, IME content
 and composition transitions, and resource recreation; caret movement and focus do not change them.
 An event remains safe to inspect asynchronously, but its revision may already be stale. Continue

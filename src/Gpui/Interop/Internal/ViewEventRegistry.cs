@@ -111,10 +111,16 @@ internal sealed class ViewEventRegistry
         NativeExtension,
         ListActivation,
         ListSelection,
+        InputWrite,
     }
 
     private readonly struct EventDispatch
     {
+        internal EventDispatch(InputWriteResult result)
+        {
+            Kind = EventDispatchKind.InputWrite;
+            InputWrite = result;
+        }
         internal EventDispatch(ListSelectionEvent selection)
         {
             Kind = EventDispatchKind.ListSelection;
@@ -300,6 +306,7 @@ internal sealed class ViewEventRegistry
         internal ListSelectionEvent ListSelection { get; }
         internal ClickEvent Click { get; }
         internal InputEvent? Input { get; }
+        internal InputWriteResult InputWrite { get; }
         internal SliderEvent Slider { get; }
         internal DockEvent Dock { get; }
         internal KeyEvent? Key { get; }
@@ -334,6 +341,9 @@ internal sealed class ViewEventRegistry
     /// <summary>Registers a typed input callback on this mounted View.</summary>
     internal ulong BindInput<TView>(Action<TView, InputEvent> callback)
         where TView : ViewBase => BindDynamicEvent(_owner!, callback, InputBinder<TView>.Index);
+
+    internal ulong BindInputWrite<TView>(Action<TView, InputWriteResult> callback)
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, InputWriteBinder<TView>.Index);
 
     internal ulong BindSlider<TView>(Action<TView, SliderEvent> callback)
         where TView : ViewBase => BindDynamicEvent(_owner!, callback, SliderBinder<TView>.Index);
@@ -801,6 +811,17 @@ internal sealed class ViewEventRegistry
     internal void DispatchInputCore(uint eventId, InputEvent inputEvent) =>
         DispatchDynamicInput(eventId, inputEvent);
 
+    internal void DispatchInputWriteCore(uint eventId, InputWriteResult result)
+    {
+        if (!TryGetDynamicEvent(eventId, out var entry))
+        {
+            MissingDynamicEvent(eventId, "input write");
+            return;
+        }
+        var dispatch = new EventDispatch(result);
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
+    }
+
     internal void DispatchListActivationCore(uint eventId, ListActivationEvent activation)
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
@@ -965,6 +986,21 @@ internal sealed class ViewEventRegistry
             }
 
             typedCallback(typedTarget, input);
+        }
+    }
+
+    private static class InputWriteBinder<TView> where TView : ViewBase
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.InputWrite)
+                throw WrongDispatchKind("input write");
+            if (target is not TView typedTarget)
+                throw WrongTarget<TView>(target, "input write");
+            if (callback is not Action<TView, InputWriteResult> typedCallback)
+                throw WrongCallback("Action<TView, InputWriteResult>", "input write");
+            typedCallback(typedTarget, dispatch.InputWrite);
         }
     }
 

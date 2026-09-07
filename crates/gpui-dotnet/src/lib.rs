@@ -42,10 +42,10 @@ use semantic::{
     COMMAND_DOCK_CLOSE_PANEL, COMMAND_DOCK_EXPORT_LAYOUT, COMMAND_DOCK_IMPORT_LAYOUT,
     COMMAND_DOCK_SET_REGION_OPEN, COMMAND_INPUT_BLUR, COMMAND_INPUT_FOCUS,
     COMMAND_INPUT_SELECT_ALL, COMMAND_INPUT_SET_VALUE, COMMAND_INPUT_SET_VALUE_IF_CURRENT,
-    COMMAND_LIST_REFRESH, COMMAND_LIST_RESET, COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_LIST_SPLICE,
-    COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP,
-    COMMAND_SLIDER_SET_VALUE, RESOURCE_DOCK, RESOURCE_INPUT, RESOURCE_LIST, RESOURCE_SCROLL,
-    RESOURCE_SLIDER, SCHEMA_HASH,
+    COMMAND_INPUT_SET_VALUE_IF_CURRENT_WITH_RESULT, COMMAND_LIST_REFRESH, COMMAND_LIST_RESET,
+    COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_LIST_SPLICE, COMMAND_SCROLL_TO_BOTTOM,
+    COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP, COMMAND_SLIDER_SET_VALUE, RESOURCE_DOCK,
+    RESOURCE_INPUT, RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER, SCHEMA_HASH,
 };
 
 static API_V3: GpuiDotnetApiV3 = GpuiDotnetApiV3 {
@@ -258,7 +258,7 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         ),
         RESOURCE_INPUT => matches!(
             command.command,
-            COMMAND_INPUT_FOCUS..=COMMAND_INPUT_SET_VALUE_IF_CURRENT
+            COMMAND_INPUT_FOCUS..=COMMAND_INPUT_SET_VALUE_IF_CURRENT_WITH_RESULT
         ),
         RESOURCE_SLIDER => command.command == COMMAND_SLIDER_SET_VALUE,
         RESOURCE_DOCK => matches!(
@@ -301,6 +301,9 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         }
         (RESOURCE_INPUT, COMMAND_INPUT_SET_VALUE) => command.a == 0 && command.b == 0,
         (RESOURCE_INPUT, COMMAND_INPUT_SET_VALUE_IF_CURRENT) => command.a != 0 && command.b <= 3,
+        (RESOURCE_INPUT, COMMAND_INPUT_SET_VALUE_IF_CURRENT_WITH_RESULT) => {
+            command.a != 0 && command.b >> 2 != 0
+        }
         (RESOURCE_SLIDER, COMMAND_SLIDER_SET_VALUE) => {
             let start = f32::from_bits(command.a as u32);
             let end = f32::from_bits((command.a >> 32) as u32);
@@ -860,6 +863,40 @@ mod tests {
                     &dock_command(RESOURCE_DOCK, COMMAND_DOCK_CLOSE_PANEL, 0, 0, b"a\0b"),
                 )
             },
+            -55
+        );
+    }
+
+    #[test]
+    fn acknowledged_input_commands_validate_request_ids_and_revisions() {
+        for (revision, packed, expected) in [
+            (1, 4, -30),
+            (u64::MAX, u64::MAX, -30),
+            (0, 4, -54),
+            (1, 0, -54),
+            (1, 3, -54),
+        ] {
+            let command = dock_command(
+                RESOURCE_INPUT,
+                COMMAND_INPUT_SET_VALUE_IF_CURRENT_WITH_RESULT,
+                revision,
+                packed,
+                b"text",
+            );
+            assert_eq!(
+                unsafe { dispatch_command_inner(u64::MAX - 1, &command) },
+                expected
+            );
+        }
+        let command = dock_command(
+            RESOURCE_INPUT,
+            COMMAND_INPUT_SET_VALUE_IF_CURRENT_WITH_RESULT,
+            1,
+            4,
+            &[0xff],
+        );
+        assert_eq!(
+            unsafe { dispatch_command_inner(u64::MAX - 1, &command) },
             -55
         );
     }

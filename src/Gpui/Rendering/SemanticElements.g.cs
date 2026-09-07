@@ -62,6 +62,14 @@ namespace Gpui
     public readonly struct DockRegionTag : IParentElementTag, IDockContainerElementTag, IDockRegionElementTag { }
     public readonly struct NativeExtensionTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IExtensionElementTag { }
 
+    public enum InputWriteOutcome : uint
+    {
+        Applied = 0,
+        Unchanged = 1,
+        Stale = 2,
+        Composing = 3,
+    }
+
     public enum ListSelectionSource : uint
     {
         Pointer = 0,
@@ -159,6 +167,12 @@ namespace Gpui
     {
         Normal = 0,
         Italic = 1,
+    }
+
+    public enum InputWriteEventKind : ushort
+    {
+        /// <summary>Opt-in conditional write result. Payload: u64 request ID (1..2^62-1), u32 input_write_outcome, zero u32 reserved, all little-endian. Revision is the nonzero native revision at decision time; flags are zero. Delivered after native borrows are released, while the event binding remains live.</summary>
+        Completed = 22,
     }
 
     public enum ListEventKind : ushort
