@@ -51,7 +51,7 @@ bounds, step, and orientation. Preserve these integrations as presentation becom
 
 Remaining work is focused coverage, authoring, and platform verification:
 
-- explicit accessible names for icon-only controls and field relationships;
+- accessible label/help/error relationships between fields and supporting elements;
 - List/Table viewport, row, header, cell, and selection semantics;
 - Dock tabs, custom title-bar controls, and deferred-layer semantics;
 - platform verification of focus, roles, values, and announcements, with backend limits documented.

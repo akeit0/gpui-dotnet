@@ -71,8 +71,9 @@ impl Render for SliderDrag {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct SliderPresentation {
+    pub(crate) accessibility: crate::accessibility::Accessibility,
     pub(crate) track: Option<u32>,
     pub(crate) fill: Option<u32>,
     pub(crate) thumb: Option<u32>,
@@ -129,7 +130,7 @@ impl ManagedSlider {
             active_thumb_is_start: false,
             keyboard_active: false,
             bindings: configuration.bindings,
-            presentation: configuration.presentation,
+            presentation: configuration.presentation.clone(),
             revision: 0,
             callback_error: None,
             theme,
@@ -158,7 +159,7 @@ impl ManagedSlider {
         self.disabled = configuration.disabled;
         self.logarithmic = configuration.logarithmic;
         self.bindings = configuration.bindings;
-        self.presentation = configuration.presentation;
+        self.presentation = configuration.presentation.clone();
         if disabled_changed {
             self.focus_handle = self.focus_handle.clone().tab_stop(!self.disabled);
         }
@@ -561,6 +562,7 @@ impl Render for ManagedSlider {
         let root = div()
             .id(&focus_handle)
             .role(Role::Slider)
+            .map(|element| self.presentation.accessibility.apply(element))
             .aria_numeric_value(value)
             .aria_min_numeric_value(min)
             .aria_max_numeric_value(max)
@@ -623,6 +625,7 @@ mod tests {
         assert_eq!(
             configuration.presentation,
             SliderPresentation {
+                accessibility: Default::default(),
                 track: Some(0x11223340),
                 fill: Some(0xDDEEFF00),
                 thumb: Some(0x778899FF),
@@ -688,6 +691,10 @@ mod tests {
                 assert_eq!(events(), vec![(EVENT_SLIDER_CHANGED, 1, value)]);
 
                 configuration.presentation = SliderPresentation {
+                    accessibility: crate::accessibility::Accessibility {
+                        name: Some("Volume".into()),
+                        description: Some("Playback volume".into()),
+                    },
                     track: Some(0x11223340),
                     fill: Some(0x445566FF),
                     thumb: Some(0x778899FF),

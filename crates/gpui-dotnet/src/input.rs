@@ -115,8 +115,9 @@ impl InputWriteCompletion {
     }
 }
 
-#[derive(Clone, Copy, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 pub(crate) struct InputPresentation {
+    pub(crate) accessibility: crate::accessibility::Accessibility,
     pub(crate) placeholder: Option<u32>,
     pub(crate) caret: Option<u32>,
     pub(crate) selection: Option<u32>,
@@ -806,6 +807,7 @@ impl Render for ManagedInput {
         div()
             .id(&self.focus_handle)
             .role(Role::TextInput)
+            .map(|element| self.presentation.accessibility.apply(element))
             .size_full()
             .min_w_0()
             .flex()
@@ -1222,6 +1224,10 @@ mod tests {
                         let revision = input.revision;
                         let presentation = if explicit {
                             InputPresentation {
+                                accessibility: crate::accessibility::Accessibility {
+                                    name: Some("Account".into()),
+                                    description: Some("Enter your account name".into()),
+                                },
                                 placeholder: Some(0x112233FF),
                                 caret: Some(0x445566FF),
                                 selection: Some(0x77889940),

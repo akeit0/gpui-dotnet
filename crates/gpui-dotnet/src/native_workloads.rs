@@ -58,6 +58,13 @@ impl WorkloadArena {
         );
     }
 
+    pub(crate) fn data_op(&mut self, node: u32, code: u16, data: &str) {
+        let offset = self.utf8.len();
+        self.utf8.extend_from_slice(data.as_bytes());
+        self.op(node, code, offset as u64);
+        self.ops.last_mut().unwrap().b = data.len() as u64;
+    }
+
     pub(crate) fn decode(&mut self) -> ValidatedSnapshot {
         let mut snapshot = ValidatedSnapshot::default();
         self.decode_into(&mut snapshot).unwrap();

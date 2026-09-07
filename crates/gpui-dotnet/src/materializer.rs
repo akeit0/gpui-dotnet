@@ -322,6 +322,7 @@ impl ManagedView {
             disabled,
             theme,
         );
+        element = crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
         if let Some(label) = accessibility_label(node, snapshot) {
             element = element.accessibility_label(label);
         }
@@ -378,6 +379,7 @@ impl ManagedView {
             disabled,
             theme,
         );
+        element = crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
         if let Some(label) = accessibility_label(node, snapshot) {
             element = element.accessibility_label(label);
         }
@@ -434,6 +436,7 @@ impl ManagedView {
             disabled,
             theme,
         );
+        element = crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
         if let Some(label) = accessibility_label(node, snapshot) {
             element = element.accessibility_label(label);
         }
@@ -1330,6 +1333,8 @@ fn materialize_detached_foundation_control(
     Some(match adapter {
         NativeAdapter::Button => {
             let mut element = components::button(element_id, disabled, theme);
+            element =
+                crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
             if let Some(label) = label {
                 element = element.accessibility_label(label);
             }
@@ -1357,6 +1362,8 @@ fn materialize_detached_foundation_control(
         NativeAdapter::Checkbox => {
             let checked = components::has_u32_flag(node, snapshot, OP_CHECKED);
             let mut element = components::checkbox(element_id, checked, disabled, theme);
+            element =
+                crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
             if let Some(label) = label {
                 element = element.accessibility_label(label);
             }
@@ -1383,6 +1390,8 @@ fn materialize_detached_foundation_control(
         NativeAdapter::Radio => {
             let checked = components::has_u32_flag(node, snapshot, OP_CHECKED);
             let mut element = components::radio(element_id, checked, disabled, theme);
+            element =
+                crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
             if let Some(label) = label {
                 element = element.accessibility_label(label);
             }
@@ -1450,6 +1459,9 @@ fn use_default_cursor(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> bool
 }
 
 fn accessibility_label(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> Option<SharedString> {
+    if let Some(name) = snapshot.last_data_op(node, crate::semantic::OP_ACCESSIBLE_NAME) {
+        return Some(name);
+    }
     let mut label = String::new();
     append_accessibility_text(node, snapshot, &mut label);
     (!label.is_empty()).then(|| SharedString::from(label))
@@ -3854,6 +3866,27 @@ mod tests {
             accessibility_label(&snapshot.nodes[0], &snapshot).as_deref(),
             Some("Hello")
         );
+    }
+
+    #[test]
+    fn explicit_accessible_name_overrides_visible_text() {
+        use crate::native_workloads::WorkloadArena;
+        for component in [
+            COMPONENT_BUTTON,
+            crate::semantic::COMPONENT_CHECKBOX,
+            crate::semantic::COMPONENT_RADIO,
+        ] {
+            let mut arena = WorkloadArena::default();
+            let root = arena.node_with_data(component, None, "control");
+            arena.node_with_data(COMPONENT_TEXT, Some(root), "Visible");
+            arena.data_op(root, crate::semantic::OP_ACCESSIBLE_NAME, "First");
+            arena.data_op(root, crate::semantic::OP_ACCESSIBLE_NAME, "Explicit");
+            let snapshot = arena.decode();
+            assert_eq!(
+                accessibility_label(&snapshot.nodes[0], &snapshot).as_deref(),
+                Some("Explicit")
+            );
+        }
     }
 
     #[test]

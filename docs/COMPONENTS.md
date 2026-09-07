@@ -33,6 +33,24 @@ when interaction state must survive independently from managed renders.
 
 ## Styling
 
+Button, Checkbox, Radio, Input, and Slider accept `AccessibleName(...)` and
+`AccessibleDescription(...)` in UTF-16 or UTF-8. These declarations set the name and supplementary
+help on the native interactive control; they do not create visible labels or additional wrapper
+accessibility nodes. For example:
+
+```csharp
+ui.Input("account", new InputOptions())
+    .AccessibleName("Account name")
+    .AccessibleDescription("Use the name shown on your account");
+```
+
+Explicit names override Button/Checkbox/Radio descendant-text inference, including in virtual
+rows. Input and Slider do not infer names from placeholders or values. Declarations must be nonempty,
+and the last declaration wins. Omit a declaration in a later snapshot to remove it (restoring text
+inference where applicable). Updating retained control metadata preserves native values, selection,
+composition, focus, and interaction state. Descriptions are resolved text, not references to other
+elements; label/help/error relationships and platform screen-reader verification remain open work.
+
 Styled elements support the generated fluent operations declared by `bindings/schema.json`,
 including layout, dimensions, uniform and per-side/axis margins, padding, and gaps, min/max
 sizes, flex basis/shrink/wrap, container and self alignment, relative/absolute positioning with

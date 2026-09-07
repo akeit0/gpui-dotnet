@@ -210,6 +210,41 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void AccessibleMetadataSupportsSemanticControlsAndBothTextEncodings()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var root = ui.Div(
+                ui.Button("save").AccessibleName("Save").AccessibleDescription("Save changes"u8),
+                ui.Checkbox("check").AccessibleName("Remember me"u8).AccessibleDescription("Keep this session"),
+                ui.Radio("radio").AccessibleName("Standard"),
+                ui.Input("account", new InputOptions()).AccessibleName("Account"),
+                ui.Slider("volume", new SliderOptions()).AccessibleName("Old").AccessibleName("音量"u8)
+                    .AccessibleDescription("Playback volume"));
+            arena.Validate(root);
+            Assert.Equal("音量", ReadDataOp(arena, OpCode.AccessibleName));
+            Assert.Equal("Playback volume", ReadDataOp(arena, OpCode.AccessibleDescription));
+        }
+        finally { view.Runtime.UnmountRuntime(); }
+    }
+
+    [Fact]
+    public void AccessibleMetadataRejectsEmptyDeclarations()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var button = ui.Button("save");
+        Assert.Throws<ArgumentException>(() => button.AccessibleName(string.Empty));
+        Assert.Throws<ArgumentException>(() => button.AccessibleName(ReadOnlySpan<byte>.Empty));
+        Assert.Throws<ArgumentException>(() => button.AccessibleDescription(string.Empty));
+        Assert.Throws<ArgumentException>(() => button.AccessibleDescription(ReadOnlySpan<byte>.Empty));
+    }
+
+    [Fact]
     public void FontListsPassManagedValidation()
     {
         using var arena = new RenderArenaOwner();

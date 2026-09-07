@@ -23,6 +23,8 @@ internal sealed partial class InputGalleryView : View
             ref ui,
             "Interactive + UTF-8 events",
             ui.Input(ref _search, new Utf8InputOptions(placeholder: "Search or enter 日本語…"u8))
+                .AccessibleName("Search")
+                .AccessibleDescription(_invalid ? "Enter at most 24 characters." : "Search using any language.")
                 .Style(SampleStyles.Input(theme, _invalid))
                 .OnChanged(
                     this,

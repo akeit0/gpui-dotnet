@@ -18,6 +18,11 @@ unchanged.
 The ABI is an internal C contract between `GPUI.NET.Core` and a native host. Application code does
 not manipulate pointers or wire records directly.
 
+Accessibility operations 900 (`AccessibleName`) and 901 (`AccessibleDescription`) carry UTF-8 data
+using the existing offset/length operation layout. The `accessible` capability restricts them to
+Button, Checkbox, Radio, Input, and Slider. Standard data-operation validation and snapshot string
+interning apply; last declarations win. They change the semantic schema hash, not ABI version 7.
+
 ## Discovery
 
 ```c

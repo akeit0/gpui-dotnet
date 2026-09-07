@@ -284,7 +284,7 @@ impl ResourceStore {
                 configuration.read_only,
                 configuration.password,
                 configuration.bindings,
-                configuration.presentation,
+                configuration.presentation.clone(),
                 cx,
             );
         });
@@ -1512,6 +1512,7 @@ pub(crate) fn input_configuration(
         read_only: last_u32(snapshot, node, OP_INPUT_READ_ONLY).is_some_and(|value| value != 0),
         password: last_u32(snapshot, node, OP_INPUT_PASSWORD).is_some_and(|value| value != 0),
         presentation: InputPresentation {
+            accessibility: crate::accessibility::Accessibility::from_snapshot(node, snapshot),
             placeholder: last_u32(snapshot, node, OP_INPUT_PLACEHOLDER_RGBA),
             caret: last_u32(snapshot, node, OP_INPUT_CARET_RGBA),
             selection: last_u32(snapshot, node, OP_INPUT_SELECTION_RGBA),
@@ -1567,6 +1568,7 @@ pub(crate) fn slider_configuration(
         disabled: last_u32(snapshot, node, OP_SLIDER_DISABLED).unwrap_or(0) != 0,
         logarithmic,
         presentation: SliderPresentation {
+            accessibility: crate::accessibility::Accessibility::from_snapshot(node, snapshot),
             track: last_u32(snapshot, node, OP_SLIDER_TRACK_RGBA),
             fill: last_u32(snapshot, node, OP_SLIDER_FILL_RGBA),
             thumb: last_u32(snapshot, node, OP_SLIDER_THUMB_RGBA),

@@ -33,25 +33,26 @@ namespace Gpui
     public interface IDockRegionElementTag { }
     public interface IExtensionElementTag { }
     public interface IKeyMouseElementTag { }
+    public interface IAccessibleElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag, IKeyMouseElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
-    public readonly struct ButtonTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, IDisableableElementTag, IWindowControlElementTag, IKeyMouseElementTag { }
-    public readonly struct CheckboxTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag, IDisableableElementTag, IKeyMouseElementTag { }
-    public readonly struct RadioTag : IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag, IDisableableElementTag, IKeyMouseElementTag { }
+    public readonly struct ButtonTag : IAccessibleElementTag, IStyledElementTag, IParentElementTag, IInteractiveElementTag, IDisableableElementTag, IWindowControlElementTag, IKeyMouseElementTag { }
+    public readonly struct CheckboxTag : IAccessibleElementTag, IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag, IDisableableElementTag, IKeyMouseElementTag { }
+    public readonly struct RadioTag : IAccessibleElementTag, IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag, IDisableableElementTag, IKeyMouseElementTag { }
     public readonly struct BadgeTag : IStyledElementTag, IParentElementTag { }
     public readonly struct DividerTag : IStyledElementTag { }
     public readonly struct SpacerTag : IStyledElementTag { }
     public readonly struct ScrollTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IScrollableElementTag { }
     public readonly struct ListTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag { }
     public readonly struct ImageTag : IStyledElementTag, IImageElementTag { }
-    public readonly struct InputTag : IStyledElementTag, INativeStateElementTag, IInputElementTag { }
+    public readonly struct InputTag : IAccessibleElementTag, IStyledElementTag, INativeStateElementTag, IInputElementTag { }
     public readonly struct OverlayTag : IParentElementTag, INativeStateElementTag, IOverlayElementTag { }
     public readonly struct TooltipTag : IParentElementTag, INativeStateElementTag, ITooltipElementTag { }
     public readonly struct ContextMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IContextMenuElementTag { }
     public readonly struct PopoverMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IPopoverMenuElementTag { }
     public readonly struct TableTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IVirtualizedElementTag, ITableElementTag { }
-    public readonly struct SliderTag : IStyledElementTag, INativeStateElementTag, ISliderElementTag { }
+    public readonly struct SliderTag : IAccessibleElementTag, IStyledElementTag, INativeStateElementTag, ISliderElementTag { }
     public readonly struct DrawingTag : IStyledElementTag, IParentElementTag, IDrawingElementTag { }
     public readonly struct PathTag : IPathElementTag { }
     public readonly struct DynamicTag : IParentElementTag, INativeStateElementTag, IDynamicElementTag { }
@@ -859,6 +860,62 @@ namespace Gpui
             where TTag : unmanaged, IStyledElementTag
         {
             ArenaWriter.AddNoArg(element.Inner, OpCode.RowSpanFull);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Sets the native accessible name, overriding inferred control text.</summary>
+        public static Element<TTag> AccessibleName<TTag>(this Element<TTag> element, ReadOnlySpan<char> name)
+            where TTag : unmanaged, IAccessibleElementTag
+        {
+            if (name.IsEmpty)
+            {
+                throw new ArgumentException("A non-empty value is required.", nameof(name));
+            }
+
+            ArenaWriter.AddData(element.Inner, OpCode.AccessibleName, name);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Sets the native accessible name, overriding inferred control text.</summary>
+        public static Element<TTag> AccessibleName<TTag>(this Element<TTag> element, ReadOnlySpan<byte> utf8Name)
+            where TTag : unmanaged, IAccessibleElementTag
+        {
+            if (utf8Name.IsEmpty)
+            {
+                throw new ArgumentException("A non-empty value is required.", nameof(utf8Name));
+            }
+
+            ArenaWriter.AddData(element.Inner, OpCode.AccessibleName, utf8Name);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Sets supplementary native accessibility help without changing the visible content.</summary>
+        public static Element<TTag> AccessibleDescription<TTag>(this Element<TTag> element, ReadOnlySpan<char> description)
+            where TTag : unmanaged, IAccessibleElementTag
+        {
+            if (description.IsEmpty)
+            {
+                throw new ArgumentException("A non-empty value is required.", nameof(description));
+            }
+
+            ArenaWriter.AddData(element.Inner, OpCode.AccessibleDescription, description);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Sets supplementary native accessibility help without changing the visible content.</summary>
+        public static Element<TTag> AccessibleDescription<TTag>(this Element<TTag> element, ReadOnlySpan<byte> utf8Description)
+            where TTag : unmanaged, IAccessibleElementTag
+        {
+            if (utf8Description.IsEmpty)
+            {
+                throw new ArgumentException("A non-empty value is required.", nameof(utf8Description));
+            }
+
+            ArenaWriter.AddData(element.Inner, OpCode.AccessibleDescription, utf8Description);
             return element;
         }
 

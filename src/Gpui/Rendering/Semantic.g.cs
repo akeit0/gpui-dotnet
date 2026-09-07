@@ -35,6 +35,8 @@ namespace Gpui.Interop
 
     internal enum OpCode : ushort
     {
+        AccessibleName = 900,
+        AccessibleDescription = 901,
         Flex = 1,
         VStack = 2,
         ItemsCenter = 3,
@@ -367,7 +369,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0xC76010D29B9E9390UL;
+        internal const ulong SchemaHash = 0x65632B31C14883FFUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -424,6 +426,8 @@ namespace Gpui.Interop
 
         internal static ValueKind? ExpectedValueKind(OpCode operation) => operation switch
         {
+            OpCode.AccessibleName => ValueKind.Data,
+            OpCode.AccessibleDescription => ValueKind.Data,
             OpCode.Flex => ValueKind.None,
             OpCode.VStack => ValueKind.None,
             OpCode.ItemsCenter => ValueKind.None,
@@ -698,22 +702,22 @@ namespace Gpui.Interop
         {
             ComponentId.Div => 0x0000000010002007UL,
             ComponentId.Text => 0x0000000000000001UL,
-            ComponentId.Button => 0x000000001000202BUL,
-            ComponentId.Checkbox => 0x000000001000003BUL,
-            ComponentId.Radio => 0x000000001000003BUL,
+            ComponentId.Button => 0x000000003000202BUL,
+            ComponentId.Checkbox => 0x000000003000003BUL,
+            ComponentId.Radio => 0x000000003000003BUL,
             ComponentId.Badge => 0x0000000000000003UL,
             ComponentId.Divider => 0x0000000000000001UL,
             ComponentId.Spacer => 0x0000000000000001UL,
             ComponentId.Scroll => 0x00000000000000C7UL,
             ComponentId.List => 0x0000000000000141UL,
             ComponentId.Image => 0x0000000000000201UL,
-            ComponentId.Input => 0x0000000000000441UL,
+            ComponentId.Input => 0x0000000020000441UL,
             ComponentId.Overlay => 0x0000000000000842UL,
             ComponentId.Tooltip => 0x0000000000001042UL,
             ComponentId.ContextMenu => 0x0000000000004043UL,
             ComponentId.PopoverMenu => 0x0000000000008043UL,
             ComponentId.Table => 0x0000000000010143UL,
-            ComponentId.Slider => 0x0000000000020041UL,
+            ComponentId.Slider => 0x0000000020020041UL,
             ComponentId.Drawing => 0x0000000000040003UL,
             ComponentId.Path => 0x0000000000080000UL,
             ComponentId.Dynamic => 0x0000000000100042UL,
@@ -728,6 +732,8 @@ namespace Gpui.Interop
 
         private static ulong RequiredCapability(OpCode operation) => operation switch
         {
+            OpCode.AccessibleName => 0x0000000020000000UL,
+            OpCode.AccessibleDescription => 0x0000000020000000UL,
             OpCode.Flex => 0x0000000000000004UL,
             OpCode.VStack => 0x0000000000000004UL,
             OpCode.ItemsCenter => 0x0000000000000001UL,

@@ -1,4 +1,5 @@
 pub mod abi;
+mod accessibility;
 #[cfg(all(test, feature = "allocation-tracking"))]
 mod allocation_tracking;
 mod app_host;

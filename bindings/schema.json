@@ -29,7 +29,8 @@
     "dock_panel",
     "dock_region",
     "extension",
-    "key_mouse"
+    "key_mouse",
+    "accessible"
   ],
   "enums": [
     {
@@ -206,6 +207,7 @@
       "children": true,
       "managedFactory": "idContainer",
       "capabilities": [
+        "accessible",
         "styled",
         "parent",
         "interactive",
@@ -224,6 +226,7 @@
       "children": true,
       "managedFactory": "idContainer",
       "capabilities": [
+        "accessible",
         "styled",
         "parent",
         "interactive",
@@ -242,6 +245,7 @@
       "children": true,
       "managedFactory": "idContainer",
       "capabilities": [
+        "accessible",
         "styled",
         "parent",
         "interactive",
@@ -346,6 +350,7 @@
       "children": false,
       "managedFactory": "manual",
       "capabilities": [
+        "accessible",
         "styled",
         "native_state",
         "input"
@@ -440,6 +445,7 @@
       "children": false,
       "managedFactory": "manual",
       "capabilities": [
+        "accessible",
         "styled",
         "native_state",
         "slider"
@@ -584,6 +590,34 @@
     }
   ],
   "operations": [
+    {
+      "id": 900,
+      "name": "accessible_name",
+      "csharp": "AccessibleName",
+      "value": "data",
+      "requires": "accessible",
+      "managedApi": null,
+      "managedMethod": {
+        "kind": "string",
+        "method": "AccessibleName",
+        "param": "name",
+        "doc": "Sets the native accessible name, overriding inferred control text."
+      }
+    },
+    {
+      "id": 901,
+      "name": "accessible_description",
+      "csharp": "AccessibleDescription",
+      "value": "data",
+      "requires": "accessible",
+      "managedApi": null,
+      "managedMethod": {
+        "kind": "string",
+        "method": "AccessibleDescription",
+        "param": "description",
+        "doc": "Sets supplementary native accessibility help without changing the visible content."
+      }
+    },
     {
       "id": 1,
       "name": "flex",
