@@ -4,6 +4,17 @@ using Gpui.Interop;
 namespace Gpui;
 
 /// <summary>
+/// A request to select one List/Table row. The application decides whether to accept it and owns
+/// selection state and presentation. Identity describes the accepted datasource snapshot.
+/// </summary>
+public readonly record struct ListSelectionEvent(
+    int Index,
+    ulong? ItemId,
+    ulong? ContentRevision,
+    ListSelectionSource Source
+);
+
+/// <summary>
 /// An explicit List/Table row activation. Index and optional ItemId identify the row in the
 /// accepted datasource; ContentRevision is absent for declarations without a content revision.
 /// Cursor movement and application selection do not emit this event.

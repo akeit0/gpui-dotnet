@@ -1250,6 +1250,37 @@ public sealed class SemanticRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CollectionSelectionRequestsDoNotInvokeActivationBindings(bool table)
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            Element root = table
+                ? ui.Table("grid", new ListDataSource(100, 7), view.Row, new TableColumn("name", "Name", 120))
+                    .OnSelectionRequested(view, static (owner, value) => owner.ListSelections.Add(value))
+                    .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value))
+                : ui.List("rows", new ListDataSource(100, 7), view.Row)
+                    .OnSelectionRequested(view, static (owner, value) => owner.ListSelections.Add(value))
+                    .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value));
+            arena.Validate(root);
+            var eventId = ReadCallbackEventId(arena, OpCode.ListOnSelectionRequested);
+            var selection = new ListSelectionEvent(51, 1051, 7, ListSelectionSource.Keyboard);
+            view.Runtime.Events.DispatchListSelectionCore(eventId, selection);
+            Assert.Equal(selection, Assert.Single(view.ListSelections));
+            Assert.Empty(view.ListActivations);
+        }
+        finally
+        {
+            view.Runtime.UnmountRuntime();
+        }
+    }
+
     [Fact]
     public void ExplicitTablePassesManagedValidation()
     {
@@ -2273,6 +2304,7 @@ public sealed class SemanticRenderTests
         internal List<ScrollWheelEvent> ScrollWheelEvents = new();
         internal List<FileDropEvent> FileDropEvents = new();
         internal List<ListActivationEvent> ListActivations = new();
+        internal List<ListSelectionEvent> ListSelections = new();
 
         internal ListItemRenderer Row => BindListRenderer(1);
 

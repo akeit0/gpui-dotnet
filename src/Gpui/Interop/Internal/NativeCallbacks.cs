@@ -297,7 +297,7 @@ internal static unsafe class NativeCallbacks
                         )
                     );
                 }
-                else if (nativeEvent->kind == (ushort)ListEventKind.Activated)
+                else if (nativeEvent->kind is (ushort)ListEventKind.Activated or (ushort)ListEventKind.SelectionRequested)
                 {
                     if ((nativeEvent->flags & ~3u) != 0 || nativeEvent->data_length != 16
                         || ((nativeEvent->flags & 2) == 0 && nativeEvent->revision != 0))
@@ -307,11 +307,19 @@ internal static unsafe class NativeCallbacks
                     if (index > int.MaxValue || BinaryPrimitives.ReadUInt32LittleEndian(data[4..]) != 0)
                         return -112;
                     var itemId = BinaryPrimitives.ReadUInt64LittleEndian(data[8..]);
-                    session.DispatchListActivation(eventToken, new ListActivationEvent(
-                        (int)index, itemId == 0 ? null : itemId,
-                        (nativeEvent->flags & 2) == 0 ? null : nativeEvent->revision,
-                        (nativeEvent->flags & 1) == 0 ? ListActivationSource.Pointer : ListActivationSource.Keyboard
-                    ));
+                    ulong? identity = itemId == 0 ? null : itemId;
+                    ulong? revision = (nativeEvent->flags & 2) == 0 ? null : nativeEvent->revision;
+                    var keyboard = (nativeEvent->flags & 1) != 0;
+                    if (nativeEvent->kind == (ushort)ListEventKind.Activated)
+                        session.DispatchListActivation(eventToken, new ListActivationEvent(
+                            (int)index, identity, revision,
+                            keyboard ? ListActivationSource.Keyboard : ListActivationSource.Pointer
+                        ));
+                    else
+                        session.DispatchListSelection(eventToken, new ListSelectionEvent(
+                            (int)index, identity, revision,
+                            keyboard ? ListSelectionSource.Keyboard : ListSelectionSource.Pointer
+                        ));
                 }
                 else if (
                     nativeEvent->kind is (ushort)SliderEventKind.Changed

@@ -34,8 +34,36 @@ internal readonly record struct SampleButtonStyle(
             .BorderColor(Border);
 }
 
+internal readonly record struct SampleCollectionRowStyle(
+    Color Background,
+    Color Border,
+    Color Text,
+    Pixels Padding
+) : IGpuiElementStyle<DivTag>
+{
+    public Element<DivTag> Apply(Element<DivTag> row) =>
+        row
+            .Padding(Padding)
+            .Radius(Px(6))
+            .Background(Background)
+            .BorderColor(Border)
+            .BorderWidth(Px(1))
+            .TextColor(Text);
+}
+
 internal static class SampleStyles
 {
+    internal static SampleCollectionRowStyle CollectionRow(GpuiTheme theme, bool selected)
+    {
+        var colors = theme.Colors;
+        return new(
+            selected ? colors.ElementSelected : colors.SurfaceBackground,
+            selected ? colors.BorderSelected : colors.BorderVariant,
+            selected ? colors.TextAccent : colors.Text,
+            Px(selected ? 12 : 9)
+        );
+    }
+
     internal static SampleButtonStyle Button(
         GpuiTheme theme,
         SampleButtonVariant variant = SampleButtonVariant.Standard,

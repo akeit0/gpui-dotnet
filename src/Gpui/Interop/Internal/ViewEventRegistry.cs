@@ -110,10 +110,17 @@ internal sealed class ViewEventRegistry
         FileDrop,
         NativeExtension,
         ListActivation,
+        ListSelection,
     }
 
     private readonly struct EventDispatch
     {
+        internal EventDispatch(ListSelectionEvent selection)
+        {
+            Kind = EventDispatchKind.ListSelection;
+            ListSelection = selection;
+        }
+
         internal EventDispatch(ListActivationEvent activation)
         {
             Kind = EventDispatchKind.ListActivation;
@@ -290,6 +297,7 @@ internal sealed class ViewEventRegistry
 
         internal EventDispatchKind Kind { get; }
         internal ListActivationEvent ListActivation { get; }
+        internal ListSelectionEvent ListSelection { get; }
         internal ClickEvent Click { get; }
         internal InputEvent? Input { get; }
         internal SliderEvent Slider { get; }
@@ -332,6 +340,9 @@ internal sealed class ViewEventRegistry
 
     internal ulong BindListActivation<TView>(Action<TView, ListActivationEvent> callback)
         where TView : ViewBase => BindDynamicEvent(_owner!, callback, ListActivationBinder<TView>.Index);
+
+    internal ulong BindListSelection<TView>(Action<TView, ListSelectionEvent> callback)
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ListSelectionBinder<TView>.Index);
 
     /// <summary>Registers a typed Dock area callback on this mounted View.</summary>
     internal ulong BindDock<TView>(Action<TView, DockEvent> callback)
@@ -801,6 +812,17 @@ internal sealed class ViewEventRegistry
         EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
+    internal void DispatchListSelectionCore(uint eventId, ListSelectionEvent selection)
+    {
+        if (!TryGetDynamicEvent(eventId, out var entry))
+        {
+            MissingDynamicEvent(eventId, "list selection");
+            return;
+        }
+        var dispatch = new EventDispatch(selection);
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
+    }
+
     internal void DispatchSliderCore(uint eventId, SliderEvent sliderEvent) =>
         DispatchDynamicSlider(eventId, sliderEvent);
 
@@ -943,6 +965,23 @@ internal sealed class ViewEventRegistry
             }
 
             typedCallback(typedTarget, input);
+        }
+    }
+
+    private static class ListSelectionBinder<TView>
+        where TView : ViewBase
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.ListSelection)
+                throw WrongDispatchKind("list selection");
+            if (target is not TView typedTarget)
+                throw WrongTarget<TView>(target, "list selection");
+            if (callback is not Action<TView, ListSelectionEvent> typedCallback)
+                throw WrongCallback("Action<TView, ListSelectionEvent>", "list selection");
+            typedCallback(typedTarget, dispatch.ListSelection);
         }
     }
 

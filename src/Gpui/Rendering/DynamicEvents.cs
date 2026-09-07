@@ -11,6 +11,24 @@ namespace Gpui;
 public static partial class ElementExtensions
 {
     /// <summary>
+    /// Requests single-row selection on unmodified Space or an unconsumed primary single press.
+    /// The application owns selection state and row styling; navigation alone does not select.
+    /// </summary>
+    public static Element<TTag> OnSelectionRequested<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Action<TView, ListSelectionEvent> callback
+    )
+        where TTag : unmanaged, IVirtualizedElementTag
+        where TView : ViewBase
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.ListOnSelectionRequested, view.Runtime.Events.BindListSelection(callback));
+        return element;
+    }
+
+    /// <summary>
     /// Activates a List/Table row on unmodified Enter or an unconsumed primary double press.
     /// Does not change selection or synthesize row/child click events.
     /// </summary>

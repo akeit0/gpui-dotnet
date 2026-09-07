@@ -5,16 +5,13 @@ documents.
 
 ## Implementation priorities
 
-1. Collection selection: add opt-in selection events and selection presentation without conflating
-   them with row activation or the native navigation cursor. Design a
-   coarse identity mapping only if preserving the active item across arbitrary reorder is required.
-2. Native performance evidence: measure drawing preparation, Dynamic owner discovery, arena
+1. Native performance evidence: measure drawing preparation, Dynamic owner discovery, arena
    validation overhead, and fragment copying in representative workloads before changing transport.
-3. Input editing: word navigation, undo/redo, richer pointer selection, platform IME tests, and
+2. Input editing: word navigation, undo/redo, richer pointer selection, platform IME tests, and
    controlled-binding helpers built on conditional replacement.
-4. Virtual-row menus and tooltips: design window-owned overlays anchored to stable item identities,
+3. Virtual-row menus and tooltips: design window-owned overlays anchored to stable item identities,
    with explicit behavior on scrolling, eviction, movement, and removal.
-5. Control customization and custom keyboard/accessibility behavior: use concrete sample needs to
+4. Control customization and custom keyboard/accessibility behavior: use concrete sample needs to
    introduce typed presentation parts, scoped commands, focus targets, and accessible names.
 
 Preserve the semantic batching and ownership boundaries. Native-retained fragment transport,
@@ -114,7 +111,7 @@ Keep stacking and dismissal window-owned in Rust while product visuals remain ma
   invalidation and measurement refresh for changed items, including items outside cached batches;
 - optional public cache/overscan diagnostics when benchmarks justify an ABI query;
 - table header sort events and column visibility/reordering;
-- opt-in selection events and selection presentation;
+- range/multi-selection, selection anchors, and modifier policies when application needs justify them;
 - active-item preservation across arbitrary reorder if applications require a coarse identity map;
 - frozen columns or resize chrome only when application requirements and measurements justify the
   added native state.

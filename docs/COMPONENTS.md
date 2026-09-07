@@ -199,6 +199,29 @@ handlers run; children may still take focus or consume the event. Existing row/c
 remain intact. Arrow and paging keys do not synthesize clicks or change application selection.
 Applications continue to own selected-item state and selected-row styling.
 
+Bind `.OnSelectionRequested(view, static (owner, e) => owner.SelectItem(e))` on List or Table for
+single-row selection requests. An unmodified primary single press requests its row unless a child
+consumes mouse-down. Unmodified Space requests the native cursor when the collection itself has
+focus; held repeats and keys intended for text input do not request selection. Enter and double
+press remain activation gestures. Modified presses, range selection, toggling, and selection that
+follows arrow navigation have no built-in policy.
+
+`ListSelectionEvent` carries `Index`, optional row-root `ItemId`, optional `ContentRevision`, and
+`Source` (`Pointer` or `Keyboard`). The request does not update native selection state. Applications
+may accept or ignore it; resolve `ItemId` against current data before acting on a retained event
+whose revision is stale. Updating application selection independently does not move the native
+cursor or emit an event. Row and child click bindings still run independently, so avoid binding the
+same selection update to both a row click and the collection request.
+
+Render accepted selection through application-owned styles. The table sample uses
+`SampleStyles.CollectionRow(theme, selected)`, an `IGpuiElementStyle<DivTag>` recipe using the
+theme's selected background, border, and inherited text roles. Its rows are plain containers, so
+presses leave focus on the table for Space and Enter. After a change, refresh the old and new row
+ranges through `ListController.RefreshRanges`; that also invalidates the owner so header selection
+labels update. Keep content revision stable for these targeted refreshes. Theme changes refresh
+row batches automatically. This presentation needs no retained View per row or native selection
+store, and application code can choose its own colors, indicators, and sizing.
+
 Bind `.OnActivated(view, static (owner, e) => owner.OpenItem(e))` on List or Table to opt into
 activation. Unmodified Enter activates the native cursor when the collection itself has focus;
 held repeats and keys intended for text input do not activate. An unmodified primary-button double
@@ -208,7 +231,7 @@ bindings still run independently.
 
 `ListActivationEvent` carries `Index`, optional row-root `ItemId`, optional `ContentRevision`, and
 `Source` (`Pointer` or `Keyboard`) from the accepted datasource. Revision zero is distinct from an
-absent revision. Keyboard activation may request one aligned row batch to resolve an uncached row's
+absent revision. Keyboard activation or selection may request one aligned row batch to resolve an uncached row's
 identity; navigation alone does not. The event owns its scalar data, and callbacks run through the
 normal View event boundary after native resource borrows are released.
 

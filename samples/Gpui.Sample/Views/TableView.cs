@@ -7,7 +7,7 @@ internal sealed partial class TableView : View
     private const int ItemCount = 5_000;
     private ListController _grid;
     private int _selected = -1;
-    private string _activation = "Double-click a row, or Tab to the table and press Enter";
+    private string _activation = "Click or press Space to select; double-click or press Enter to activate";
 
     private void ActivateRow(ListActivationEvent e)
     {
@@ -23,13 +23,13 @@ internal sealed partial class TableView : View
         new("rps", "Req/s", 90, TableColumnWidth.Pixels, TableColumnAlignment.Right),
     ];
 
-    private void SelectRow(ClickEvent e)
+    private void SelectRow(ListSelectionEvent e)
     {
-        // An OnClick without an explicit payload delivers the row's ItemId as its payload — the stable model
-        // identity that survives splices. Mapping an ID back to a refresh index is app-owned
-        // datasource logic; here the ID is the row's original position + 1 by construction.
-        var index = checked((int)e.Payload) - 1;
+        // This datasource has fixed ordering. Mutable models should resolve ItemId against their
+        // current data before accepting a request from an earlier content revision.
+        var index = e.Index;
         var previous = _selected;
+        if (previous == index) return;
         _selected = index;
         if (previous >= 0)
         {
@@ -59,14 +59,12 @@ internal sealed partial class TableView : View
         // Cells compose inside an explicit horizontal container: divs are block by default,
         // so the row must declare its own row layout. The cell widths reconcile against this
         // container, which stretches to the full row width.
-        return ui.Button(
-                "service-row",
+        return ui.Div(
                 ui.HStack(
                         ui.TableCell(
                             0,
                             ui.Text($"svc-{index:D4}")
                                 .FontSize(Px(theme.Typography.BodySmall))
-                                .TextColor(colors.Text)
                         ),
                         ui.TableCell(
                             1,
@@ -85,13 +83,8 @@ internal sealed partial class TableView : View
                     .Width(Percent(100))
             )
             .ItemId(checked((ulong)index) + 1)
-            .OnClick(this, (view, e) => view.SelectRow(e))
             .Width(Percent(100))
-            .Padding(Px(selected ? 12 : 9))
-            .Background(selected ? colors.ElementSelected : colors.SurfaceBackground)
-            .BorderColor(selected ? colors.BorderSelected : colors.BorderVariant)
-            .TextColor(selected ? colors.TextAccent : colors.Text)
-            .BorderWidth(Px(1));
+            .Style(SampleStyles.CollectionRow(theme, selected));
     }
 
     protected override Element Render(ref RenderContext ui)
@@ -122,6 +115,7 @@ internal sealed partial class TableView : View
                 Columns
             )
             .OnActivated(this, static (view, e) => view.ActivateRow(e))
+            .OnSelectionRequested(this, static (view, e) => view.SelectRow(e))
             .Grow()
             .Width(Percent(100))
             .Background(theme.Colors.SurfaceBackground)

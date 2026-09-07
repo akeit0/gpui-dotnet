@@ -57,7 +57,7 @@ callback table provides:
 - virtual list/table range rendering;
 - cached range artifact release;
 - owner-view preparation for a requested dynamic frame;
-- retained control events (Input, Slider, Dock, List/Table activation, and observer key/mouse);
+- retained control events (Input, Slider, Dock, List/Table row events, and observer key/mouse);
 - application-started notification;
 - window-closed notification;
 - application-menu action dispatch.
@@ -255,8 +255,8 @@ Control-event kinds are global: Input uses 1-3, Slider uses 4-5, Dock uses 6
 (KeyDown) and 10 (KeyUp), observer mouse press events use 11 (MouseDown) and 12 (MouseUp),
 observer modifier events use 13 (ModifiersChanged), hover transitions use 14 (Hover), outside
 press events use 15 (MouseDownOut) and 16 (MouseUpOut), mouse movement uses 17 (Move), and
-scroll-wheel movement uses 18 (Wheel), OS file drops use 19 (Dropped), and List/Table activation
-uses 20 (Activated).
+scroll-wheel movement uses 18 (Wheel), OS file drops use 19 (Dropped), and List/Table row events
+use 20 (Activated) and 21 (SelectionRequested).
 Resource kinds are Scroll 1,
 List 2, Input 3, Slider 4, and Dock 5, with the command IDs listed below. These numbers
 generate from `bindings/schema.json` into both managed enums and native constants; the schema
@@ -271,6 +271,14 @@ bit 1 indicates that revision contains the accepted datasource content revision,
 Without bit 1, revision must be zero. All other flags are reserved zero. Managed code rejects
 malformed packets with `-112` and copies the scalar identity before callback delivery. This semantic
 addition changes the schema hash and retains ABI version 7 and the existing control-event layout.
+
+List/Table selection requests bind operation 324 (`ListOnSelectionRequested`) to an independent
+View callback token and use the same payload, flag, revision, and validation contract as activation.
+Native emits a single-row request on unmodified Space or an unconsumed primary single press; the
+managed application owns accepted selection and its row presentation. There is no selected-state
+command or per-row selection callback in the datasource protocol. Both event bindings reuse one
+cached identity lookup, and keyboard requests load at most one ordinary aligned row batch when
+needed. Adding this operation and event retains ABI version 7 and changes the schema hash.
 
 Key observer payloads carry the UTF-8 GPUI key name (non-empty, NUL-free, at most 128 bytes)
 as borrowed data. Flags carry modifiers in bits 0-4 (control, alt, shift, platform, function,

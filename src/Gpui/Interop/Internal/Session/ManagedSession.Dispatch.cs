@@ -170,6 +170,9 @@ internal sealed unsafe partial class ManagedSession
     internal void DispatchListActivation(ulong eventToken, ListActivationEvent value) =>
         DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchListActivationCore(id, data));
 
+    internal void DispatchListSelection(ulong eventToken, ListSelectionEvent value) =>
+        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchListSelectionCore(id, data));
+
     internal void DispatchSlider(ulong eventToken, SliderEvent value) =>
         DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchSliderCore(id, data));
 

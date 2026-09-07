@@ -138,6 +138,7 @@ namespace Gpui.Interop
         ListContentRevision = 316,
         ListItemId = 317,
         ListOnActivated = 323,
+        ListOnSelectionRequested = 324,
         ImageObjectFit = 400,
         ImageGrayscale = 401,
         InputDisabled = 500,
@@ -352,7 +353,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x069D19500FA2F2C8UL;
+        internal const ulong SchemaHash = 0x5B3FFDD0ACFD2A5CUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -512,6 +513,7 @@ namespace Gpui.Interop
             OpCode.ListContentRevision => ValueKind.U64,
             OpCode.ListItemId => ValueKind.U64,
             OpCode.ListOnActivated => ValueKind.Callback,
+            OpCode.ListOnSelectionRequested => ValueKind.Callback,
             OpCode.ImageObjectFit => ValueKind.U32,
             OpCode.ImageGrayscale => ValueKind.U32,
             OpCode.InputDisabled => ValueKind.U32,
@@ -803,6 +805,7 @@ namespace Gpui.Interop
             OpCode.ListContentRevision => 0x0000000000000100UL,
             OpCode.ListItemId => 0x0000000000000001UL,
             OpCode.ListOnActivated => 0x0000000000000100UL,
+            OpCode.ListOnSelectionRequested => 0x0000000000000100UL,
             OpCode.ImageObjectFit => 0x0000000000000200UL,
             OpCode.ImageGrayscale => 0x0000000000000200UL,
             OpCode.InputDisabled => 0x0000000000000400UL,

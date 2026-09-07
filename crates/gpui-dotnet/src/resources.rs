@@ -24,16 +24,16 @@ use crate::{
     semantic::{
         COMMAND_LIST_REFRESH, COMMAND_LIST_RESET, COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_LIST_SPLICE,
         COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP,
-        EVENT_LIST_ACTIVATED, NativeAdapter, OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED,
-        OP_INPUT_ON_FOCUS_CHANGED, OP_INPUT_ON_SUBMITTED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY,
-        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION,
+        EVENT_LIST_ACTIVATED, EVENT_LIST_SELECTION_REQUESTED, NativeAdapter, OP_INPUT_DISABLED,
+        OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED, OP_INPUT_ON_SUBMITTED, OP_INPUT_PASSWORD,
+        OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION,
         OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_ITEM_ID,
-        OP_LIST_ON_ACTIVATED, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_RESOURCE_OWNER,
-        OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SLIDER_AXIS, OP_SLIDER_DISABLED, OP_SLIDER_MAX,
-        OP_SLIDER_MIN, OP_SLIDER_ON_CHANGED, OP_SLIDER_ON_RELEASED, OP_SLIDER_RANGE_END,
-        OP_SLIDER_RANGE_START, OP_SLIDER_SCALE, OP_SLIDER_STEP, OP_SLIDER_VALUE, OP_TABLE_COLUMN,
-        RESOURCE_DOCK, RESOURCE_INPUT, RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER,
-        component_metadata,
+        OP_LIST_ON_ACTIVATED, OP_LIST_ON_SELECTION_REQUESTED, OP_LIST_OVERDRAW_PX,
+        OP_LIST_RENDERER, OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH,
+        OP_SLIDER_AXIS, OP_SLIDER_DISABLED, OP_SLIDER_MAX, OP_SLIDER_MIN, OP_SLIDER_ON_CHANGED,
+        OP_SLIDER_ON_RELEASED, OP_SLIDER_RANGE_END, OP_SLIDER_RANGE_START, OP_SLIDER_SCALE,
+        OP_SLIDER_STEP, OP_SLIDER_VALUE, OP_TABLE_COLUMN, RESOURCE_DOCK, RESOURCE_INPUT,
+        RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER, component_metadata,
     },
     slider::{ManagedSlider, SliderValue},
     snapshot::{SnapshotScratch, ValidatedSnapshot},
@@ -589,6 +589,7 @@ pub(crate) struct ListConfiguration {
     pub(crate) item_count: usize,
     pub(crate) renderer_token: u64,
     pub(crate) activation_token: u64,
+    pub(crate) selection_token: u64,
     pub(crate) batch_size: usize,
     pub(crate) overdraw: Pixels,
     pub(crate) alignment: ListAlignment,
@@ -702,7 +703,7 @@ impl CollectionCursor {
         self.epoch.get() == epoch && self.set(index)
     }
 
-    fn invalidate_rows(&self) {
+    pub(crate) fn invalidate_rows(&self) {
         self.epoch.set(
             self.epoch
                 .get()
@@ -739,22 +740,36 @@ impl CollectionCursor {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct ListActivation {
+pub(crate) enum ListRowEventKind {
+    Activation,
+    Selection,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct ListRowEvents {
     pub(crate) session_id: u64,
     pub(crate) callbacks: ManagedCallbacks,
-    pub(crate) token: u64,
+    pub(crate) activation_token: u64,
+    pub(crate) selection_token: u64,
     pub(crate) index: u32,
     pub(crate) item_id: Option<u64>,
     pub(crate) content_revision: Option<u64>,
 }
 
-impl ListActivation {
-    pub(crate) fn emit(self, keyboard: bool) -> i32 {
+impl ListRowEvents {
+    pub(crate) fn emit(self, kind: ListRowEventKind, keyboard: bool) -> i32 {
+        let (kind, token) = match kind {
+            ListRowEventKind::Activation => (EVENT_LIST_ACTIVATED, self.activation_token),
+            ListRowEventKind::Selection => (EVENT_LIST_SELECTION_REQUESTED, self.selection_token),
+        };
+        if token == 0 {
+            return 0;
+        }
         let mut data = [0u8; 16];
         data[..4].copy_from_slice(&self.index.to_le_bytes());
         data[8..].copy_from_slice(&self.item_id.unwrap_or(0).to_le_bytes());
         let event = NativeControlEvent {
-            kind: EVENT_LIST_ACTIVATED,
+            kind,
             flags: u16::from(keyboard) | (u16::from(self.content_revision.is_some()) << 1),
             revision: self.content_revision.unwrap_or(0),
             data: data.as_ptr(),
@@ -766,7 +781,7 @@ impl ListActivation {
             .callbacks
             .control_event
             .expect("callbacks validated at startup");
-        unsafe { callback(self.session_id, self.token, &event) }
+        unsafe { callback(self.session_id, token, &event) }
     }
 }
 
@@ -780,6 +795,7 @@ pub(crate) struct ManagedListResource {
     pub(crate) item_count: usize,
     renderer_token: u64,
     activation_token: u64,
+    selection_token: u64,
     batch_size: usize,
     overdraw: Pixels,
     alignment: ListAlignment,
@@ -819,6 +835,7 @@ impl ManagedListResource {
             item_count: configuration.item_count,
             renderer_token: configuration.renderer_token,
             activation_token: configuration.activation_token,
+            selection_token: configuration.selection_token,
             batch_size: configuration.batch_size,
             overdraw: configuration.overdraw,
             alignment: configuration.alignment,
@@ -837,8 +854,11 @@ impl ManagedListResource {
     }
 
     fn configure(&mut self, configuration: &ListConfiguration, snapshot_revision: u64) {
-        if self.activation_token != configuration.activation_token {
+        if self.activation_token != configuration.activation_token
+            || self.selection_token != configuration.selection_token
+        {
             self.activation_token = configuration.activation_token;
+            self.selection_token = configuration.selection_token;
             self.cursor.invalidate_rows();
         }
         let revision_changed = self.snapshot_revision != snapshot_revision;
@@ -1159,8 +1179,8 @@ impl ManagedListResource {
         )
     }
 
-    pub(crate) fn cached_activation(&self, index: usize) -> Option<ListActivation> {
-        if self.activation_token == 0 || index >= self.item_count {
+    pub(crate) fn cached_row_events(&self, index: usize) -> Option<ListRowEvents> {
+        if (self.activation_token == 0 && self.selection_token == 0) || index >= self.item_count {
             return None;
         }
         let start = (index / self.batch_size) * self.batch_size;
@@ -1175,25 +1195,30 @@ impl ManagedListResource {
             .find(|op| op.code == OP_LIST_ITEM_ID)
             .map(|op| op.a)
             .filter(|id| *id != 0);
-        Some(ListActivation {
+        Some(ListRowEvents {
             session_id: self.session_id,
             callbacks: self.callbacks,
-            token: self.activation_token,
+            activation_token: self.activation_token,
+            selection_token: self.selection_token,
             index: index as u32,
             item_id,
             content_revision: self.content_revision,
         })
     }
 
-    pub(crate) fn activation_enabled(&self) -> bool {
-        self.activation_token != 0
+    pub(crate) fn event_enabled(&self, kind: ListRowEventKind) -> bool {
+        match kind {
+            ListRowEventKind::Activation => self.activation_token != 0,
+            ListRowEventKind::Selection => self.selection_token != 0,
+        }
     }
 
-    pub(crate) fn prepare_activation(
+    pub(crate) fn prepare_row_event(
         &mut self,
         index: usize,
-    ) -> Result<Option<ListActivation>, (u64, i32)> {
-        if self.activation_token == 0 || index >= self.item_count {
+        kind: ListRowEventKind,
+    ) -> Result<Option<ListRowEvents>, (u64, i32)> {
+        if !self.event_enabled(kind) || index >= self.item_count {
             return Ok(None);
         }
         let start = ((index / self.batch_size) * self.batch_size) as u32;
@@ -1206,7 +1231,7 @@ impl ManagedListResource {
             .get_mut(&start)
             .expect("batch loaded")
             .last_used = self.use_clock;
-        Ok(self.cached_activation(index))
+        Ok(self.cached_row_events(index))
     }
 
     fn load_batch(&mut self, start: u32) -> Result<(), i32> {
@@ -1572,6 +1597,12 @@ pub(crate) fn list_configuration(
             .rev()
             .find(|op| op.code == OP_LIST_ON_ACTIVATED)
             .map_or(0, |op| op.a),
+        selection_token: snapshot
+            .ops(node)
+            .iter()
+            .rev()
+            .find(|op| op.code == OP_LIST_ON_SELECTION_REQUESTED)
+            .map_or(0, |op| op.a),
         batch_size,
         overdraw,
         alignment,
@@ -1788,7 +1819,14 @@ mod tests {
         let bytes = unsafe { std::slice::from_raw_parts(event.data, event.data_length as usize) };
         ARTIFACTS.with(|capture| {
             let mut capture = capture.borrow_mut();
-            assert_eq!(event.kind, EVENT_LIST_ACTIVATED);
+            assert_eq!(
+                event.kind,
+                if token == 42 {
+                    EVENT_LIST_ACTIVATED
+                } else {
+                    EVENT_LIST_SELECTION_REQUESTED
+                }
+            );
             assert_eq!(event.reserved, 0);
             assert_eq!(event.reserved2, 0);
             if let Some(resource) = capture
@@ -1812,6 +1850,17 @@ mod tests {
     fn list_activation_resolves_uncached_identity_in_one_batch_and_ignores_repeat_and_modifiers(
         cx: &mut gpui::TestAppContext,
     ) {
+        check_collection_key_event(cx, ListRowEventKind::Activation);
+    }
+
+    #[gpui::test]
+    fn list_selection_resolves_uncached_identity_without_selecting_on_navigation_or_repeat(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        check_collection_key_event(cx, ListRowEventKind::Selection);
+    }
+
+    fn check_collection_key_event(cx: &mut gpui::TestAppContext, kind: ListRowEventKind) {
         ARTIFACTS.with(|capture| {
             *capture.borrow_mut() = ArtifactCapture {
                 item_ids: true,
@@ -1819,7 +1868,16 @@ mod tests {
             }
         });
         let mut config = configuration(Some(0));
-        config.activation_token = 42;
+        let (key, token) = match kind {
+            ListRowEventKind::Activation => {
+                config.activation_token = 42;
+                ("enter", 42)
+            }
+            ListRowEventKind::Selection => {
+                config.selection_token = 43;
+                ("space", 43)
+            }
+        };
         let callbacks = ManagedCallbacks {
             control_event: Some(capture_activation),
             ..artifact_callbacks()
@@ -1836,26 +1894,41 @@ mod tests {
             let focus = cx.focus_handle();
             focus.focus(window, cx);
             let mut event = gpui::KeyDownEvent {
-                keystroke: gpui::Keystroke::parse("enter").unwrap(),
+                keystroke: gpui::Keystroke::parse("down").unwrap(),
                 is_held: false,
                 prefer_character_input: false,
             };
-            assert!(crate::materializer::handle_collection_activation_key(
+            assert!(!crate::materializer::handle_collection_row_event_key(
+                &event, window, cx, &focus, &resource
+            ));
+            event.keystroke =
+                gpui::Keystroke::parse(if key == "enter" { "space" } else { "enter" }).unwrap();
+            assert!(!crate::materializer::handle_collection_row_event_key(
+                &event, window, cx, &focus, &resource
+            ));
+            ARTIFACTS.with_borrow(|capture| assert!(capture.ranges.is_empty()));
+            event.keystroke = gpui::Keystroke::parse(key).unwrap();
+            assert!(crate::materializer::handle_collection_row_event_key(
                 &event, window, cx, &focus, &resource
             ));
             event.is_held = true;
-            assert!(crate::materializer::handle_collection_activation_key(
+            assert!(crate::materializer::handle_collection_row_event_key(
                 &event, window, cx, &focus, &resource
             ));
             event.is_held = false;
             event.keystroke.modifiers.shift = true;
-            assert!(!crate::materializer::handle_collection_activation_key(
+            assert!(!crate::materializer::handle_collection_row_event_key(
                 &event, window, cx, &focus, &resource
             ));
             event.keystroke.modifiers.shift = false;
+            event.prefer_character_input = true;
+            assert!(!crate::materializer::handle_collection_row_event_key(
+                &event, window, cx, &focus, &resource
+            ));
+            event.prefer_character_input = false;
             let child_focus = cx.focus_handle();
             child_focus.focus(window, cx);
-            assert!(!crate::materializer::handle_collection_activation_key(
+            assert!(!crate::materializer::handle_collection_row_event_key(
                 &event, window, cx, &focus, &resource
             ));
         });
@@ -1864,18 +1937,18 @@ mod tests {
             assert_eq!(capture.ranges, vec![(48, 48)]);
             assert_eq!(capture.accepts.len(), 1);
             assert_eq!(capture.activations.len(), 1);
-            let (token, flags, revision, bytes) = &capture.activations[0];
-            assert_eq!((*token, *flags, *revision), (42, 3, 0));
+            let (actual_token, flags, revision, bytes) = &capture.activations[0];
+            assert_eq!((*actual_token, *flags, *revision), (token, 3, 0));
             assert_eq!(&bytes[..4], &51u32.to_le_bytes());
             assert_eq!(&bytes[4..8], &[0; 4]);
             assert_eq!(&bytes[8..], &1051u64.to_le_bytes());
         });
         let event = resource
             .borrow_mut()
-            .prepare_activation(51)
+            .prepare_row_event(51, kind)
             .unwrap()
             .unwrap();
-        assert_eq!(event.emit(false), 0);
+        assert_eq!(event.emit(kind, false), 0);
         ARTIFACTS.with(|capture| {
             let capture = capture.borrow();
             assert_eq!(capture.ranges.len(), 1);
@@ -1888,20 +1961,87 @@ mod tests {
         ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
         let mut config = configuration(None);
         let mut resource = ManagedListResource::new(1, artifact_callbacks(), &config, 1);
-        assert!(resource.prepare_activation(50).unwrap().is_none());
+        assert!(
+            resource
+                .prepare_row_event(50, ListRowEventKind::Activation)
+                .unwrap()
+                .is_none()
+        );
         ARTIFACTS.with(|capture| assert!(capture.borrow().ranges.is_empty()));
         config.activation_token = 42;
         let epoch = resource.cursor.epoch();
         resource.configure(&config, 2);
         assert_ne!(resource.cursor.epoch(), epoch);
-        assert!(resource.prepare_activation(100).unwrap().is_none());
-        let event = resource.prepare_activation(0).unwrap().unwrap();
+        assert!(
+            resource
+                .prepare_row_event(100, ListRowEventKind::Activation)
+                .unwrap()
+                .is_none()
+        );
+        let event = resource
+            .prepare_row_event(0, ListRowEventKind::Activation)
+            .unwrap()
+            .unwrap();
         assert_eq!(event.item_id, None);
         assert_eq!(event.content_revision, None);
         resource.clear_batches();
         ARTIFACTS.with(|capture| capture.borrow_mut().failure_mode = 3);
-        assert!(matches!(resource.prepare_activation(51), Err((1, -106))));
-        assert!(resource.cached_activation(51).is_none());
+        assert!(matches!(
+            resource.prepare_row_event(51, ListRowEventKind::Activation),
+            Err((1, -106))
+        ));
+        assert!(resource.cached_row_events(51).is_none());
+    }
+
+    #[test]
+    fn list_selection_binding_changes_revoke_old_rows_without_loading_or_resetting_cursor() {
+        ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
+        let mut config = configuration(Some(1));
+        config.activation_token = 42;
+        let mut resource = ManagedListResource::new(1, artifact_callbacks(), &config, 1);
+        resource.cursor.set(51);
+        assert!(
+            resource
+                .prepare_row_event(51, ListRowEventKind::Selection)
+                .unwrap()
+                .is_none()
+        );
+        ARTIFACTS.with_borrow(|capture| assert!(capture.ranges.is_empty()));
+        let epoch = resource.cursor.epoch();
+        config.selection_token = 43;
+        resource.configure(&config, 2);
+        assert_ne!(resource.cursor.epoch(), epoch);
+        let packet = resource
+            .prepare_row_event(51, ListRowEventKind::Selection)
+            .unwrap()
+            .unwrap();
+        assert_eq!(packet.selection_token, 43);
+        assert_eq!(packet.activation_token, 42);
+        assert_eq!(resource.cursor.active(), Some(51));
+        let epoch = resource.cursor.epoch();
+        config.selection_token = 0;
+        resource.configure(&config, 3);
+        assert!(!resource.cursor.set_from_row(12, epoch));
+        assert_eq!(resource.cursor.active(), Some(51));
+        assert!(
+            resource
+                .prepare_row_event(51, ListRowEventKind::Selection)
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(resource.cached_row_events(51).unwrap().selection_token, 0);
+        ARTIFACTS.with_borrow(|capture| assert_eq!(capture.ranges, vec![(48, 48)]));
+        config.selection_token = 43;
+        config.item_count = 0;
+        resource.configure(&config, 4);
+        assert!(resource.cursor.active().is_none());
+        assert!(
+            resource
+                .prepare_row_event(0, ListRowEventKind::Selection)
+                .unwrap()
+                .is_none()
+        );
+        ARTIFACTS.with_borrow(|capture| assert_eq!(capture.ranges.len(), 1));
     }
 
     fn artifact_callbacks() -> ManagedCallbacks {
@@ -2342,6 +2482,7 @@ mod tests {
             item_count: 100,
             renderer_token: 1,
             activation_token: 0,
+            selection_token: 0,
             batch_size: 48,
             overdraw: px(240.),
             alignment: ListAlignment::Top,

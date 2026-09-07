@@ -1476,6 +1476,7 @@ mod tests {
             item_count: 100,
             renderer_token: 1,
             activation_token: 0,
+            selection_token: 0,
             batch_size: 48,
             overdraw: px(240.),
             alignment: gpui::ListAlignment::Top,
