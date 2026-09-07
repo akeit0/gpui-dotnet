@@ -57,7 +57,7 @@ callback table provides:
 - virtual list/table range rendering;
 - cached range artifact release;
 - owner-view preparation for a requested dynamic frame;
-- retained control events (Input, Slider, Dock, and observer key/mouse);
+- retained control events (Input, Slider, Dock, List/Table activation, and observer key/mouse);
 - application-started notification;
 - window-closed notification;
 - application-menu action dispatch.
@@ -255,13 +255,22 @@ Control-event kinds are global: Input uses 1-3, Slider uses 4-5, Dock uses 6
 (KeyDown) and 10 (KeyUp), observer mouse press events use 11 (MouseDown) and 12 (MouseUp),
 observer modifier events use 13 (ModifiersChanged), hover transitions use 14 (Hover), outside
 press events use 15 (MouseDownOut) and 16 (MouseUpOut), mouse movement uses 17 (Move), and
-scroll-wheel movement uses 18 (Wheel), and OS file drops use 19 (Dropped).
+scroll-wheel movement uses 18 (Wheel), OS file drops use 19 (Dropped), and List/Table activation
+uses 20 (Activated).
 Resource kinds are Scroll 1,
 List 2, Input 3, Slider 4, and Dock 5, with the command IDs listed below. These numbers
 generate from `bindings/schema.json` into both managed enums and native constants; the schema
 hash covers them, so either side renumbering without the schema fails verification. Command and
 event payload shapes, routing, and queueing stay hand-written: the schema owns identities,
 not behavior. Describing payload layouts as separate compatibility units is open phase-10 work.
+
+List/Table activation binds operation 323 (`ListOnActivated`) to a View callback token. Its payload
+is exactly 16 little-endian bytes: `u32` row index (at most `Int32.MaxValue`), `u32` reserved zero,
+and `u64` row-root ItemId (zero means absent). Flag bit 0 selects Keyboard (1) or Pointer (0);
+bit 1 indicates that revision contains the accepted datasource content revision, including zero.
+Without bit 1, revision must be zero. All other flags are reserved zero. Managed code rejects
+malformed packets with `-112` and copies the scalar identity before callback delivery. This semantic
+addition changes the schema hash and retains ABI version 7 and the existing control-event layout.
 
 Key observer payloads carry the UTF-8 GPUI key name (non-empty, NUL-free, at most 128 bytes)
 as borrowed data. Flags carry modifiers in bits 0-4 (control, alt, shift, platform, function,

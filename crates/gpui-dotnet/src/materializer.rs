@@ -25,8 +25,9 @@ use crate::{
     overlay::OverlayKind,
     popover_menu::{PopoverMenuConfiguration, popover_menu},
     resources::{
-        CollectionCursor, ResourceStore, ScrollInteraction, TableSpec, input_configuration,
-        list_configuration, resource_key, slider_configuration, table_configuration,
+        CollectionCursor, ListActivation, ManagedListResource, ResourceStore, ScrollInteraction,
+        TableSpec, input_configuration, list_configuration, resource_key, slider_configuration,
+        table_configuration,
     },
     scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics, list_overlay, scroll_overlay},
     semantic::{
@@ -568,6 +569,8 @@ impl ManagedView {
         let focus = focus_state.read(cx).focus.clone();
         let keyboard_cursor = resource.borrow().cursor.clone();
         let keyboard_epoch = keyboard_cursor.epoch();
+        let keyboard_resource = resource.clone();
+        let keyboard_focus = focus.clone();
         let row_cursor = keyboard_cursor.clone();
         let row_focus = focus.clone();
         let keyboard_list = state.clone();
@@ -581,6 +584,7 @@ impl ManagedView {
                 .borrow_mut()
                 .render_item(index, &resources, &row_scope);
             CollectionRow::new(element, row_cursor.clone(), row_focus.clone(), index)
+                .with_activation(row_resource.borrow().cached_activation(index))
                 .into_any_element()
         })
         .flex_grow(1.0)
@@ -605,6 +609,15 @@ impl ManagedView {
             .key_context("GpuiDotnetList")
             .on_key_down(move |event, window, cx| {
                 if keyboard_cursor.epoch() != keyboard_epoch {
+                    return;
+                }
+                if handle_collection_activation_key(
+                    event,
+                    window,
+                    cx,
+                    &keyboard_focus,
+                    &keyboard_resource,
+                ) {
                     return;
                 }
                 handle_collection_key_down(
@@ -673,6 +686,8 @@ impl ManagedView {
         let focus = focus_state.read(cx).focus.clone();
         let keyboard_cursor = resource.borrow().cursor.clone();
         let keyboard_epoch = keyboard_cursor.epoch();
+        let keyboard_resource = resource.clone();
+        let keyboard_focus = focus.clone();
         let row_cursor = keyboard_cursor.clone();
         let row_focus = focus.clone();
         let keyboard_list = state.clone();
@@ -686,6 +701,7 @@ impl ManagedView {
                 .borrow_mut()
                 .render_item(index, &resources, &row_scope);
             CollectionRow::new(element, row_cursor.clone(), row_focus.clone(), index)
+                .with_activation(row_resource.borrow().cached_activation(index))
                 .into_any_element()
         })
         .flex_grow(1.0)
@@ -714,6 +730,15 @@ impl ManagedView {
             .key_context("GpuiDotnetTable")
             .on_key_down(move |event, window, cx| {
                 if keyboard_cursor.epoch() != keyboard_epoch {
+                    return;
+                }
+                if handle_collection_activation_key(
+                    event,
+                    window,
+                    cx,
+                    &keyboard_focus,
+                    &keyboard_resource,
+                ) {
                     return;
                 }
                 handle_collection_key_down(
@@ -2849,6 +2874,7 @@ struct CollectionRow {
     focus: FocusHandle,
     index: usize,
     epoch: u64,
+    activation: Option<ListActivation>,
 }
 
 impl CollectionRow {
@@ -2865,7 +2891,13 @@ impl CollectionRow {
             focus,
             index,
             epoch,
+            activation: None,
         }
+    }
+
+    fn with_activation(mut self, activation: Option<ListActivation>) -> Self {
+        self.activation = activation;
+        self
     }
 }
 
@@ -2926,6 +2958,7 @@ impl gpui::Element for CollectionRow {
         let focus = self.focus.clone();
         let index = self.index;
         let epoch = self.epoch;
+        let activation = self.activation;
         // Capture precedes child handlers; children can still take focus or consume the event.
         window.on_mouse_event(move |event: &MouseDownEvent, phase, window, cx| {
             if phase.capture()
@@ -2936,6 +2969,17 @@ impl gpui::Element for CollectionRow {
                 focus.focus(window, cx);
                 window.refresh();
             }
+            if phase.bubble()
+                && event.button == MouseButton::Left
+                && event.click_count == 2
+                && event.modifiers == gpui::Modifiers::none()
+                && hitbox.is_hovered(window)
+                && cursor.epoch() == epoch
+                && let Some(activation) = activation
+            {
+                dispatch_list_activation(Ok(Some(activation)), false);
+                cx.stop_propagation();
+            }
         });
         self.element.paint(window, cx);
     }
@@ -2944,6 +2988,47 @@ impl gpui::Element for CollectionRow {
 fn collection_focus_id(name: &'static str, key: &crate::resources::ResourceKey) -> ElementId {
     let owner = key.owner_view.to_le_bytes();
     ElementId::named_usize(name, stable_hash(&[&owner, key.key.as_bytes()]) as usize)
+}
+
+fn dispatch_list_activation(result: Result<Option<ListActivation>, (u64, i32)>, keyboard: bool) {
+    let (session, status) = match result {
+        Ok(Some(activation)) => (activation.session_id, activation.emit(keyboard)),
+        Ok(None) => return,
+        Err(failure) => failure,
+    };
+    crate::app_host::after_detached_callback(session, status);
+}
+
+pub(crate) fn handle_collection_activation_key(
+    event: &KeyDownEvent,
+    window: &mut Window,
+    cx: &mut App,
+    focus: &FocusHandle,
+    resource: &std::rc::Rc<std::cell::RefCell<ManagedListResource>>,
+) -> bool {
+    if event.keystroke.key != "enter"
+        || event.prefer_character_input
+        || event.keystroke.modifiers != gpui::Modifiers::none()
+        || !focus.is_focused(window)
+        || !resource.borrow().activation_enabled()
+    {
+        return false;
+    }
+    cx.stop_propagation();
+    if !event.is_held {
+        let result = {
+            let mut resource = resource.borrow_mut();
+            resource
+                .cursor
+                .active()
+                .map(|index| resource.prepare_activation(index))
+        };
+        // Release the resource borrow before application activation handlers can issue commands.
+        if let Some(result) = result {
+            dispatch_list_activation(result, true);
+        }
+    }
+    true
 }
 
 fn handle_collection_key_down(
@@ -3483,6 +3568,7 @@ mod tests {
         focus: FocusHandle,
         clicks: std::rc::Rc<std::cell::Cell<usize>>,
         child_cursor: std::rc::Rc<std::cell::Cell<Option<usize>>>,
+        activation: Option<ListActivation>,
     }
 
     impl gpui::Render for PointerCollectionView {
@@ -3493,6 +3579,7 @@ mod tests {
             let keyboard_state = self.state.clone();
             let clicks = self.clicks.clone();
             let child_cursor = self.child_cursor.clone();
+            let activation = self.activation;
             div()
                 .id("pointer-collection")
                 .track_focus(&focus)
@@ -3534,6 +3621,11 @@ mod tests {
                             focus.clone(),
                             index,
                         )
+                        .with_activation(activation.map(|packet| ListActivation {
+                            index: index as u32,
+                            item_id: Some(1000 + index as u64),
+                            ..packet
+                        }))
                         .into_any_element()
                     })
                     .w_full()
@@ -3557,6 +3649,7 @@ mod tests {
             focus: cx.focus_handle().tab_stop(true),
             clicks: clicks.clone(),
             child_cursor: child_cursor.clone(),
+            activation: None,
         });
         cx.draw(
             point(px(0.), px(0.)),
@@ -3586,6 +3679,87 @@ mod tests {
         );
         assert_eq!(child_cursor.get(), Some(0));
         assert_eq!(cursor.active(), Some(0));
+    }
+
+    #[gpui::test]
+    fn collection_double_press_activation_respects_child_consumption_and_modifiers(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        thread_local! {
+            static ACTIVATIONS: std::cell::RefCell<Vec<(u32, u64)>> = const { std::cell::RefCell::new(Vec::new()) };
+        }
+        unsafe extern "C" fn activate(_: u64, token: u64, event: *const NativeControlEvent) -> i32 {
+            let event = unsafe { &*event };
+            assert_eq!(token, 42);
+            assert_eq!(event.flags, 2);
+            assert_eq!(event.revision, 7);
+            let bytes =
+                unsafe { std::slice::from_raw_parts(event.data, event.data_length as usize) };
+            let index = u32::from_le_bytes(bytes[..4].try_into().unwrap());
+            let id = u64::from_le_bytes(bytes[8..16].try_into().unwrap());
+            ACTIVATIONS.with_borrow_mut(|events| events.push((index, id)));
+            0
+        }
+        ACTIVATIONS.with_borrow_mut(Vec::clear);
+        let cursor = std::rc::Rc::new(CollectionCursor::new(5));
+        let (view, cx) = cx.add_window_view(|_, cx| PointerCollectionView {
+            state: ListState::new(5, gpui::ListAlignment::Top, px(0.)).measure_all(),
+            cursor: cursor.clone(),
+            focus: cx.focus_handle().tab_stop(true),
+            clicks: Default::default(),
+            child_cursor: Default::default(),
+            activation: Some(ListActivation {
+                session_id: 1,
+                callbacks: ManagedCallbacks {
+                    control_event: Some(activate),
+                    ..inert_callbacks()
+                },
+                token: 42,
+                index: 0,
+                item_id: None,
+                content_revision: Some(7),
+            }),
+        });
+        cx.draw(
+            point(px(0.), px(0.)),
+            gpui::size(px(200.), px(120.)),
+            |_, _| view.clone().into_any_element(),
+        );
+        let body = point(px(100.), px(60.));
+        cx.simulate_mouse_down(body, MouseButton::Left, gpui::Modifiers::none());
+        cx.simulate_mouse_up(body, MouseButton::Left, gpui::Modifiers::none());
+        ACTIVATIONS.with_borrow(|events| assert!(events.is_empty()));
+        cx.simulate_event(MouseDownEvent {
+            position: body,
+            button: MouseButton::Left,
+            click_count: 2,
+            ..Default::default()
+        });
+        ACTIVATIONS.with_borrow(|events| assert_eq!(events.as_slice(), &[(1, 1001)]));
+        cx.simulate_event(MouseDownEvent {
+            position: point(px(10.), px(10.)),
+            button: MouseButton::Left,
+            click_count: 2,
+            ..Default::default()
+        });
+        assert_eq!(cursor.active(), Some(0));
+        cx.simulate_event(MouseDownEvent {
+            position: body,
+            button: MouseButton::Left,
+            click_count: 2,
+            modifiers: gpui::Modifiers {
+                shift: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        cx.simulate_event(MouseDownEvent {
+            position: body,
+            button: MouseButton::Right,
+            click_count: 2,
+            ..Default::default()
+        });
+        ACTIVATIONS.with_borrow(|events| assert_eq!(events.len(), 1));
     }
 
     impl gpui::Render for PagingListView {

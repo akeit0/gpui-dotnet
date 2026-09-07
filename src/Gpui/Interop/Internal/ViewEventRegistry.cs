@@ -109,10 +109,17 @@ internal sealed class ViewEventRegistry
         ScrollWheel,
         FileDrop,
         NativeExtension,
+        ListActivation,
     }
 
     private readonly struct EventDispatch
     {
+        internal EventDispatch(ListActivationEvent activation)
+        {
+            Kind = EventDispatchKind.ListActivation;
+            ListActivation = activation;
+        }
+
         internal EventDispatch(ClickEvent click)
         {
             Kind = EventDispatchKind.Click;
@@ -282,6 +289,7 @@ internal sealed class ViewEventRegistry
         }
 
         internal EventDispatchKind Kind { get; }
+        internal ListActivationEvent ListActivation { get; }
         internal ClickEvent Click { get; }
         internal InputEvent? Input { get; }
         internal SliderEvent Slider { get; }
@@ -321,6 +329,9 @@ internal sealed class ViewEventRegistry
 
     internal ulong BindSlider<TView>(Action<TView, SliderEvent> callback)
         where TView : ViewBase => BindDynamicEvent(_owner!, callback, SliderBinder<TView>.Index);
+
+    internal ulong BindListActivation<TView>(Action<TView, ListActivationEvent> callback)
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ListActivationBinder<TView>.Index);
 
     /// <summary>Registers a typed Dock area callback on this mounted View.</summary>
     internal ulong BindDock<TView>(Action<TView, DockEvent> callback)
@@ -779,6 +790,17 @@ internal sealed class ViewEventRegistry
     internal void DispatchInputCore(uint eventId, InputEvent inputEvent) =>
         DispatchDynamicInput(eventId, inputEvent);
 
+    internal void DispatchListActivationCore(uint eventId, ListActivationEvent activation)
+    {
+        if (!TryGetDynamicEvent(eventId, out var entry))
+        {
+            MissingDynamicEvent(eventId, "list activation");
+            return;
+        }
+        var dispatch = new EventDispatch(activation);
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
+    }
+
     internal void DispatchSliderCore(uint eventId, SliderEvent sliderEvent) =>
         DispatchDynamicSlider(eventId, sliderEvent);
 
@@ -921,6 +943,23 @@ internal sealed class ViewEventRegistry
             }
 
             typedCallback(typedTarget, input);
+        }
+    }
+
+    private static class ListActivationBinder<TView>
+        where TView : ViewBase
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.ListActivation)
+                throw WrongDispatchKind("list activation");
+            if (target is not TView typedTarget)
+                throw WrongTarget<TView>(target, "list activation");
+            if (callback is not Action<TView, ListActivationEvent> typedCallback)
+                throw WrongCallback("Action<TView, ListActivationEvent>", "list activation");
+            typedCallback(typedTarget, dispatch.ListActivation);
         }
     }
 

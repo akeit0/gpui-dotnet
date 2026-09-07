@@ -7,6 +7,13 @@ internal sealed partial class TableView : View
     private const int ItemCount = 5_000;
     private ListController _grid;
     private int _selected = -1;
+    private string _activation = "Double-click a row, or Tab to the table and press Enter";
+
+    private void ActivateRow(ListActivationEvent e)
+    {
+        _activation = $"Activated svc-{e.Index:D4} via {e.Source} (ID {e.ItemId})";
+        Invalidate();
+    }
 
     private static readonly TableColumn[] Columns =
     [
@@ -114,6 +121,7 @@ internal sealed partial class TableView : View
                 ),
                 Columns
             )
+            .OnActivated(this, static (view, e) => view.ActivateRow(e))
             .Grow()
             .Width(Percent(100))
             .Background(theme.Colors.SurfaceBackground)
@@ -121,7 +129,7 @@ internal sealed partial class TableView : View
             .BorderWidth(Px(1))
             .Radius(Px(8));
 
-        return ui.VStack(header, grid).Gap(Px(10)).Grow();
+        return ui.VStack(header, ui.Text(_activation).TextColor(theme.Colors.TextMuted), grid).Gap(Px(10)).Grow();
     }
 
     private static string Region(int index) =>

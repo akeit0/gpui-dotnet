@@ -5,8 +5,8 @@ documents.
 
 ## Implementation priorities
 
-1. Collection selection and activation: add opt-in selection/activation events, keyboard activation,
-   and selection presentation without conflating them with the native navigation cursor. Design a
+1. Collection selection: add opt-in selection events and selection presentation without conflating
+   them with row activation or the native navigation cursor. Design a
    coarse identity mapping only if preserving the active item across arbitrary reorder is required.
 2. Native performance evidence: measure drawing preparation, Dynamic owner discovery, arena
    validation overhead, and fragment copying in representative workloads before changing transport.
@@ -114,7 +114,7 @@ Keep stacking and dismissal window-owned in Rust while product visuals remain ma
   invalidation and measurement refresh for changed items, including items outside cached batches;
 - optional public cache/overscan diagnostics when benchmarks justify an ABI query;
 - table header sort events and column visibility/reordering;
-- opt-in row activation and selection events, keyboard activation, and selection presentation;
+- opt-in selection events and selection presentation;
 - active-item preservation across arbitrary reorder if applications require a coarse identity map;
 - frozen columns or resize chrome only when application requirements and measurements justify the
   added native state.

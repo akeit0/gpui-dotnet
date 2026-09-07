@@ -197,8 +197,20 @@ The active cursor is a native navigation position, separate from application sel
 activation. Left mouse-down on a visible row updates it and focuses the collection before child
 handlers run; children may still take focus or consume the event. Existing row/child click bindings
 remain intact. Arrow and paging keys do not synthesize clicks or change application selection.
-Applications continue to own selected-item state, selected-row styling, and explicit activation
-through their event bindings; there is no implicit Enter-to-activate behavior.
+Applications continue to own selected-item state and selected-row styling.
+
+Bind `.OnActivated(view, static (owner, e) => owner.OpenItem(e))` on List or Table to opt into
+activation. Unmodified Enter activates the native cursor when the collection itself has focus;
+held repeats and keys intended for text input do not activate. An unmodified primary-button double
+press activates its row unless a child consumes mouse-down. Focused child controls keep their own
+Enter behavior. Activation does not synthesize clicks or change selection, and ordinary row click
+bindings still run independently.
+
+`ListActivationEvent` carries `Index`, optional row-root `ItemId`, optional `ContentRevision`, and
+`Source` (`Pointer` or `Keyboard`) from the accepted datasource. Revision zero is distinct from an
+absent revision. Keyboard activation may request one aligned row batch to resolve an uncached row's
+identity; navigation alone does not. The event owns its scalar data, and callbacks run through the
+normal View event boundary after native resource borrows are released.
 
 Keep `contentRevision` stable when a managed render cannot change any row output. Increment it when
 row content, styling, or height can change. Theme changes invalidate batches automatically.

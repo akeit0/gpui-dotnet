@@ -3,6 +3,18 @@ using Gpui.Interop;
 
 namespace Gpui;
 
+/// <summary>
+/// An explicit List/Table row activation. Index and optional ItemId identify the row in the
+/// accepted datasource; ContentRevision is absent for declarations without a content revision.
+/// Cursor movement and application selection do not emit this event.
+/// </summary>
+public readonly record struct ListActivationEvent(
+    int Index,
+    ulong? ItemId,
+    ulong? ContentRevision,
+    ListActivationSource Source
+);
+
 /// <summary>Logical list growth direction.</summary>
 public enum ListAlignment : uint
 {

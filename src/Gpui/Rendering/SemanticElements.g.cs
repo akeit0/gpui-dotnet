@@ -62,6 +62,12 @@ namespace Gpui
     public readonly struct DockRegionTag : IParentElementTag, IDockContainerElementTag, IDockRegionElementTag { }
     public readonly struct NativeExtensionTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IExtensionElementTag { }
 
+    public enum ListActivationSource : uint
+    {
+        Pointer = 0,
+        Keyboard = 1,
+    }
+
     public enum InputSelectionPolicy : uint
     {
         Preserve = 0,
@@ -147,6 +153,12 @@ namespace Gpui
     {
         Normal = 0,
         Italic = 1,
+    }
+
+    public enum ListEventKind : ushort
+    {
+        /// <summary>Opt-in row activation. Data is 16 little-endian bytes: u32 index, zero u32 reserved, u64 ItemId (zero when absent). Flags bit 0 selects keyboard instead of pointer, bit 1 indicates a datasource content revision in revision; all other bits are zero. Without bit 1, revision is zero.</summary>
+        Activated = 20,
     }
 
     public enum InputEventKind : ushort

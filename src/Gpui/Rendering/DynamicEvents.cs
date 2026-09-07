@@ -10,6 +10,24 @@ namespace Gpui;
 /// </summary>
 public static partial class ElementExtensions
 {
+    /// <summary>
+    /// Activates a List/Table row on unmodified Enter or an unconsumed primary double press.
+    /// Does not change selection or synthesize row/child click events.
+    /// </summary>
+    public static Element<TTag> OnActivated<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Action<TView, ListActivationEvent> callback
+    )
+        where TTag : unmanaged, IVirtualizedElementTag
+        where TView : ViewBase
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.ListOnActivated, view.Runtime.Events.BindListActivation(callback));
+        return element;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Element<TTag> OnClick<TTag, TView>(
         this Element<TTag> element,

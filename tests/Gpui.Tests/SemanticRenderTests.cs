@@ -1222,6 +1222,34 @@ public sealed class SemanticRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CollectionActivationBindsTypedEventsForListAndTable(bool table)
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            Element root = table
+                ? ui.Table("grid", new ListDataSource(100, 7), view.Row, new TableColumn("name", "Name", 120))
+                    .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value))
+                : ui.List("rows", new ListDataSource(100, 7), view.Row)
+                    .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value));
+            arena.Validate(root);
+            var eventId = ReadCallbackEventId(arena, OpCode.ListOnActivated);
+            var activation = new ListActivationEvent(51, 1051, 7, ListActivationSource.Keyboard);
+            view.Runtime.Events.DispatchListActivationCore(eventId, activation);
+            Assert.Equal(activation, Assert.Single(view.ListActivations));
+        }
+        finally
+        {
+            view.Runtime.UnmountRuntime();
+        }
+    }
+
     [Fact]
     public void ExplicitTablePassesManagedValidation()
     {
@@ -2244,6 +2272,7 @@ public sealed class SemanticRenderTests
         internal List<MouseMoveEvent> MouseMoveEvents = new();
         internal List<ScrollWheelEvent> ScrollWheelEvents = new();
         internal List<FileDropEvent> FileDropEvents = new();
+        internal List<ListActivationEvent> ListActivations = new();
 
         internal ListItemRenderer Row => BindListRenderer(1);
 

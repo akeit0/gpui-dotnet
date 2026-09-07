@@ -12,7 +12,7 @@ use gpui::{
 };
 
 use crate::{
-    abi::{ManagedCallbacks, NativeResourceCommand},
+    abi::{ManagedCallbacks, NativeControlEvent, NativeResourceCommand},
     app_host::ManagedView,
     demand::{ArtifactLease, load_artifact, next_source_id},
     dock::{DockConfiguration, ManagedDockResource, dock_configuration},
@@ -23,11 +23,12 @@ use crate::{
     scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics},
     semantic::{
         COMMAND_LIST_REFRESH, COMMAND_LIST_RESET, COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_LIST_SPLICE,
-        COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP, NativeAdapter,
-        OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED, OP_INPUT_ON_SUBMITTED,
-        OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
-        OP_LIST_CONTENT_REVISION, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT,
-        OP_LIST_ITEM_ID, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_RESOURCE_OWNER,
+        COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP,
+        EVENT_LIST_ACTIVATED, NativeAdapter, OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED,
+        OP_INPUT_ON_FOCUS_CHANGED, OP_INPUT_ON_SUBMITTED, OP_INPUT_PASSWORD, OP_INPUT_READ_ONLY,
+        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION,
+        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_ITEM_ID,
+        OP_LIST_ON_ACTIVATED, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_RESOURCE_OWNER,
         OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH, OP_SLIDER_AXIS, OP_SLIDER_DISABLED, OP_SLIDER_MAX,
         OP_SLIDER_MIN, OP_SLIDER_ON_CHANGED, OP_SLIDER_ON_RELEASED, OP_SLIDER_RANGE_END,
         OP_SLIDER_RANGE_START, OP_SLIDER_SCALE, OP_SLIDER_STEP, OP_SLIDER_VALUE, OP_TABLE_COLUMN,
@@ -587,6 +588,7 @@ pub(crate) struct SliderConfiguration {
 pub(crate) struct ListConfiguration {
     pub(crate) item_count: usize,
     pub(crate) renderer_token: u64,
+    pub(crate) activation_token: u64,
     pub(crate) batch_size: usize,
     pub(crate) overdraw: Pixels,
     pub(crate) alignment: ListAlignment,
@@ -736,6 +738,38 @@ impl CollectionCursor {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct ListActivation {
+    pub(crate) session_id: u64,
+    pub(crate) callbacks: ManagedCallbacks,
+    pub(crate) token: u64,
+    pub(crate) index: u32,
+    pub(crate) item_id: Option<u64>,
+    pub(crate) content_revision: Option<u64>,
+}
+
+impl ListActivation {
+    pub(crate) fn emit(self, keyboard: bool) -> i32 {
+        let mut data = [0u8; 16];
+        data[..4].copy_from_slice(&self.index.to_le_bytes());
+        data[8..].copy_from_slice(&self.item_id.unwrap_or(0).to_le_bytes());
+        let event = NativeControlEvent {
+            kind: EVENT_LIST_ACTIVATED,
+            flags: u16::from(keyboard) | (u16::from(self.content_revision.is_some()) << 1),
+            revision: self.content_revision.unwrap_or(0),
+            data: data.as_ptr(),
+            data_length: 16,
+            reserved: 0,
+            reserved2: 0,
+        };
+        let callback = self
+            .callbacks
+            .control_event
+            .expect("callbacks validated at startup");
+        unsafe { callback(self.session_id, self.token, &event) }
+    }
+}
+
 pub(crate) struct ManagedListResource {
     source_id: u64,
     session_id: u64,
@@ -745,6 +779,7 @@ pub(crate) struct ManagedListResource {
     pub(crate) cursor: Rc<CollectionCursor>,
     pub(crate) item_count: usize,
     renderer_token: u64,
+    activation_token: u64,
     batch_size: usize,
     overdraw: Pixels,
     alignment: ListAlignment,
@@ -783,6 +818,7 @@ impl ManagedListResource {
             cursor: Rc::new(CollectionCursor::new(configuration.item_count)),
             item_count: configuration.item_count,
             renderer_token: configuration.renderer_token,
+            activation_token: configuration.activation_token,
             batch_size: configuration.batch_size,
             overdraw: configuration.overdraw,
             alignment: configuration.alignment,
@@ -801,6 +837,10 @@ impl ManagedListResource {
     }
 
     fn configure(&mut self, configuration: &ListConfiguration, snapshot_revision: u64) {
+        if self.activation_token != configuration.activation_token {
+            self.activation_token = configuration.activation_token;
+            self.cursor.invalidate_rows();
+        }
         let revision_changed = self.snapshot_revision != snapshot_revision;
         let content_changed = match (self.content_revision, configuration.content_revision) {
             (Some(previous), Some(current)) => previous != current,
@@ -1117,6 +1157,56 @@ impl ManagedListResource {
             index,
             row_id,
         )
+    }
+
+    pub(crate) fn cached_activation(&self, index: usize) -> Option<ListActivation> {
+        if self.activation_token == 0 || index >= self.item_count {
+            return None;
+        }
+        let start = (index / self.batch_size) * self.batch_size;
+        let batch = self.batches.get(&(start as u32))?;
+        let parent = &batch.snapshot.nodes[batch.snapshot.root as usize];
+        let root = *batch.snapshot.children(parent).get(index - start)?;
+        let item_id = batch
+            .snapshot
+            .ops(&batch.snapshot.nodes[root as usize])
+            .iter()
+            .rev()
+            .find(|op| op.code == OP_LIST_ITEM_ID)
+            .map(|op| op.a)
+            .filter(|id| *id != 0);
+        Some(ListActivation {
+            session_id: self.session_id,
+            callbacks: self.callbacks,
+            token: self.activation_token,
+            index: index as u32,
+            item_id,
+            content_revision: self.content_revision,
+        })
+    }
+
+    pub(crate) fn activation_enabled(&self) -> bool {
+        self.activation_token != 0
+    }
+
+    pub(crate) fn prepare_activation(
+        &mut self,
+        index: usize,
+    ) -> Result<Option<ListActivation>, (u64, i32)> {
+        if self.activation_token == 0 || index >= self.item_count {
+            return Ok(None);
+        }
+        let start = ((index / self.batch_size) * self.batch_size) as u32;
+        self.use_clock = self.use_clock.wrapping_add(1).max(1);
+        if !self.batches.contains_key(&start) {
+            self.load_batch(start)
+                .map_err(|status| (self.session_id, status))?;
+        }
+        self.batches
+            .get_mut(&start)
+            .expect("batch loaded")
+            .last_used = self.use_clock;
+        Ok(self.cached_activation(index))
     }
 
     fn load_batch(&mut self, start: u32) -> Result<(), i32> {
@@ -1476,6 +1566,12 @@ pub(crate) fn list_configuration(
     Some(ListConfiguration {
         item_count,
         renderer_token: renderer,
+        activation_token: snapshot
+            .ops(node)
+            .iter()
+            .rev()
+            .find(|op| op.code == OP_LIST_ON_ACTIVATED)
+            .map_or(0, |op| op.a),
         batch_size,
         overdraw,
         alignment,
@@ -1541,6 +1637,10 @@ mod tests {
         children: Vec<crate::abi::ChildRecord>,
         ops: Vec<crate::abi::OpRecord>,
         clickable: bool,
+        item_ids: bool,
+        ranges: Vec<(u32, u32)>,
+        activations: Vec<(u64, u16, u64, Vec<u8>)>,
+        activation_resource: Option<std::rc::Weak<RefCell<ManagedListResource>>>,
         clicked: Vec<u64>,
         click_status: i32,
         next_id: u64,
@@ -1558,7 +1658,7 @@ mod tests {
         _: u64,
         _: u64,
         source: u64,
-        _: u32,
+        start: u32,
         count: u32,
         arena: *mut crate::abi::RenderArena,
         root: *mut u32,
@@ -1628,6 +1728,18 @@ mod tests {
                     ]);
                 }
             }
+            if capture.item_ids {
+                for index in 0..rows {
+                    capture.ops.push(crate::abi::OpRecord {
+                        node: index + 1,
+                        code: OP_LIST_ITEM_ID,
+                        value_kind: crate::semantic::ValueKind::U64 as u16,
+                        a: 1000 + (start + index) as u64,
+                        b: 0,
+                    });
+                }
+            }
+            capture.ranges.push((start, count));
             capture.requests.push((source, id));
             unsafe {
                 if capture.clickable {
@@ -1665,6 +1777,131 @@ mod tests {
                 .push((source, artifact, status))
         });
         0
+    }
+
+    unsafe extern "C" fn capture_activation(
+        _: u64,
+        token: u64,
+        event: *const NativeControlEvent,
+    ) -> i32 {
+        let event = unsafe { &*event };
+        let bytes = unsafe { std::slice::from_raw_parts(event.data, event.data_length as usize) };
+        ARTIFACTS.with(|capture| {
+            let mut capture = capture.borrow_mut();
+            assert_eq!(event.kind, EVENT_LIST_ACTIVATED);
+            assert_eq!(event.reserved, 0);
+            assert_eq!(event.reserved2, 0);
+            if let Some(resource) = capture
+                .activation_resource
+                .as_ref()
+                .and_then(|weak| weak.upgrade())
+            {
+                assert!(
+                    resource.try_borrow_mut().is_ok(),
+                    "resource borrow escaped into activation callback"
+                );
+            }
+            capture
+                .activations
+                .push((token, event.flags, event.revision, bytes.to_vec()));
+        });
+        0
+    }
+
+    #[gpui::test]
+    fn list_activation_resolves_uncached_identity_in_one_batch_and_ignores_repeat_and_modifiers(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        ARTIFACTS.with(|capture| {
+            *capture.borrow_mut() = ArtifactCapture {
+                item_ids: true,
+                ..Default::default()
+            }
+        });
+        let mut config = configuration(Some(0));
+        config.activation_token = 42;
+        let callbacks = ManagedCallbacks {
+            control_event: Some(capture_activation),
+            ..artifact_callbacks()
+        };
+        let resource = Rc::new(RefCell::new(ManagedListResource::new(
+            1, callbacks, &config, 1,
+        )));
+        resource.borrow().cursor.set(51);
+        ARTIFACTS.with(|capture| {
+            capture.borrow_mut().activation_resource = Some(Rc::downgrade(&resource))
+        });
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            let focus = cx.focus_handle();
+            focus.focus(window, cx);
+            let mut event = gpui::KeyDownEvent {
+                keystroke: gpui::Keystroke::parse("enter").unwrap(),
+                is_held: false,
+                prefer_character_input: false,
+            };
+            assert!(crate::materializer::handle_collection_activation_key(
+                &event, window, cx, &focus, &resource
+            ));
+            event.is_held = true;
+            assert!(crate::materializer::handle_collection_activation_key(
+                &event, window, cx, &focus, &resource
+            ));
+            event.is_held = false;
+            event.keystroke.modifiers.shift = true;
+            assert!(!crate::materializer::handle_collection_activation_key(
+                &event, window, cx, &focus, &resource
+            ));
+            event.keystroke.modifiers.shift = false;
+            let child_focus = cx.focus_handle();
+            child_focus.focus(window, cx);
+            assert!(!crate::materializer::handle_collection_activation_key(
+                &event, window, cx, &focus, &resource
+            ));
+        });
+        ARTIFACTS.with(|capture| {
+            let capture = capture.borrow();
+            assert_eq!(capture.ranges, vec![(48, 48)]);
+            assert_eq!(capture.accepts.len(), 1);
+            assert_eq!(capture.activations.len(), 1);
+            let (token, flags, revision, bytes) = &capture.activations[0];
+            assert_eq!((*token, *flags, *revision), (42, 3, 0));
+            assert_eq!(&bytes[..4], &51u32.to_le_bytes());
+            assert_eq!(&bytes[4..8], &[0; 4]);
+            assert_eq!(&bytes[8..], &1051u64.to_le_bytes());
+        });
+        let event = resource
+            .borrow_mut()
+            .prepare_activation(51)
+            .unwrap()
+            .unwrap();
+        assert_eq!(event.emit(false), 0);
+        ARTIFACTS.with(|capture| {
+            let capture = capture.borrow();
+            assert_eq!(capture.ranges.len(), 1);
+            assert_eq!(capture.activations[1].1, 2);
+        });
+    }
+
+    #[test]
+    fn list_activation_is_opt_in_and_rejects_failed_or_out_of_range_rows() {
+        ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
+        let mut config = configuration(None);
+        let mut resource = ManagedListResource::new(1, artifact_callbacks(), &config, 1);
+        assert!(resource.prepare_activation(50).unwrap().is_none());
+        ARTIFACTS.with(|capture| assert!(capture.borrow().ranges.is_empty()));
+        config.activation_token = 42;
+        let epoch = resource.cursor.epoch();
+        resource.configure(&config, 2);
+        assert_ne!(resource.cursor.epoch(), epoch);
+        assert!(resource.prepare_activation(100).unwrap().is_none());
+        let event = resource.prepare_activation(0).unwrap().unwrap();
+        assert_eq!(event.item_id, None);
+        assert_eq!(event.content_revision, None);
+        resource.clear_batches();
+        ARTIFACTS.with(|capture| capture.borrow_mut().failure_mode = 3);
+        assert!(matches!(resource.prepare_activation(51), Err((1, -106))));
+        assert!(resource.cached_activation(51).is_none());
     }
 
     fn artifact_callbacks() -> ManagedCallbacks {
@@ -2104,6 +2341,7 @@ mod tests {
         ListConfiguration {
             item_count: 100,
             renderer_token: 1,
+            activation_token: 0,
             batch_size: 48,
             overdraw: px(240.),
             alignment: ListAlignment::Top,
