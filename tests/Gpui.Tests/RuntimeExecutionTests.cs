@@ -1143,13 +1143,13 @@ public sealed unsafe partial class RuntimeExecutionTests
             return callback(_id, revision ?? Session.PendingRenderRevision, status);
         }
 
-        internal ulong Range(uint start, ulong source = 1, bool accept = true)
+        internal ulong Range(uint start, ulong source = 1, bool accept = true, uint count = 1)
         {
             RenderArena arena = default;
             uint root = 0;
             ulong artifact = 0;
             delegate* unmanaged[Cdecl]<ulong, ulong, ulong, uint, uint, RenderArena*, uint*, ulong*, int> callback = &NativeCallbacks.ListRenderRange;
-            Assert.Equal(0, callback(_id, ((ulong)View.Runtime.RuntimeViewHandle << 32) | 1, source, start, 1, &arena, &root, &artifact));
+            Assert.Equal(0, callback(_id, ((ulong)View.Runtime.RuntimeViewHandle << 32) | 1, source, start, count, &arena, &root, &artifact));
             if (accept)
                 Assert.Equal(0, Accept(source, artifact));
             return artifact;

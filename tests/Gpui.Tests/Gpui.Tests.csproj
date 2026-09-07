@@ -4,6 +4,7 @@
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <VSTestTestCaseFilter Condition="'$(VSTestTestCaseFilter)' == ''">Category!=Performance</VSTestTestCaseFilter>
     </PropertyGroup>
 
     <ItemGroup>

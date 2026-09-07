@@ -420,6 +420,9 @@ dotnet test Gpui.slnx --no-restore
 dotnet build samples/Gpui.Sample/Gpui.Sample.csproj --no-restore
 ```
 
+Ordinary tests exclude timing probes. Run `./eng/measure-runtime.ps1` in PowerShell for the
+separate Release measurements; see [Performance](docs/PERFORMANCE.md#running-timing-probes).
+
 When the base schema or a schema registered by `bindings/extensions.json` changes, regenerate the
 managed and Rust bindings:
 

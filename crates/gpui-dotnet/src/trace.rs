@@ -9,8 +9,7 @@ use std::time::Instant;
 
 #[derive(Clone, Copy)]
 pub(crate) enum Stage {
-    /// The managed render callback (root tree + retained child fragments), including its
-    /// the single render callback (buffer growth does not replay it).
+    /// The single managed render callback, including retained child fragments.
     ManagedRender = 0,
     /// Snapshot validation + decode on the native side.
     SnapshotDecode = 1,
@@ -36,31 +35,58 @@ struct Accum {
     count: AtomicU64,
 }
 
-const ZERO_ACCUM: Accum = Accum {
-    nanos: AtomicU64::new(0),
-    count: AtomicU64::new(0),
-};
+struct Trace {
+    enabled: AtomicBool,
+    stages: [Accum; STAGE_COUNT],
+    frames: AtomicU64,
+}
 
-static STAGE_NANOS: [AtomicU64; STAGE_COUNT] = [
-    ZERO_ACCUM.nanos,
-    ZERO_ACCUM.nanos,
-    ZERO_ACCUM.nanos,
-    ZERO_ACCUM.nanos,
-    ZERO_ACCUM.nanos,
-];
-static STAGE_COUNTS: [AtomicU64; STAGE_COUNT] = [
-    ZERO_ACCUM.count,
-    ZERO_ACCUM.count,
-    ZERO_ACCUM.count,
-    ZERO_ACCUM.count,
-    ZERO_ACCUM.count,
-];
+impl Trace {
+    const fn new() -> Self {
+        Self {
+            enabled: AtomicBool::new(false),
+            stages: [const {
+                Accum {
+                    nanos: AtomicU64::new(0),
+                    count: AtomicU64::new(0),
+                }
+            }; STAGE_COUNT],
+            frames: AtomicU64::new(0),
+        }
+    }
 
-static ENABLED: AtomicBool = AtomicBool::new(false);
-static FRAMES: AtomicU64 = AtomicU64::new(0);
+    #[inline]
+    fn span(&self, stage: Stage) -> Span<'_> {
+        Span {
+            accum: &self.stages[stage as usize],
+            start: self.enabled.load(Ordering::Relaxed).then(Instant::now),
+        }
+    }
+
+    fn end_frame(&self, extra: &[(&'static str, u64)]) -> Option<String> {
+        if !self.enabled.load(Ordering::Relaxed) {
+            return None;
+        }
+        let frame = self.frames.fetch_add(1, Ordering::Relaxed) + 1;
+        let mut line = format!("[gpui] frame {frame}:");
+        for (accum, name) in self.stages.iter().zip(STAGE_NAMES) {
+            let nanos = accum.nanos.swap(0, Ordering::Relaxed);
+            let count = accum.count.swap(0, Ordering::Relaxed);
+            if count != 0 {
+                line.push_str(&format!(" {name}={:.3}ms({count})", nanos as f64 / 1e6));
+            }
+        }
+        for (label, value) in extra {
+            line.push_str(&format!(" {label}={value}"));
+        }
+        Some(line)
+    }
+}
+
+static TRACE: Trace = Trace::new();
 
 pub(crate) fn enabled() -> bool {
-    ENABLED.load(Ordering::Relaxed)
+    TRACE.enabled.load(Ordering::Relaxed)
 }
 
 /// Reads `GPUI_DOTNET_TRACE` once at application startup. Trace output goes to stderr and is
@@ -69,42 +95,27 @@ pub(crate) fn init_from_env() {
     let on = std::env::var("GPUI_DOTNET_TRACE")
         .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
         .unwrap_or(false);
-    ENABLED.store(on, Ordering::Relaxed);
-}
-
-#[cfg(test)]
-pub(crate) fn set_enabled_for_tests(on: bool) {
-    ENABLED.store(on, Ordering::Relaxed);
+    TRACE.enabled.store(on, Ordering::Relaxed);
 }
 
 /// Times its enclosing scope into a stage accumulator when tracing is enabled.
-pub(crate) struct Span {
-    stage: usize,
+pub(crate) struct Span<'a> {
+    accum: &'a Accum,
     start: Option<Instant>,
-}
-
-impl Span {
-    #[inline]
-    pub(crate) fn new(stage: Stage) -> Self {
-        Self {
-            stage: stage as usize,
-            start: enabled().then(Instant::now),
-        }
-    }
 }
 
 /// Convenience constructor so call sites read `let _stage = trace::span(Stage::X);`.
 #[inline]
-pub(crate) fn span(stage: Stage) -> Span {
-    Span::new(stage)
+pub(crate) fn span(stage: Stage) -> Span<'static> {
+    TRACE.span(stage)
 }
 
-impl Drop for Span {
+impl Drop for Span<'_> {
     fn drop(&mut self) {
         if let Some(start) = self.start.take() {
             let elapsed = start.elapsed().as_nanos() as u64;
-            STAGE_NANOS[self.stage].fetch_add(elapsed, Ordering::Relaxed);
-            STAGE_COUNTS[self.stage].fetch_add(1, Ordering::Relaxed);
+            self.accum.nanos.fetch_add(elapsed, Ordering::Relaxed);
+            self.accum.count.fetch_add(1, Ordering::Relaxed);
         }
     }
 }
@@ -112,95 +123,94 @@ impl Drop for Span {
 /// Reports and resets the stage accumulators for the frame that just finished. `extra` carries
 /// caller-provided cumulative diagnostics (list cache telemetry) appended to the line.
 pub(crate) fn end_frame(extra: &[(&'static str, u64)]) {
-    if !enabled() {
-        return;
+    if let Some(line) = TRACE.end_frame(extra) {
+        eprintln!("{line}");
     }
-    let frame = FRAMES.fetch_add(1, Ordering::Relaxed) + 1;
-    let mut line = format!("[gpui] frame {frame}:");
-    for index in 0..STAGE_COUNT {
-        let nanos = STAGE_NANOS[index].swap(0, Ordering::Relaxed);
-        let count = STAGE_COUNTS[index].swap(0, Ordering::Relaxed);
-        if count != 0 {
-            line.push_str(&format!(
-                " {}={:.3}ms({count})",
-                STAGE_NAMES[index],
-                nanos as f64 / 1e6
-            ));
-        }
-    }
-    for (label, value) in extra {
-        line.push_str(&format!(" {label}={value}"));
-    }
-    eprintln!("{line}");
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    static TEST_LOCK: Mutex<()> = Mutex::new(());
-
-    fn reset_trace_state() {
-        for index in 0..STAGE_COUNT {
-            STAGE_NANOS[index].store(0, Ordering::Relaxed);
-            STAGE_COUNTS[index].store(0, Ordering::Relaxed);
-        }
-        FRAMES.store(0, Ordering::Relaxed);
-    }
 
     #[test]
     fn spans_accumulate_only_when_enabled() {
-        let _lock = TEST_LOCK.lock().unwrap();
-        reset_trace_state();
-        set_enabled_for_tests(false);
+        let trace = Trace::new();
         {
-            let _span = Span::new(Stage::Materialize);
+            let _span = trace.span(Stage::Materialize);
         }
         assert_eq!(
-            STAGE_COUNTS[Stage::Materialize as usize].load(Ordering::Relaxed),
+            trace.stages[Stage::Materialize as usize]
+                .count
+                .load(Ordering::Relaxed),
             0
         );
 
-        set_enabled_for_tests(true);
+        trace.enabled.store(true, Ordering::Relaxed);
         {
-            let _span = Span::new(Stage::Materialize);
+            let _span = trace.span(Stage::Materialize);
         }
         assert_eq!(
-            STAGE_COUNTS[Stage::Materialize as usize].load(Ordering::Relaxed),
+            trace.stages[Stage::Materialize as usize]
+                .count
+                .load(Ordering::Relaxed),
             1
         );
-
-        // Drain so other tests observe a clean slate.
-        for index in 0..STAGE_COUNT {
-            STAGE_NANOS[index].swap(0, Ordering::Relaxed);
-            STAGE_COUNTS[index].swap(0, Ordering::Relaxed);
-        }
-        set_enabled_for_tests(false);
     }
 
     #[test]
     fn end_frame_resets_and_reports_stages() {
-        let _lock = TEST_LOCK.lock().unwrap();
-        reset_trace_state();
-        set_enabled_for_tests(true);
+        let trace = Trace::new();
+        trace.enabled.store(true, Ordering::Relaxed);
         {
-            let _span = Span::new(Stage::ListBatchLoad);
+            let _span = trace.span(Stage::ListBatchLoad);
         }
-        end_frame(&[("rows", 7)]);
+        let report = trace.end_frame(&[("rows", 7)]).unwrap();
+        assert!(report.starts_with("[gpui] frame 1: batch_load="));
+        assert!(report.ends_with("ms(1) rows=7"));
         assert_eq!(
-            STAGE_COUNTS[Stage::ListBatchLoad as usize].load(Ordering::Relaxed),
+            trace.stages[Stage::ListBatchLoad as usize]
+                .count
+                .load(Ordering::Relaxed),
             0
         );
-        set_enabled_for_tests(false);
+        assert_eq!(trace.end_frame(&[]).unwrap(), "[gpui] frame 2:");
     }
 
     #[test]
     fn disabled_end_frame_is_a_no_op() {
-        let _lock = TEST_LOCK.lock().unwrap();
-        reset_trace_state();
-        set_enabled_for_tests(false);
-        end_frame(&[]);
-        assert_eq!(FRAMES.load(Ordering::Relaxed), 0);
+        let trace = Trace::new();
+        assert!(trace.end_frame(&[]).is_none());
+        assert_eq!(trace.frames.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn independent_traces_do_not_share_counts_or_enablement() {
+        let first = Trace::new();
+        let second = Trace::new();
+        first.enabled.store(true, Ordering::Relaxed);
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                for _ in 0..100 {
+                    let _span = first.span(Stage::Retain);
+                }
+            });
+            scope.spawn(|| {
+                for _ in 0..100 {
+                    let _span = second.span(Stage::Retain);
+                }
+            });
+        });
+        assert_eq!(
+            first.stages[Stage::Retain as usize]
+                .count
+                .load(Ordering::Relaxed),
+            100
+        );
+        assert_eq!(
+            second.stages[Stage::Retain as usize]
+                .count
+                .load(Ordering::Relaxed),
+            0
+        );
     }
 }

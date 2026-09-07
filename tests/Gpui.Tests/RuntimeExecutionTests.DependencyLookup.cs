@@ -64,6 +64,7 @@ public sealed partial class RuntimeExecutionTests
     [InlineData(32)]
     [InlineData(64)]
     [InlineData(256)]
+    [Trait("Category", "Performance")]
     public void DependencyLookupCost(int count)
     {
         using var fixture = new SessionFixture(new AllocationRenderRoot());

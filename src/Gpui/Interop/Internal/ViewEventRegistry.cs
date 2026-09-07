@@ -16,6 +16,7 @@ internal sealed class ViewEventRegistry
     private Stack<int>? FreeEventSlots { get; set; }
     private Dictionary<uint, int>? EventSlots { get; set; }
     private Dictionary<ulong, List<int>>? ArtifactEventSlots { get; set; }
+    private List<int>? RootEventSlots { get; set; }
     private uint NextEventId { get; set; }
     private ulong EventBindingArtifact { get; set; }
     private ViewEventBindingScope EventBindingScope { get; set; }
@@ -39,12 +40,14 @@ internal sealed class ViewEventRegistry
             EventEntries = null;
             FreeEventSlots = null;
             EventSlots = null;
+            RootEventSlots = null;
         }
         else
         {
             EventEntries?.Clear();
             FreeEventSlots?.Clear();
             EventSlots?.Clear();
+            RootEventSlots?.Clear();
         }
         ArtifactEventSlots = null;
         NextEventId = 0;
@@ -371,14 +374,17 @@ internal sealed class ViewEventRegistry
         var entries = attachment.EventEntries ??= [];
         var scope = attachment.EventBindingScope;
         var pass = attachment.EventBindingPass;
-        List<int>? artifactSlots = null;
+        var scopeSlots = attachment.RootEventSlots;
         var demand = scope == ViewEventBindingScope.ListRange;
         if (demand)
-            attachment.ArtifactEventSlots?.TryGetValue(attachment.EventBindingArtifact, out artifactSlots);
-        var count = demand ? artifactSlots?.Count ?? 0 : entries.Count;
+        {
+            scopeSlots = null;
+            attachment.ArtifactEventSlots?.TryGetValue(attachment.EventBindingArtifact, out scopeSlots);
+        }
+        var count = scopeSlots?.Count ?? 0;
         for (var candidate = 0; candidate < count; candidate++)
         {
-            var index = demand ? artifactSlots![candidate] : candidate;
+            var index = scopeSlots![candidate];
             var current = entries[index];
             if (
                 current.BinderIndex == binderIndex
@@ -433,6 +439,8 @@ internal sealed class ViewEventRegistry
             }
             slots.Add(entryIndex);
         }
+        else
+            (attachment.RootEventSlots ??= []).Add(entryIndex);
         return DynamicEventToken(attachment.ViewHandle, id);
     }
 
@@ -476,10 +484,13 @@ internal sealed class ViewEventRegistry
                 ReleaseEventArtifact(attachment.EventBindingArtifact);
             }
         }
-        else if (completed && attachment.EventEntries is { } entries)
+        else if (completed && attachment.RootEventSlots is { } slots)
         {
-            for (var index = 0; index < entries.Count; index++)
+            var entries = attachment.EventEntries!;
+            var retained = 0;
+            for (var candidate = 0; candidate < slots.Count; candidate++)
             {
+                var index = slots[candidate];
                 var entry = entries[index];
                 if (
                     entry.BinderIndex != 0
@@ -489,7 +500,9 @@ internal sealed class ViewEventRegistry
                 {
                     ReleaseEventSlot(attachment, index);
                 }
+                else slots[retained++] = index;
             }
+            slots.RemoveRange(retained, slots.Count - retained);
         }
 
         attachment.EventBindingScope = ViewEventBindingScope.None;

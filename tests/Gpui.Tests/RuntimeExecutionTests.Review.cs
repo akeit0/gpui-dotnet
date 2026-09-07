@@ -46,6 +46,7 @@ public sealed partial class RuntimeExecutionTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
+    [Trait("Category", "Performance")]
     public void DispatcherAdmissionCost(bool validate, bool capture)
     {
         using var fixture = new SessionFixture(new AllocationRenderRoot());

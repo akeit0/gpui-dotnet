@@ -4,6 +4,60 @@ namespace Gpui.Tests;
 
 public sealed unsafe partial class RuntimeExecutionTests
 {
+    [Fact]
+    public void RootBindingRemovalAndReintroductionPreserveArtifactSlots()
+    {
+        var view = new ChangingRootBindings();
+        using var fixture = new SessionFixture(view);
+        fixture.Render();
+        var originalFirst = view.First;
+        var originalSecond = view.Second;
+        var artifact = fixture.Range(0);
+        var rowToken = view.RowToken;
+        view.IncludeFirst = false;
+        fixture.Render();
+        Assert.Equal(originalSecond, view.Second);
+        Assert.Equal(0, fixture.Click(originalFirst));
+        Assert.Equal(0, view.FirstClicks);
+
+        // A row can reuse the vacated root slot. Later root compaction must not release it.
+        var replacementArtifact = fixture.Range(1);
+        var replacementRowToken = view.RowToken;
+        view.IncludeFirst = true;
+        fixture.Render();
+        Assert.NotEqual(originalFirst, view.First);
+        Assert.Equal(originalSecond, view.Second);
+        Assert.Equal(0, fixture.Click(view.First));
+        Assert.Equal(1, view.FirstClicks);
+        Assert.Equal(0, fixture.Click(view.Second));
+        Assert.Equal(1, view.SecondClicks);
+        Assert.Equal(0, fixture.Click(rowToken));
+        Assert.Equal(0, fixture.Click(replacementRowToken));
+        Assert.Equal(1, view.ClickCount);
+        Assert.Equal(1, view.SecondClickCount);
+        Assert.Equal(0, fixture.Release(1, artifact));
+        Assert.Equal(0, fixture.Release(1, replacementArtifact));
+        Assert.Equal(0, fixture.Click(view.First));
+        Assert.Equal(2, view.FirstClicks);
+    }
+
+    private sealed class ChangingRootBindings : ProbeView
+    {
+        internal bool IncludeFirst = true;
+        internal ulong First;
+        internal ulong Second;
+        internal int FirstClicks;
+        internal int SecondClicks;
+
+        protected override Element Render(ref RenderContext ui)
+        {
+            if (IncludeFirst)
+                First = Runtime.Events.BindClick<ChangingRootBindings>(static (view, _) => view.FirstClicks++);
+            Second = Runtime.Events.BindClick<ChangingRootBindings>(static (view, _) => view.SecondClicks++);
+            return ui.Text("root");
+        }
+    }
+
     [Theory]
     [InlineData("default")]
     [InlineData("foreign")]

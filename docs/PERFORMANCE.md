@@ -26,8 +26,12 @@ Do not replace this model with per-element or per-style P/Invoke calls.
 Child fragments check root identity, generation, and index before copying. Full managed semantic
 validation runs once per assembled root or row batch, preserving diagnostics without rescanning
 descendants at every fragment boundary. Native validation remains authoritative at acceptance.
-Wrapper and Dock validation can still require repeated scans within that single managed pass;
-this is not a claim of linear validation cost or a measured end-to-end speedup.
+Structural validation indexes parent links, child counts, and final Dock operation values once.
+An iterative ancestor walk rejects disconnected cycles and resolves nearest Dock areas. Panel IDs
+are sorted by area and their UTF-8 bytes, avoiding pairwise ancestry searches and string allocation.
+Graph work is O(nodes + edges + operations); panel uniqueness adds O(panels log panels) byte
+comparisons. Small scratch buffers use the stack; larger buffers use ArrayPool and return on both
+success and failure. Cold pool growth can allocate. Wire flags remain untouched.
 
 Acceptance activates only newly mounted Views. Factory-owned child slots reuse accepted children;
 unaccepted candidates retain ownership edges solely for failed-render cleanup. Retirement scratch
@@ -316,8 +320,11 @@ Each batch retains its own managed event lease. Eviction or invalidation adds on
 callback per retired batch, never per row. Cache hits require no managed call. Binding storage is
 reused after release, while external event IDs never alias a later binding. Two row engines using
 the same generated renderer have independent source IDs and leases.
-Equivalent row bindings search only their current artifact's live slots, independently of root
-bindings, other cached batches, and unused storage slots.
+Equivalent row bindings search only their current artifact's live slots. Root bindings have a
+separate slot index for lookup and retirement, independent of cached batches and unused storage.
+Root retirement compacts this index; released entries still receive fresh external IDs on reuse.
+This adds a lazy list per event registry containing root bindings; small linear searches remain
+within each scope rather than introducing a global callback dictionary.
 
 `ListDataSource(count, contentRevision)` lets batches survive unrelated root renders. Increment the
 revision only when row output can change. Theme changes and table column changes invalidate row
@@ -339,6 +346,63 @@ Avoid:
 Use a stable `.ItemId` and the unmanaged click payload for model identity.
 
 ## Measurement targets
+
+### Running timing probes
+
+Ordinary `dotnet test` excludes tests marked `Category=Performance`. Allocation contract tests
+remain in the correctness suite. Timing probes run separately in Release with tiered compilation
+disabled, using the same production runtime code and fixtures:
+
+```powershell
+./eng/measure-runtime.ps1
+```
+
+The script restores the caller's environment and working directory. Its default filter selects
+all timing probes, which share one xUnit collection and execute sequentially. Use `-Filter` to
+select a particular probe or allocation report. Explicit `dotnet test --filter` overrides the
+default exclusion; use Release and `DOTNET_TieredCompilation=0` for timing comparisons. Tests
+assert behavior and applicable allocation contracts, never machine-specific elapsed-time limits.
+
+Native trace tests own independent accumulator instances. They do not toggle the production
+singleton or share a test mutex, so unrelated native tests can exercise instrumented code in
+parallel without contaminating trace assertions. Production tracing retains one atomic enablement
+load per span and reports only when enabled.
+
+### Validation and retained-render workloads
+
+`SemanticValidationCost`, `DeepRetainedTreeCost`, and `RootRenderWithCachedRowsCost` exercise full
+managed validation, retained View rendering/acceptance, and root event binding with accepted row
+artifacts. Windows x64 / .NET 10.0.11 Release measurements with tiering disabled compare the
+implementation at `b6275b0` against indexed validation and root-event slots:
+
+| Workload | Baseline µs/op | Indexed µs/op |
+| --- | ---: | ---: |
+| Validate 128 nested Dynamic wrappers | 16.56 | 4.23 |
+| Validate 1,024 nested Dynamic wrappers | 724.66 | 34.50 |
+| Validate 128 Dock panels | 1,400.98 | 7.43 |
+| Validate 512 Dock panels | 173,425.69 | 33.81 |
+| Render root, no cached batches | 0.45 | 0.30 |
+| Render root, 64 cached batches | 0.64 | 0.30 |
+| Render root, 512 cached batches | 1.86 | 0.30 |
+| Reuse clean tree, depth 8 | 1.03 | 1.06 |
+| Reuse clean tree, depth 64 | 5.21 | 5.58 |
+| Invalidate leaf and render, depth 8 | 3.07 | 3.07 |
+| Invalidate leaf and render, depth 64 | 26.68 | 28.00 |
+
+Each result is the median of five measured batches after four warmup batches. Validation uses 16
+iterations per batch, tree workloads 32, and cached-row workloads 128. All five measured batches
+allocated zero managed bytes per operation. Input construction, initial subscription, row loading,
+assertions, and reporting are outside the measured intervals. The validation probe builds an arena
+once; the retained-tree probes include rendering and acceptance on every operation.
+
+Each cached batch contains 48 element-only rows with shared callbacks and its own event lease.
+The 512-batch case stresses registry scaling with 24,576 rows; it is not a claim about a typical
+viewport's native cache size. Fixtures use the real managed root/range/acceptance paths with a native
+notification stub. They do not measure native decoding, layout, painting, or end-to-end frame time.
+The simple deep trees show no speedup; indexed graph validation adds some work to ordinary layouts.
+Separate before/after runs had no CPU affinity or clock control, so small timing differences should
+not be interpreted as portable regressions or guarantees. The large Dock improvement addresses
+repeated diagnostic scans, not the cost of displaying 512 panels.
 
 ### Dispatcher callback validation cost
 
