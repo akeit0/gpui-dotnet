@@ -47,6 +47,8 @@ dotnet run --project samples/Gpui.TaskBoard -- --dark
   store mutations bump the revision through the subscription, local filter edits
   bump it in the handler, and selection changes use targeted `RefreshRanges`
   without touching the revision.
+  A separate projection revision compares stable row IDs after memo rebuilds, resetting the native
+  cursor and scroll position for filter/reorder changes while preserving them for content edits.
 - `TaskDetailView` doubles as an embedded child and an independent window root
   from the same `Spec`, sharing the live store. Native input/slider values are
   synchronized from accepted immutable field snapshots through an effect (`SyncInputs`).

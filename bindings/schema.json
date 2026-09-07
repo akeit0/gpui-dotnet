@@ -1378,6 +1378,14 @@
       "managedApi": null
     },
     {
+      "id": 328,
+      "name": "list_projection_revision",
+      "csharp": "ListProjectionRevision",
+      "value": "u64",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
       "id": 317,
       "name": "list_item_id",
       "csharp": "ListItemId",

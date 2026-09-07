@@ -1192,11 +1192,11 @@ public sealed unsafe partial class RuntimeExecutionTests
             return callback(_id, source, artifact, status);
         }
 
-        internal int Click(ulong? token = null)
+        internal int Click(ulong? token = null, ulong payload = 0)
         {
             delegate* unmanaged[Cdecl]<ulong, ulong, ulong, NativeClickEvent*, int> callback = &NativeCallbacks.Click;
             NativeClickEvent click = default;
-            return callback(_id, token ?? View.ClickToken, 0, &click);
+            return callback(_id, token ?? View.ClickToken, payload, &click);
         }
 
         internal RetainedViewState State(ViewBase view)

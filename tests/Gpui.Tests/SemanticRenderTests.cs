@@ -1066,6 +1066,41 @@ public sealed class SemanticRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(false, false, null)]
+    [InlineData(false, false, 0UL)]
+    [InlineData(false, true, ulong.MaxValue)]
+    [InlineData(true, false, null)]
+    [InlineData(true, false, 0UL)]
+    [InlineData(true, true, ulong.MaxValue)]
+    public unsafe void CollectionProjectionRevisionPreservesOptionalU64(bool table, bool bound, ulong? projection)
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var source = new ListDataSource(10, 1, projection);
+            ListController controller = default;
+            Element element = table
+                ? bound
+                    ? ui.Table(ref controller, source, view.Row, new TableColumn("name", "Name", 120))
+                    : ui.Table("grid", source, view.Row, new TableColumn("name", "Name", 120))
+                : bound
+                    ? ui.List(ref controller, source, view.Row)
+                    : ui.List("rows", source, view.Row);
+            arena.Validate(element);
+            var ops = new ReadOnlySpan<OpRecord>(arena.NativeArena->Ops, arena.NativeArena->OpLength)
+                .ToArray().Where(op => op.Code == (ushort)OpCode.ListProjectionRevision).ToArray();
+            if (projection.HasValue)
+                Assert.Equal(projection.Value, Assert.Single(ops).A);
+            else
+                Assert.Empty(ops);
+        }
+        finally { view.Runtime.UnmountRuntime(); }
+    }
+
     [Fact]
     public unsafe void RefBoundListControllerGetsAStableAutoKey()
     {

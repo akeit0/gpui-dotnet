@@ -205,6 +205,10 @@ one arena containing count row roots
 `ListDataSource.ContentRevision` controls row-snapshot validity independently from the root snapshot
 revision. Theme changes also evict row batches because rows contain resolved theme colors. List
 viewport and measurement state survive either invalidation.
+An optional `ListDataSource.ProjectionRevision` declares replacement of positional identity.
+Changing it resets native cursor, viewport, measurements, and batches at reconciliation, even for
+equal counts. It overrides queued positional hints; stable stamps preserve the existing splice
+contract. C# owns this coarse stamp and model selection; Rust does not scan managed IDs per frame.
 
 Every native row engine owns a non-reused source identity, separate from its generated renderer
 method. Every loaded batch owns a managed artifact lease that keeps only that batch's event

@@ -308,6 +308,15 @@ index. Native cursor preservation follows valid splices and does not search unse
 ID. Use `Reset` for arbitrary reorder/replacement whose identity cannot be expressed by surviving
 splice ranges. A remove-then-insert sequence treats the removed active item as deleted.
 
+For declarative projection replacement, pass `projectionRevision` as the optional third argument
+to `ListDataSource(count, contentRevision, projectionRevision)`. Changing this stamp resets cursor,
+scroll position, measurements, and row batches in the same accepted snapshot, even when count and
+content revision are unchanged. Adding or removing the stamp also resets an existing resource;
+zero is valid. Omission preserves the existing command-based contract. A projection change
+overrides all queued positional commands, including splices and scroll requests for the old order.
+Keep the stamp stable for content-only edits and identity changes described by valid splices.
+Applications own the stamp and model selection; native code does not build an ID-to-index map.
+
 ## Retained Table
 
 `ui.Table` uses the List row engine and adds declarative `TableColumn[]` metadata. Rust materializes

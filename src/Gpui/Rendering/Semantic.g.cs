@@ -136,6 +136,7 @@ namespace Gpui.Interop
         ListAlignment = 314,
         ListEstimatedItemHeightPx = 315,
         ListContentRevision = 316,
+        ListProjectionRevision = 328,
         ListItemId = 317,
         ListOnActivated = 323,
         ListOnSelectionRequested = 324,
@@ -363,7 +364,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x0D37FE0340E554AFUL;
+        internal const ulong SchemaHash = 0x59BF0A88D6E2FF52UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -521,6 +522,7 @@ namespace Gpui.Interop
             OpCode.ListAlignment => ValueKind.U32,
             OpCode.ListEstimatedItemHeightPx => ValueKind.F32,
             OpCode.ListContentRevision => ValueKind.U64,
+            OpCode.ListProjectionRevision => ValueKind.U64,
             OpCode.ListItemId => ValueKind.U64,
             OpCode.ListOnActivated => ValueKind.Callback,
             OpCode.ListOnSelectionRequested => ValueKind.Callback,
@@ -823,6 +825,7 @@ namespace Gpui.Interop
             OpCode.ListAlignment => 0x0000000000000100UL,
             OpCode.ListEstimatedItemHeightPx => 0x0000000000000100UL,
             OpCode.ListContentRevision => 0x0000000000000100UL,
+            OpCode.ListProjectionRevision => 0x0000000000000100UL,
             OpCode.ListItemId => 0x0000000000000001UL,
             OpCode.ListOnActivated => 0x0000000000000100UL,
             OpCode.ListOnSelectionRequested => 0x0000000000000100UL,

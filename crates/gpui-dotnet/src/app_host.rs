@@ -1528,6 +1528,7 @@ mod tests {
             estimated_item_height: px(40.),
             content_revision: Some(1),
             scrollbar: crate::scrolling::ScrollbarMetrics::new(px(8.), false),
+            projection_revision: None,
         };
         let list = view.resources.list_resource(&list_key, &config, 6);
         let command = ResourceCommand {

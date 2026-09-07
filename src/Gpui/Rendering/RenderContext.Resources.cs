@@ -113,7 +113,8 @@ public readonly unsafe ref partial struct RenderContext
             dataSource.Count,
             dataSource.ContentRevision,
             renderer,
-            options
+            options,
+            dataSource.ProjectionRevision
         );
     }
 
@@ -143,7 +144,7 @@ public readonly unsafe ref partial struct RenderContext
         ListDataSource dataSource,
         ListItemRenderer renderer,
         ListOptions options = default
-    ) => ListCore(key, dataSource.Count, dataSource.ContentRevision, renderer, options);
+    ) => ListCore(key, dataSource.Count, dataSource.ContentRevision, renderer, options, dataSource.ProjectionRevision);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private Element<ListTag> ListCore(
@@ -151,7 +152,8 @@ public readonly unsafe ref partial struct RenderContext
         int itemCount,
         ulong? contentRevision,
         ListItemRenderer renderer,
-        ListOptions options
+        ListOptions options,
+        ulong? projectionRevision = null
     )
     {
         if (key.IsEmpty)
@@ -162,7 +164,7 @@ public readonly unsafe ref partial struct RenderContext
         ValidateListArguments(renderer, options);
 
         var element = ArenaWriter.AddNode<ListTag>(_arena, ComponentId.List, key);
-        return ConfigureList(element, itemCount, contentRevision, renderer, options);
+        return ConfigureList(element, itemCount, contentRevision, renderer, options, projectionRevision);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -171,7 +173,8 @@ public readonly unsafe ref partial struct RenderContext
         int itemCount,
         ulong? contentRevision,
         ListItemRenderer renderer,
-        ListOptions options
+        ListOptions options,
+        ulong? projectionRevision = null
     )
     {
         if (key.IsEmpty)
@@ -181,7 +184,7 @@ public readonly unsafe ref partial struct RenderContext
         ValidateListArguments(renderer, options);
 
         var element = ArenaWriter.AddNode<ListTag>(_arena, ComponentId.List, key);
-        return ConfigureList(element, itemCount, contentRevision, renderer, options);
+        return ConfigureList(element, itemCount, contentRevision, renderer, options, projectionRevision);
     }
 
     private static void ValidateListArguments(ListItemRenderer renderer, ListOptions options)
@@ -202,7 +205,8 @@ public readonly unsafe ref partial struct RenderContext
         int itemCount,
         ulong? contentRevision,
         ListItemRenderer renderer,
-        ListOptions options
+        ListOptions options,
+        ulong? projectionRevision
     )
     {
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
@@ -241,6 +245,10 @@ public readonly unsafe ref partial struct RenderContext
         if (contentRevision is { } revision)
         {
             ArenaWriter.AddU64(element.Inner, OpCode.ListContentRevision, revision);
+        }
+        if (projectionRevision is { } projection)
+        {
+            ArenaWriter.AddU64(element.Inner, OpCode.ListProjectionRevision, projection);
         }
         if (!options.EffectiveSmoothScrolling)
         {
@@ -408,6 +416,10 @@ public readonly unsafe ref partial struct RenderContext
             );
         }
         ArenaWriter.AddU64(element.Inner, OpCode.ListContentRevision, dataSource.ContentRevision);
+        if (dataSource.ProjectionRevision is { } projection)
+        {
+            ArenaWriter.AddU64(element.Inner, OpCode.ListProjectionRevision, projection);
+        }
         if (!options.EffectiveSmoothScrolling)
         {
             ArenaWriter.AddU32(element.Inner, OpCode.SmoothScroll, 0);

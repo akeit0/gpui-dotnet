@@ -10,6 +10,46 @@ namespace Gpui.Tests;
 public sealed unsafe partial class RuntimeExecutionTests
 {
     [Fact]
+    public void ExploreSameCountFilterChangesProjectionButLikesPreserveIt()
+    {
+        var store = new Travel.TravelStore();
+        var application = new GpuiApplication();
+        var spec = Travel.ExploreView.Spec(new(store));
+        var window = application.OpenWindow(spec);
+        using var fixture = new SessionFixture(null, application,
+            new RootViewDeclaration<Travel.ExploreView, Travel.ExploreProps>(spec), window);
+
+        (ulong Projection, ulong Content, ulong Count) Publish(string? clickKey = null, ulong payload = 0)
+        {
+            Assert.Equal(0, fixture.NativePublish(out var revision, out var arena));
+            var ops = new ReadOnlySpan<OpRecord>(arena.Ops, arena.OpLength).ToArray();
+            var result = (
+                Assert.Single(ops, op => op.Code == (ushort)OpCode.ListProjectionRevision).A,
+                Assert.Single(ops, op => op.Code == (ushort)OpCode.ListContentRevision).A,
+                Assert.Single(ops, op => op.Code == (ushort)OpCode.ListItemCount).A);
+            var click = clickKey is null ? 0 : SampleButtonClick(arena, System.Text.Encoding.UTF8.GetBytes(clickKey));
+            Assert.Equal(0, fixture.Complete(revision));
+            if (clickKey is not null)
+                Assert.Equal(0, fixture.Click(click, payload));
+            return result;
+        }
+
+        Publish("chip-2", 2);
+        var mountains = Publish("chip-3", 3);
+        var cities = Publish();
+        Assert.Equal(mountains.Count, cities.Count);
+        Assert.NotEqual(mountains.Projection, cities.Projection);
+        Assert.NotEqual(mountains.Content, cities.Content);
+
+        store.ToggleEntryLike(store.Entries.First(entry => entry.DestId == 1).Id);
+        var liked = Publish();
+        Assert.Equal(cities.Projection, liked.Projection);
+        Assert.NotEqual(cities.Content, liked.Content);
+        Assert.Equal(liked, Publish());
+        Assert.Null(fixture.Session.Failure);
+    }
+
+    [Fact]
     public void FeedLikesPublishNewRecordsAndRevisionToEverySubscriber()
     {
         var store = new Travel.TravelStore();

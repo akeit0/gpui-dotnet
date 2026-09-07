@@ -7,10 +7,9 @@ internal readonly record struct ExploreProps(TravelStore Store);
 
 /// <summary>
 /// Home tab: stories rail, filter chips, virtual feed, bottom detail sheet.
-/// Likes use silent store writes plus targeted row refresh (no revision bump);
-/// structural changes go through notify + revision like everywhere else.
-/// Render is heap-free: static handlers with payloads, stack spans, one inline
-/// buffer for the stories rail.
+/// Store notifications rebuild row content; a separate projection stamp resets native
+/// positional state when visible identities change. Static handlers, stack spans, and an
+/// inline stories buffer reduce allocations; rebuilding the memoized projection allocates.
 /// </summary>
 [GpuiView]
 internal sealed partial class ExploreView : View<ExploreProps>
@@ -44,7 +43,7 @@ internal sealed partial class ExploreView : View<ExploreProps>
     ];
 
     private readonly Memo<ExploreFilter, List<FeedEntry>> _visible;
-    private readonly Effect<NoProps> _watch;
+    private readonly Effect<ExploreProps> _watch;
     private readonly WorkScope _work;
     private InputController _search;
     private ListController _feed;
@@ -55,17 +54,19 @@ internal sealed partial class ExploreView : View<ExploreProps>
     private int _sheetDest = -1;
     private bool _refreshing;
     private List<FeedEntry> _rows = [];
+    private TravelStore? _projectionStore;
+    private ulong _projectionRevision = 1;
 
     public ExploreView(ViewConstruction construction, ExploreProps initialProps)
         : base(construction)
     {
         _visible = construction.Memo<ExploreFilter, List<FeedEntry>>();
         _work = construction.Work;
-        _watch = construction.Effect<NoProps>(WatchStore);
+        _watch = construction.Effect<ExploreProps>(WatchStore);
     }
 
-    private void WatchStore(EffectScope scope, NoProps input) =>
-        scope.Own(CommittedProps.Store.Subscribe(scope.Bind(this, static view => view.OnStoreChanged())));
+    private void WatchStore(EffectScope scope, ExploreProps input) =>
+        scope.Own(input.Store.Subscribe(scope.Bind(this, static view => view.OnStoreChanged())));
 
     private void OnStoreChanged()
     {
@@ -231,12 +232,22 @@ internal sealed partial class ExploreView : View<ExploreProps>
 
     protected override Element Render(in ExploreProps props, ref RenderContext ui)
     {
-        ui.Effect(_watch, default);
+        ui.Effect(_watch, props);
         var theme = ui.Theme;
-        _rows = _visible.Get(
+        var rows = _visible.Get(
             new ExploreFilter(props.Store, props.Store.Revision, new BoardQuery(_query), _chip, _storyDest),
             static input => TravelStore.ApplyFilter(input)
         );
+        if (!ReferenceEquals(rows, _rows))
+        {
+            var sameOrder = ReferenceEquals(_projectionStore, props.Store) && rows.Count == _rows.Count;
+            for (var index = 0; sameOrder && index < rows.Count; index++)
+                sameOrder = rows[index].Id == _rows[index].Id;
+            if (!sameOrder)
+                _projectionRevision = checked(_projectionRevision + 1);
+            _projectionStore = props.Store;
+            _rows = rows;
+        }
 
         var page = ui.VStack(
                 ui.HStack(
@@ -258,7 +269,7 @@ internal sealed partial class ExploreView : View<ExploreProps>
                         // Local revision, not the store revision: row output depends on
                         // filter state too, and equal counts across filters must still
                         // evict (Mountains and Cities both yield 9 rows).
-                        new ListDataSource(_rows.Count, _feedRevision),
+                        new ListDataSource(_rows.Count, _feedRevision, _projectionRevision),
                         Rows.FeedRow,
                         FeedListOptions
                     )

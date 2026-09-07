@@ -17,6 +17,8 @@ dotnet run --project samples/Gpui.Wander -- --dark
 - **Explore tab** — retained search `Input`, horizontal stories rail (retained
   `Scroll`), filter chips, and a virtual `List` feed. Likes notify the store's
   subscribers and rebuild the immutable-record projection through its revision.
+  A separate projection revision resets native cursor/scroll state when visible row IDs change;
+  likes retain the current position because they only change content.
   Tapping a place opens a bottom `Sheet` with a native-decoded SVG cover, like
   and add-to-trip actions. Refresh simulates pull-to-refresh through `WorkScope`.
 - **Trips tab** — `Grid` of trip cards, bottom detail `Sheet` with a 7-day

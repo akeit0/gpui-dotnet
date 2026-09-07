@@ -54,6 +54,12 @@ checks that tuple before application startup. Extension-specific definitions nev
 schema; the generic NativeExtension node carries the tuple, component kind, retained key, and an
 opaque UTF-8 configuration owned by the extension schema.
 
+List/Table projection revision is optional U64 operation 328. Last declaration wins; omission and
+zero are distinct. Changing the optional value resets the retained collection and discards queued
+positional commands during snapshot reconciliation. Content revision and event packets retain
+their existing meaning. This operation changes the semantic schema hash, with no ABI 7 layout or
+entry-point change.
+
 The extension-command envelope keeps extension-specific IDs and payload layouts out of Core. A command contains its extension ID, component kind, version, schema hash, owner View, key,
 numeric command and flags, expected revision, and opaque byte payload. Native code validates the
 envelope and provider compatibility and copies the payload before the FFI call returns.

@@ -15,9 +15,9 @@ internal enum BoardDialog
 /// <summary>
 /// Root View of the TaskBoard sample: a team project tracker built from production
 /// primitives (virtual table, dock, retained inputs/slider, overlays, menus, effects).
-/// Render allocates nothing on the heap: ref-bound controllers, static handlers with
-/// payloads, stack-span collection expressions, one inline buffer for the dynamic
-/// project list, static option snapshots, and arena-direct interpolated text.
+/// Ref-bound controllers, static handlers, stack-span composition, and arena-direct text
+/// reduce render allocations. Projection rebuilds allocate and advance a separate identity
+/// stamp when row order changes, so native positional state follows accepted declarations.
 /// </summary>
 [GpuiView]
 internal sealed partial class TaskBoardShellView : View
@@ -110,6 +110,7 @@ internal sealed partial class TaskBoardShellView : View
     private bool _ascending = true;
     private long _selectedId = -1;
     private ulong _tableRevision = 1;
+    private ulong _projectionRevision = 1;
     private GpuiMenu[] _menuBar = [];
     private BoardDialog _dialog = BoardDialog.None;
 
@@ -232,8 +233,7 @@ internal sealed partial class TaskBoardShellView : View
             _ascending = true;
         }
         _tableRevision++;
-        // Sorting is an arbitrary reorder; ItemId is not a native ID-to-index map.
-        _tasks.Reset(_rows.Count);
+        Invalidate();
     }
 
     private void SetSearch(string value)
@@ -614,7 +614,7 @@ internal sealed partial class TaskBoardShellView : View
         var theme = ui.Theme;
 
         // Signals are read while assembling the memo input, never inside the calculation.
-        _rows = _visible.Get(
+        var rows = _visible.Get(
             new BoardFilter(
                 _store,
                 _store.Revision,
@@ -627,6 +627,17 @@ internal sealed partial class TaskBoardShellView : View
             ),
             static input => TaskStore.ApplyFilter(input)
         );
+        // Pure projection-cache bookkeeping: content edits retain native cursor identity;
+        // membership/order changes reset it in the same accepted snapshot.
+        if (!ReferenceEquals(rows, _rows))
+        {
+            var sameOrder = rows.Count == _rows.Count;
+            for (var index = 0; sameOrder && index < rows.Count; index++)
+                sameOrder = rows[index].Id == _rows[index].Id;
+            if (!sameOrder)
+                _projectionRevision = checked(_projectionRevision + 1);
+            _rows = rows;
+        }
 
         var content = ui.VStack(
                 RenderToolbar(ref ui),
@@ -922,7 +933,7 @@ internal sealed partial class TaskBoardShellView : View
         var theme = ui.Theme;
         var table = ui.Table(
                 ref _tasks,
-                new ListDataSource(_rows.Count, _tableRevision),
+                new ListDataSource(_rows.Count, _tableRevision, _projectionRevision),
                 Rows.TaskRow,
                 TasksTableOptions,
                 TaskColumns
