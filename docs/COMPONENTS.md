@@ -75,6 +75,26 @@ Native component defaults are applied before explicit operations. Operations aff
 property apply in declaration order, including pixel and percentage forms. For ordinary growing
 snapshot elements, `.Grow()` supplies zero minimum width and height so flex content can shrink;
 explicit `MinWidth` and `MinHeight` override those defaults regardless of where `.Grow()` appears.
+
+Interaction presentation follows a shared native contract:
+
+- Component defaults establish the base; application operations and style recipes override them
+  in declaration order. Product states such as selected or invalid are resolved by those recipes.
+- Hover paint overrides the base, and active paint overrides hover for the properties it declares.
+  With neither palette declared, the theme supplies hover/active backgrounds. An explicit hover
+  palette with no active palette retains its colors while pressed feedback multiplies authored
+  opacity by 0.72.
+- Button, Checkbox, Radio, List, Table, and Slider keyboard focus uses a two-pixel outer ring in
+  the theme's focused-border color. This paint layer preserves application borders, shadows,
+  dimensions, and padding. It follows ancestor clipping and does not change row measurement or
+  viewport geometry. Input retains its native caret/selection focus presentation.
+- Disabled Button, Checkbox, Radio, Input, and Slider multiply their authored opacity by 0.5.
+  An omitted opacity starts at 1; an explicit zero remains invisible. Disabled interactive controls
+  do not install hover/active feedback. Disabled behavior remains in the existing native control.
+
+These transitions remain native and require no managed render callback. Focus paint is independent
+of application border colors, so keyboard focus does not replace a recipe's validation border.
+
 Retained controls have separate internal presentation. Input text inherits typography and text color
 through its wrapper. `PlaceholderColor`, `CaretColor`, and `SelectionColor` override its native text
 parts and compose with `IGpuiElementStyle<InputTag>` recipes. Omitted parts use the current theme:
@@ -373,8 +393,8 @@ interaction event.
 for the track, accent for the fill and thumb border, and surface background for the thumb. Explicit
 colors preserve alpha; the last declaration for each part wins. Removing an override in a later
 render restores the current theme default. Presentation changes preserve value, active thumb,
-focus, drag/keyboard interaction, and event revision. Disabled behavior and the native focus ring
-remain unchanged. The Input gallery demonstrates switching between a sample-owned recipe and theme
+focus, drag/keyboard interaction, and event revision. Part overrides do not alter disabled behavior
+or the shared focus ring. The Input gallery demonstrates switching between a sample-owned recipe and theme
 defaults on the same retained slider.
 
 The retained GPUI.NET engine remains authoritative after comparison with the foundation Slider.

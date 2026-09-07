@@ -20,6 +20,7 @@ mod overlay;
 mod pointer;
 mod popover_menu;
 mod presence;
+mod presentation;
 mod resources;
 mod scrolling;
 #[path = "semantic.g.rs"]

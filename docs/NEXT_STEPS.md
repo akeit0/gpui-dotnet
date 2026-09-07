@@ -5,13 +5,14 @@ documents.
 
 ## Implementation priorities
 
-1. Control customization: use concrete sample needs to scope combined interaction-state
-   precedence, such as selected/hovered and invalid/focused. Keep application variants in
-   managed style recipes and native interaction intact.
-2. Virtual-row menus and tooltips: design window-owned overlays anchored to stable item identities,
+1. Presentation contract: close inheritance and state-propagation gaps between snapshot elements
+   and retained controls. Cover pointer/keyboard transitions, theme changes, and declaration
+   replacement without losing native state. Prioritize coherent behavior over additional part-color
+   methods or sample variants.
+2. Input and focus foundations: word navigation, undo/redo, richer pointer selection, platform IME
+   tests, controlled-binding helpers, and scoped key consumption/focus targets for custom composites.
+3. Virtual-row menus and tooltips: design window-owned overlays anchored to stable item identities,
    with explicit behavior on scrolling, eviction, movement, and removal.
-3. Input editing: word navigation, undo/redo, richer pointer selection, platform IME tests, and
-   controlled-binding helpers built on conditional replacement.
 4. Performance: optimize a measured application bottleneck. Evaluate GPUI tessellation/scene-buffer
    APIs only when workloads justify the work; its current public API consumes these buffers.
 
@@ -132,7 +133,9 @@ interaction ownership separate from row-batch eviction; do not introduce mounted
 ## Control presentation and commands
 
 - indicator presentation driven by sample needs;
-- paint-state precedence for combined states such as selected/hovered and invalid/focused;
+- richer state-rule composition only where the current base/hover/active contract cannot express
+  a concrete application need;
+- consistent Input focus indication at the styled-wrapper boundary without duplicating focus ownership;
 - scoped native key bindings with explicit consumption, separate from observer events;
 - general focus targets, restoration, and composite entry behavior;
 - accessible names for icon-only controls and semantic relationships for form fields.

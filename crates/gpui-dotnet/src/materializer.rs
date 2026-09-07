@@ -24,6 +24,7 @@ use crate::{
     },
     overlay::OverlayKind,
     popover_menu::{PopoverMenuConfiguration, popover_menu},
+    presentation,
     resources::{
         CollectionCursor, ListRowEventKind, ListRowEvents, ManagedListResource, ResourceStore,
         ScrollInteraction, TableSpec, input_configuration, list_configuration, resource_key,
@@ -339,6 +340,7 @@ impl ManagedView {
             element = apply_interaction_styles(element, node, snapshot, theme);
         }
 
+        let element = presentation::disabled(element, disabled);
         let bindings = key_mouse_bindings(node, snapshot);
         let element = attach_key_mouse(element, &bindings, cx);
         let element = attach_hover(element, &bindings, cx);
@@ -393,6 +395,7 @@ impl ManagedView {
             element = apply_interaction_styles(element, node, snapshot, theme);
         }
 
+        let element = presentation::disabled(element, disabled);
         let bindings = key_mouse_bindings(node, snapshot);
         let element = attach_key_mouse(element, &bindings, cx);
         let element = attach_hover(element, &bindings, cx);
@@ -448,6 +451,7 @@ impl ManagedView {
             element = apply_interaction_styles(element, node, snapshot, theme);
         }
 
+        let element = presentation::disabled(element, disabled);
         let bindings = key_mouse_bindings(node, snapshot);
         let element = attach_key_mouse(element, &bindings, cx);
         let element = attach_hover(element, &bindings, cx);
@@ -600,37 +604,35 @@ impl ManagedView {
             configuration.scrollbar,
             collection_focus_id("managed-list-scrollbar", &key),
         );
-        let focus_color = rgba(self.theme.borrow().border_focused);
+        let focus_color = self.theme.borrow().border_focused;
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
         element = element.min_h_0().min_w_0();
-        let mut host = element
-            .id(&focus)
-            .track_focus(&focus)
-            .focus_visible(move |style| style.border(px(2.)).border_color(focus_color))
-            .key_context("GpuiDotnetList")
-            .on_key_down(move |event, window, cx| {
-                if keyboard_cursor.epoch() != keyboard_epoch {
-                    return;
-                }
-                if handle_collection_row_event_key(
-                    event,
-                    window,
-                    cx,
-                    &keyboard_focus,
-                    &keyboard_resource,
-                ) {
-                    return;
-                }
-                handle_collection_key_down(
-                    event,
-                    window,
-                    cx,
-                    &keyboard_cursor,
-                    &keyboard_list,
-                    &keyboard_interaction,
-                    item_count,
-                );
-            });
+        let mut host =
+            presentation::focus_ring(element.id(&focus).track_focus(&focus), focus_color)
+                .key_context("GpuiDotnetList")
+                .on_key_down(move |event, window, cx| {
+                    if keyboard_cursor.epoch() != keyboard_epoch {
+                        return;
+                    }
+                    if handle_collection_row_event_key(
+                        event,
+                        window,
+                        cx,
+                        &keyboard_focus,
+                        &keyboard_resource,
+                    ) {
+                        return;
+                    }
+                    handle_collection_key_down(
+                        event,
+                        window,
+                        cx,
+                        &keyboard_cursor,
+                        &keyboard_list,
+                        &keyboard_interaction,
+                        item_count,
+                    );
+                });
         if configuration.scrollbar.gutter > px(0.) {
             // Reserve the bar's width: the virtualized content excludes the gutter, so rows
             // never extend under the scrollbar.
@@ -720,38 +722,34 @@ impl ManagedView {
         let theme = *self.theme.borrow();
         let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
         element = element.min_h_0().min_w_0();
-        let mut host = element
-            .id(&focus)
-            .track_focus(&focus)
-            .focus_visible(move |style| {
-                style
-                    .border(px(2.))
-                    .border_color(rgba(theme.border_focused))
-            })
-            .key_context("GpuiDotnetTable")
-            .on_key_down(move |event, window, cx| {
-                if keyboard_cursor.epoch() != keyboard_epoch || !keyboard_focus.is_focused(window) {
-                    return;
-                }
-                if handle_collection_row_event_key(
-                    event,
-                    window,
-                    cx,
-                    &keyboard_focus,
-                    &keyboard_resource,
-                ) {
-                    return;
-                }
-                handle_collection_key_down(
-                    event,
-                    window,
-                    cx,
-                    &keyboard_cursor,
-                    &keyboard_list,
-                    &keyboard_interaction,
-                    item_count,
-                );
-            });
+        let mut host =
+            presentation::focus_ring(element.id(&focus).track_focus(&focus), theme.border_focused)
+                .key_context("GpuiDotnetTable")
+                .on_key_down(move |event, window, cx| {
+                    if keyboard_cursor.epoch() != keyboard_epoch
+                        || !keyboard_focus.is_focused(window)
+                    {
+                        return;
+                    }
+                    if handle_collection_row_event_key(
+                        event,
+                        window,
+                        cx,
+                        &keyboard_focus,
+                        &keyboard_resource,
+                    ) {
+                        return;
+                    }
+                    handle_collection_key_down(
+                        event,
+                        window,
+                        cx,
+                        &keyboard_cursor,
+                        &keyboard_list,
+                        &keyboard_interaction,
+                        item_count,
+                    );
+                });
         let show_header = last_op(snapshot, node, OP_TABLE_SHOW_HEADER).is_none_or(|op| op.a != 0);
         if show_header {
             let header =
@@ -795,7 +793,7 @@ impl ManagedView {
         let disabled = configuration.disabled;
         let theme = *self.theme.borrow();
         let input = self.resources.input_resource(&configuration, window, cx);
-        let mut element = div()
+        let element = div()
             .w(px(280.))
             .h(px(38.))
             .min_w_0()
@@ -808,10 +806,7 @@ impl ManagedView {
             .border_color(rgba(theme.border))
             .bg(rgba(theme.element_background))
             .child(input);
-        if disabled {
-            element = element.opacity(0.55);
-        }
-        apply_styles(element, node, snapshot).into_any_element()
+        presentation::disabled(apply_styles(element, node, snapshot), disabled).into_any_element()
     }
 
     fn materialize_slider(
@@ -827,11 +822,8 @@ impl ManagedView {
         };
         let disabled = configuration.disabled;
         let slider = self.resources.slider_resource(&configuration, cx);
-        let mut element = div().w_full().h(px(24.)).min_w_0().child(slider);
-        if disabled {
-            element = element.opacity(0.55);
-        }
-        apply_styles(element, node, snapshot).into_any_element()
+        let element = div().w_full().h(px(24.)).min_w_0().child(slider);
+        presentation::disabled(apply_styles(element, node, snapshot), disabled).into_any_element()
     }
 
     fn materialize_overlay(
@@ -2340,10 +2332,9 @@ fn apply_interaction_styles<T>(
     theme: NativeTheme,
 ) -> T
 where
-    T: StatefulInteractiveElement,
+    T: StatefulInteractiveElement + Styled,
 {
-    element = element
-        .focus_visible(move |style| style.border_1().border_color(rgba(theme.border_focused)));
+    element = presentation::focus_ring(element, theme.border_focused);
 
     let hover = interaction_paint(
         node,
@@ -2369,7 +2360,7 @@ where
     element = if active.is_empty() && has_hover_paint {
         // Preserve an explicit hover palette (notably destructive caption controls) when the
         // app has not supplied a distinct pressed palette.
-        element.active(|style| style.opacity(0.72))
+        presentation::pressed_feedback(element)
     } else if active.is_empty() {
         element.active(move |style| style.bg(rgba(theme.element_active)))
     } else {
@@ -3236,6 +3227,56 @@ mod tests {
             a: value.to_bits() as u64,
             ..Default::default()
         }
+    }
+
+    #[gpui::test]
+    fn keyboard_focus_does_not_change_authored_control_geometry(cx: &mut gpui::TestAppContext) {
+        use std::{cell::Cell, rc::Rc};
+        struct FocusProbe {
+            focus: FocusHandle,
+            bounds: Rc<Cell<gpui::Bounds<gpui::Pixels>>>,
+            snapshot: ValidatedSnapshot,
+        }
+        impl gpui::Render for FocusProbe {
+            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+                let bounds = self.bounds.clone();
+                let element =
+                    components::button("focus-probe".into(), false, NativeTheme::default())
+                        .track_focus(&self.focus)
+                        .w(px(240.))
+                        .h(px(64.))
+                        .border(px(6.))
+                        .p(px(8.))
+                        .child(
+                            canvas(move |value, _, _| bounds.set(value), |_, _, _, _| {})
+                                .size_full(),
+                        );
+                apply_interaction_styles(
+                    element,
+                    &self.snapshot.nodes[0],
+                    &self.snapshot,
+                    NativeTheme::default(),
+                )
+            }
+        }
+        let bounds = Rc::new(Cell::new(gpui::Bounds::default()));
+        let (view, cx) = cx.add_window_view(|_, cx| FocusProbe {
+            focus: cx.focus_handle(),
+            bounds: bounds.clone(),
+            snapshot: style_snapshot(crate::semantic::COMPONENT_BUTTON, "focus-probe", &mut []),
+        });
+        cx.simulate_resize(gpui::size(px(320.), px(160.)));
+        cx.update(|window, _| window.refresh());
+        let initial = bounds.get();
+        assert_eq!(initial.size, gpui::size(px(212.), px(36.)));
+        cx.simulate_keystrokes("tab");
+        cx.update(|window, app| {
+            let focus = view.read(app).focus.clone();
+            focus.focus(window, app);
+            assert!(window.last_input_was_keyboard());
+            window.refresh();
+        });
+        assert_eq!(bounds.get(), initial);
     }
 
     #[gpui::test]

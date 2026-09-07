@@ -580,16 +580,11 @@ impl Render for ManagedSlider {
                     .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             })
             .track_focus(&focus_handle)
-            .focus_visible(move |style| {
-                style
-                    .border(px(2.))
-                    .border_color(rgba(theme.border_focused))
-            })
             .key_context("GpuiDotnetSlider")
             .on_key_down(cx.listener(Self::on_key_down))
             .on_key_up(cx.listener(Self::on_key_up))
             .child(track);
-        root.into_any_element()
+        crate::presentation::focus_ring(root, theme.border_focused).into_any_element()
     }
 }
 
