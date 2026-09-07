@@ -39,9 +39,28 @@ pub struct ValidatedSnapshot {
     children: Vec<u32>,
     op_data: Vec<Option<SharedString>>,
     drawing_cache: OnceCell<Rc<RefCell<crate::drawing_cache::DrawingCache>>>,
+    drawing_command_pool: OnceCell<Rc<RefCell<crate::drawing_commands::DrawingCommandPool>>>,
 }
 
 impl ValidatedSnapshot {
+    pub(crate) fn drawing_commands(
+        &self,
+        node: &SnapshotNode,
+    ) -> crate::drawing_commands::DrawingCommands {
+        let children = self.children(node);
+        let count = children
+            .iter()
+            .map(|child| self.ops(&self.nodes[*child as usize]).len())
+            .sum();
+        let pool = self.drawing_command_pool.get_or_init(Default::default);
+        let mut commands =
+            crate::drawing_commands::DrawingCommandPool::acquire(pool.clone(), count);
+        for child in children {
+            commands.extend_from_slice(self.ops(&self.nodes[*child as usize]));
+        }
+        commands
+    }
+
     pub(crate) fn drawing_cache(&self) -> Rc<RefCell<crate::drawing_cache::DrawingCache>> {
         self.drawing_cache.get_or_init(Default::default).clone()
     }
@@ -55,6 +74,13 @@ impl ValidatedSnapshot {
         self.drawing_cache
             .get()
             .map_or(0, |cache| cache.borrow().retained_bytes())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn drawing_command_pool_bytes(&self) -> usize {
+        self.drawing_command_pool
+            .get()
+            .map_or(0, |pool| pool.borrow().retained_bytes())
     }
 
     #[cfg(test)]
@@ -145,6 +171,16 @@ impl ValidatedSnapshot {
             });
         }
         self.root = root;
+        // Scratch can span decoded replacements, but a description without Drawings should
+        // release it. Older command captures keep their own pool handle until released.
+        if self.drawing_command_pool.get().is_some()
+            && !self
+                .nodes
+                .iter()
+                .any(|node| node.component == COMPONENT_DRAWING)
+        {
+            self.drawing_command_pool.take();
+        }
         Ok(())
     }
 

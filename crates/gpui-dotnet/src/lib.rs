@@ -10,6 +10,7 @@ mod dock;
 mod dock_icons;
 mod dock_skin;
 mod drawing_cache;
+mod drawing_commands;
 pub mod extension;
 mod input;
 mod materializer;

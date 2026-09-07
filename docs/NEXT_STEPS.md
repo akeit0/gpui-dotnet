@@ -5,9 +5,10 @@ documents.
 
 ## Implementation priorities
 
-1. Drawing performance: investigate buffer reuse for changing geometry and the remaining scene/path
-   copies. Measure platform presentation/GPU work and mixed retained-tree updates before changing
-   transport; preserve full validation, bounded retention, and ownership boundaries.
+1. Drawing performance: evaluate reusable tessellation and scene-buffer APIs in GPUI; its current
+   public API consumes these buffers. Measure platform presentation/GPU work and mixed retained-tree
+   updates before changing transport or duplicating tessellation behavior. Preserve full validation,
+   bounded retention, and ownership boundaries.
 2. Input editing: word navigation, undo/redo, richer pointer selection, platform IME tests, and
    controlled-binding helpers built on conditional replacement.
 3. Virtual-row menus and tooltips: design window-owned overlays anchored to stable item identities,

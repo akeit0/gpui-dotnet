@@ -628,7 +628,7 @@ managed measurements use .NET 10.0.11 with tiered compilation disabled. Reproduc
 ```
 
 Native preparation uses four warmup batches and five measured batches, reporting median,
-minimum, and maximum. Dynamic discovery uses 256 iterations per batch, drawing materialization
+minimum, and maximum. Dynamic discovery uses 256 iterations per batch, drawing canvas preparation
 64, and tessellation 16. Input construction, arena validation/decoding, assertions, and reporting
 are outside these timed intervals. Returned vectors, elements, and paths are destroyed inside
 their respective intervals. These are isolated CPU costs, with no window, managed callback,
@@ -655,15 +655,17 @@ dominates a real frame or justify adding a second ownership registry.
 
 Drawing fixtures have one Drawing with stroked zigzag paths, a 512 × 128 view box, and a
 two-pixel stroke. Each path contains a move, the stated number of line segments, and two style
-operations. Materialization includes copying path operations into the canvas closure and
-creating/dropping the GPUI element. Tessellation separately calls the production path builder
-for every path at each viewport size; it does not include materialization or painting.
+operations. Preparation copies path operations into a pooled canvas command buffer and creates
+and drops the concrete canvas. It excludes conversion to `AnyElement`: dropping that handle alone
+does not release its GPUI arena allocation. The full-frame probe below includes arena cleanup.
+Tessellation separately calls the production path builder for every path at each viewport size;
+it does not include canvas preparation or painting.
 
-| Paths × segments | Copied command bytes/materialization | Materialize µs | Tessellate at 512 × 128 µs | Tessellate at 1,024 × 256 µs |
+| Paths × segments | Copied command bytes/preparation | Prepare/drop canvas µs | Tessellate at 512 × 128 µs | Tessellate at 1,024 × 256 µs |
 | --- | ---: | ---: | ---: | ---: |
-| 1 × 64 | 1,608 | 0.542 | 6.450 | 5.987 |
-| 64 × 64 | 102,912 | 15.494 | 367.575 | 366.219 |
-| 64 × 512 | 791,040 | 182.359 | 2,820.569 | 2,539.237 |
+| 1 × 64 | 1,608 | 0.142 | 6.231 | 6.025 |
+| 64 × 64 | 102,912 | 1.714 | 376.131 | 374.363 |
+| 64 × 512 | 791,040 | 13.106 | 2,692.206 | 2,625.094 |
 
 The decoded snapshots retain 1,864 / 106,336 / 794,464 bytes of vector capacity respectively.
 Copied bytes count only path operation records, excluding closure/vector metadata, GPUI element
@@ -739,10 +741,11 @@ Allocation counts matched across the three viewport/replacement modes. Large-vie
 ranged from 3,412.581 to 4,285.956 µs across the five batches; this variance prevents attributing
 the higher median to viewport size alone. There are no CI timing thresholds.
 
-The separately instrumented dense preparation probe attributes 66 allocation requests and 792,624
-requested bytes to drawing materialization, versus 320 allocations, 1,984 reallocations, and
-20,994,176 requested bytes to path building. The remaining frame requests include GPUI scene
+With the command pool warm, the separately instrumented canvas preparation/drop probe makes one
+allocation request for 80 bytes at each size. Dense path building requests 320 allocations,
+1,984 reallocations, and 20,994,176 bytes. The remaining frame requests include GPUI scene
 construction and other frame work. Request totals are not additive estimates of retained memory.
+
 ### Snapshot-owned drawing geometry reuse
 
 GPUI's public path builder consumes its scratch buffers when building a Path, so the native adapter
@@ -761,7 +764,8 @@ drawings on each frame. Removing an old bounds variant reclaims its cache budget
 exclude the small map/Rc headers, frame-owned copies, allocator overhead, and GPU memory, so they
 are not a process heap limit. Ordinary snapshots without Drawings allocate no cache.
 
-Using the same timing and allocation commands, with native refresh forced every iteration:
+Results with geometry caching alone (`958aa4b`), before command buffer pooling, using the same
+timing and allocation commands with native refresh forced every iteration:
 
 | Paths × segments | Baseline steady CPU µs | Cached steady CPU µs | Cached allocations/frame | Cached reallocations/frame | Cached requested bytes/frame | Retained geometry bytes |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -781,7 +785,46 @@ avoids cloning/retaining a large path set for one-use descriptions. The 64 × 64
 is 495.300 µs versus 438.275 µs at baseline; separate runs without clock control do not isolate
 that timing difference. This optimization targets repeated native repaints, not constantly changing
 geometry. The steady dense result trades about 8.4 MB of geometry retention for lower CPU cost.
-Platform presentation/GPU measurements and buffer reuse for changing geometry remain open.
+Platform presentation/GPU measurements and tessellation-buffer reuse for changing geometry remain
+open.
+
+### Drawing command buffer reuse
+
+Each canvas owns a contiguous command batch in child order. Operation node IDs delimit paths,
+avoiding per-path vector allocations; empty paths have no paint. A lazy pool on the decoded
+snapshot recycles buffers only after prepaint consumes the commands or the canvas is dropped.
+It reserves capacity before copying commands and can grow a free buffer for a larger description.
+It never lends an in-use buffer, so older frames retain their original commands across snapshot
+replacement.
+
+The pool retains at most 256 free buffers and 4 MiB of free vector capacity per snapshot, separate
+from the geometry-cache budget. Oversized or excess buffers render normally and are freed on
+release. Free buffers can span decoded replacements; a replacement without Drawings detaches the
+pool, and its last snapshot/canvas handle releases it. Live canvas buffers, pool metadata,
+allocator overhead, and scene/GPU storage are outside the free-capacity limit. Snapshots without
+materialized Drawings allocate no pool.
+
+The same instrumented full-frame probe reports these warm 512 × 128 results. Replaced descriptions
+retain zero geometry; the command pool still reuses released storage:
+
+| Paths × segments | Steady allocations/frame, before → pooled | Replacement allocations/frame, before → pooled | Pooled steady requested bytes/frame | Pooled replacement requested bytes/frame | Free command buffer bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 × 64 | 11 → 9 | 19 → 17 | 40,728 | 70,726 | 1,608 |
+| 64 × 64 | 264 → 199 | 524 → 459 | 2,373,912 | 4,274,884 | 102,912 |
+| 64 × 512 | 264 → 199 | 524 → 459 | 18,888,984 | 33,614,532 | 791,040 |
+
+Reallocation counts are unchanged: zero for cached steady geometry, and 18 / 1,152 / 1,984 for
+replacement frames. Pool creation/growth are cold costs outside these warmed counts. Dense frames
+remove 65 allocation requests and 792,560 requested bytes relative to geometry caching alone;
+the 791,040 command bytes are still copied every materialization. The free-buffer counter excludes
+active canvas storage and reports only the selected snapshot's pool in the two-snapshot fixture.
+
+Timing does not establish a consistent steady-frame speedup. Alternating both adapters in one
+process produced overlapping dense steady batch ranges of 734–1,072 µs with pooling and
+802–1,055 µs with per-path allocation. These ranges use the same uninstrumented 512 × 128 probe;
+CPU affinity and clock control remain unset. Reduced allocation requests are the established
+benefit. GPUI still consumes its tessellation scratch and owned scene paths; reusing those buffers
+requires an upstream API change or a separately justified tessellation adapter.
 
 ### End-to-end targets
 

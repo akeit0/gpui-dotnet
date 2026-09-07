@@ -80,6 +80,13 @@ per snapshot. New descriptions detach the old cache after validation; frame-owne
 it alive until the old frame is released. Cache entries hold geometry and resolved colors only, with
 no View callbacks or borrowed arena memory. Snapshots without materialized Drawings allocate no
 drawing cache. This is native derived data and does not add a retained resource or managed row View.
+Drawing canvases copy commands into one owned buffer per Drawing. A lazy snapshot-owned pool
+recycles buffers after prepaint consumes their commands or the canvas is dropped, retaining at
+most 256 free buffers and 4 MiB of free command capacity. Live captures exclusively own their
+buffers, so decoding a replacement cannot overwrite an earlier frame's commands. Free buffers
+can span accepted replacements; a replacement without Drawings detaches the pool. Snapshot and
+surviving canvas handles own its lifetime. This scratch budget is separate from geometry retention
+and excludes live canvas buffers.
 Each root publication returns a non-reused revision. After decoding and resource reconciliation,
 Rust acknowledges it through `render_completed`. Managed props and composition commit throughout
 the tree, replaced ownership retires, all new routes activate, and effects start parent-first before native materialization.

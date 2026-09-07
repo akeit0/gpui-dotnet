@@ -2595,6 +2595,10 @@ enum DrawingPaint {
 }
 
 fn materialize_drawing(node_id: u32, snapshot: &ValidatedSnapshot) -> AnyElement {
+    prepare_drawing(node_id, snapshot).into_any_element()
+}
+
+fn prepare_drawing(node_id: u32, snapshot: &ValidatedSnapshot) -> impl IntoElement {
     let node = &snapshot.nodes[node_id as usize];
     let cache = snapshot.drawing_cache();
     let origin = last_op(snapshot, node, OP_DRAWING_VIEW_BOX_ORIGIN).map(op_f32x2);
@@ -2607,11 +2611,8 @@ fn materialize_drawing(node_id: u32, snapshot: &ValidatedSnapshot) -> AnyElement
             width,
             height,
         });
-    let paths = snapshot
-        .children(node)
-        .iter()
-        .map(|child| snapshot.ops(&snapshot.nodes[*child as usize]).to_vec())
-        .collect::<Vec<_>>();
+    let commands = snapshot.drawing_commands(node);
+    let path_count = snapshot.children(node).len();
     let padding = last_op(snapshot, node, OP_PADDING_PX)
         .map_or(0.0, |op| f32::from_bits(op.a as u32))
         .max(0.0);
@@ -2622,8 +2623,8 @@ fn materialize_drawing(node_id: u32, snapshot: &ValidatedSnapshot) -> AnyElement
                 (f32::from(bounds.size.width).min(f32::from(bounds.size.height)) / 2.0).max(0.0);
             let drawing_bounds = bounds.inset(px(padding.min(max_padding)));
             cache.borrow_mut().prepare(node_id, drawing_bounds, || {
-                let mut painted = Vec::with_capacity(paths.len() * 2);
-                for operations in &paths {
+                let mut painted = Vec::with_capacity(path_count * 2);
+                for operations in commands.paths() {
                     if let Some(fill) = last_op_in(operations, OP_PATH_FILL_RGBA) {
                         let rule = match last_op_in(operations, OP_PATH_FILL_RULE).map(|op| op.a) {
                             Some(1) => FillRule::EvenOdd,
@@ -2664,7 +2665,7 @@ fn materialize_drawing(node_id: u32, snapshot: &ValidatedSnapshot) -> AnyElement
         },
     )
     .overflow_hidden();
-    apply_styles(element, node, snapshot).into_any_element()
+    apply_styles(element, node, snapshot)
 }
 
 fn build_drawing_path(
@@ -4073,6 +4074,61 @@ mod tests {
     }
 
     #[test]
+    fn drawing_commands_preserve_path_boundaries_and_outlive_replaced_snapshots() {
+        use crate::native_workloads::WorkloadArena;
+        let mut arena = WorkloadArena::default();
+        let root = arena.node(crate::semantic::COMPONENT_DRAWING, None);
+        arena.node(crate::semantic::COMPONENT_PATH, Some(root));
+        let first = arena.node(crate::semantic::COMPONENT_PATH, Some(root));
+        arena.node(crate::semantic::COMPONENT_PATH, Some(root));
+        let second = arena.node(crate::semantic::COMPONENT_PATH, Some(root));
+        arena.node(crate::semantic::COMPONENT_PATH, Some(root));
+        // Arena operations need not follow child order or be grouped by node.
+        arena.op(second, OP_PATH_FILL_RGBA, 0x445566FF);
+        arena.op(first, OP_PATH_STROKE_RGBA, 0x112233FF);
+        arena.point(first, OP_PATH_MOVE_TO, 1., 2.);
+        arena.point(second, OP_PATH_MOVE_TO, 3., 4.);
+        arena.point(second, OP_PATH_LINE_TO, 5., 6.);
+        arena.op(first, OP_PATH_STROKE_WIDTH_PX, 2f32.to_bits() as u64);
+        arena.point(first, OP_PATH_LINE_TO, 7., 8.);
+        let mut snapshot = arena.decode();
+        let commands = snapshot.drawing_commands(&snapshot.nodes[0]);
+        drawing_frame_arena(1, 64, true)
+            .decode_into(&mut snapshot)
+            .unwrap();
+        drop(snapshot);
+
+        let mut paths = commands.paths();
+        let stroke = paths.next().unwrap();
+        assert_eq!(stroke.len(), 4);
+        assert!(stroke.iter().all(|op| op.node == first));
+        assert_eq!(
+            last_op_in(stroke, OP_PATH_STROKE_RGBA).unwrap().a,
+            0x112233FF
+        );
+        assert!(last_op_in(stroke, OP_PATH_FILL_RGBA).is_none());
+        assert_eq!(op_f32x2(&stroke[1]), (1., 2.));
+        assert_eq!(op_f32x2(&stroke[3]), (7., 8.));
+        let fill = paths.next().unwrap();
+        assert_eq!(fill.len(), 3);
+        assert!(fill.iter().all(|op| op.node == second));
+        assert_eq!(last_op_in(fill, OP_PATH_FILL_RGBA).unwrap().a, 0x445566FF);
+        assert!(last_op_in(fill, OP_PATH_STROKE_RGBA).is_none());
+        assert_eq!(op_f32x2(&fill[1]), (3., 4.));
+        assert_eq!(op_f32x2(&fill[2]), (5., 6.));
+        assert!(paths.next().is_none());
+
+        let empty = drawing_frame_snapshot(0, 0, false);
+        assert!(
+            empty
+                .drawing_commands(&empty.nodes[0])
+                .paths()
+                .next()
+                .is_none()
+        );
+    }
+
+    #[test]
     #[ignore = "opt-in Release measurement; run eng/measure-native.ps1"]
     fn native_workload_measurements_drawing_preparation() {
         use crate::native_workloads::{WorkloadArena, measure};
@@ -4105,8 +4161,10 @@ mod tests {
                 "drawing paths={paths} segments={segments} copied_command_bytes={copied_bytes} snapshot_buffers={}",
                 snapshot.buffer_capacity_bytes()
             );
-            measure("drawing-materialize-and-drop", 64, || {
-                std::hint::black_box(materialize_drawing(
+            // Drop the concrete canvas so its captures are released each iteration. AnyElement
+            // lives in GPUI's element arena even after its handle is dropped outside a frame.
+            measure("drawing-canvas-prepare-and-drop", 64, || {
+                std::hint::black_box(prepare_drawing(
                     std::hint::black_box(0),
                     std::hint::black_box(&snapshot),
                 ));
@@ -4248,8 +4306,9 @@ mod tests {
                 window_cx.update(|_, cx| {
                     let view = view.read(cx);
                     println!(
-                        "drawing-cache-{paths}x{segments}: retained_geometry_bytes={}",
-                        view.snapshots[view.active].drawing_cache_bytes()
+                        "drawing-cache-{paths}x{segments}: retained_geometry_bytes={} free_command_buffer_bytes={}",
+                        view.snapshots[view.active].drawing_cache_bytes(),
+                        view.snapshots[view.active].drawing_command_pool_bytes()
                     );
                 });
             }
