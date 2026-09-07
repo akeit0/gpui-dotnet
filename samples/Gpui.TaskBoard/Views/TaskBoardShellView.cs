@@ -22,6 +22,8 @@ internal enum BoardDialog
 [GpuiView]
 internal sealed partial class TaskBoardShellView : View
 {
+    private enum TaskMenuAction { Open, Duplicate, ToggleComplete, Delete }
+
     [InlineArray(9)]
     private struct ProjectBuffer
     {
@@ -109,6 +111,7 @@ internal sealed partial class TaskBoardShellView : View
     private BoardSort _sort = BoardSort.Title;
     private bool _ascending = true;
     private long _selectedId = -1;
+    private ListContextMenuEvent? _taskMenu;
     private ulong _tableRevision = 1;
     private ulong _projectionRevision = 1;
     private GpuiMenu[] _menuBar = [];
@@ -337,13 +340,15 @@ internal sealed partial class TaskBoardShellView : View
         Invalidate();
     }
 
-    private void DeleteSelected()
+    private void DeleteSelected() => RequestDelete(_selectedId);
+
+    private void RequestDelete(long id)
     {
-        if (_selectedId < 0 || _store.Find(_selectedId) is null)
+        if (_store.Find(id) is null)
         {
             return;
         }
-        _deleteTarget = _selectedId;
+        _deleteTarget = id;
         _dialog = BoardDialog.Delete;
         Invalidate();
     }
@@ -479,6 +484,31 @@ internal sealed partial class TaskBoardShellView : View
         {
             OpenTaskInWindow(checked((long)id));
         }
+    }
+
+    private void RequestTaskMenu(ListContextMenuEvent request)
+    {
+        if (request.ItemId > long.MaxValue || _store.Find((long)request.ItemId) is null)
+            return;
+        _taskMenu = request;
+        Invalidate();
+    }
+
+    private void RunTaskMenuAction(ulong payload, TaskMenuAction action)
+    {
+        _taskMenu = null;
+        var id = checked((long)payload);
+        if (_store.Find(id) is not null)
+        {
+            switch (action)
+            {
+                case TaskMenuAction.Open: OpenTaskInWindow(id); break;
+                case TaskMenuAction.Duplicate: _store.DuplicateTask(id); break;
+                case TaskMenuAction.ToggleComplete: _store.ToggleCompleted(id); break;
+                case TaskMenuAction.Delete: RequestDelete(id); break;
+            }
+        }
+        Invalidate();
     }
 
     private int IndexOf(long id)
@@ -655,6 +685,12 @@ internal sealed partial class TaskBoardShellView : View
             .Background(theme.Colors.Background)
             .TextColor(theme.Colors.Text)
             .OnKeyDown(this, static (view, key) => view.OnHotKey(key));
+
+        if (_dialog == BoardDialog.None && _taskMenu is { } request
+            && _store.Find((long)request.ItemId) is { } menuTask)
+        {
+            content = content.Child(RenderTaskMenu(ref ui, request, menuTask));
+        }
 
         if (_dialog != BoardDialog.None)
         {
@@ -930,6 +966,31 @@ internal sealed partial class TaskBoardShellView : View
             .Shrink(0);
     }
 
+    private Element RenderTaskMenu(ref RenderContext ui, ListContextMenuEvent request, TaskItem task)
+    {
+        var theme = ui.Theme;
+        return ui.RowContextMenu("tasks-context", request,
+            ui.VStack(
+                    ui.Text(task.Title).FontWeight(600).Padding(Px(6)),
+                    ui.Button("ctx-open", "Open in window")
+                        .OnClick(this, static (view, e) => view.RunTaskMenuAction(e.Payload, TaskMenuAction.Open), request.ItemId)
+                        .Style(BoardStyles.Button(theme)).Width(Percent(100)),
+                    ui.Button("ctx-duplicate", "Duplicate")
+                        .OnClick(this, static (view, e) => view.RunTaskMenuAction(e.Payload, TaskMenuAction.Duplicate), request.ItemId)
+                        .Style(BoardStyles.Button(theme)).Width(Percent(100)),
+                    ui.Button("ctx-toggle", task.Completed ? "Mark incomplete" : "Mark complete")
+                        .OnClick(this, static (view, e) => view.RunTaskMenuAction(e.Payload, TaskMenuAction.ToggleComplete), request.ItemId)
+                        .Style(BoardStyles.Button(theme)).Width(Percent(100)),
+                    ui.Button("ctx-delete", "Delete…")
+                        .OnClick(this, static (view, e) => view.RunTaskMenuAction(e.Payload, TaskMenuAction.Delete), request.ItemId)
+                        .Style(BoardStyles.Button(theme, BoardButtonVariant.Danger)).Width(Percent(100))
+                )
+                .Gap(Px(2)).Padding(Px(6)).Width(Px(260))
+                .Surface(new(theme.Colors.ElevatedSurfaceBackground, theme.Colors.Text))
+                .BorderWidth(Px(1)).BorderColor(theme.Colors.Border).Radius(Px(8))
+        );
+    }
+
     private Element RenderDock(ref RenderContext ui)
     {
         var theme = ui.Theme;
@@ -951,46 +1012,12 @@ internal sealed partial class TaskBoardShellView : View
             )
             .OnSelectionRequested(this, static (view, e) => view.SelectTask(e))
             .OnActivated(this, static (view, e) => view.ActivateTask(e))
+            .OnContextMenuRequested(this, static (view, e) => view.RequestTaskMenu(e))
             .Grow()
             .Width(Percent(100))
             .Style(BoardStyles.Table(theme));
 
-        // The trigger host is a plain div: give it a definite fill so the table's
-        // Percent(100%) resolves, and wrap the table in a flex column so Grow yields
-        // a real rows viewport. Without this the table collapses (headers pile up,
-        // no rows materialize).
-        var tasksContent = ui.ContextMenu(
-            "tasks-context",
-            ui.VStack(table).Grow().Width(Percent(100)).Height(Percent(100)),
-            ui.VStack(
-                    ui.Button("ctx-open", "Open in window")
-                        .OnClick(this, static (view, _) => view.OpenSelectedInWindow())
-                        .Style(BoardStyles.Button(theme))
-                        .Width(Percent(100)),
-                    ui.Button("ctx-duplicate", "Duplicate")
-                        .OnClick(this, static (view, _) => view.DuplicateSelected())
-                        .Style(BoardStyles.Button(theme))
-                        .Width(Percent(100)),
-                    ui.Button("ctx-toggle", "Toggle complete")
-                        .OnClick(this, static (view, _) => view.ToggleSelectedComplete())
-                        .Style(BoardStyles.Button(theme))
-                        .Width(Percent(100)),
-                    ui.Button("ctx-delete", "Delete…")
-                        .OnClick(this, static (view, _) => view.DeleteSelected())
-                        .Style(BoardStyles.Button(theme, BoardButtonVariant.Danger))
-                        .Width(Percent(100))
-                )
-                .Gap(Px(2))
-                .Padding(Px(6))
-                .Width(Px(220))
-                .Background(theme.Colors.ElevatedSurfaceBackground)
-                .BorderWidth(Px(1))
-                .BorderColor(theme.Colors.Border)
-                .Radius(Px(8))
-        )
-        .Grow()
-        .Width(Percent(100))
-        .Height(Percent(100));
+        var tasksContent = ui.VStack(table).Grow().Width(Percent(100)).Height(Percent(100));
 
         var tasksPanel = ui.DockPanel(
             "tasks",
