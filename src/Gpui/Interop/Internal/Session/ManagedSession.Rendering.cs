@@ -55,7 +55,15 @@ internal sealed unsafe partial class ManagedSession
         uint count,
         RenderArena* arena,
         out ulong artifact
-    )
+    ) => RenderDemand(rendererToken, source, new ListRangeRenderRequest(start, count), arena, out artifact);
+
+    internal Element RenderDemand<TRequest>(
+        ulong rendererToken,
+        ulong source,
+        TRequest request,
+        RenderArena* arena,
+        out ulong artifact
+    ) where TRequest : struct, IDemandRenderRequest
     {
         ThrowIfUnavailable();
         using var execution = Execution.Enter(ExecutionPhase.DemandRender);
@@ -64,41 +72,32 @@ internal sealed unsafe partial class ManagedSession
         var rendererId = unchecked((uint)rendererToken);
         if (viewHandle == 0 || rendererId == 0)
         {
-            throw new InvalidOperationException("List renderer token 0 is reserved.");
+            throw new InvalidOperationException("Demand renderer token 0 is reserved.");
         }
         if (!_viewsByHandle.TryGetValue(viewHandle, out var owner) || !owner.Runtime.IsMounted)
         {
             throw new InvalidOperationException(
-                $"List renderer owner View 0x{viewHandle:X8} is no longer mounted."
+                $"Demand renderer owner View 0x{viewHandle:X8} is no longer mounted."
             );
         }
-        if (count is 0 or > 512 || (ulong)start + count > int.MaxValue)
-        {
-            throw new ArgumentOutOfRangeException(nameof(count));
-        }
+        request.Validate();
 
         artifact = CreateDemandArtifact(source, owner);
         Volatile.Write(ref _renderingStarted, 1);
         if (Interlocked.CompareExchange(ref _renderingManaged, 1, 0) != 0)
         {
-            throw new InvalidOperationException("Nested managed list rendering is not supported.");
+            throw new InvalidOperationException("Nested managed demand rendering is not supported.");
         }
         Volatile.Write(ref _notifyAfterRender, 0);
         var previousEventBindingOwner = ViewEventRegistry.CurrentEventBindingOwner;
         var completed = false;
         try
         {
-            owner.Runtime.Events.BeginEventBindingPass(ViewEventBindingScope.ListRange, artifact);
+            owner.Runtime.Events.BeginEventBindingPass(ViewEventBindingScope.Demand, artifact);
             ViewEventRegistry.CurrentEventBindingOwner = owner;
             using var reads = _demandArtifacts[artifact].Consumer.Begin();
             var ui = new RenderContext(arena, theme: _application.Theme);
-            var batchRoot = ui.Div();
-            for (uint offset = 0; offset < count; offset++)
-            {
-                var index = checked((int)(start + offset));
-                var row = owner.RenderListItemCore(rendererId, index, ref ui);
-                ArenaWriter.AddChild(batchRoot, row);
-            }
+            var batchRoot = request.Render(owner, rendererId, ref ui);
 
             ManagedValidator.Validate(arena, batchRoot);
             ThrowIfUnavailable();
@@ -114,7 +113,7 @@ internal sealed unsafe partial class ManagedSession
         {
             try
             {
-                owner.Runtime.Events.CompleteEventBindingPass(ViewEventBindingScope.ListRange, completed);
+                owner.Runtime.Events.CompleteEventBindingPass(ViewEventBindingScope.Demand, completed);
                 if (!completed)
                 {
                     RemoveDemandArtifact(artifact);

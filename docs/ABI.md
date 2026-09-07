@@ -119,6 +119,13 @@ must be zero. They remain in the layout to avoid needless generated-record churn
 callback publishes no consumable descriptor. `Render()` remains deterministic and side-effect-free;
 removing capacity retry does not relax the declarative contract.
 
+The source/artifact acceptance, release, and invalidation protocol is independent of request
+shape. `list_render_range` is the current List/Table request adapter, not a generic demand request
+format. Its range bounds and direct-child-count rule apply only to that adapter. Shared managed
+publication and native decoding/lease ownership do not impose those rules on other demand shapes.
+There is currently no public custom demand-request entry point. Separating this implementation
+does not change the ABI 7 layouts, callback signatures, or semantic schema hash.
+
 Virtual rows use:
 
 ```c

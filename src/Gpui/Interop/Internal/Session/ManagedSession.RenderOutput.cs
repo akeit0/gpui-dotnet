@@ -3,7 +3,7 @@ namespace Gpui.Interop.Internal.Session;
 internal sealed unsafe partial class ManagedSession
 {
     private RenderArenaOwner? _rootOutputArena;
-    private RenderArenaOwner? _rangeOutputArena;
+    private RenderArenaOwner? _demandOutputArena;
     private bool _renderOutputActive;
 
     // Both channels share a guard: a nested callback must not reset either output arena.
@@ -57,15 +57,23 @@ internal sealed unsafe partial class ManagedSession
         uint count,
         RenderArena* output,
         out ulong artifact
-    )
+    ) => RenderDemandOutput(rendererToken, source, new ListRangeRenderRequest(start, count), output, out artifact);
+
+    internal uint RenderDemandOutput<TRequest>(
+        ulong rendererToken,
+        ulong source,
+        TRequest request,
+        RenderArena* output,
+        out ulong artifact
+    ) where TRequest : struct, IDemandRenderRequest
     {
         artifact = 0;
         EnterRenderOutput(output);
         try
         {
-            var storage = _rangeOutputArena ??= new RenderArenaOwner();
+            var storage = _demandOutputArena ??= new RenderArenaOwner();
             storage.BeginRender();
-            var root = RenderListRange(rendererToken, source, start, count, storage.NativeArena, out artifact);
+            var root = RenderDemand(rendererToken, source, request, storage.NativeArena, out artifact);
             storage.PublishTo(output, root);
             return root.Node;
         }

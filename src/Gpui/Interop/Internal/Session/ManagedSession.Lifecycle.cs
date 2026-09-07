@@ -72,8 +72,8 @@ internal sealed unsafe partial class ManagedSession
         _acceptedViews.Clear();
         _pendingRenderRevision = 0;
         _rootOutputArena = null;
-        _rangeOutputArena?.Dispose();
-        _rangeOutputArena = null;
+        _demandOutputArena?.Dispose();
+        _demandOutputArena = null;
     }
 
     private void AttachRoot()

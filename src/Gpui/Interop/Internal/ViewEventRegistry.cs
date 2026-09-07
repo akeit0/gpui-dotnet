@@ -4,7 +4,7 @@ internal enum ViewEventBindingScope
 {
     None,
     Render,
-    ListRange,
+    Demand,
 }
 
 internal sealed class ViewEventRegistry
@@ -377,7 +377,7 @@ internal sealed class ViewEventRegistry
         var scope = attachment.EventBindingScope;
         var pass = attachment.EventBindingPass;
         var scopeSlots = attachment.RootEventSlots;
-        var demand = scope == ViewEventBindingScope.ListRange;
+        var demand = scope == ViewEventBindingScope.Demand;
         var artifactHead = demand && attachment.ArtifactEventSlots is { } artifactSlots
             && artifactSlots.TryGetValue(attachment.EventBindingArtifact, out var head) ? head : -1;
         var count = scopeSlots?.Count ?? 0;
@@ -451,14 +451,14 @@ internal sealed class ViewEventRegistry
             );
         }
 
-        if ((scope == ViewEventBindingScope.ListRange) != (artifact != 0))
+        if ((scope == ViewEventBindingScope.Demand) != (artifact != 0))
         {
             throw new InvalidOperationException("Demand event bindings require an artifact identity.");
         }
         var pass = checked(++attachment.NextEventBindingPass);
         attachment.EventBindingArtifact = artifact;
         attachment.EventBindingScope = scope;
-        attachment.EventBindingPass = scope == ViewEventBindingScope.ListRange ? -pass : pass;
+        attachment.EventBindingPass = scope == ViewEventBindingScope.Demand ? -pass : pass;
     }
 
     internal void CompleteEventBindingPass(ViewEventBindingScope scope, bool completed)
@@ -474,7 +474,7 @@ internal sealed class ViewEventRegistry
             return;
         }
 
-        if (scope == ViewEventBindingScope.ListRange)
+        if (scope == ViewEventBindingScope.Demand)
         {
             if (!completed)
             {
@@ -769,7 +769,7 @@ internal sealed class ViewEventRegistry
         {
             ViewEventBindingScope.None => pass == 0,
             ViewEventBindingScope.Render => pass > 0,
-            ViewEventBindingScope.ListRange => pass < 0,
+            ViewEventBindingScope.Demand => pass < 0,
             _ => false,
         };
 

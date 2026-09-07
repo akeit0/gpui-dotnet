@@ -134,6 +134,19 @@ thread and identity. Teardown detaches edges before user cleanup. See [Reactivit
 
 ## Retained resource path
 
+Demand rendering is a shared artifact lifecycle, not a List ownership model. Managed request
+adapters validate and render an element tree under the session's demand scope. That scope supplies
+theme, render-purity guards, dependency tracking, and artifact-owned event bindings. Native
+`demand::load_artifact` decodes borrowed output, validates the adapter's expected shape, accepts
+the artifact, and returns an owned snapshot and release lease. Source IDs come from the shared
+demand module. Neither the common loader nor the managed demand scope assumes rows or indices.
+
+List/Table currently provide the production request adapter: a bounded contiguous range rendered
+under a synthetic root, with one child per requested row. Their cache eviction and measurement
+policies remain in the row engine. Non-range snapshot tests exercise the same lifecycle. Public
+custom demand-renderer registration and a general request ABI are not exposed yet; the existing
+`list_render_range` callback remains this adapter's wire entry point.
+
 Scroll, List, Table, Input, Slider, and Dock are declarations plus stable resource identities.
 Identity is `(window session, owner View handle, UTF-8 key)`. Rust stores the mutable resource object and
 reconfigures it from later snapshots instead of recreating it.

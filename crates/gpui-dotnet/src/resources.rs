@@ -2,10 +2,7 @@ use std::{
     cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     rc::Rc,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
+    sync::Arc,
 };
 
 use gpui::{
@@ -17,7 +14,7 @@ use gpui::{
 use crate::{
     abi::{ManagedCallbacks, NativeResourceCommand},
     app_host::ManagedView,
-    arena::with_render_output,
+    demand::{ArtifactLease, load_artifact, next_source_id},
     dock::{DockConfiguration, ManagedDockResource, dock_configuration},
     extension::{
         NativeExtensionResourceKey, NativeExtensionStore, declaration as extension_declaration,
@@ -38,7 +35,7 @@ use crate::{
         component_metadata,
     },
     slider::{ManagedSlider, SliderValue},
-    snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
+    snapshot::{SnapshotScratch, ValidatedSnapshot},
     theme::{NativeTheme, SharedTheme},
 };
 
@@ -1050,17 +1047,16 @@ impl ManagedListResource {
         let count = self
             .batch_size
             .min(self.item_count.saturating_sub(start as usize)) as u32;
-        let mut batch = CachedBatch::new();
-        // A batch is decoded once. Its snapshot owns the strings after this temporary
-        // interner deduplicates the borrowed payloads within the batch.
-        let mut retained_strings = RetainedStrings::default();
         let callback = self
             .callbacks
             .list_render_range
             .expect("callbacks were validated before application startup");
-        let mut artifact_id = 0;
-        let result = with_render_output(
-            |arena, root| unsafe {
+        let (snapshot, lease) = load_artifact(
+            self.session_id,
+            self.source_id,
+            self.callbacks,
+            &mut self.scratch,
+            |arena, root, artifact_id| unsafe {
                 callback(
                     self.session_id,
                     self.renderer_token,
@@ -1069,47 +1065,23 @@ impl ManagedListResource {
                     count,
                     arena,
                     root,
-                    &mut artifact_id,
+                    artifact_id,
                 )
             },
-            |arena, root| {
-                batch
-                    .snapshot
-                    .decode_into(arena, root, &mut retained_strings, &mut self.scratch)
+            |snapshot| {
+                let root = &snapshot.nodes[snapshot.root as usize];
+                if snapshot.children(root).len() == count as usize {
+                    Ok(())
+                } else {
+                    Err(-63)
+                }
             },
-        );
-        // The output borrow has ended. A lease can now safely invoke managed release,
-        // including when native decoding rejected a successfully published artifact.
-        if artifact_id != 0 {
-            batch.lease = Some(ArtifactLease {
-                session_id: self.session_id,
-                source_id: self.source_id,
-                artifact_id,
-                release: self
-                    .callbacks
-                    .release_artifact
-                    .expect("callbacks were validated before application startup"),
-                status: result.as_ref().err().copied().unwrap_or(0),
-            });
-        }
-        result?;
-        if batch.lease.is_none() {
-            return Err(-64);
-        }
-        let root_node = &batch.snapshot.nodes[batch.snapshot.root as usize];
-        if batch.snapshot.children(root_node).len() != count as usize {
-            batch.lease.as_mut().unwrap().status = -63;
-            return Err(-63);
-        }
-        batch.last_used = self.use_clock;
-        let accept = self
-            .callbacks
-            .accept_artifact
-            .expect("callbacks were validated before application startup");
-        let status = unsafe { accept(self.session_id, self.source_id, artifact_id) };
-        if status != 0 {
-            return Err(status);
-        }
+        )?;
+        let batch = CachedBatch {
+            snapshot,
+            lease: Some(lease),
+            last_used: self.use_clock,
+        };
         self.batches.insert(start, batch);
         self.telemetry.batch_loads += 1;
         Ok(())
@@ -1195,41 +1167,12 @@ struct CachedBatch {
 }
 
 impl CachedBatch {
+    #[cfg(test)]
     fn new() -> Self {
         Self {
             lease: None,
             snapshot: ValidatedSnapshot::default(),
             last_used: 0,
-        }
-    }
-}
-
-fn next_source_id() -> u64 {
-    static NEXT_SOURCE_ID: AtomicU64 = AtomicU64::new(1);
-    NEXT_SOURCE_ID
-        .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
-        .expect("native datasource identity space exhausted")
-}
-
-struct ArtifactLease {
-    session_id: u64,
-    source_id: u64,
-    artifact_id: u64,
-    release: crate::abi::ManagedReleaseArtifactFn,
-    status: i32,
-}
-
-impl Drop for ArtifactLease {
-    fn drop(&mut self) {
-        // Release runs only framework cleanup. The managed callback is idempotent and
-        // admits cleanup after faults and while root acceptance is pending.
-        unsafe {
-            (self.release)(
-                self.session_id,
-                self.source_id,
-                self.artifact_id,
-                self.status,
-            );
         }
     }
 }
@@ -1512,6 +1455,7 @@ fn shared(value: &str) -> SharedString {
 
 #[cfg(test)]
 mod tests {
+    use crate::snapshot::RetainedStrings;
     mod measurements;
     use super::*;
 

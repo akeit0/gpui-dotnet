@@ -3,6 +3,7 @@ mod app_host;
 mod arena;
 mod components;
 mod context_menu;
+mod demand;
 mod dock;
 mod dock_icons;
 mod dock_skin;
