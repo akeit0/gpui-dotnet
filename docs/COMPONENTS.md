@@ -89,6 +89,15 @@ internal readonly record struct PrimaryButtonStyle(GpuiTheme Theme)
 `.Style(value)` invokes the typed recipe and returns the normal element builder. A later fluent call
 can override a value. Do not add application variant enums or style objects to the native ABI.
 
+Composite control recipes should resolve their backgrounds and content colors together. Let primary
+content inherit the control's text color. If a child needs secondary emphasis, expose a typed child
+style from the same resolved recipe, as TaskBoard's `BoardButtonStyle.SecondaryContent` does. A
+global `TextMuted` color is not necessarily readable on a selected or pressed background. Secondary
+content can share the primary foreground on accent surfaces; do not assume reduced opacity or a
+muted color is always appropriate. Verify both foregrounds against normal, hover, and active
+backgrounds in each supported application theme. These are application-owned style decisions;
+explicit child colors still override inheritance and are not automatically recolored by GPUI.
+
 Native component defaults are applied before explicit operations. Operations affecting the same
 property apply in declaration order, including pixel and percentage forms. For ordinary growing
 snapshot elements, `.Grow()` supplies zero minimum width and height so flex content can shrink;

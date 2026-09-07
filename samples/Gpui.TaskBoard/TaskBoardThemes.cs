@@ -16,7 +16,7 @@ internal static class TaskBoardThemes
                 ElementActive = Colors.Hex("#DCE5F1"),
                 ElementSelected = Colors.Hex("#DEF0FF"),
                 Text = Colors.Hex("#16233A"),
-                TextMuted = Colors.Hex("#5B6B84"),
+                TextMuted = Colors.Hex("#506079"),
                 TextPlaceholder = Colors.Hex("#8FA0B8"),
                 TextDisabled = Colors.Hex("#8FA0B8"),
                 TextAccent = Colors.Hex("#0B5FFF"),
@@ -29,7 +29,7 @@ internal static class TaskBoardThemes
                 TitleBarBackground = Colors.Hex("#101C33"),
                 TitleBarHover = Colors.Hex("#1B2C4E"),
                 TitleBarText = Colors.Hex("#F4F7FC"),
-                PanelBackground = Colors.Hex("#101C33"),
+                PanelBackground = Colors.Hex("#FFFFFF"),
                 PanelFocusedBorder = Colors.Hex("#7AA5FF"),
                 Success = Colors.Hex("#0E7A3D"),
                 SuccessBackground = Colors.Hex("#DFF5E5"),
@@ -44,5 +44,14 @@ internal static class TaskBoardThemes
         );
 
     internal static GpuiTheme Dark { get; } =
-        GpuiTheme.CreateDefault(GpuiThemeAppearance.Dark, "TaskBoard Dark");
+        GpuiTheme.FromJson("""
+            {
+              "name": "TaskBoard Dark",
+              "appearance": "dark",
+              "colors": {
+                "text.muted": "#CBD5E1",
+                "accent.active": "#7578F5"
+              }
+            }
+            """);
 }

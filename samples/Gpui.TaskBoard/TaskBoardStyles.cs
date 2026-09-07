@@ -20,9 +20,12 @@ internal readonly record struct BoardButtonStyle(
     Color HoverBackground,
     Color ActiveBackground,
     Color Text,
+    Color SecondaryText,
     Color Border
 ) : IGpuiElementStyle<ButtonTag>
 {
+    public BoardContentStyle SecondaryContent => new(SecondaryText);
+
     public Element<ButtonTag> Apply(Element<ButtonTag> button) =>
         button
             .Padding(Px(8))
@@ -33,6 +36,11 @@ internal readonly record struct BoardButtonStyle(
             .TextColor(Text)
             .BorderWidth(Px(1))
             .BorderColor(Border);
+}
+
+internal readonly record struct BoardContentStyle(Color Text) : IGpuiElementStyle<TextTag>
+{
+    public Element<TextTag> Apply(Element<TextTag> text) => text.TextColor(Text);
 }
 
 internal readonly record struct BoardHeaderButtonStyle(GpuiTheme Theme, bool Selected)
@@ -80,9 +88,9 @@ internal readonly record struct BoardTableStyle(GpuiTheme Theme) : IGpuiElementS
             .BorderColor(Theme.Colors.BorderVariant)
             .BorderWidth(Px(1))
             .Radius(Px(10))
-            .HeaderBackground(Theme.Colors.PanelBackground)
-            .HeaderTextColor(Theme.Colors.TitleBarText)
-            .HeaderBorderColor(Theme.Colors.BorderFocused);
+            .HeaderBackground(Theme.Colors.SurfaceBackground)
+            .HeaderTextColor(Theme.Colors.Text)
+            .HeaderBorderColor(Theme.Colors.BorderVariant);
 }
 
 internal readonly record struct BoardFieldStyle(GpuiTheme Theme, bool Invalid)
@@ -118,11 +126,11 @@ internal static class BoardStyles
         var colors = theme.Colors;
         return variant switch
         {
-            BoardButtonVariant.Primary => new(colors.Accent, colors.AccentHover, colors.AccentActive, colors.TextOnAccent, colors.Accent),
-            BoardButtonVariant.Danger => new(colors.ErrorBackground, colors.ErrorBackground, colors.ErrorBackground, colors.Error, colors.Error),
-            BoardButtonVariant.Navigation when selected => new(colors.Accent, colors.AccentHover, colors.AccentActive, colors.TextOnAccent, colors.BorderFocused),
-            BoardButtonVariant.Navigation => new(colors.TitleBarBackground, colors.TitleBarHover, colors.TitleBarBackground, colors.TitleBarText, colors.TitleBarHover),
-            _ => new(colors.ElementBackground, colors.ElementHover, colors.ElementActive, colors.Text, colors.Border),
+            BoardButtonVariant.Primary => new(colors.Accent, colors.AccentHover, colors.AccentActive, colors.TextOnAccent, colors.TextOnAccent, colors.Accent),
+            BoardButtonVariant.Danger => new(colors.ErrorBackground, colors.ErrorBackground, colors.ErrorBackground, colors.Error, colors.Error, colors.Error),
+            BoardButtonVariant.Navigation when selected => new(colors.Accent, colors.AccentHover, colors.AccentActive, colors.TextOnAccent, colors.TextOnAccent, colors.BorderFocused),
+            BoardButtonVariant.Navigation => new(colors.ElementBackground, colors.ElementHover, colors.ElementActive, colors.Text, colors.TextMuted, colors.BorderVariant),
+            _ => new(colors.ElementBackground, colors.ElementHover, colors.ElementActive, colors.Text, colors.TextMuted, colors.Border),
         };
     }
 

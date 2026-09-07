@@ -850,18 +850,19 @@ internal sealed partial class TaskBoardShellView : View
         var theme = ui.Theme;
         var projects = _store.Projects;
         ProjectBuffer buffer = default;
+        var allProjectsStyle = BoardStyles.Button(theme, BoardButtonVariant.Navigation, _projectId == "all");
         buffer[0] = ui.Button(
                 "project-all",
                 ui.HStack(
                         ui.Text("All projects"),
                         ui.Spacer(),
-                        ui.Text($"{_store.Tasks.Count:N0}").TextColor(theme.Colors.TextMuted)
+                        ui.Text($"{_store.Tasks.Count:N0}").Style(allProjectsStyle.SecondaryContent)
                     )
                     .Width(Percent(100))
                     .ItemsCenter()
             )
             .OnClick(this, static (view, e) => view.SelectProject(e.Payload), 0)
-            .Style(BoardStyles.Button(theme, BoardButtonVariant.Navigation, _projectId == "all"))
+            .Style(allProjectsStyle)
             .Width(Percent(100));
         var count = 1;
         var limit = Math.Min(projects.Count, 7);
@@ -869,19 +870,20 @@ internal sealed partial class TaskBoardShellView : View
         {
             var project = projects[i];
             var selected = _projectId == project.Id;
+            var projectStyle = BoardStyles.Button(theme, BoardButtonVariant.Navigation, selected);
             buffer[count++] = ui.Button(
                     project.Id,
                     ui.HStack(
                             ui.Text(project.Name),
                             ui.Spacer(),
                             ui.Text($"{_store.CountForProject(project.Id):N0}")
-                                .TextColor(theme.Colors.TextMuted)
+                                .Style(projectStyle.SecondaryContent)
                         )
                         .Width(Percent(100))
                         .ItemsCenter()
                 )
                 .OnClick(this, static (view, e) => view.SelectProject(e.Payload), checked((ulong)i + 1))
-                .Style(BoardStyles.Button(theme, BoardButtonVariant.Navigation, selected))
+                .Style(projectStyle)
                 .Width(Percent(100));
         }
         if (projects.Count > limit)
@@ -896,12 +898,12 @@ internal sealed partial class TaskBoardShellView : View
         var sidebar = ui.VStack(
                 ui.Text("PROJECTS")
                     .FontSize(Px(theme.Typography.Caption))
-                    .TextColor(theme.Colors.TextPlaceholder),
+                    .TextColor(theme.Colors.TextMuted),
                 projectList,
                 ui.Divider(),
                 ui.Text("FILTERS")
                     .FontSize(Px(theme.Typography.Caption))
-                    .TextColor(theme.Colors.TextPlaceholder),
+                    .TextColor(theme.Colors.TextMuted),
                 ui.Checkbox("filter-open", "Open only")
                     .Checked(_onlyOpen.Value)
                     .OnClick(this, static (view, _) => view.ToggleOnlyOpen())
@@ -920,7 +922,7 @@ internal sealed partial class TaskBoardShellView : View
             .Width(Px(220))
             .Height(Percent(100))
             .Background(theme.Colors.PanelBackground)
-            .TextColor(theme.Colors.TitleBarText);
+            .TextColor(theme.Colors.Text);
 
         return ui.Scroll("board-sidebar", ScrollAxis.Vertical, SidebarScrollOptions, sidebar)
             .Width(Px(220))
@@ -939,9 +941,11 @@ internal sealed partial class TaskBoardShellView : View
                 TaskColumns
             )
             .Header(
-                ui.Text("Status"),
+                ui.Text("Status")
+                .TextColor(theme.Colors.Text),
                 SortHeader(ref ui, this, theme, BoardSort.Title),
-                ui.Text("Assignee"),
+                ui.Text("Assignee")
+                .TextColor(theme.Colors.Text),
                 SortHeader(ref ui, this, theme, BoardSort.Estimate),
                 SortHeader(ref ui, this, theme, BoardSort.Priority)
             )
