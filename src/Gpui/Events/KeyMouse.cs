@@ -127,8 +127,9 @@ public readonly struct MouseEvent
 
 /// <summary>
 /// Observer snapshot of OS files dropped onto the bound element, forwarded from native GPUI.
-/// Only published while a binding is registered. Paths are decoded lossy UTF-8 and owned by
-/// this event, so they remain valid across asynchronous handlers.
+/// Only published while a binding is registered. Native converts platform paths to UTF-8,
+/// lossily where necessary. Managed code validates and owns the paths, which may be retained
+/// after the handler returns.
 /// </summary>
 public sealed class FileDropEvent
 {

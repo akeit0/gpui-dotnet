@@ -283,13 +283,10 @@ internal static unsafe class NativeCallbacks
                         return -112;
                     }
 
-                    var value =
-                        nativeEvent->data_length == 0
-                            ? Array.Empty<byte>()
-                            : new ReadOnlySpan<byte>(
-                                nativeEvent->data,
-                                nativeEvent->data_length
-                            ).ToArray();
+                    var bytes = new ReadOnlySpan<byte>(nativeEvent->data, nativeEvent->data_length);
+                    if (!IsValidUtf8(bytes))
+                        return -112;
+                    var value = bytes.IsEmpty ? Array.Empty<byte>() : bytes.ToArray();
                     session.DispatchInput(
                         eventToken,
                         new InputEvent(
@@ -369,16 +366,7 @@ internal static unsafe class NativeCallbacks
                         return -112;
                     }
 
-                    string key;
-                    try
-                    {
-                        key = System.Text.Encoding.UTF8.GetString(bytes);
-                    }
-                    catch
-                    {
-                        return -112;
-                    }
-                    if (string.IsNullOrEmpty(key))
+                    if (!TryDecodeUtf8(bytes, out var key))
                     {
                         return -112;
                     }
@@ -633,6 +621,8 @@ internal static unsafe class NativeCallbacks
                         return -112;
                     }
 
+                    if (!IsValidUtf8(data[8..]))
+                        return -112;
                     var paths = new List<string>();
                     var segmentStart = 8;
                     for (var index = 8; index <= data.Length; index++)
@@ -675,15 +665,8 @@ internal static unsafe class NativeCallbacks
                         return -112;
                     }
 
-                    var text =
-                        nativeEvent->data_length == 0
-                            ? string.Empty
-                            : System.Text.Encoding.UTF8.GetString(
-                                new ReadOnlySpan<byte>(
-                                    nativeEvent->data,
-                                    nativeEvent->data_length
-                                )
-                            );
+                    if (!TryDecodeUtf8(new ReadOnlySpan<byte>(nativeEvent->data, nativeEvent->data_length), out var text))
+                        return -112;
                     var changedKind = (ushort)DockEventKind.LayoutChanged;
                     if (
                         (nativeEvent->kind == changedKind && text.Length != 0)
@@ -765,6 +748,33 @@ internal static unsafe class NativeCallbacks
                 application.RecordFailure(exception);
             }
             return -121;
+        }
+    }
+
+    private static bool IsValidUtf8(ReadOnlySpan<byte> bytes)
+    {
+        try
+        {
+            _ = NativeRegistry.StrictUtf8.GetCharCount(bytes);
+            return true;
+        }
+        catch (System.Text.DecoderFallbackException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryDecodeUtf8(ReadOnlySpan<byte> bytes, out string text)
+    {
+        try
+        {
+            text = NativeRegistry.StrictUtf8.GetString(bytes);
+            return true;
+        }
+        catch (System.Text.DecoderFallbackException)
+        {
+            text = string.Empty;
+            return false;
         }
     }
 

@@ -15,7 +15,7 @@ internal static class NativeRegistry
 
     internal static long NextApplicationId;
 
-    // Retained for future strict UTF-8 validation needs.
+    // Native text payloads must not silently acquire replacement characters.
     internal static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
     internal static void RecordFailure(ulong sessionId, Exception exception, bool deferCleanup = false)

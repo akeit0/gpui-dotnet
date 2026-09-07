@@ -245,6 +245,11 @@ and Released events carry one little-endian `f32`, or two ordered values when th
 Dock LayoutChanged carries no payload; Dock LayoutExported carries the UTF-8 layout JSON requested
 through the controller; Dock PanelClosed carries the UTF-8 panel id.
 
+Built-in text payloads are validated as UTF-8 before application delivery; malformed sequences
+return `-112` rather than being replaced with U+FFFD. An explicitly encoded U+FFFD remains valid.
+Input retains validated, owned bytes and decodes its UTF-16 `Value` lazily. Extension payloads
+remain opaque bytes whose interpretation belongs to the extension decoder.
+
 Control-event kinds are global: Input uses 1-3, Slider uses 4-5, Dock uses 6
 (LayoutChanged), 7 (LayoutExported), and 8 (PanelClosed), observer key events use 9
 (KeyDown) and 10 (KeyUp), observer mouse press events use 11 (MouseDown) and 12 (MouseUp),
@@ -273,9 +278,10 @@ movement payloads carry 12 little-endian bytes: `f32` x, `f32` y, and `u32` pres
 `f32` y, `f32` delta x/y, and `u32` units (0 pixels, 1 lines). Movement and wheel events are
 only published while bound, so unregistered elements cost nothing; registered handlers must
 stay cheap because these fire at pointer frequency. File-drop payloads carry an 8-byte LE
-header (`f32` x, `f32` y) followed by NUL-separated lossy UTF-8 paths, at least one and none
+header (`f32` x, `f32` y) followed by NUL-separated UTF-8 paths, at least one and none
 empty, bounded to 1 MiB and 4096 paths; GPUI translates the platform drop into its internal
-drag system, so the bound element under the cursor receives the drop. All families
+drag system, so the bound element under the cursor receives the drop. Native converts platform
+paths lossily where necessary, but the resulting wire bytes must be valid UTF-8. All families
 validate strictly and
 are dropped with `-112` on any out-of-range flag, revision, length, non-finite coordinate,
 unknown button, or malformed UTF-8.

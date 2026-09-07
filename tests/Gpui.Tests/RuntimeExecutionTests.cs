@@ -1171,6 +1171,16 @@ public sealed unsafe partial class RuntimeExecutionTests
             return callback(_id, source, artifact);
         }
 
+        internal int Control(ulong token, ushort kind, ReadOnlySpan<byte> payload)
+        {
+            delegate* unmanaged[Cdecl]<ulong, ulong, NativeControlEvent*, int> callback = &NativeCallbacks.ControlEvent;
+            fixed (byte* bytes = payload)
+            {
+                var value = new NativeControlEvent { kind = kind, data = bytes, data_length = payload.Length };
+                return callback(_id, token, &value);
+            }
+        }
+
         internal int Release(ulong source, ulong artifact, int status = 0)
         {
             delegate* unmanaged[Cdecl]<ulong, ulong, ulong, int, int> callback = &NativeCallbacks.ReleaseArtifact;
