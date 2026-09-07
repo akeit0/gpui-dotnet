@@ -3,6 +3,23 @@
 This file lists open work only. Completed behavior belongs in the README or the focused design
 documents.
 
+## Implementation priorities
+
+1. Collection keyboard behavior: move Page Up/Down by viewport geometry, then define active row,
+   selection, and activation as distinct states and actions.
+2. Native performance evidence: measure drawing preparation, Dynamic owner discovery, arena
+   validation overhead, and fragment copying in representative workloads before changing transport.
+3. Input editing: word navigation, undo/redo, richer pointer selection, platform IME tests, and
+   controlled-binding helpers built on conditional replacement.
+4. Virtual-row menus and tooltips: design window-owned overlays anchored to stable item identities,
+   with explicit behavior on scrolling, eviction, movement, and removal.
+5. Control customization and custom keyboard/accessibility behavior: use concrete sample needs to
+   introduce typed presentation parts, scoped commands, focus targets, and accessible names.
+
+Preserve the semantic batching and ownership boundaries. Native-retained fragment transport,
+general item-scoped editors, universal state styling, and scoped themes require separate design
+and measurements; they are not prerequisites for the focused improvements above.
+
 ## Default native host size
 
 The Dock skin no longer links the complete `gpui-component` facade: Dock wears a small in-repo
@@ -32,16 +49,18 @@ durable API is available, add semantic roles, names, values, selection, and anno
 - custom title-bar controls;
 - dialogs, sheets, tooltips, and menus.
 
-Treat accessibility as a semantic batch rather than platform-specific managed branches.
+Treat accessibility as a semantic batch rather than platform-specific managed branches. Develop
+the managed authoring contract for names, roles, values, and relationships alongside scoped
+commands and focus targets; expose backend capability limits explicitly.
 
 ## Input
 
-Harden the single-line Input before introducing a multiline editor:
+Harden the single-line Input independently of the optional editor extension:
 
 - word navigation and platform keymaps;
 - undo/redo and richer pointer selection;
 - validation/help/error composition;
-- controlled-value conflict semantics;
+- a controlled-binding helper using revision-aware replacement that avoids destructive edit echoes;
 - IME and clipboard integration tests on every desktop platform.
 
 ## Optional editor extension
@@ -71,6 +90,7 @@ deltas across the managed boundary while a pointer is moving.
 
 ## Menus and deferred layers
 
+- window-owned row menus and tooltips with stable anchors and explicit dismissal on anchor loss;
 - keyboard navigation and roving selection for menu items;
 - disabled, checked, radio, and submenu semantics;
 - keyboard/focus-triggered tooltips;
@@ -94,16 +114,38 @@ Keep stacking and dismissal window-owned in Rust while product visuals remain ma
 - optional public cache/overscan diagnostics when benchmarks justify an ABI query;
 - table header sort events and column visibility/reordering;
 - row activation and selection semantics;
+- viewport-based Page Up/Down for variable-height rows, including partially visible and
+  unmeasured rows;
 - frozen columns or resize chrome only when application requirements and measurements justify the
   added native state.
 
 A Tree should remain a managed flattened List unless hierarchy is required by accessibility or
 proven large-dataset behavior.
 
+Cached rows remain element snapshots. Supporting an active editor later requires bounded native
+interaction ownership separate from row-batch eviction; do not introduce mounted Views per row.
+
+## Control presentation and commands
+
+- application-owned table header content and slider/indicator presentation driven by sample needs;
+- paint-state precedence for combined states such as selected/hovered and invalid/focused;
+- scoped native key bindings with explicit consumption, separate from observer events;
+- general focus targets, restoration, and composite entry behavior;
+- accessible names for icon-only controls and semantic relationships for form fields.
+
+Keep pointer motion, focus mechanics, and state-style evaluation native. Submit presentation as
+retained descriptions rather than invoking managed callbacks during interaction.
+
 ## Runtime
 
 Runtime performance and platform verification are tracked in
 [RUNTIME_PLAN.md](RUNTIME_PLAN.md).
+
+Measure large static trees with a changing leaf, dense drawings with stable geometry, variable-height
+collection churn, IME with async completion, and multi-window navigation. Include native allocations,
+bytes copied, retained capacity, and layout/paint or input latency beyond `ManagedView::render`.
+Drawing command copies and repeated Dynamic owner scans are concrete candidates; validate any
+cache against snapshot replacement, resource lifetime, theme changes, and resize.
 
 ## ABI, diagnostics, and CI
 - generate and verify a public C header with `sizeof`/`offsetof` assertions per RID;

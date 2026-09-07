@@ -2,6 +2,11 @@ using Gpui.Interop.Internal;
 
 namespace Gpui.Tests;
 
+[CollectionDefinition("Runtime execution", DisableParallelization = true)]
+public sealed class RuntimeExecutionCollection { }
+
+// Allocation measurements must not overlap other collections that explicitly force GC.
+[Collection("Runtime execution")]
 public sealed partial class RuntimeExecutionTests
 {
     private const int AllocationBatchSize = 128;

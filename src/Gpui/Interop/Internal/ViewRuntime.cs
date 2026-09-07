@@ -5,7 +5,10 @@ namespace Gpui.Interop.Internal;
 internal delegate void Utf8InputValueDispatcher(
     uint ownerView,
     ReadOnlySpan<byte> utf8Key,
-    ReadOnlySpan<byte> utf8Value
+    ReadOnlySpan<byte> utf8Value,
+    ResourceCommandKind command,
+    ulong expectedRevision,
+    ulong policies
 );
 
 internal delegate void NativeExtensionCommandDispatcher(
@@ -307,10 +310,16 @@ internal sealed class ViewRuntime
         }
     }
 
-    internal void DispatchUtf8InputValue(ReadOnlySpan<byte> utf8Key, ReadOnlySpan<byte> utf8Value)
+    internal void DispatchUtf8InputValue(
+        ReadOnlySpan<byte> utf8Key,
+        ReadOnlySpan<byte> utf8Value,
+        ResourceCommandKind command = ResourceCommandKind.InputSetValue,
+        ulong expectedRevision = 0,
+        ulong policies = 0
+    )
     {
         var route = Volatile.Read(ref _commandRoute);
-        if (route is null || !route.TryUtf8InputValue(utf8Key, utf8Value))
+        if (route is null || !route.TryUtf8InputValue(utf8Key, utf8Value, command, expectedRevision, policies))
         {
             throw new InvalidOperationException("The view is not mounted in a GPUI application.");
         }

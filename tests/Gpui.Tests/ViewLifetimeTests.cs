@@ -198,7 +198,7 @@ public sealed class ViewLifetimeTests
             post is null ? static callback => callback.Invoke() : callback => post(callback.Invoke),
             invalidate ?? (static _ => { }),
             resourceCommand ?? (static (_, _) => { }),
-            static (_, _, _) => { },
+            static (_, _, _, _, _, _) => { },
             static (_, _, _, _, _, _, _, _, _, _) => { },
             static () => { }
         );

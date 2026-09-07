@@ -334,6 +334,8 @@ namespace Gpui.Interop
         InputSetValue = 22,
         /// <summary>Selects the whole input value.</summary>
         InputSelectAll = 23,
+        /// <summary>Replaces UTF-8 data without events only when a matches the nonzero native revision. Word b packs input_selection_policy in bit 0 and input_composition_policy in bit 1; other bits are reserved zero. Identical normalized values preserve editing state.</summary>
+        InputSetValueIfCurrent = 24,
         /// <summary>Sets the slider value without emitting events.</summary>
         SliderSetValue = 30,
         /// <summary>Removes a panel natively and fires the closed event.</summary>
@@ -349,7 +351,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x518C26D23555512DUL;
+        internal const ulong SchemaHash = 0xA44957CD474268E5UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {

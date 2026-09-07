@@ -230,12 +230,28 @@ Bindings are opt-in: `OnChanged`, `OnSubmitted`, and `OnFocusChanged`. Without a
 editing does not cross into managed code. `Utf8InputOptions`, `InputEvent.Utf8Value`, and UTF-8
 controller overloads avoid unnecessary UTF-16 allocation. `InputEvent.Value` decodes lazily.
 
-`InputController` supports `Focus`, `Blur`, `SelectAll`, and `SetValue`. The declarative initial
-value is consumed only when the native keyed resource is created.
+`InputController` supports `Focus`, `Blur`, `SelectAll`, `SetValue`, and `SetValueIfCurrent`.
+The declarative initial value is consumed only when the native keyed resource is created.
 `SetValue` normalizes line breaks to spaces. If the resulting value already matches, it preserves
 selection, IME composition, and horizontal scrolling. A changed value moves the caret to the end,
 clears composition, and resets horizontal scrolling without emitting a change event. Replacement
-is unconditional; asynchronous callers must suppress stale results before issuing it.
+is unconditional.
+
+For asynchronous formatting or validation, retain the triggering `InputEvent.Revision` and call
+`controller.SetValueIfCurrent(result, inputEvent.Revision)` from an accepted event/effect continuation.
+Native delivery silently skips a stale revision or active IME composition. The default
+`InputSelectionPolicy.Preserve` keeps the current selection's UTF-16 offsets and direction, clamping
+forward to grapheme boundaries in the replacement (or its end). `MoveToEnd` instead moves the caret
+to the end. `InputCompositionPolicy.CancelComposition` explicitly permits a changed value to cancel
+composition. Identical normalized values preserve editing state regardless of these policies.
+Queueing is not confirmation that the replacement applied, and replacements emit no change event.
+Use the next native event's revision for subsequent conditional work.
+
+Revisions are nonzero opaque tokens, not edit counts. They change for controller writes, IME content
+and composition transitions, and resource recreation; caret movement and focus do not change them.
+An event remains safe to inspect asynchronously, but its revision may already be stale. Continue
+using the View's owned work/effect lifetime for cancellation and accepted delivery; revision checking
+protects native editing state and does not grant a retired View permission to issue commands.
 
 The retained GPUI.NET engine remains authoritative after comparison with the foundation Input.
 Foundation `InputState` uses a Rope-backed editor and emits change notifications without a value or

@@ -428,7 +428,7 @@ public sealed class NativeExtensionTests
         var view = new ExtensionProbeView();
         view.Runtime.PrepareRuntime(
             42, static callback => callback.Invoke(), static _ => { },
-            static (_, _) => { }, static (_, _, _) => { },
+            static (_, _) => { }, static (_, _, _, _, _, _) => { },
             static (_, _, _, _, _, _, _, _, _, _) => { },
             static () => { }
         );
@@ -501,7 +501,7 @@ public sealed class NativeExtensionTests
             static callback => callback.Invoke(),
             static _ => { },
             static (_, _) => { },
-            static (_, _, _) => { },
+            static (_, _, _, _, _, _) => { },
             extensionCommand ?? (static (_, _, _, _, _, _, _, _, _, _) => { }),
             static () => { }
         );

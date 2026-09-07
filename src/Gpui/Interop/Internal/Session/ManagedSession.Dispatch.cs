@@ -114,7 +114,10 @@ internal sealed unsafe partial class ManagedSession
     internal void DispatchUtf8InputValue(
         uint ownerView,
         ReadOnlySpan<byte> utf8Key,
-        ReadOnlySpan<byte> utf8Value
+        ReadOnlySpan<byte> utf8Value,
+        ResourceCommandKind command = ResourceCommandKind.InputSetValue,
+        ulong expectedRevision = 0,
+        ulong policies = 0
     )
     {
         if (!IsAcceptingWork || ownerView == 0)
@@ -133,14 +136,14 @@ internal sealed unsafe partial class ManagedSession
             {
                 owner_view = ownerView,
                 resource_kind = (ushort)ResourceKind.Input,
-                command = (ushort)ResourceCommandKind.InputSetValue,
+                command = (ushort)command,
                 key = key,
                 key_length = utf8Key.Length,
                 data = data,
                 data_length = utf8Value.Length,
                 reserved = 0,
-                a = 0,
-                b = 0,
+                a = expectedRevision,
+                b = policies,
             };
             var status = _runtime.Api->dispatch_command(_sessionId, &native);
             GC.KeepAlive(_runtime);
@@ -151,7 +154,7 @@ internal sealed unsafe partial class ManagedSession
             if (status != 0)
             {
                 throw new InvalidOperationException(
-                    $"Native InputSetValue failed for session {_sessionId}, owner {ownerView}, "
+                    $"Native {command} failed for session {_sessionId}, owner {ownerView}, "
                         + $"key '{Encoding.UTF8.GetString(utf8Key)}': {NativeStatus.Describe(NativeStatusDomain.ResourceCommand, status)}."
                 );
             }

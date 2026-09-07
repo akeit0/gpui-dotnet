@@ -1080,6 +1080,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         private static readonly ConcurrentDictionary<ulong, int> NotifyStatuses = new();
         private static readonly ConcurrentDictionary<ulong, int> ArtifactStatuses = new();
         private static readonly ConcurrentDictionary<ulong, int> ResourceStatuses = new();
+        private static readonly ConcurrentDictionary<ulong, List<(uint Owner, ResourceCommand Command)>> ResourceCalls = new();
         private readonly GpuiDotnetApiV3* _api;
         private readonly ulong _id;
         internal ProbeView View { get; }
@@ -1089,6 +1090,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         internal int NotifyStatus { set => NotifyStatuses[_id] = value; }
         internal int ArtifactStatus { set => ArtifactStatuses[_id] = value; }
         internal int ResourceStatus { set => ResourceStatuses[_id] = value; }
+        internal List<(uint Owner, ResourceCommand Command)> CaptureResourceCommands() => ResourceCalls[_id] = [];
         internal ChildView Child => (ChildView)State(View).Children!.Values.Single().View;
         internal ChildView CandidateChild => (ChildView)State(View).StagedChildren!.Values.Single().View;
 
@@ -1209,6 +1211,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             NotifyStatuses.TryRemove(_id, out _);
             ArtifactStatuses.TryRemove(_id, out _);
             ResourceStatuses.TryRemove(_id, out _);
+            ResourceCalls.TryRemove(_id, out _);
             NativeMemory.Free(_api);
         }
 
@@ -1220,8 +1223,19 @@ public sealed unsafe partial class RuntimeExecutionTests
         }
 
         [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-        private static int DispatchResource(ulong id, NativeResourceCommand* command) =>
-            ResourceStatuses.GetValueOrDefault(id);
+        private static int DispatchResource(ulong id, NativeResourceCommand* command)
+        {
+            if (ResourceCalls.TryGetValue(id, out var calls))
+            {
+                calls.Add((command->owner_view, new ResourceCommand(
+                    (ResourceKind)command->resource_kind, (ResourceCommandKind)command->command,
+                    System.Text.Encoding.UTF8.GetString(new ReadOnlySpan<byte>(command->key, command->key_length)),
+                    command->a, command->b,
+                    System.Text.Encoding.UTF8.GetString(new ReadOnlySpan<byte>(command->data, command->data_length))
+                )));
+            }
+            return ResourceStatuses.GetValueOrDefault(id);
+        }
 
         [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
         private static int Notify(ulong id)

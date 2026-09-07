@@ -62,6 +62,18 @@ namespace Gpui
     public readonly struct DockRegionTag : IParentElementTag, IDockContainerElementTag, IDockRegionElementTag { }
     public readonly struct NativeExtensionTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IExtensionElementTag { }
 
+    public enum InputSelectionPolicy : uint
+    {
+        Preserve = 0,
+        MoveToEnd = 1,
+    }
+
+    public enum InputCompositionPolicy : uint
+    {
+        RejectWhileComposing = 0,
+        CancelComposition = 1,
+    }
+
     public enum FlexWrap : uint
     {
         NoWrap = 0,

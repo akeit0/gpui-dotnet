@@ -736,8 +736,10 @@ public sealed class SemanticRenderTests
         Assert.Equal(7UL, input.Revision);
     }
 
-    [Fact]
-    public void Utf8SetValueDoesNotAllocatePerCommand()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Utf8SetValueDoesNotAllocatePerCommand(bool conditional)
     {
         var view = new ProbeView();
         Attach(view);
@@ -745,9 +747,13 @@ public sealed class SemanticRenderTests
         {
             var controller = new InputController(view, "search");
             controller.SetValue("warmup"u8);
+            controller.SetValueIfCurrent("warmup"u8, 42);
 
             var before = GC.GetAllocatedBytesForCurrentThread();
-            controller.SetValue("allocation-free UTF-8"u8);
+            if (conditional)
+                controller.SetValueIfCurrent("allocation-free UTF-8"u8, 42);
+            else
+                controller.SetValue("allocation-free UTF-8"u8);
             var after = GC.GetAllocatedBytesForCurrentThread();
 
             Assert.Equal(before, after);
@@ -1990,7 +1996,7 @@ public sealed class SemanticRenderTests
             static callback => callback.Invoke(),
             static _ => { },
             static (_, _) => { },
-            static (_, _, _) => { },
+            static (_, _, _, _, _, _) => { },
             static (_, _, _, _, _, _, _, _, _, _) => { },
             static () => { }
         );

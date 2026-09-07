@@ -33,6 +33,22 @@
   ],
   "enums": [
     {
+      "name": "input_selection_policy",
+      "csharp": "InputSelectionPolicy",
+      "variants": [
+        { "name": "preserve", "csharp": "Preserve", "value": 0 },
+        { "name": "move_to_end", "csharp": "MoveToEnd", "value": 1 }
+      ]
+    },
+    {
+      "name": "input_composition_policy",
+      "csharp": "InputCompositionPolicy",
+      "variants": [
+        { "name": "reject_while_composing", "csharp": "RejectWhileComposing", "value": 0 },
+        { "name": "cancel_composition", "csharp": "CancelComposition", "value": 1 }
+      ]
+    },
+    {
       "name": "flex_wrap",
       "csharp": "FlexWrap",
       "variants": [
@@ -2882,7 +2898,8 @@
         { "id": 20, "name": "focus", "csharp": "InputFocus", "doc": "Moves native keyboard focus to the input." },
         { "id": 21, "name": "blur", "csharp": "InputBlur", "doc": "Releases native keyboard focus from the input." },
         { "id": 22, "name": "set_value", "csharp": "InputSetValue", "doc": "Replaces the input value without emitting events." },
-        { "id": 23, "name": "select_all", "csharp": "InputSelectAll", "doc": "Selects the whole input value." }
+        { "id": 23, "name": "select_all", "csharp": "InputSelectAll", "doc": "Selects the whole input value." },
+        { "id": 24, "name": "set_value_if_current", "csharp": "InputSetValueIfCurrent", "doc": "Replaces UTF-8 data without events only when a matches the nonzero native revision. Word b packs input_selection_policy in bit 0 and input_composition_policy in bit 1; other bits are reserved zero. Identical normalized values preserve editing state." }
       ]
     },
     {

@@ -1,4 +1,10 @@
-use std::{ops::Range, sync::Arc};
+use std::{
+    ops::Range,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+};
 
 use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId, ElementInputHandler,
@@ -15,7 +21,8 @@ use crate::{
     resources::ResourceCommand,
     semantic::{
         COMMAND_INPUT_BLUR, COMMAND_INPUT_FOCUS, COMMAND_INPUT_SELECT_ALL, COMMAND_INPUT_SET_VALUE,
-        EVENT_INPUT_CHANGED, EVENT_INPUT_FOCUS_CHANGED, EVENT_INPUT_SUBMITTED,
+        COMMAND_INPUT_SET_VALUE_IF_CURRENT, EVENT_INPUT_CHANGED, EVENT_INPUT_FOCUS_CHANGED,
+        EVENT_INPUT_SUBMITTED,
     },
     theme::SharedTheme,
 };
@@ -129,7 +136,7 @@ impl ManagedInput {
             read_only: initial.read_only,
             password: initial.password,
             bindings: initial.bindings,
-            revision: 0,
+            revision: next_input_revision(),
             callback_error: None,
             focus_subscriptions: Vec::new(),
             theme,
@@ -176,6 +183,12 @@ impl ManagedInput {
             COMMAND_INPUT_FOCUS if !self.disabled => self.focus_handle.focus(window, cx),
             COMMAND_INPUT_BLUR if self.focus_handle.is_focused(window) => window.blur(cx),
             COMMAND_INPUT_SET_VALUE => self.set_value(command.data.as_ref(), cx),
+            COMMAND_INPUT_SET_VALUE_IF_CURRENT
+                if command.a == self.revision
+                    && (self.marked_range.is_none() || command.b & 2 != 0) =>
+            {
+                self.replace_value(command.data.as_ref(), command.b & 1 == 0, cx);
+            }
             COMMAND_INPUT_SELECT_ALL if !self.disabled => {
                 self.selected_range = 0..self.content.len();
                 self.selection_reversed = false;
@@ -186,18 +199,43 @@ impl ManagedInput {
     }
 
     fn set_value(&mut self, value: &str, cx: &mut Context<Self>) {
+        self.replace_value(value, false, cx);
+    }
+
+    fn replace_value(&mut self, value: &str, preserve_selection: bool, cx: &mut Context<Self>) {
         let content = single_line(value);
         if self.content == content {
             return;
         }
-        let cursor = content.len();
-        self.content = content.clone();
-        self.last_emitted_content = content;
-        self.selected_range = cursor..cursor;
-        self.selection_reversed = false;
-        self.marked_range = None;
-        self.scroll_x = px(0.);
+        let selection = preserve_selection.then(|| self.range_to_utf16(&self.selected_range));
+        self.update_text_state(content, None);
+        self.last_emitted_content = self.content.clone();
+        if let Some(selection) = selection {
+            let selection = self.range_from_utf16(&selection);
+            self.selected_range = self.clamp_grapheme_forward(selection.start)
+                ..self.clamp_grapheme_forward(selection.end);
+        } else {
+            let cursor = self.content.len();
+            self.selected_range = cursor..cursor;
+            self.selection_reversed = false;
+            self.scroll_x = px(0.);
+        }
         cx.notify();
+    }
+
+    fn clamp_grapheme_forward(&self, offset: usize) -> usize {
+        self.content
+            .grapheme_indices(true)
+            .find(|(index, _)| *index >= offset)
+            .map_or(self.content.len(), |(index, _)| index)
+    }
+
+    fn update_text_state(&mut self, content: SharedString, marked_range: Option<Range<usize>>) {
+        if self.content != content || self.marked_range != marked_range {
+            self.revision = next_input_revision();
+        }
+        self.content = content;
+        self.marked_range = marked_range;
     }
 
     fn can_edit(&self) -> bool {
@@ -430,16 +468,7 @@ impl ManagedInput {
     }
 
     fn offset_from_utf16(&self, offset: usize) -> usize {
-        let mut utf8_offset = 0;
-        let mut utf16_count = 0;
-        for character in self.content.chars() {
-            if utf16_count >= offset {
-                break;
-            }
-            utf16_count += character.len_utf16();
-            utf8_offset += character.len_utf8();
-        }
-        utf8_offset
+        offset_from_utf16(&self.content, offset)
     }
 
     fn offset_to_utf16(&self, offset: usize) -> usize {
@@ -468,7 +497,6 @@ impl ManagedInput {
             return;
         }
         self.last_emitted_content = self.content.clone();
-        self.revision = self.revision.wrapping_add(1).max(1);
         self.emit(self.bindings.changed, EVENT_INPUT_CHANGED, false, cx);
     }
 
@@ -532,7 +560,10 @@ impl EntityInputHandler for ManagedInput {
     }
 
     fn unmark_text(&mut self, _: &mut Window, cx: &mut Context<Self>) {
-        self.marked_range = None;
+        if self.marked_range.take().is_some() {
+            self.revision = next_input_revision();
+            cx.notify();
+        }
         self.emit_changed_if_needed(cx);
     }
 
@@ -552,13 +583,13 @@ impl EntityInputHandler for ManagedInput {
             .or(self.marked_range.clone())
             .unwrap_or(self.selected_range.clone());
         let new_text = new_text.replace(['\r', '\n'], " ");
-        self.content = shared(
+        let content = shared(
             &(self.content[..range.start].to_owned() + &new_text + &self.content[range.end..]),
         );
+        self.update_text_state(content, None);
         let cursor = range.start + new_text.len();
         self.selected_range = cursor..cursor;
         self.selection_reversed = false;
-        self.marked_range = None;
         self.emit_changed_if_needed(cx);
         cx.notify();
     }
@@ -580,15 +611,18 @@ impl EntityInputHandler for ManagedInput {
             .or(self.marked_range.clone())
             .unwrap_or(self.selected_range.clone());
         let new_text = new_text.replace(['\r', '\n'], " ");
-        self.content = shared(
+        let content = shared(
             &(self.content[..range.start].to_owned() + &new_text + &self.content[range.end..]),
         );
-        self.marked_range =
+        let marked_range =
             (!new_text.is_empty()).then_some(range.start..range.start + new_text.len());
+        self.update_text_state(content, marked_range);
         self.selected_range = new_selected_range_utf16
             .as_ref()
-            .map(|selection| self.range_from_utf16(selection))
-            .map(|selection| range.start + selection.start..range.start + selection.end)
+            .map(|selection| {
+                range.start + offset_from_utf16(&new_text, selection.start)
+                    ..range.start + offset_from_utf16(&new_text, selection.end)
+            })
             .unwrap_or_else(|| {
                 let cursor = range.start + new_text.len();
                 cursor..cursor
@@ -951,6 +985,28 @@ fn single_line(value: &str) -> SharedString {
     }
 }
 
+// A stale event must not match a newly created resource under the same retained key.
+fn next_input_revision() -> u64 {
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.try_update(Ordering::Relaxed, Ordering::Relaxed, |revision| {
+        revision.checked_add(1)
+    })
+    .expect("input revision space exhausted")
+}
+
+fn offset_from_utf16(text: &str, offset: usize) -> usize {
+    let mut utf8_offset = 0;
+    let mut utf16_count = 0;
+    for character in text.chars() {
+        if utf16_count >= offset {
+            break;
+        }
+        utf16_count += character.len_utf16();
+        utf8_offset += character.len_utf8();
+    }
+    utf8_offset
+}
+
 #[cfg(test)]
 mod tests {
     use std::{cell::RefCell, rc::Rc};
@@ -1015,6 +1071,173 @@ mod tests {
             b: 0,
             data: data.into(),
         }
+    }
+
+    fn conditional_value(data: &str, revision: u64, policies: u64) -> ResourceCommand {
+        ResourceCommand {
+            command: COMMAND_INPUT_SET_VALUE_IF_CURRENT,
+            a: revision,
+            b: policies,
+            ..set_value_command(data)
+        }
+    }
+
+    #[gpui::test]
+    fn conditional_replacement_rejects_stale_edits_and_controller_writes(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                let initial = input.revision;
+                assert_ne!(initial, 0);
+                input.replace_text_in_range(None, "typed", window, cx);
+                let typed = input.revision;
+                assert_ne!(typed, initial);
+                input.apply_command(&conditional_value("stale", initial, 0), window, cx);
+                assert_eq!(input.content.as_str(), "typed");
+                assert_eq!(input.revision, typed);
+                input.apply_command(&conditional_value("accepted", typed, 0), window, cx);
+                let replaced = input.revision;
+                assert_ne!(replaced, typed);
+                assert_eq!(input.content.as_str(), "accepted");
+                assert_eq!(input.last_emitted_content, input.content);
+                input.apply_command(&conditional_value("second result", typed, 0), window, cx);
+                assert_eq!(input.content.as_str(), "accepted");
+                input.set_value("unconditional", cx);
+                assert_ne!(input.revision, replaced);
+                input.apply_command(&conditional_value("stale again", replaced, 3), window, cx);
+                assert_eq!(input.content.as_str(), "unconditional");
+            })
+        });
+    }
+
+    #[gpui::test]
+    fn conditional_replacement_preserves_utf16_selection_and_clamps_graphemes(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.set_value("日本語", cx);
+                input.selected_range = 3..6; // UTF-16 1..2, not UTF-8 1..2.
+                input.selection_reversed = true;
+                input.scroll_x = px(12.);
+                input.apply_command(&conditional_value("abcd", input.revision, 0), window, cx);
+                assert_eq!(input.selected_range, 1..2);
+                assert!(input.selection_reversed);
+                assert_eq!(input.scroll_x, px(12.));
+                // Both offsets fall inside this single grapheme (surrogate pair + combining mark).
+                input.apply_command(
+                    &conditional_value("🙂\u{301}x", input.revision, 0),
+                    window,
+                    cx,
+                );
+                assert_eq!(input.selected_range, 6..6);
+                input.apply_command(&conditional_value("", input.revision, 0), window, cx);
+                assert_eq!(input.selected_range, 0..0);
+                input.apply_command(&conditional_value("end", input.revision, 1), window, cx);
+                assert_eq!(input.selected_range, 3..3);
+                assert!(!input.selection_reversed);
+                assert_eq!(input.scroll_x, px(0.));
+            })
+        });
+    }
+
+    #[gpui::test]
+    fn composition_revisions_block_async_results_and_require_explicit_cancellation(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.set_value("日a", cx);
+                let before = input.revision;
+                input.replace_and_mark_text_in_range(Some(1..2), "🙂x", Some(2..3), window, cx);
+                let composing = input.revision;
+                assert_ne!(composing, before);
+                assert_eq!(input.content.as_str(), "日🙂x");
+                assert_eq!(input.marked_range, Some(3..8));
+                assert_eq!(input.selected_range, 7..8); // Relative to inserted text, not the prefix.
+                assert_eq!(input.last_emitted_content.as_str(), "日a");
+                input.apply_command(&conditional_value("stale", before, 3), window, cx);
+                input.apply_command(&conditional_value("interrupt", composing, 0), window, cx);
+                assert_eq!(input.content.as_str(), "日🙂x");
+                assert_eq!(input.revision, composing);
+                // Even an explicit cancel is a no-op for identical normalized content.
+                input.apply_command(&conditional_value("日🙂x", composing, 3), window, cx);
+                assert_eq!(input.marked_range, Some(3..8));
+                assert_eq!(input.selected_range, 7..8);
+                assert_eq!(input.revision, composing);
+                input.apply_command(&conditional_value("accepted", composing, 3), window, cx);
+                assert_eq!(input.content.as_str(), "accepted");
+                assert_eq!(input.marked_range, None);
+                assert_eq!(input.selected_range, 8..8);
+                let replaced = input.revision;
+                assert_ne!(replaced, composing);
+                // Starting and finishing composition with unchanged text must also revoke old tokens.
+                input.replace_and_mark_text_in_range(Some(0..8), "accepted", None, window, cx);
+                let marked = input.revision;
+                assert_ne!(marked, replaced);
+                input.unmark_text(window, cx);
+                assert_ne!(input.revision, marked);
+                input.apply_command(&conditional_value("late", replaced, 0), window, cx);
+                assert_eq!(input.content.as_str(), "accepted");
+            })
+        });
+    }
+
+    #[gpui::test]
+    fn recreated_inputs_do_not_reuse_revision_tokens(cx: &mut gpui::TestAppContext) {
+        let old = cx.update(input_entity);
+        let revision = cx.read(|cx| old.read(cx).revision);
+        drop(old);
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                assert_ne!(input.revision, revision);
+                input.apply_command(&conditional_value("old result", revision, 3), window, cx);
+                assert_eq!(input.content.as_str(), "");
+            })
+        });
+    }
+
+    #[gpui::test]
+    fn change_callbacks_carry_current_revision_without_controller_echoes(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        static LAST: AtomicU64 = AtomicU64::new(0);
+        static CALLS: AtomicU64 = AtomicU64::new(0);
+        unsafe extern "C" fn changed(_: u64, _: u64, event: *const NativeControlEvent) -> i32 {
+            LAST.store(unsafe { (*event).revision }, Ordering::Relaxed);
+            CALLS.fetch_add(1, Ordering::Relaxed);
+            0
+        }
+        LAST.store(0, Ordering::Relaxed);
+        CALLS.store(0, Ordering::Relaxed);
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.bindings.changed = 1;
+                input.callbacks.control_event = Some(changed);
+                input.replace_text_in_range(None, "a", window, cx);
+                assert_eq!(LAST.load(Ordering::Relaxed), input.revision);
+                assert_eq!(CALLS.load(Ordering::Relaxed), 1);
+                input.apply_command(&conditional_value("b", input.revision, 0), window, cx);
+                input.set_value("c", cx);
+                assert_eq!(CALLS.load(Ordering::Relaxed), 1);
+                input.replace_and_mark_text_in_range(Some(0..1), "語", None, window, cx);
+                assert_eq!(CALLS.load(Ordering::Relaxed), 1);
+                input.unmark_text(window, cx);
+                assert_eq!(LAST.load(Ordering::Relaxed), input.revision);
+                assert_eq!(CALLS.load(Ordering::Relaxed), 2);
+            })
+        });
     }
 
     /// A set-value command must replace content, not fall through to the

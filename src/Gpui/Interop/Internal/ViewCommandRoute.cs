@@ -101,7 +101,13 @@ internal sealed class ViewCommandRoute
         }
     }
 
-    internal bool TryUtf8InputValue(ReadOnlySpan<byte> utf8Key, ReadOnlySpan<byte> utf8Value)
+    internal bool TryUtf8InputValue(
+        ReadOnlySpan<byte> utf8Key,
+        ReadOnlySpan<byte> utf8Value,
+        ResourceCommandKind command,
+        ulong expectedRevision,
+        ulong policies
+    )
     {
         ApplicationExecution.AssertEffectsAllowed();
         lock (_gate)
@@ -110,7 +116,7 @@ internal sealed class ViewCommandRoute
             {
                 return false;
             }
-            Utf8InputValue(ViewHandle, utf8Key, utf8Value);
+            Utf8InputValue(ViewHandle, utf8Key, utf8Value, command, expectedRevision, policies);
             return true;
         }
     }

@@ -353,7 +353,7 @@ The same rule applies to UTF-8 Input setters and extension commands. Presence is
 |---|---|
 | Scroll | ScrollToOffset, ScrollToTop, ScrollToBottom |
 | List/Table row engine | ScrollToItem, Splice, Reset, Refresh |
-| Input | Focus, Blur, SetValue, SelectAll |
+| Input | Focus, Blur, SetValue, SetValueIfCurrent, SelectAll |
 | Slider | SetValue |
 | Dock | ClosePanel, SetRegionOpen, ImportLayout, ExportLayout |
 
@@ -366,6 +366,27 @@ wins ties; unknown panels and malformed documents are consumed without effect.
 All payloads are canonical: no-payload commands require zero words and empty data, indices/counts
 must fit their documented words, offsets must be finite and non-negative, and Input data must be
 valid UTF-8.
+
+Input command `24` (`InputSetValueIfCurrent`) uses `a` for a nonzero expected revision and UTF-8
+`data` for the replacement. Word `b` packs selection policy in bit 0 (`0` preserves current UTF-16
+selection offsets and direction, `1` moves to end) and composition policy in bit 1 (`0` skips active
+composition, `1` permits cancellation). Other bits must be zero. Preserved selection offsets clamp
+forward to grapheme boundaries in the new value, or to its end. Revision zero or reserved policy
+bits fail ingress validation with `-54`. This semantic command changes the schema hash, not ABI 7
+or any C layout.
+
+Delivery compares the expected revision with the retained Input on the GPUI thread; stale values
+and disallowed composition are silently ignored. Ingress success only acknowledges queueing, not
+replacement. Both replacement commands normalize line breaks and preserve all editing state when
+the normalized value is identical, including with explicit cancellation/move-to-end policies.
+Changed values clear composition and advance the revision without emitting events. Preserving
+selection retains horizontal scroll until native caret reveal adjusts it; moving to end resets it.
+
+Input event revisions are nonzero opaque tokens allocated at creation and whenever content or
+composition changes, including controller writes and uncommitted IME edits. Tokens are never
+reused within the native host lifetime, including after resource recreation. Selection/focus alone
+do not advance them. They are not edit counts, and gaps are expected. IME changes still emit
+`OnChanged` only on commit; its revision is the current token, with no extra increment for delivery.
 
 ## Native extension commands
 
