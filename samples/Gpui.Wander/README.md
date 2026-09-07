@@ -33,6 +33,11 @@ dotnet run --project samples/Gpui.Wander -- --dark
 
 ## Architecture notes
 
+Profile synchronizes model fields through an accepted effect. External changes to the same field
+replace its local draft; unrelated field edits preserve drafts. Save rechecks the current model
+before committing, and document reset discards all drafts. Input replacement is unconditional,
+so same-field external edits can end active IME composition under this sample policy.
+
 - `Models/TravelStore.cs` owns destinations, entries, trips, and profile state
   with a monotonic `Revision`. Observable mutations notify every consumer.
   `ResetRevision` separately identifies document resets that replace profile drafts.

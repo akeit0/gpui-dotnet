@@ -17,10 +17,12 @@ internal sealed partial class ProfileView : View<ProfileProps>
         "cover.svg"
     );
 
-    private readonly record struct ResetInput(TravelStore Store, ulong Revision);
+    private readonly record struct ProfileInput(
+        TravelStore Store, ulong ResetRevision, string Name, string Bio, float Goal);
 
     private readonly Effect<ProfileProps> _watch;
-    private readonly Effect<ResetInput> _reset;
+    private readonly Effect<ProfileInput> _sync;
+    private ProfileInput? _synced;
     private readonly GpuiApplication _application;
     private InputController _name;
     private InputController _bio;
@@ -33,7 +35,7 @@ internal sealed partial class ProfileView : View<ProfileProps>
     {
         _application = construction.Application;
         _watch = construction.Effect<ProfileProps>(WatchStore);
-        _reset = construction.Effect<ResetInput>(ResetInputs);
+        _sync = construction.Effect<ProfileInput>(SyncInputs);
         _draftName = initialProps.Store.ProfileName;
         _draftBio = initialProps.Store.ProfileBio;
     }
@@ -41,14 +43,30 @@ internal sealed partial class ProfileView : View<ProfileProps>
     private void WatchStore(EffectScope scope, ProfileProps input) =>
         scope.Own(input.Store.Subscribe(scope.Bind(this, static view => view.Invalidate())));
 
-    private void ResetInputs(EffectScope scope, ResetInput input)
+    private static ProfileInput Snapshot(TravelStore store) =>
+        new(store, store.ResetRevision, store.ProfileName, store.ProfileBio, store.GoalKm);
+
+    private void SyncInputs(EffectScope scope, ProfileInput input) => Synchronize(input);
+
+    private void Synchronize(ProfileInput input)
     {
-        // Initial acceptance, store replacement, and document reset replace the drafts.
-        _draftName = input.Store.ProfileName;
-        _draftBio = input.Store.ProfileBio;
-        _name.SetValue(_draftName);
-        _bio.SetValue(_draftBio);
-        _goal.SetValue(input.Store.GoalKm);
+        var previous = _synced;
+        var reset = previous is null || !ReferenceEquals(previous.Value.Store, input.Store)
+            || previous.Value.ResetRevision != input.ResetRevision;
+        // External changes win only for the changed field; document resets replace all drafts.
+        if (reset || previous!.Value.Name != input.Name)
+        {
+            _draftName = input.Name;
+            _name.SetValue(_draftName);
+        }
+        if (reset || previous!.Value.Bio != input.Bio)
+        {
+            _draftBio = input.Bio;
+            _bio.SetValue(_draftBio);
+        }
+        if (reset || previous!.Value.Goal != input.Goal)
+            _goal.SetValue(input.Goal);
+        _synced = input;
     }
 
     private void SetDraftName(string value) => _draftName = value;
@@ -58,12 +76,16 @@ internal sealed partial class ProfileView : View<ProfileProps>
     private void Save()
     {
         var store = CommittedProps.Store;
+        // Store notifications are queued. Reconcile before writing even if their render has
+        // not been accepted yet, so Save cannot overwrite a newer external field or reset.
+        Synchronize(Snapshot(store));
         store.SetProfile(_draftName, _draftBio);
         // Preserve the accepted draft; another Save must not clear an untouched field.
         _draftName = store.ProfileName;
         _draftBio = store.ProfileBio;
         _name.SetValue(_draftName);
         _bio.SetValue(_draftBio);
+        _synced = Snapshot(store);
         Invalidate();
     }
 
@@ -81,7 +103,7 @@ internal sealed partial class ProfileView : View<ProfileProps>
     protected override Element Render(in ProfileProps props, ref RenderContext ui)
     {
         ui.Effect(_watch, props);
-        ui.Effect(_reset, new(props.Store, props.Store.ResetRevision));
+        ui.Effect(_sync, Snapshot(props.Store));
         var theme = ui.Theme;
         var store = props.Store;
 

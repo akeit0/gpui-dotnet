@@ -48,8 +48,10 @@ items here are specific to web/mobile-style composition.
    explicit sentence in the List docs.
 8. **Model reset is different from initial configuration.** Slider options seed a
    retained resource only at creation. Profile uses an accepted effect keyed by store
-   identity and `ResetRevision` to reset inputs and the slider, including menu-driven
-   reset. A general field binding should also define external-edit and IME policies.
+   identity, `ResetRevision`, and field snapshots. Reset discards drafts; ordinary external
+   changes replace only changed fields, including the goal slider. Save reconciles pending
+   external changes before committing. Same-field replacement can cancel IME composition;
+   a general binding should expose selectable conflict and composition policies.
 9. **Row button ids repeat by design.** Every feed row declares `Button("like")`
    and relies on event tokens, not ids, for routing (same as the gallery's
    `activity-row`). This works but deserves one explicit sentence in the row

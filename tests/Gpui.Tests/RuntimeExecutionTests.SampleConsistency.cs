@@ -9,6 +9,98 @@ namespace Gpui.Tests;
 
 public sealed unsafe partial class RuntimeExecutionTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ProfileSaveMergesUnrelatedExternalEditsBeforeOrAfterTheirRender(bool renderExternalEdit)
+    {
+        var store = new Travel.TravelStore();
+        var application = new GpuiApplication();
+        var spec = Travel.ProfileView.Spec(new(store));
+        var window = application.OpenWindow(spec);
+        using var fixture = new SessionFixture(null, application,
+            new RootViewDeclaration<Travel.ProfileView, Travel.ProfileProps>(spec), window);
+
+        (ulong Name, ulong Bio, ulong Save) Publish()
+        {
+            Assert.Equal(0, fixture.NativePublish(out var revision, out var arena));
+            var inputs = new ReadOnlySpan<OpRecord>(arena.Ops, arena.OpLength).ToArray()
+                .Where(op => op.Code == (ushort)OpCode.InputOnChanged).OrderBy(op => op.Node).ToArray();
+            var save = SampleButtonClick(arena, "profile-save"u8);
+            Assert.Equal(0, fixture.Complete(revision));
+            Assert.Equal(2, inputs.Length);
+            return (inputs[0].A, inputs[1].A, save);
+        }
+
+        var bindings = Publish();
+        Assert.Equal(0, fixture.Control(bindings.Name, 1, "Local name draft"u8));
+        store.SetProfile(store.ProfileName, "External bio");
+        if (renderExternalEdit)
+            bindings = Publish();
+        Assert.Equal(0, fixture.Click(bindings.Save));
+        Assert.Equal("Local name draft", store.ProfileName);
+        Assert.Equal("External bio", store.ProfileBio);
+
+        bindings = Publish();
+        Assert.Equal(0, fixture.Control(bindings.Bio, 1, ""u8));
+        store.SetProfile("External name", store.ProfileBio);
+        if (renderExternalEdit)
+            bindings = Publish();
+        Assert.Equal(0, fixture.Click(bindings.Save));
+        Assert.Equal("External name", store.ProfileName);
+        Assert.Equal(string.Empty, store.ProfileBio);
+        Assert.Null(fixture.Session.Failure);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ProfileSameFieldExternalEditOrResetWinsOverDraftAtSave(bool reset)
+    {
+        var store = new Travel.TravelStore();
+        var application = new GpuiApplication();
+        var spec = Travel.ProfileView.Spec(new(store));
+        var window = application.OpenWindow(spec);
+        using var fixture = new SessionFixture(null, application,
+            new RootViewDeclaration<Travel.ProfileView, Travel.ProfileProps>(spec), window);
+        Assert.Equal(0, fixture.NativePublish(out var revision, out var arena));
+        var name = new ReadOnlySpan<OpRecord>(arena.Ops, arena.OpLength).ToArray()
+            .First(op => op.Code == (ushort)OpCode.InputOnChanged).A;
+        var save = SampleButtonClick(arena, "profile-save"u8);
+        Assert.Equal(0, fixture.Complete(revision));
+        Assert.Equal(0, fixture.Control(name, 1, "Local draft"u8));
+        if (reset)
+            store.Reset();
+        else
+            store.SetProfile("External name", store.ProfileBio);
+        var expected = store.ProfileName;
+        Assert.Equal(0, fixture.Click(save));
+        Assert.Equal(expected, store.ProfileName);
+        Assert.Null(fixture.Session.Failure);
+    }
+
+    [Fact]
+    public void ProfileExternalGoalChangeCommandsOnlyTheSlider()
+    {
+        var store = new Travel.TravelStore();
+        var application = new GpuiApplication();
+        var spec = Travel.ProfileView.Spec(new(store));
+        var window = application.OpenWindow(spec);
+        using var fixture = new SessionFixture(null, application,
+            new RootViewDeclaration<Travel.ProfileView, Travel.ProfileProps>(spec), window);
+        var commands = fixture.CaptureResourceCommands();
+        fixture.RenderFromNative();
+        commands.Clear();
+        store.SetGoal(300);
+        fixture.RenderFromNative();
+        Assert.Equal(ResourceCommandKind.SliderSetValue, Assert.Single(commands).Command.Command);
+        commands.Clear();
+        store.ToggleEntryLike(store.Entries[0].Id);
+        fixture.RenderFromNative();
+        Assert.Empty(commands);
+        Assert.Null(fixture.Session.Failure);
+    }
+
     [Fact]
     public void ExploreSameCountFilterChangesProjectionButLikesPreserveIt()
     {
