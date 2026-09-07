@@ -45,6 +45,12 @@ impl WorkloadArena {
     }
 
     pub(crate) fn decode(&mut self) -> ValidatedSnapshot {
+        let mut snapshot = ValidatedSnapshot::default();
+        self.decode_into(&mut snapshot).unwrap();
+        snapshot
+    }
+
+    pub(crate) fn decode_into(&mut self, snapshot: &mut ValidatedSnapshot) -> Result<(), i32> {
         let arena = RenderArena {
             nodes: self.nodes.as_mut_ptr(),
             node_length: self.nodes.len() as i32,
@@ -65,16 +71,12 @@ impl WorkloadArena {
             required_child_capacity: 0,
             required_utf8_capacity: 0,
         };
-        let mut snapshot = ValidatedSnapshot::default();
-        snapshot
-            .decode_into(
-                &arena,
-                0,
-                &mut RetainedStrings::default(),
-                &mut SnapshotScratch::default(),
-            )
-            .unwrap();
-        snapshot
+        snapshot.decode_into(
+            &arena,
+            0,
+            &mut RetainedStrings::default(),
+            &mut SnapshotScratch::default(),
+        )
     }
 }
 

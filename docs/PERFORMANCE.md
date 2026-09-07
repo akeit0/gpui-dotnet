@@ -721,11 +721,12 @@ builds as a runtime regression.
 The same Windows x64 / i7-13700F / Rust Release environment and stroked-path geometry as the
 preparation probe are used. Each case runs four warmup and five timing batches of 16 frames;
 counts average a separate 16-frame interval after timing. Fixtures retain two predecoded snapshots.
-The replacement case alternates stroke color and geometry between those snapshots, excluding their
-construction/decode costs. Resizing the test window occurs before warmup, so the large-viewport case
+The replacement case alternates stroke color and geometry between those snapshots and clears the
+selected snapshot's derived cache to model a new accepted description, excluding construction/decode
+costs. Resizing the test window occurs before warmup, so the large-viewport case
 measures steady frames after resize, not resize-event latency. The 64 paths overlap deliberately to
 stress tessellation; this is not a typical application layout. An empty Drawing measures fixture
-and GPUI frame overhead without paths.
+and GPUI frame overhead without paths. Baseline results before geometry caching (`175feb0`):
 
 | Paths × segments | CPU frame at 512 × 128 µs | At 1,024 × 256 µs | Alternating snapshot at 512 × 128 µs | Allocations/frame | Reallocations/frame | Requested bytes/frame |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -742,9 +743,45 @@ The separately instrumented dense preparation probe attributes 66 allocation req
 requested bytes to drawing materialization, versus 320 allocations, 1,984 reallocations, and
 20,994,176 requested bytes to path building. The remaining frame requests include GPUI scene
 construction and other frame work. Request totals are not additive estimates of retained memory.
-This evidence supports investigating geometry reuse and tessellation-buffer growth before changing
-the managed transport. Any prototype must include bound/style/snapshot invalidation, scene ownership,
-and retained-memory measurements; platform presentation and GPU measurements remain open.
+### Snapshot-owned drawing geometry reuse
+
+GPUI's public path builder consumes its scratch buffers when building a Path, so the native adapter
+reuses finished geometry within one decoded snapshot. A Drawing's first use at new bounds builds
+paths and transfers them to the scene without retaining geometry. Its second use at those bounds
+admits geometry; later frames clone the cached paths for GPUI, which applies current clipping,
+opacity, and device scale. Moving/resizing or changing padding changes the bounds key. A validated
+replacement snapshot detaches the entire old cache, covering commands, fill rule, dash pattern,
+stroke width, color, view box, and theme-resolved descriptions. Existing frame handles may retain
+old geometry until frame release; they cannot populate the new snapshot's cache.
+
+The cache retains one bounds variant per Drawing, at most 256 entries and 16 MiB of path/vector
+capacity per decoded snapshot. Empty and oversized outputs still render without geometry retention.
+When the shared byte budget is full, additional geometry renders uncached; it does not evict other
+drawings on each frame. Removing an old bounds variant reclaims its cache budget. These limits
+exclude the small map/Rc headers, frame-owned copies, allocator overhead, and GPU memory, so they
+are not a process heap limit. Ordinary snapshots without Drawings allocate no cache.
+
+Using the same timing and allocation commands, with native refresh forced every iteration:
+
+| Paths × segments | Baseline steady CPU µs | Cached steady CPU µs | Cached allocations/frame | Cached reallocations/frame | Cached requested bytes/frame | Retained geometry bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 × 64 | 9.500 | 3.344 | 11 | 0 | 42,344 | 16,736 |
+| 64 × 64 | 442.350 | 75.887 | 264 | 0 | 2,478,344 | 1,071,104 |
+| 64 × 512 | 3,382.887 | 886.438 | 264 | 0 | 19,681,544 | 8,411,136 |
+
+The table uses 512 × 128 bounds. At 1,024 × 256, the cached dense median is 803.994 µs, with the
+same retained bytes and request counts. The dense steady case eliminates 1,984 reallocations per
+frame; copied command descriptions and GPUI scene/path copies remain. Retained geometry counts
+actual vector capacities rather than cumulative allocator requests.
+
+Continuously replaced snapshots retain zero geometry: dense frames measure 3,556.219 µs versus
+3,465.056 µs at baseline, with 524 allocations and 1,984 reallocations (34,407,092 requested bytes).
+The three additional allocations cost 316 requested bytes per frame. The two-use admission policy
+avoids cloning/retaining a large path set for one-use descriptions. The 64 × 64 replacement median
+is 495.300 µs versus 438.275 µs at baseline; separate runs without clock control do not isolate
+that timing difference. This optimization targets repeated native repaints, not constantly changing
+geometry. The steady dense result trades about 8.4 MB of geometry retention for lower CPU cost.
+Platform presentation/GPU measurements and buffer reuse for changing geometry remain open.
 
 ### End-to-end targets
 

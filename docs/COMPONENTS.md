@@ -105,6 +105,11 @@ use the accent role. Wrapper styling does not provide a general API for internal
   device-independent pixels. `Circle` uses the smaller ViewBox axis scale for both radii so point
   markers remain circular; `Ellipse` scales each radius independently. A `Path` must be attached
   directly to exactly one `Drawing`.
+  Repeated native repaints can reuse tessellated geometry within the decoded snapshot. The first
+  use of new bounds renders without retaining geometry; the second admits it to a bounded cache.
+  Bounds include the origin and padding, so movement and resize rebuild geometry. A new accepted
+  snapshot clears the cache, including changes to path commands, view box, colors, fill/stroke, and
+  theme-resolved styles. Current clipping, opacity, and device scale still apply at paint time.
 - `Dynamic` is a transparent one-child wrapper. While active, native GPUI schedules one managed
   render per display frame for the wrapper's owning View. Multiple wrappers for one View are
   deduplicated. The application remains responsible for time, interpolation, and stopping.

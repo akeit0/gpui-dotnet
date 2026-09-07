@@ -9,6 +9,7 @@ mod demand;
 mod dock;
 mod dock_icons;
 mod dock_skin;
+mod drawing_cache;
 pub mod extension;
 mod input;
 mod materializer;

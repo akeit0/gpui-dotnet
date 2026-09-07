@@ -5,10 +5,9 @@ documents.
 
 ## Implementation priorities
 
-1. Drawing performance: evaluate geometry reuse and tessellation-buffer growth against the CPU
-   frame/allocation probes, including bounds, style, snapshot, and lifetime invalidation and retained
-   memory. Measure platform presentation/GPU work and mixed retained-tree updates before changing
-   transport; preserve full validation and ownership boundaries.
+1. Drawing performance: investigate buffer reuse for changing geometry and the remaining scene/path
+   copies. Measure platform presentation/GPU work and mixed retained-tree updates before changing
+   transport; preserve full validation, bounded retention, and ownership boundaries.
 2. Input editing: word navigation, undo/redo, richer pointer selection, platform IME tests, and
    controlled-binding helpers built on conditional replacement.
 3. Virtual-row menus and tooltips: design window-owned overlays anchored to stable item identities,

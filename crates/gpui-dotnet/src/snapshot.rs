@@ -1,4 +1,9 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    cell::{OnceCell, RefCell},
+    collections::HashSet,
+    rc::Rc,
+    sync::Arc,
+};
 
 use gpui::{FontFallbacks, FontFeatures, SharedString};
 
@@ -33,9 +38,25 @@ pub struct ValidatedSnapshot {
     ops: Vec<OpRecord>,
     children: Vec<u32>,
     op_data: Vec<Option<SharedString>>,
+    drawing_cache: OnceCell<Rc<RefCell<crate::drawing_cache::DrawingCache>>>,
 }
 
 impl ValidatedSnapshot {
+    pub(crate) fn drawing_cache(&self) -> Rc<RefCell<crate::drawing_cache::DrawingCache>> {
+        self.drawing_cache.get_or_init(Default::default).clone()
+    }
+
+    pub(crate) fn clear_drawing_cache(&mut self) {
+        self.drawing_cache.take();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn drawing_cache_bytes(&self) -> usize {
+        self.drawing_cache
+            .get()
+            .map_or(0, |cache| cache.borrow().retained_bytes())
+    }
+
     #[cfg(test)]
     pub(crate) fn buffer_capacity_bytes(&self) -> usize {
         self.nodes.capacity() * size_of::<SnapshotNode>()
@@ -52,6 +73,9 @@ impl ValidatedSnapshot {
         scratch: &mut SnapshotScratch,
     ) -> Result<(), i32> {
         validate_with_scratch(arena, root, scratch)?;
+        // Old painted elements may retain the previous cache until their frame is released.
+        // Replacement snapshots must never reuse geometry from the old description.
+        self.clear_drawing_cache();
 
         let nodes = unsafe { slice_or_empty(arena.nodes, arena.node_length as usize) };
         let ops = unsafe { slice_or_empty(arena.ops, arena.op_length as usize) };

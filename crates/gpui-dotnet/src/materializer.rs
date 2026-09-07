@@ -109,7 +109,7 @@ impl ManagedView {
             NativeAdapter::List => self.materialize_list(node, snapshot, window, cx),
             NativeAdapter::Table => self.materialize_table(node, snapshot, window, cx),
             NativeAdapter::Image => materialize_image(node, snapshot, *self.theme.borrow()),
-            NativeAdapter::Drawing => materialize_drawing(node, snapshot),
+            NativeAdapter::Drawing => materialize_drawing(node_id, snapshot),
             NativeAdapter::Dynamic => self.materialize_dynamic(node, snapshot, window, cx),
             NativeAdapter::Path => div().into_any_element(),
             NativeAdapter::Input => self.materialize_input(node, snapshot, window, cx),
@@ -1200,7 +1200,7 @@ pub(crate) fn materialize_snapshot_node_detached(
         return materialize_image(node, snapshot, resources.theme());
     }
     if metadata.adapter == NativeAdapter::Drawing {
-        return materialize_drawing(node, snapshot);
+        return materialize_drawing(node_id, snapshot);
     }
     // Observer key/mouse/modifier/hover/move/wheel/drop bindings need focus and bubbling
     // through a mounted View; virtual rows are element-only snapshots without View lifetime.
@@ -2594,7 +2594,9 @@ enum DrawingPaint {
     Stroke { width: f32 },
 }
 
-fn materialize_drawing(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> AnyElement {
+fn materialize_drawing(node_id: u32, snapshot: &ValidatedSnapshot) -> AnyElement {
+    let node = &snapshot.nodes[node_id as usize];
+    let cache = snapshot.drawing_cache();
     let origin = last_op(snapshot, node, OP_DRAWING_VIEW_BOX_ORIGIN).map(op_f32x2);
     let size = last_op(snapshot, node, OP_DRAWING_VIEW_BOX_SIZE).map(op_f32x2);
     let view_box = origin
@@ -2619,36 +2621,45 @@ fn materialize_drawing(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> Any
             let max_padding =
                 (f32::from(bounds.size.width).min(f32::from(bounds.size.height)) / 2.0).max(0.0);
             let drawing_bounds = bounds.inset(px(padding.min(max_padding)));
-            let mut painted = Vec::with_capacity(paths.len() * 2);
-            for operations in &paths {
-                if let Some(fill) = last_op_in(operations, OP_PATH_FILL_RGBA) {
-                    let rule = match last_op_in(operations, OP_PATH_FILL_RULE).map(|op| op.a) {
-                        Some(1) => FillRule::EvenOdd,
-                        _ => FillRule::NonZero,
-                    };
-                    let paint = DrawingPaint::Fill { rule };
-                    if let Some(path) =
-                        build_drawing_path(operations, drawing_bounds, view_box, paint)
-                    {
-                        painted.push((path, fill.a as u32));
+            cache.borrow_mut().prepare(node_id, drawing_bounds, || {
+                let mut painted = Vec::with_capacity(paths.len() * 2);
+                for operations in &paths {
+                    if let Some(fill) = last_op_in(operations, OP_PATH_FILL_RGBA) {
+                        let rule = match last_op_in(operations, OP_PATH_FILL_RULE).map(|op| op.a) {
+                            Some(1) => FillRule::EvenOdd,
+                            _ => FillRule::NonZero,
+                        };
+                        let paint = DrawingPaint::Fill { rule };
+                        if let Some(path) =
+                            build_drawing_path(operations, drawing_bounds, view_box, paint)
+                        {
+                            painted.push((path, fill.a as u32));
+                        }
+                    }
+                    if let Some(stroke) = last_op_in(operations, OP_PATH_STROKE_RGBA) {
+                        let width = last_op_in(operations, OP_PATH_STROKE_WIDTH_PX)
+                            .map_or(1.0, |op| f32::from_bits(op.a as u32));
+                        let paint = DrawingPaint::Stroke { width };
+                        if let Some(path) =
+                            build_drawing_path(operations, drawing_bounds, view_box, paint)
+                        {
+                            painted.push((path, stroke.a as u32));
+                        }
                     }
                 }
-                if let Some(stroke) = last_op_in(operations, OP_PATH_STROKE_RGBA) {
-                    let width = last_op_in(operations, OP_PATH_STROKE_WIDTH_PX)
-                        .map_or(1.0, |op| f32::from_bits(op.a as u32));
-                    let paint = DrawingPaint::Stroke { width };
-                    if let Some(path) =
-                        build_drawing_path(operations, drawing_bounds, view_box, paint)
-                    {
-                        painted.push((path, stroke.a as u32));
-                    }
+                painted
+            })
+        },
+        |_, painted, window, _| match std::rc::Rc::try_unwrap(painted) {
+            Ok(paths) => {
+                for (path, color) in paths {
+                    window.paint_path(path, rgba(color));
                 }
             }
-            painted
-        },
-        |_, painted, window, _| {
-            for (path, color) in painted {
-                window.paint_path(path, rgba(color));
+            Err(paths) => {
+                for (path, color) in paths.iter() {
+                    window.paint_path(path.clone(), rgba(*color));
+                }
             }
         },
     )
@@ -4096,7 +4107,7 @@ mod tests {
             );
             measure("drawing-materialize-and-drop", 64, || {
                 std::hint::black_box(materialize_drawing(
-                    std::hint::black_box(node),
+                    std::hint::black_box(0),
                     std::hint::black_box(&snapshot),
                 ));
             });
@@ -4144,11 +4155,19 @@ mod tests {
             self.renders.set(self.renders.get() + 1);
             self.viewport.set(window.viewport_size());
             let snapshot = &self.snapshots[self.active];
-            materialize_drawing(&snapshot.nodes[0], snapshot)
+            materialize_drawing(0, snapshot)
         }
     }
 
     fn drawing_frame_snapshot(paths: usize, segments: usize, changed: bool) -> ValidatedSnapshot {
+        drawing_frame_arena(paths, segments, changed).decode()
+    }
+
+    fn drawing_frame_arena(
+        paths: usize,
+        segments: usize,
+        changed: bool,
+    ) -> crate::native_workloads::WorkloadArena {
         use crate::native_workloads::WorkloadArena;
         let mut arena = WorkloadArena::default();
         let root = arena.node(crate::semantic::COMPONENT_DRAWING, None);
@@ -4174,7 +4193,7 @@ mod tests {
                 );
             }
         }
-        arena.decode()
+        arena
     }
 
     #[gpui::test]
@@ -4207,7 +4226,10 @@ mod tests {
                     || {
                         window_cx.update(|window, cx| {
                             if replace {
-                                view.update(cx, |view, _| view.active ^= 1);
+                                view.update(cx, |view, _| {
+                                    view.active ^= 1;
+                                    view.snapshots[view.active].clear_drawing_cache();
+                                });
                             }
                             // Force native materialization on each frame while keeping snapshot input
                             // stable unless the case explicitly swaps the predecoded description.
@@ -4223,8 +4245,147 @@ mod tests {
                     "the native view must render every measured frame"
                 );
                 assert_eq!(viewport.get(), gpui::size(px(width), px(height)));
+                window_cx.update(|_, cx| {
+                    let view = view.read(cx);
+                    println!(
+                        "drawing-cache-{paths}x{segments}: retained_geometry_bytes={}",
+                        view.snapshots[view.active].drawing_cache_bytes()
+                    );
+                });
             }
         }
+    }
+
+    #[gpui::test]
+    fn drawing_cache_rebuilds_for_resize_and_decoded_style_and_geometry_changes(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let (view, window_cx) = cx.add_window_view(|_, _| DrawingFrameWorkload {
+            snapshots: [
+                drawing_frame_snapshot(1, 64, false),
+                ValidatedSnapshot::default(),
+            ],
+            active: 0,
+            renders: Default::default(),
+            viewport: Default::default(),
+        });
+        let draw = |cx: &mut gpui::VisualTestContext| {
+            cx.update(|window, cx| {
+                window.refresh();
+                window.draw(cx).clear(cx);
+            })
+        };
+        window_cx.simulate_resize(gpui::size(px(512.), px(128.)));
+        draw(window_cx);
+        draw(window_cx);
+        let before = window_cx.update(|_, cx| {
+            view.read(cx).snapshots[0]
+                .drawing_cache()
+                .borrow()
+                .cached_paths(0)
+                .unwrap()
+        });
+        draw(window_cx);
+        let hit = window_cx.update(|_, cx| {
+            view.read(cx).snapshots[0]
+                .drawing_cache()
+                .borrow()
+                .cached_paths(0)
+                .unwrap()
+        });
+        assert!(std::rc::Rc::ptr_eq(&before, &hit));
+        window_cx.simulate_resize(gpui::size(px(1024.), px(256.)));
+        draw(window_cx);
+        draw(window_cx);
+        let resized = window_cx.update(|_, cx| {
+            view.read(cx).snapshots[0]
+                .drawing_cache()
+                .borrow()
+                .cached_paths(0)
+                .unwrap()
+        });
+        assert!(!std::rc::Rc::ptr_eq(&before, &resized));
+        assert_ne!(before[0].0.bounds, resized[0].0.bounds);
+
+        let mut changed = drawing_frame_arena(1, 64, true);
+        changed.point(0, OP_DRAWING_VIEW_BOX_SIZE, 256., 128.);
+        changed.op(0, OP_PADDING_PX, 8f32.to_bits() as u64);
+        changed.op(1, OP_PATH_STROKE_WIDTH_PX, 4f32.to_bits() as u64);
+        changed.op(1, OP_PATH_DASH_PX, 3f32.to_bits() as u64);
+        changed.op(1, OP_PATH_FILL_RGBA, 0xAABBCCFF);
+        changed.op(1, OP_PATH_FILL_RULE, 1);
+        let old_cache = window_cx.update(|_, cx| view.read(cx).snapshots[0].drawing_cache());
+        window_cx.update(|_, cx| {
+            view.update(cx, |view, _| {
+                changed.decode_into(&mut view.snapshots[0]).unwrap();
+                assert_eq!(view.snapshots[0].drawing_cache_bytes(), 0);
+            })
+        });
+        draw(window_cx);
+        draw(window_cx);
+        let updated = window_cx.update(|_, cx| {
+            view.read(cx).snapshots[0]
+                .drawing_cache()
+                .borrow()
+                .cached_paths(0)
+                .unwrap()
+        });
+        assert_eq!(updated.len(), 2);
+        assert_eq!((updated[0].1, updated[1].1), (0xAABBCCFF, 0x445566FF));
+        assert_ne!(updated[1].0.bounds, resized[0].0.bounds);
+        // Cached results must be identical to a fresh build with current inputs.
+        window_cx.update(|_, cx| {
+            let snapshot = &view.read(cx).snapshots[0];
+            let operations = snapshot.ops(&snapshot.nodes[1]);
+            let bounds = gpui::Bounds::new(point(px(8.), px(8.)), gpui::size(px(1008.), px(240.)));
+            let view_box = Some(DrawingViewBox {
+                x: 0.,
+                y: 0.,
+                width: 256.,
+                height: 128.,
+            });
+            for (index, paint) in [
+                DrawingPaint::Fill {
+                    rule: FillRule::EvenOdd,
+                },
+                DrawingPaint::Stroke { width: 4. },
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let fresh = build_drawing_path(operations, bounds, view_box, paint).unwrap();
+                assert_eq!(fresh.bounds, updated[index].0.bounds);
+                assert_eq!(fresh.vertices.len(), updated[index].0.vertices.len());
+                for (fresh, cached) in fresh.vertices.iter().zip(&updated[index].0.vertices) {
+                    assert_eq!(fresh.xy_position, cached.xy_position);
+                    assert_eq!(fresh.st_position, cached.st_position);
+                }
+            }
+        });
+        let weak = std::rc::Rc::downgrade(&old_cache);
+        drop(old_cache);
+        assert!(
+            weak.upgrade().is_none(),
+            "old snapshot cache must retire after old frame release"
+        );
+    }
+
+    #[test]
+    fn drawing_cache_lifetime_follows_snapshot_and_surviving_frame_handles() {
+        let mut snapshot = drawing_frame_snapshot(1, 64, false);
+        let cache = snapshot.drawing_cache();
+        let weak = std::rc::Rc::downgrade(&cache);
+        let mut invalid = crate::native_workloads::WorkloadArena::default();
+        invalid.node(u16::MAX, None);
+        assert!(invalid.decode_into(&mut snapshot).is_err());
+        assert!(std::rc::Rc::ptr_eq(&cache, &snapshot.drawing_cache()));
+        let mut replacement = drawing_frame_arena(1, 64, true);
+        replacement.decode_into(&mut snapshot).unwrap();
+        assert!(!std::rc::Rc::ptr_eq(&cache, &snapshot.drawing_cache()));
+        drop(snapshot);
+        assert!(weak.upgrade().is_some());
+        drop(cache);
+        assert!(weak.upgrade().is_none());
     }
 
     #[test]

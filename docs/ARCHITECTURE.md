@@ -74,6 +74,12 @@ additional artifact registry or persistent index is retained.
 Child fragment boundaries check arena identity, generation, and root index before copying. Full
 managed semantic validation runs once on the assembled root or row batch before publication;
 native decoding independently validates the complete snapshot before acceptance.
+Decoded snapshots lazily own a drawing geometry cache. Each Drawing retains at most one bounds
+variant after repeated use, with a shared limit of 256 entries and 16 MiB of path/vector capacity
+per snapshot. New descriptions detach the old cache after validation; frame-owned handles may keep
+it alive until the old frame is released. Cache entries hold geometry and resolved colors only, with
+no View callbacks or borrowed arena memory. Snapshots without materialized Drawings allocate no
+drawing cache. This is native derived data and does not add a retained resource or managed row View.
 Each root publication returns a non-reused revision. After decoding and resource reconciliation,
 Rust acknowledges it through `render_completed`. Managed props and composition commit throughout
 the tree, replaced ownership retires, all new routes activate, and effects start parent-first before native materialization.
