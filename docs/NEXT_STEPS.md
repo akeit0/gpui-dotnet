@@ -5,8 +5,8 @@ documents.
 
 ## Implementation priorities
 
-1. Control customization: use concrete sample needs to scope table header-strip styling
-   and combined interaction-state precedence. Keep application variants in
+1. Control customization: use concrete sample needs to scope combined interaction-state
+   precedence, such as selected/hovered and invalid/focused. Keep application variants in
    managed style recipes and native interaction intact.
 2. Virtual-row menus and tooltips: design window-owned overlays anchored to stable item identities,
    with explicit behavior on scrolling, eviction, movement, and removal.
@@ -131,7 +131,7 @@ interaction ownership separate from row-batch eviction; do not introduce mounted
 
 ## Control presentation and commands
 
-- header-strip styling and indicator presentation driven by sample needs;
+- indicator presentation driven by sample needs;
 - paint-state precedence for combined states such as selected/hovered and invalid/focused;
 - scoped native key bindings with explicit consumption, separate from observer events;
 - general focus targets, restoration, and composite entry behavior;

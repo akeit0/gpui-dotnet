@@ -173,6 +173,9 @@ namespace Gpui.Interop
         ScrollbarGutter = 320,
         ScrollbarWidth = 321,
         TableColumn = 322,
+        TableHeaderBackgroundRgba = 325,
+        TableHeaderTextRgba = 326,
+        TableHeaderBorderRgba = 327,
         SliderMin = 330,
         SliderMax = 331,
         SliderStep = 332,
@@ -360,7 +363,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x5446672F05E8BCDFUL;
+        internal const ulong SchemaHash = 0x0D37FE0340E554AFUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -555,6 +558,9 @@ namespace Gpui.Interop
             OpCode.ScrollbarGutter => ValueKind.U32,
             OpCode.ScrollbarWidth => ValueKind.F32,
             OpCode.TableColumn => ValueKind.U64,
+            OpCode.TableHeaderBackgroundRgba => ValueKind.U32,
+            OpCode.TableHeaderTextRgba => ValueKind.U32,
+            OpCode.TableHeaderBorderRgba => ValueKind.U32,
             OpCode.SliderMin => ValueKind.F32,
             OpCode.SliderMax => ValueKind.F32,
             OpCode.SliderStep => ValueKind.F32,
@@ -854,6 +860,9 @@ namespace Gpui.Interop
             OpCode.ScrollbarGutter => 0x0000000000000040UL,
             OpCode.ScrollbarWidth => 0x0000000000000040UL,
             OpCode.TableColumn => 0x0000000000010000UL,
+            OpCode.TableHeaderBackgroundRgba => 0x0000000000010000UL,
+            OpCode.TableHeaderTextRgba => 0x0000000000010000UL,
+            OpCode.TableHeaderBorderRgba => 0x0000000000010000UL,
             OpCode.SliderMin => 0x0000000000020000UL,
             OpCode.SliderMax => 0x0000000000020000UL,
             OpCode.SliderStep => 0x0000000000020000UL,

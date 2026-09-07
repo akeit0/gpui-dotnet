@@ -77,6 +77,19 @@ internal readonly record struct SampleInputStyle(GpuiTheme Theme, bool Invalid)
     }
 }
 
+internal readonly record struct SampleTableStyle(GpuiTheme Theme)
+    : IGpuiElementStyle<TableTag>
+{
+    public Element<TableTag> Apply(Element<TableTag> table) => table
+        .Background(Theme.Colors.SurfaceBackground)
+        .BorderColor(Theme.Colors.BorderVariant)
+        .BorderWidth(Px(1))
+        .Radius(Px(8))
+        .HeaderBackground(Theme.Colors.InfoBackground)
+        .HeaderTextColor(Theme.Colors.Info)
+        .HeaderBorderColor(Theme.Colors.BorderFocused);
+}
+
 internal readonly record struct SampleSliderStyle(GpuiTheme Theme)
     : IGpuiElementStyle<SliderTag>
 {
@@ -89,6 +102,8 @@ internal readonly record struct SampleSliderStyle(GpuiTheme Theme)
 
 internal static class SampleStyles
 {
+    internal static SampleTableStyle Table(GpuiTheme theme) => new(theme);
+
     internal static SampleSliderStyle Slider(GpuiTheme theme) => new(theme);
 
     internal static SampleTableRowStyle TableRow(GpuiTheme theme, bool selected) => new(theme, selected);
@@ -96,11 +111,11 @@ internal static class SampleStyles
     internal static SampleInputStyle Input(GpuiTheme theme, bool invalid = false) => new(theme, invalid);
 
     internal static SampleButtonStyle TableHeader(GpuiTheme theme) => new(
-        theme.Colors.ElementBackground,
+        new Color(0),
         theme.Colors.ElementHover,
         theme.Colors.ElementActive,
-        theme.Colors.TextAccent,
-        theme.Colors.ElementBackground,
+        theme.Colors.Info,
+        new Color(0),
         Px(6),
         Px(4)
     );

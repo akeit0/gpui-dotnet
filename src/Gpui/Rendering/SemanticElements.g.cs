@@ -972,6 +972,33 @@ namespace Gpui
             return element;
         }
 
+        /// <summary>Overrides the Table header background, including its scrollbar gutter. Omission uses the current theme element background.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HeaderBackground<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ITableElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.TableHeaderBackgroundRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Sets inherited Table header text color for labels and custom content. Omission uses the current theme muted text.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HeaderTextColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ITableElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.TableHeaderTextRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides the Table header bottom border, including its scrollbar gutter. Omission uses the current theme border variant.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HeaderBorderColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ITableElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.TableHeaderBorderRgba, color.Rgba);
+            return element;
+        }
+
         /// <summary>Overrides Slider track background, including alpha. Omission uses the current theme border variant.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Element<TTag> TrackColor<TTag>(this Element<TTag> element, Color color)

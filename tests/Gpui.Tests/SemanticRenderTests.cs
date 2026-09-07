@@ -1369,6 +1369,29 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void TableHeaderColorsPreserveAlphaAndLastDeclarationWins()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var table = ui.Table("grid", new ListDataSource(10, 1), view.Row,
+                    new TableColumn("name", "Name", 120))
+                .HeaderBackground(Hex("#112233"))
+                .HeaderTextColor(Hex("#445566"))
+                .HeaderBorderColor(Hex("#77889940"))
+                .HeaderBackground(Hex("#AABBCC80"));
+            arena.Validate(table);
+            Assert.Equal(0xAABBCC80u, ReadLastU32Op(arena, OpCode.TableHeaderBackgroundRgba));
+            Assert.Equal(0x445566FFu, ReadLastU32Op(arena, OpCode.TableHeaderTextRgba));
+            Assert.Equal(0x77889940u, ReadLastU32Op(arena, OpCode.TableHeaderBorderRgba));
+        }
+        finally { view.Runtime.UnmountRuntime(); }
+    }
+
+    [Fact]
     public void InputPartColorsAreTypedAndLastDeclarationWins()
     {
         var view = new ProbeView();

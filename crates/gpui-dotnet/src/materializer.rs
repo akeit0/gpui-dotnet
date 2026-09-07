@@ -79,6 +79,7 @@ use crate::{
         OP_SELF_BASELINE, OP_SELF_CENTER, OP_SELF_END, OP_SELF_FLEX_END, OP_SELF_FLEX_START,
         OP_SELF_START, OP_SELF_STRETCH, OP_SHADOW_BLUR, OP_SHADOW_COLOR, OP_SHADOW_OFFSET,
         OP_SHADOW_SPREAD, OP_SHOW_SCROLLBAR, OP_SMOOTH_SCROLL, OP_TABLE_CELL_COLUMN,
+        OP_TABLE_HEADER_BACKGROUND_RGBA, OP_TABLE_HEADER_BORDER_RGBA, OP_TABLE_HEADER_TEXT_RGBA,
         OP_TABLE_SHOW_HEADER, OP_TEXT_ALIGN, OP_TEXT_BACKGROUND, OP_TEXT_DECORATION_COLOR,
         OP_TEXT_DECORATION_NONE, OP_TEXT_DECORATION_SOLID, OP_TEXT_DECORATION_WAVY,
         OP_TEXT_ELLIPSIS, OP_TEXT_RGBA, OP_TEXT_TRUNCATE, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX,
@@ -753,25 +754,14 @@ impl ManagedView {
             });
         let show_header = last_op(snapshot, node, OP_TABLE_SHOW_HEADER).is_none_or(|op| op.a != 0);
         if show_header {
-            let header = table_header_strip(&spec, theme, |index| {
-                snapshot
-                    .children(node)
-                    .get(index)
-                    .map(|&child| self.materialize_node(child, snapshot, window, cx))
-            });
-            if configuration.scrollbar.gutter > px(0.) {
-                // The header excludes the gutter too, so fraction columns align with row cells.
-                host = host.child(
-                    div()
-                        .flex()
-                        .flex_row()
-                        .flex_shrink_0()
-                        .child(header.flex_grow(1.0))
-                        .child(gutter_spacer(configuration.scrollbar.gutter)),
-                );
-            } else {
-                host = host.child(header);
-            }
+            let header =
+                table_header_strip(&spec, theme, configuration.scrollbar.gutter, |index| {
+                    snapshot
+                        .children(node)
+                        .get(index)
+                        .map(|&child| self.materialize_node(child, snapshot, window, cx))
+                });
+            host = host.child(apply_table_header_styles(header, node, snapshot));
         }
         if configuration.scrollbar.gutter > px(0.) {
             host = host.child(
@@ -2516,16 +2506,20 @@ fn gutter_spacer(gutter: gpui::Pixels) -> gpui::Div {
 fn table_header_strip(
     spec: &std::rc::Rc<TableSpec>,
     theme: NativeTheme,
+    gutter: gpui::Pixels,
     mut content: impl FnMut(usize) -> Option<AnyElement>,
 ) -> gpui::Div {
-    let mut strip = div()
+    let strip = div()
         .flex()
         .flex_row()
         .min_h(px(32.))
         .flex_shrink_0()
         .bg(rgba(theme.element_background))
+        .text_color(rgba(theme.text_muted))
         .border_b_1()
         .border_color(rgba(theme.border_variant));
+    // Only cells exclude the gutter; strip paint spans the complete table width.
+    let mut cells = div().flex().flex_row().flex_grow(1.).min_w_0();
     for (index, column) in spec.columns.iter().enumerate() {
         let cell = apply_column_layout(
             div()
@@ -2539,12 +2533,33 @@ fn table_header_strip(
             div()
                 .child(column.header.clone())
                 .text_size(px(12.))
-                .text_color(rgba(theme.text_muted))
                 .into_any_element()
         });
-        strip = strip.child(cell.child(content));
+        cells = cells.child(cell.child(content));
     }
-    strip
+    let strip = strip.child(cells);
+    if gutter > px(0.) {
+        strip.child(gutter_spacer(gutter))
+    } else {
+        strip
+    }
+}
+
+fn apply_table_header_styles(
+    mut header: gpui::Div,
+    node: &SnapshotNode,
+    snapshot: &ValidatedSnapshot,
+) -> gpui::Div {
+    if let Some(op) = last_op(snapshot, node, OP_TABLE_HEADER_BACKGROUND_RGBA) {
+        header = header.bg(rgba(op.a as u32));
+    }
+    if let Some(op) = last_op(snapshot, node, OP_TABLE_HEADER_TEXT_RGBA) {
+        header = header.text_color(rgba(op.a as u32));
+    }
+    if let Some(op) = last_op(snapshot, node, OP_TABLE_HEADER_BORDER_RGBA) {
+        header = header.border_color(rgba(op.a as u32));
+    }
+    header
 }
 
 fn apply_window_control_area<T>(element: T, node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> T
@@ -3341,6 +3356,9 @@ mod tests {
                 "grid\0name\0Name\0size\0Size",
             );
             arena.op(root, OP_RESOURCE_OWNER, 1);
+            arena.op(root, OP_TABLE_HEADER_BACKGROUND_RGBA, count as u64);
+            arena.op(root, OP_TABLE_HEADER_TEXT_RGBA, (count as u64) << 8);
+            arena.op(root, OP_TABLE_HEADER_BORDER_RGBA, (count as u64) << 16);
             arena.op(
                 root,
                 crate::semantic::OP_TABLE_COLUMN,
@@ -3371,6 +3389,124 @@ mod tests {
                     baseline = Some(spec);
                 }
             }
+        }
+    }
+
+    #[gpui::test]
+    fn table_header_colors_restore_theme_defaults_and_custom_content_inherits_text(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        use crate::native_workloads::WorkloadArena;
+        use std::{cell::RefCell, rc::Rc};
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        for (phase, explicit) in [false, true, true, false].into_iter().enumerate() {
+            let mut arena = WorkloadArena::default();
+            let root =
+                arena.node_with_data(crate::semantic::COMPONENT_TABLE, None, "grid\0a\0A\0b\0B");
+            arena.op(root, OP_RESOURCE_OWNER, 1);
+            for _ in 0..2 {
+                arena.op(
+                    root,
+                    crate::semantic::OP_TABLE_COLUMN,
+                    100f32.to_bits() as u64,
+                );
+            }
+            if explicit {
+                arena.op(root, OP_TABLE_HEADER_BACKGROUND_RGBA, 0x111111FF);
+                arena.op(root, OP_TABLE_HEADER_BACKGROUND_RGBA, 0x22334480);
+                arena.op(root, OP_TABLE_HEADER_TEXT_RGBA, 0x556677FF);
+                arena.op(root, OP_TABLE_HEADER_BORDER_RGBA, 0x8899AA40);
+            }
+            let snapshot = arena.decode();
+            let (_, spec) = table_configuration(&snapshot, &snapshot.nodes[0]).unwrap();
+            let theme = NativeTheme {
+                element_background: 0xAABBCCFF + phase as u32 * 0x100,
+                text_muted: 0xBBCCDDFF + phase as u32 * 0x100,
+                border_variant: 0xCCDDEEFF + phase as u32 * 0x100,
+                ..Default::default()
+            };
+            let expected_text = if explicit {
+                0x556677FF
+            } else {
+                theme.text_muted
+            };
+            for custom in [false, true] {
+                let seen = Rc::new(RefCell::new(Vec::new()));
+                cx.draw(
+                    point(px(0.), px(0.)),
+                    gpui::size(px(300.), px(100.)),
+                    |_, _| {
+                        let header = table_header_strip(&spec, theme, px(12.), |index| {
+                            if !custom {
+                                return None;
+                            }
+                            let seen = seen.clone();
+                            let marker = canvas(
+                                move |_, window, _| {
+                                    seen.borrow_mut().push(window.text_style().color);
+                                },
+                                |_, _, _, _| {},
+                            )
+                            .w(px(10.))
+                            .h(px(12.));
+                            Some(
+                                if index == 0 {
+                                    div().child(marker)
+                                } else {
+                                    div().text_color(rgba(0x123456FF)).child(marker)
+                                }
+                                .into_any_element(),
+                            )
+                        });
+                        let mut header =
+                            apply_table_header_styles(header, &snapshot.nodes[0], &snapshot);
+                        assert_eq!(
+                            header.style().background,
+                            Some(
+                                rgba(if explicit {
+                                    0x22334480
+                                } else {
+                                    theme.element_background
+                                })
+                                .into()
+                            )
+                        );
+                        assert_eq!(
+                            header.style().border_color,
+                            Some(
+                                rgba(if explicit {
+                                    0x8899AA40
+                                } else {
+                                    theme.border_variant
+                                })
+                                .into()
+                            )
+                        );
+                        assert_eq!(header.style().text.color, Some(rgba(expected_text).into()));
+                        div().w_full().child(header)
+                    },
+                );
+                if custom {
+                    assert_eq!(
+                        *seen.borrow(),
+                        vec![rgba(expected_text).into(), rgba(0x123456FF).into()]
+                    );
+                }
+            }
+        }
+        for code in [
+            OP_TABLE_HEADER_BACKGROUND_RGBA,
+            OP_TABLE_HEADER_TEXT_RGBA,
+            OP_TABLE_HEADER_BORDER_RGBA,
+        ] {
+            let mut arena = WorkloadArena::default();
+            let node = arena.node(crate::semantic::COMPONENT_DIV, None);
+            arena.op(node, code, 0);
+            assert!(
+                arena
+                    .decode_into(&mut ValidatedSnapshot::default())
+                    .is_err()
+            );
         }
     }
 
@@ -3409,10 +3545,12 @@ mod tests {
                     point(px(0.), px(0.)),
                     gpui::size(px(width), px(160.)),
                     |_, _| {
-                        let header = table_header_strip(&spec, NativeTheme::default(), |index| {
-                            Some(marker(index, 48.))
-                        })
-                        .flex_grow(1.);
+                        let header = table_header_strip(
+                            &spec,
+                            NativeTheme::default(),
+                            px(gutter),
+                            |index| Some(marker(index, 48.)),
+                        );
                         let mut row = div().flex().flex_row().flex_grow(1.);
                         for (index, column) in spec.columns.iter().enumerate() {
                             row = row.child(
@@ -3420,24 +3558,13 @@ mod tests {
                                     .child(marker(index + 3, 20.)),
                             );
                         }
-                        div()
-                            .flex()
-                            .flex_col()
-                            .w_full()
-                            .child(
-                                div()
-                                    .flex()
-                                    .flex_row()
-                                    .child(header)
-                                    .child(gutter_spacer(px(gutter))),
-                            )
-                            .child(
-                                div()
-                                    .flex()
-                                    .flex_row()
-                                    .child(row)
-                                    .child(gutter_spacer(px(gutter))),
-                            )
+                        div().flex().flex_col().w_full().child(header).child(
+                            div()
+                                .flex()
+                                .flex_row()
+                                .child(row)
+                                .child(gutter_spacer(px(gutter))),
+                        )
                     },
                 );
                 let bounds = bounds.borrow();

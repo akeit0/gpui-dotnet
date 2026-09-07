@@ -293,6 +293,15 @@ The native strip preserves column widths/alignment and scrollbar gutter, with a 
 Header controls own their focus and keyboard activation; table navigation runs only while the table
 itself has focus.
 
+`HeaderBackground`, `HeaderTextColor`, and `HeaderBorderColor` compose with
+`IGpuiElementStyle<TableTag>`. Background and the one-pixel bottom border span the full strip,
+including its scrollbar gutter; header cells still exclude the gutter to align with rows. Header
+text color is inherited by both column labels and custom content, while explicit child colors win.
+Omitted colors use the current theme's element background, muted text, and border variant. The last
+declaration for each color wins and preserves alpha; omitting an override on a later render restores
+the theme default. Header paint is separate from column metadata, so changing it does not invalidate
+row batches or reset the retained cursor or scroll position.
+
 Sorting belongs to the application: a header button changes model order and content revision, then
 calls `ListController.Reset(count)` for an arbitrary reorder. Keep selection by model identity.
 Header content is separate from the column metadata used to reconcile row layout. See the

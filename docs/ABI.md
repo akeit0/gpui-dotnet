@@ -43,6 +43,12 @@ border), restricted to Slider nodes. The last declaration for each part wins, in
 omission restores the current theme default when the retained configuration is reconciled.
 These operations change the schema hash only and preserve ABI 7 and the existing event packets.
 
+Table header colors use U32 RGBA operations 325 (background), 326 (inherited text), and 327 (bottom
+border), restricted to Table nodes. They affect both native labels and managed header content.
+Omission uses current theme roles; later declarations override earlier colors without discarding
+alpha. Header paint is not part of retained column metadata and does not invalidate row batches.
+These operations change the schema hash only, with no C-layout or ABI-version change.
+
 An optional extension has its own ID, protocol version, and schema hash. `supports_extension`
 checks that tuple before application startup. Extension-specific definitions never enter the base
 schema; the generic NativeExtension node carries the tuple, component kind, retained key, and an

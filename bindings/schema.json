@@ -1698,6 +1698,33 @@
       "validation": { "kind": "packedTableColumn", "status": -57 }
     },
     {
+      "id": 325,
+      "name": "table_header_background_rgba",
+      "csharp": "TableHeaderBackgroundRgba",
+      "value": "u32",
+      "requires": "table",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "HeaderBackground", "param": "color", "doc": "Overrides the Table header background, including its scrollbar gutter. Omission uses the current theme element background." }
+    },
+    {
+      "id": 326,
+      "name": "table_header_text_rgba",
+      "csharp": "TableHeaderTextRgba",
+      "value": "u32",
+      "requires": "table",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "HeaderTextColor", "param": "color", "doc": "Sets inherited Table header text color for labels and custom content. Omission uses the current theme muted text." }
+    },
+    {
+      "id": 327,
+      "name": "table_header_border_rgba",
+      "csharp": "TableHeaderBorderRgba",
+      "value": "u32",
+      "requires": "table",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "HeaderBorderColor", "param": "color", "doc": "Overrides the Table header bottom border, including its scrollbar gutter. Omission uses the current theme border variant." }
+    },
+    {
       "id": 330,
       "name": "slider_min",
       "csharp": "SliderMin",

@@ -121,19 +121,16 @@ internal sealed partial class TableView : View
                 ui.Button("sort-service", _descending ? "Service ↓" : "Service ↑")
                     .Style(SampleStyles.TableHeader(theme))
                     .OnClick(this, static (view, _) => view.ToggleSort()),
-                ui.Text("Region").TextColor(theme.Colors.TextMuted),
+                ui.Text("Region"),
                 ui.HStack(ui.Text("●").TextColor(theme.Colors.Success), ui.Text("Status"))
                     .Gap(Px(5)).ItemsCenter(),
-                ui.Text("Req/s").TextColor(theme.Colors.TextMuted)
+                ui.Text("Req/s")
             )
             .OnActivated(this, static (view, e) => view.ActivateRow(e))
             .OnSelectionRequested(this, static (view, e) => view.SelectRow(e))
             .Grow()
             .Width(Percent(100))
-            .Background(theme.Colors.SurfaceBackground)
-            .BorderColor(theme.Colors.BorderVariant)
-            .BorderWidth(Px(1))
-            .Radius(Px(8));
+            .Style(SampleStyles.Table(theme));
 
         return ui.VStack(header, ui.Text(_activation).TextColor(theme.Colors.TextMuted), grid).Gap(Px(10)).Grow();
     }
