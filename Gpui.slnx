@@ -12,5 +12,7 @@
     <Project Path="samples/Gpui.Sample/Gpui.Sample.csproj" />
     <Project Path="samples/Gpui.Editor.Sample/Gpui.Editor.Sample.csproj" />
     <Project Path="samples/Gpui.Bench/Gpui.Bench.csproj" />
+    <Project Path="samples/Gpui.TaskBoard/Gpui.TaskBoard.csproj" />
+    <Project Path="samples/Gpui.Wander/Gpui.Wander.csproj" />
     <Project Path="tools/Gpui.Bindings.Generator/Gpui.Bindings.Generator.csproj" />
 </Solution>
