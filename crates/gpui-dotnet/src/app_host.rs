@@ -628,6 +628,51 @@ fn active_dynamic_owners(snapshot: &ValidatedSnapshot) -> Vec<u32> {
     owners
 }
 
+#[cfg(test)]
+#[test]
+#[ignore = "opt-in Release measurement; run eng/measure-native.ps1"]
+fn native_workload_measurements_dynamic_discovery() {
+    use crate::{
+        native_workloads::{WorkloadArena, measure},
+        semantic::COMPONENT_DIV,
+    };
+    for (static_nodes, dynamic_nodes, distinct_owners) in [
+        (128, 0, 0),
+        (16_384, 0, 0),
+        (16_384, 1, 1),
+        (16_384, 128, 1),
+        (16_384, 128, 128),
+        (16_384, 1024, 1024),
+    ] {
+        let mut arena = WorkloadArena::default();
+        let root = arena.node(COMPONENT_DIV, None);
+        for _ in 0..static_nodes {
+            arena.node(COMPONENT_DIV, Some(root));
+        }
+        for index in 0..dynamic_nodes {
+            let node = arena.node(COMPONENT_DYNAMIC, Some(root));
+            arena.node(COMPONENT_DIV, Some(node));
+            arena.op(node, OP_DYNAMIC_ACTIVE, 1);
+            arena.op(
+                node,
+                OP_RESOURCE_OWNER,
+                (index % distinct_owners + 1) as u64,
+            );
+        }
+        let snapshot = arena.decode();
+        let owners = active_dynamic_owners(&snapshot);
+        assert_eq!(owners.len(), distinct_owners);
+        println!(
+            "dynamic static={static_nodes} wrappers={dynamic_nodes} owners={distinct_owners} snapshot_buffers={} result_capacity_bytes={}",
+            snapshot.buffer_capacity_bytes(),
+            owners.capacity() * size_of::<u32>()
+        );
+        measure("dynamic-discovery", 256, || {
+            std::hint::black_box(active_dynamic_owners(std::hint::black_box(&snapshot)));
+        });
+    }
+}
+
 pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
     trace::init_from_env();
     let (sender, receiver) = async_channel::unbounded();

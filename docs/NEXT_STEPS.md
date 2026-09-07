@@ -5,8 +5,9 @@ documents.
 
 ## Implementation priorities
 
-1. Native performance evidence: measure drawing preparation, Dynamic owner discovery, arena
-   validation overhead, and fragment copying in representative workloads before changing transport.
+1. Native frame performance: measure drawing tessellation and allocations in full frames before
+   introducing geometry caches. Extend isolated fragment measurements to mixed retained-tree updates
+   before changing transport; preserve full validation and snapshot/lifetime boundaries.
 2. Input editing: word navigation, undo/redo, richer pointer selection, platform IME tests, and
    controlled-binding helpers built on conditional replacement.
 3. Virtual-row menus and tooltips: design window-owned overlays anchored to stable item identities,
@@ -141,8 +142,10 @@ Runtime performance and platform verification are tracked in
 Measure large static trees with a changing leaf, dense drawings with stable geometry, variable-height
 collection churn, IME with async completion, and multi-window navigation. Include native allocations,
 bytes copied, retained capacity, and layout/paint or input latency beyond `ManagedView::render`.
-Drawing command copies and repeated Dynamic owner scans are concrete candidates; validate any
-cache against snapshot replacement, resource lifetime, theme changes, and resize.
+Use the isolated preparation and copying probes in [PERFORMANCE.md](PERFORMANCE.md) to select
+full-frame workloads. Validate any drawing or Dynamic owner cache against snapshot replacement,
+resource lifetime, theme changes, and resize, and include native allocation counts before claiming
+an allocation improvement.
 
 ## ABI, diagnostics, and CI
 - generate and verify a public C header with `sizeof`/`offsetof` assertions per RID;

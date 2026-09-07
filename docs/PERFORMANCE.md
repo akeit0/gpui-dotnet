@@ -616,6 +616,80 @@ on fresh captures and repeated lookup cost are why no runtime callback admission
 inspection. Events, WorkScope, menus, and Dispatcher rely on the synchronous API contract and
 compile-time diagnostics. Runtime thread, phase, lifetime, and null checks remain.
 
+### Drawing preparation, Dynamic discovery, and fragment copying
+
+The preparation probes measure the production functions with decoded snapshots and warmed
+allocators. Windows x64, Intel Core i7-13700F, Rust 1.99.0-nightly (`c98d0cb27`), Release;
+managed measurements use .NET 10.0.11 with tiered compilation disabled. Reproduce with:
+
+```powershell
+./eng/measure-native.ps1
+./eng/measure-runtime.ps1 -Filter 'FullyQualifiedName~RetainedFragmentCopyAndValidationCost'
+```
+
+Native preparation uses four warmup batches and five measured batches, reporting median,
+minimum, and maximum. Dynamic discovery uses 256 iterations per batch, drawing materialization
+64, and tessellation 16. Input construction, arena validation/decoding, assertions, and reporting
+are outside these timed intervals. Returned vectors, elements, and paths are destroyed inside
+their respective intervals. These are isolated CPU costs, with no window, managed callback,
+GPU submission, text shaping, or full-frame latency. No CPU affinity or clock control is applied;
+small differences are inconclusive. Native allocation counts and total heap usage are not measured.
+
+Dynamic discovery scans all snapshot nodes, reads active/owner operations on Dynamic wrappers,
+and deduplicates owners in first-occurrence order. Each wrapper in this fixture has one Div child.
+
+| Static Div children | Active Dynamic wrappers | Distinct owners | Discovery µs | Result buffer capacity, bytes |
+| ---: | ---: | ---: | ---: | ---: |
+| 128 | 0 | 0 | 0.036 | 0 |
+| 16,384 | 0 | 0 | 3.368 | 0 |
+| 16,384 | 1 | 1 | 3.434 | 16 |
+| 16,384 | 128 | 1 | 3.645 | 16 |
+| 16,384 | 128 | 128 | 4.668 | 512 |
+| 16,384 | 1,024 | 1,024 | 30.707 | 4,096 |
+
+The final case stresses linear owner deduplication; the first cases show the cost of walking a
+large static tree even when few owners are active. Caching this list must preserve owner order
+and rebuild it on accepted snapshot changes. The measurements do not establish that this scan
+dominates a real frame or justify adding a second ownership registry.
+
+Drawing fixtures have one Drawing with stroked zigzag paths, a 512 × 128 view box, and a
+two-pixel stroke. Each path contains a move, the stated number of line segments, and two style
+operations. Materialization includes copying path operations into the canvas closure and
+creating/dropping the GPUI element. Tessellation separately calls the production path builder
+for every path at each viewport size; it does not include materialization or painting.
+
+| Paths × segments | Copied command bytes/materialization | Materialize µs | Tessellate at 512 × 128 µs | Tessellate at 1,024 × 256 µs |
+| --- | ---: | ---: | ---: | ---: |
+| 1 × 64 | 1,608 | 0.542 | 6.450 | 5.987 |
+| 64 × 64 | 102,912 | 15.494 | 367.575 | 366.219 |
+| 64 × 512 | 791,040 | 182.359 | 2,820.569 | 2,539.237 |
+
+The decoded snapshots retain 1,864 / 106,336 / 794,464 bytes of vector capacity respectively.
+Copied bytes count only path operation records, excluding closure/vector metadata, GPUI element
+storage, tessellation buffers, allocator overhead, and GPU memory. Snapshot capacity uses the same
+buffer counter as the decoding probes and excludes decode scratch. Tessellation is the larger
+cost here. A drawing cache should therefore be evaluated against geometry preparation as well as
+command copies, with explicit snapshot, bounds, view-box, fill/stroke, and lifetime invalidation.
+
+The managed fragment fixture creates a Div with constant Text leaves, each with font size and
+text color operations. It measures destination reset plus `ArenaWriter.AppendFragment`, then
+validates the final copied arena separately. Four warmup batches precede five measured batches
+of 64 operations. Source construction and first buffer growth are outside the intervals.
+
+| Text leaves | Reset + copy µs | Validation µs | Copied bytes | Destination buffer capacity, bytes |
+| ---: | ---: | ---: | ---: | ---: |
+| 128 | 0.594 | 3.702 | 11,020 | 72,704 |
+| 4,096 | 19.477 | 116.623 | 352,268 | 352,268 |
+| 16,384 | 85.844 | 471.597 | 1,409,036 | 1,409,036 |
+
+All five measured batches allocated zero managed bytes per operation. Copy counts include node,
+operation, child, and UTF-8 payload bytes. Capacity counts those four unmanaged buffers, excluding
+the arena descriptor and source arena. This fixture measures one flat fragment, not repeated
+copying through a deep retained View tree, native decoding, or layout. Validation costs more than
+copying in these cases; avoiding copies alone cannot remove the full publication cost. Keep any
+transport proposal separate from these measurements until mixed-update and full-frame evidence
+shows the expected benefit.
+
 ### End-to-end targets
 
 Track at least:

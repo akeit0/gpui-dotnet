@@ -10,6 +10,8 @@ mod dock_skin;
 pub mod extension;
 mod input;
 mod materializer;
+#[cfg(test)]
+mod native_workloads;
 mod overlay;
 mod pointer;
 mod popover_menu;

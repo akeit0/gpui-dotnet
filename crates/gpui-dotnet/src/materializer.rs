@@ -4062,6 +4062,77 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "opt-in Release measurement; run eng/measure-native.ps1"]
+    fn native_workload_measurements_drawing_preparation() {
+        use crate::native_workloads::{WorkloadArena, measure};
+        for (paths, segments) in [(1, 64), (64, 64), (64, 512)] {
+            let mut arena = WorkloadArena::default();
+            let root = arena.node(crate::semantic::COMPONENT_DRAWING, None);
+            arena.point(root, OP_DRAWING_VIEW_BOX_ORIGIN, 0., 0.);
+            arena.point(root, OP_DRAWING_VIEW_BOX_SIZE, 512., 128.);
+            for _ in 0..paths {
+                let path = arena.node(crate::semantic::COMPONENT_PATH, Some(root));
+                arena.op(path, OP_PATH_STROKE_RGBA, 0x112233FF);
+                arena.op(path, OP_PATH_STROKE_WIDTH_PX, 2f32.to_bits() as u64);
+                arena.point(path, OP_PATH_MOVE_TO, 0., 0.);
+                for segment in 1..=segments {
+                    arena.point(path, OP_PATH_LINE_TO, segment as f32, (segment % 17) as f32);
+                }
+            }
+            let snapshot = arena.decode();
+            let node = &snapshot.nodes[0];
+            let operations = snapshot
+                .children(node)
+                .iter()
+                .map(|child| snapshot.ops(&snapshot.nodes[*child as usize]))
+                .collect::<Vec<_>>();
+            let copied_bytes = operations
+                .iter()
+                .map(|ops| std::mem::size_of_val(*ops))
+                .sum::<usize>();
+            println!(
+                "drawing paths={paths} segments={segments} copied_command_bytes={copied_bytes} snapshot_buffers={}",
+                snapshot.buffer_capacity_bytes()
+            );
+            measure("drawing-materialize-and-drop", 64, || {
+                std::hint::black_box(materialize_drawing(
+                    std::hint::black_box(node),
+                    std::hint::black_box(&snapshot),
+                ));
+            });
+            for (width, height) in [(512., 128.), (1024., 256.)] {
+                let bounds =
+                    gpui::Bounds::new(point(px(0.), px(0.)), gpui::size(px(width), px(height)));
+                let view_box = Some(DrawingViewBox {
+                    x: 0.,
+                    y: 0.,
+                    width: 512.,
+                    height: 128.,
+                });
+                assert!(
+                    build_drawing_path(
+                        operations[0],
+                        bounds,
+                        view_box,
+                        DrawingPaint::Stroke { width: 2. }
+                    )
+                    .is_some()
+                );
+                measure(&format!("drawing-tessellate-{width}x{height}"), 16, || {
+                    for ops in &operations {
+                        std::hint::black_box(build_drawing_path(
+                            std::hint::black_box(ops),
+                            std::hint::black_box(bounds),
+                            view_box,
+                            DrawingPaint::Stroke { width: 2. },
+                        ));
+                    }
+                });
+            }
+        }
+    }
+
+    #[test]
     fn drawing_path_builds_in_view_box_coordinates() {
         fn point_op(code: u16, x: f32, y: f32) -> OpRecord {
             OpRecord {
