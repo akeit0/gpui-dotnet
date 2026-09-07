@@ -42,7 +42,7 @@ impl OverlayStack {
 
     pub(crate) fn begin_frame(&self) {
         self.entries.borrow_mut().clear();
-        self.next_sequence.set(0);
+        // Registrations captured by deferred callbacks must not alias a later frame.
     }
 
     pub(crate) fn register(
@@ -52,7 +52,11 @@ impl OverlayStack {
         priority: u32,
         captures_input: bool,
     ) -> OverlayToken {
-        let sequence = self.next_sequence.get().wrapping_add(1).max(1);
+        let sequence = self
+            .next_sequence
+            .get()
+            .checked_add(1)
+            .expect("overlay registration sequence exhausted");
         self.next_sequence.set(sequence);
         let token = OverlayToken {
             key,
@@ -156,5 +160,68 @@ mod tests {
 
         stack.begin_frame();
         assert!(!stack.is_topmost(&modal));
+    }
+
+    #[test]
+    fn identical_layers_in_a_new_frame_reject_old_dismissal_and_capture_tokens() {
+        let stack = OverlayStack::default();
+        for kind in [
+            OverlayKind::Overlay,
+            OverlayKind::ContextMenu,
+            OverlayKind::PopoverMenu,
+            OverlayKind::Tooltip,
+        ] {
+            let old = stack.register(key("layer"), kind, 10, true);
+            stack.begin_frame();
+            let current = stack.register(key("layer"), kind, 10, true);
+            assert_ne!(old, current);
+            assert!(!stack.is_topmost(&old));
+            stack.set_captures_input(&old, false);
+            assert!(stack.is_topmost(&current));
+            stack.set_captures_input(&current, false);
+            stack.set_captures_input(&old, true);
+            assert!(!stack.is_topmost(&current));
+            stack.begin_frame();
+        }
+    }
+
+    #[gpui::test]
+    fn deferred_focus_from_a_previous_frame_cannot_steal_current_focus(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let (_, window_cx) = cx.add_window_view(|_, _| gpui::Empty);
+        let stack = OverlayStack::new();
+        let stale_ran = Rc::new(Cell::new(false));
+        let current_ran = Rc::new(Cell::new(false));
+        window_cx.update(|window, cx| {
+            let focus = cx.focus_handle();
+            let old = stack.register(key("modal"), OverlayKind::Overlay, 10, true);
+            let old_stack = stack.clone();
+            let stale_ran = stale_ran.clone();
+            window.defer(cx, move |window, cx| {
+                if old_stack.is_topmost(&old) {
+                    stale_ran.set(true);
+                    focus.focus(window, cx);
+                }
+            });
+            stack.begin_frame();
+            let current = stack.register(key("modal"), OverlayKind::Overlay, 10, true);
+            let current_stack = stack.clone();
+            let current_ran = current_ran.clone();
+            window.defer(cx, move |_, _| {
+                current_ran.set(current_stack.is_topmost(&current));
+            });
+        });
+        cx.run_until_parked();
+        assert!(!stale_ran.get());
+        assert!(current_ran.get());
+    }
+
+    #[test]
+    #[should_panic(expected = "overlay registration sequence exhausted")]
+    fn registration_exhaustion_does_not_wrap_to_a_previous_token() {
+        let stack = OverlayStack::default();
+        stack.next_sequence.set(u64::MAX);
+        stack.register(key("modal"), OverlayKind::Overlay, 10, true);
     }
 }

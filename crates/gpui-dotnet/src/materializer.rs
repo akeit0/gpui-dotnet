@@ -22,7 +22,7 @@ use crate::{
         NativeExtensionEventEmitter, NativeExtensionRequest, declaration as extension_declaration,
         provider as extension_provider,
     },
-    overlay::OverlayKind,
+    overlay::{OverlayKind, OverlayStack, OverlayToken},
     popover_menu::{PopoverMenuConfiguration, popover_menu},
     presentation,
     resources::{
@@ -871,12 +871,14 @@ impl ManagedView {
             modal || (dismiss_token != 0 && dismiss_on_escape),
         );
         if focus_state.read(cx).focus_pending {
-            focus_state.update(cx, |state, _| state.focus_pending = false);
             let deferred_focus = focus.clone();
             let deferred_focus_state = overlay_stack.clone();
             let deferred_focus_token = overlay_token.clone();
+            let pending_focus_state = focus_state.clone();
             window.defer(cx, move |window, cx| {
-                if !deferred_focus_state.is_topmost(&deferred_focus_token) {
+                if !pending_focus_state.update(cx, |state, _| {
+                    state.take_pending_focus(&deferred_focus_state, &deferred_focus_token)
+                }) {
                     return;
                 }
                 deferred_focus.focus(window, cx);
@@ -1101,6 +1103,17 @@ struct OverlayFocusState {
     focus: FocusHandle,
     previous_focus: Option<WeakFocusHandle>,
     focus_pending: bool,
+}
+
+impl OverlayFocusState {
+    fn take_pending_focus(&mut self, stack: &OverlayStack, token: &OverlayToken) -> bool {
+        if !self.focus_pending || !stack.is_topmost(token) {
+            return false;
+        }
+        // A superseded frame leaves the request pending for its successor.
+        self.focus_pending = false;
+        true
+    }
 }
 
 fn place_overlay(element: gpui::Div, placement: u32) -> gpui::Div {
@@ -3162,6 +3175,36 @@ mod tests {
 
     fn key() -> ResourceKey {
         ResourceKey::new(4, "service-grid".into())
+    }
+
+    #[gpui::test]
+    fn overlay_focus_request_survives_superseded_and_shadowed_registrations(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        cx.update(|cx| {
+            let mut state = OverlayFocusState {
+                focus: cx.focus_handle(),
+                previous_focus: None,
+                focus_pending: true,
+            };
+            let stack = OverlayStack::default();
+            let old = stack.register(key(), OverlayKind::Overlay, 10, true);
+            stack.begin_frame();
+            let current = stack.register(key(), OverlayKind::Overlay, 10, true);
+            assert!(!state.take_pending_focus(&stack, &old));
+            assert!(state.focus_pending);
+            let menu = stack.register(
+                ResourceKey::new(4, "menu".into()),
+                OverlayKind::PopoverMenu,
+                20,
+                true,
+            );
+            assert!(!state.take_pending_focus(&stack, &current));
+            assert!(state.focus_pending);
+            stack.set_captures_input(&menu, false);
+            assert!(state.take_pending_focus(&stack, &current));
+            assert!(!state.take_pending_focus(&stack, &current));
+        });
     }
 
     fn inert_callbacks() -> ManagedCallbacks {

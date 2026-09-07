@@ -12,8 +12,8 @@ internal readonly record struct InsightsData(int Todo, int Doing, int Review, in
 /// <summary>
 /// Retained child View showing board statistics and a vector chart. Pure derived data comes
 /// from an owned <see cref="Memo{TInput, TResult}"/>; the chart is a native Drawing.
-/// Render allocates nothing on the heap: static memo calculation, stack-span collection
-/// expressions, and arena-direct interpolated text.
+/// Static memo calculation, stack-span composition, and arena-direct text reduce allocations;
+/// this sample does not measure end-to-end render allocation costs.
 /// </summary>
 [GpuiView]
 internal sealed partial class InsightsView : View<InsightsProps>

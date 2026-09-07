@@ -500,6 +500,10 @@ GPUI.NET retains tooltip timing, menu-group switching, overlay placement and bac
 priority arbitration, topmost dismissal guards, and managed dismissal callback routing. The
 foundation Sheet host couples Escape and backdrop closing and does not expose the independent
 semantic options or ordering needed by the generic Overlay contract.
+Overlay registrations use non-reused window-local sequence numbers. Deferred focus and dismissal
+callbacks from an earlier frame cannot act on a newly registered layer with the same key.
+An unfulfilled initial focus request remains pending until a current topmost registration can
+deliver it.
 
 ## Window chrome
 

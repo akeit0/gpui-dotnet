@@ -14,7 +14,7 @@ internal enum WanderTab
 /// Root View: a mobile-style phone column (status spoof, tab content, bottom tab bar)
 /// centered on the desktop window. Tabs share one keyed child slot, so switching
 /// replaces the child type; each tab keeps its own controllers, memos, and effects.
-/// Render is heap-free: static handlers with payloads and arena-direct text.
+/// Static handlers with payloads and arena-direct text reduce render allocations.
 /// </summary>
 [GpuiView]
 internal sealed partial class WanderShellView : View
