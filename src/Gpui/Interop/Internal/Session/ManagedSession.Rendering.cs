@@ -205,16 +205,14 @@ internal sealed unsafe partial class ManagedSession
     private void CommitSnapshotTree()
     {
         _snapshotStack.Clear();
-        _snapshotVisited.Clear();
         _acceptedViews.Clear();
+        _unmountCandidates.Clear();
+        _unmountStack.Clear();
+        _unmountVisited.Clear();
 
         _snapshotStack.Push(RootView);
         while (_snapshotStack.TryPop(out var current))
         {
-            if (!_snapshotVisited.Add(current))
-            {
-                continue;
-            }
             if (!_renderStates.TryGetValue(current, out var state))
             {
                 throw new InvalidOperationException(
@@ -222,19 +220,30 @@ internal sealed unsafe partial class ManagedSession
                 );
             }
 
-            if (state.HasStagedComposition)
+            // A clean child can receive equal-but-distinct props from a rendered parent.
+            // Its descendants have no new declarations and keep their accepted state.
+            if (!state.HasStagedComposition)
             {
-                (state.Children, state.StagedChildren) = (state.StagedChildren, state.Children);
-                state.StagedChildren?.Clear();
-                state.HasStagedComposition = false;
-                state.Candidates?.Clear();
-                // Publication stages output; only native acceptance makes it reusable.
-                state.Dirty = false;
-                state.Consumer!.Commit();
-                if (current.Ownership.Effects is { } effects)
-                    foreach (var effect in effects) effect.Commit();
+                current.CommitStagedProps();
+                continue;
             }
 
+            if (state.Children is { } previousChildren)
+                foreach (var (slot, previous) in previousChildren)
+                    if (state.StagedChildren is null
+                        || !state.StagedChildren.TryGetValue(slot, out var next)
+                        || !ReferenceEquals(previous.View, next.View))
+                        _unmountStack.Push((previous.View, false));
+
+            (state.Children, state.StagedChildren) = (state.StagedChildren, state.Children);
+            state.StagedChildren?.Clear();
+            state.HasStagedComposition = false;
+            state.Candidates?.Clear();
+            // Publication stages output; only native acceptance makes it reusable.
+            state.Dirty = false;
+            state.Consumer!.Commit();
+            if (current.Ownership.Effects is { } committedEffects)
+                foreach (var effect in committedEffects) effect.Commit();
             current.CommitStagedProps();
             _acceptedViews.Add(current);
 
@@ -256,7 +265,9 @@ internal sealed unsafe partial class ManagedSession
             }
         }
 
-        BuildUnmountOrder(includeCommittedTree: false);
+        // Slots exclusively own their children. Removed slot roots cover all retirement;
+        // reused clean subtrees need neither a reachability scan nor lifecycle delivery.
+        CollectUnmountCandidates();
         foreach (var view in _unmountCandidates)
         {
             try

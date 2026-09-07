@@ -75,6 +75,13 @@ Rust acknowledges it through `render_completed`. Managed props and composition c
 the tree, replaced ownership retires, all new routes activate, and effects start parent-first before native materialization.
 Normal external callbacks cannot enter between publication and acceptance.
 
+Acceptance follows staged compositions and their immediate child declarations. A reused clean
+child accepts any newly supplied equal props, then keeps its descendants' committed state without
+walking them. Comparing each rendered parent's previous and staged slots identifies removed
+subtree roots for child-first retirement. Exclusive slot ownership makes a full-tree reachability
+set unnecessary. Session failure and shutdown still enumerate every attached owner, including
+unaccepted construction candidates.
+
 The native `ManagedView` keeps the last valid snapshot. A clean GPUI repaint materializes or paints
 that snapshot without calling managed code. `View.Invalidate()` queues a coalesced request using
 stable View identity. The application thread consumes it before rendering, marks the View and its

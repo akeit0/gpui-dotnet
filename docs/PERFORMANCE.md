@@ -40,9 +40,15 @@ O(keys log keys) byte comparisons without allocating key strings. Dock snapshots
 eight scratch bytes per node and retain that capacity for reuse; ordinary row snapshots allocate
 no Dock buffer. Scratch retains no borrowed arena pointers.
 
-Acceptance activates only newly mounted Views. Factory-owned child slots reuse accepted children;
-unaccepted candidates retain ownership edges solely for failed-render cleanup. Retirement scratch
-collections clear their View references immediately after use while retaining collection capacity.
+Acceptance traverses rendered Views and their immediate child declarations, stopping at reused
+clean fragments after committing any equal props. Only rendered Views enter effect commit/stop/start
+passes; activation remains restricted to newly mounted Views. Previous/staged slot comparisons
+identify removed subtree roots directly, avoiding a scan of all attached Views and a full-tree
+reachability set on every acceptance. Work follows changed composition boundaries and removed
+subtrees; a rendered parent's immediate slot count still matters. Unaccepted candidates retain
+ownership edges for failed-render cleanup, and terminal cleanup still visits all attached owners.
+Retirement scratch collections clear their View references immediately after use while retaining
+collection capacity.
 
 ## View and Signal creation
 
@@ -428,10 +434,38 @@ Each cached batch contains 48 element-only rows with shared callbacks and its ow
 The 512-batch case stresses registry scaling with 24,576 rows; it is not a claim about a typical
 viewport's native cache size. Fixtures use the real managed root/range/acceptance paths with a native
 notification stub. They do not measure native decoding, layout, painting, or end-to-end frame time.
-The simple deep trees show no speedup; indexed graph validation adds some work to ordinary layouts.
+Those validation changes alone did not speed up the simple deep trees; indexed graph validation
+adds some work to ordinary layouts.
 Separate before/after runs had no CPU affinity or clock control, so small timing differences should
 not be interpreted as portable regressions or guarantees. The large Dock improvement addresses
 repeated diagnostic scans, not the cost of displaying 512 panels.
+
+### Incremental acceptance
+
+`RetainedAcceptanceCost` separates managed publication from acceptance for a root containing
+1, 16, or 64 retained branches, each with 64 leaf Views. Root-only updates reuse every branch;
+single-leaf updates rerender one branch and one leaf. Leaf Views have accepted event bindings
+and effects. Windows x64 / .NET 10.0.11 Release, tiering disabled, four warmup batches and five
+measured batches of 16 cycles:
+
+| Update | Baseline acceptance µs (`28c7fb4`) | Current acceptance µs | Baseline publication + acceptance µs | Current publication + acceptance µs |
+| --- | ---: | ---: | ---: | ---: |
+| Root only, 64 leaves | 3.69 | 0.12 | 4.76 | 1.18 |
+| Root only, 1,024 leaves | 64.01 | 0.96 | 77.02 | 13.40 |
+| Root only, 4,096 leaves | 314.99 | 3.44 | 373.17 | 53.22 |
+| One changed leaf among 1,024 | 65.62 | 4.27 | 86.90 | 24.25 |
+| One changed leaf among 4,096 | 321.85 | 7.04 | 389.59 | 66.79 |
+
+Acceptance columns are medians; combined columns sum the separately measured publication and
+acceptance medians. All five measured batches allocated zero managed bytes per cycle at both
+revisions. Construction, initial mounting, explicit leaf invalidation, and assertions are outside
+the timed intervals. Full snapshot copying and managed validation remain in publication, so these
+improvements do not make the complete render path independent of tree size. Native decoding,
+resource reconciliation, layout, and painting are outside this fixture.
+
+The deep-tree probe also measures clean depth-64 reuse at 1.97 µs per render/accept cycle;
+dirty depth-64 work remains 29.63 µs because every ancestor must render. No CPU affinity or clock
+control is applied; small timing differences are inconclusive.
 
 ### Artifact ownership workloads
 

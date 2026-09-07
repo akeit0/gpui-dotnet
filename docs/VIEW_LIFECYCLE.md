@@ -169,6 +169,10 @@ The managed acceptance sequence is:
 3. Activate every newly accepted View route.
 4. Start new/replacement effects parent-before-child.
 
+Reused clean subtrees keep their accepted dependencies and effects. Their boundary View still
+accepts newly supplied equal props, including a distinct but equal object; descendants receive
+new props only when that View renders and declares them again.
+
 All newly accepted routes are active before any setup callback. Do not depend on sibling setup order.
 Acceptance authorizes commands against accepted resources even before materialization. It does not
 mean layout or painting completed. Effect state changes request a subsequent render; they do not

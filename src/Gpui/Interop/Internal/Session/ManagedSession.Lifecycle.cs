@@ -7,7 +7,7 @@ internal sealed unsafe partial class ManagedSession
 {
     internal void RetireFailedViews()
     {
-        BuildUnmountOrder(includeCommittedTree: true);
+        BuildUnmountOrder();
         foreach (var view in _unmountCandidates)
         {
             try { Unmount(view); }
@@ -15,7 +15,6 @@ internal sealed unsafe partial class ManagedSession
         }
         _unmountCandidates.Clear();
         _acceptedViews.Clear();
-        _snapshotVisited.Clear();
         _snapshotStack.Clear();
         _unmountVisited.Clear();
         _rootView = null;
@@ -40,7 +39,7 @@ internal sealed unsafe partial class ManagedSession
         DiscardIngress();
         _rootDeclaration = null;
         _rootView = null;
-        BuildUnmountOrder(includeCommittedTree: true);
+        BuildUnmountOrder();
         foreach (var view in _unmountCandidates)
         {
             try
@@ -66,7 +65,6 @@ internal sealed unsafe partial class ManagedSession
         _viewsByHandle.Clear();
         _renderingViews.Clear();
         _snapshotStack.Clear();
-        _snapshotVisited.Clear();
         _unmountCandidates.Clear();
         _unmountStack.Clear();
         _unmountVisited.Clear();
@@ -204,7 +202,7 @@ internal sealed unsafe partial class ManagedSession
         }
     }
 
-    private void BuildUnmountOrder(bool includeCommittedTree)
+    private void BuildUnmountOrder()
     {
         _unmountCandidates.Clear();
         _unmountStack.Clear();
@@ -212,45 +210,42 @@ internal sealed unsafe partial class ManagedSession
 
         foreach (var view in _attachedViews)
         {
-            if (!includeCommittedTree && _snapshotVisited.Contains(view))
+            _unmountStack.Push((view, false));
+            CollectUnmountCandidates();
+        }
+    }
+
+    private void CollectUnmountCandidates()
+    {
+        while (_unmountStack.TryPop(out var entry))
+        {
+            if (entry.Expanded)
+            {
+                _unmountCandidates.Add(entry.View);
+                continue;
+            }
+
+            if (!_unmountVisited.Add(entry.View))
             {
                 continue;
             }
 
-            _unmountStack.Push((view, false));
-            while (_unmountStack.TryPop(out var entry))
+            _unmountStack.Push((entry.View, true));
+            if (!_renderStates.TryGetValue(entry.View, out var state))
             {
-                if (entry.Expanded)
-                {
-                    _unmountCandidates.Add(entry.View);
-                    continue;
-                }
-
-                if (!_unmountVisited.Add(entry.View))
-                {
-                    continue;
-                }
-
-                _unmountStack.Push((entry.View, true));
-                if (!_renderStates.TryGetValue(entry.View, out var state))
-                {
-                    continue;
-                }
-
-                PushCleanupChildren(state.Children, includeCommittedTree);
-                if (state.HasStagedComposition)
-                {
-                    PushCleanupChildren(state.StagedChildren, includeCommittedTree);
-                }
-                PushCleanupChildren(state.Candidates, includeCommittedTree);
+                continue;
             }
+
+            PushCleanupChildren(state.Children);
+            if (state.HasStagedComposition)
+            {
+                PushCleanupChildren(state.StagedChildren);
+            }
+            PushCleanupChildren(state.Candidates);
         }
     }
 
-    private void PushCleanupChildren(
-        Dictionary<ChildSlot, ChildEntry>? children,
-        bool includeCommittedTree
-    )
+    private void PushCleanupChildren(Dictionary<ChildSlot, ChildEntry>? children)
     {
         if (children is null)
         {
@@ -259,10 +254,6 @@ internal sealed unsafe partial class ManagedSession
 
         foreach (var child in children.Values)
         {
-            if (!includeCommittedTree && _snapshotVisited.Contains(child.View))
-            {
-                continue;
-            }
             _unmountStack.Push((child.View, false));
         }
     }
