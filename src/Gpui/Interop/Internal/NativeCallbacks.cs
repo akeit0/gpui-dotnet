@@ -311,6 +311,21 @@ internal static unsafe class NativeCallbacks
                     session.DispatchInputWrite(eventToken,
                         new InputWriteResult(requestId, (InputWriteOutcome)outcome, nativeEvent->revision));
                 }
+                else if (nativeEvent->kind == (ushort)ListEventKind.ContextMenuRequested)
+                {
+                    if ((nativeEvent->flags & ~2u) != 0 || nativeEvent->data_length != 24
+                        || ((nativeEvent->flags & 2) == 0 && nativeEvent->revision != 0))
+                        return -112;
+                    var data = new ReadOnlySpan<byte>(nativeEvent->data, 24);
+                    var index = BinaryPrimitives.ReadUInt32LittleEndian(data);
+                    var itemId = BinaryPrimitives.ReadUInt64LittleEndian(data[8..]);
+                    var anchorId = BinaryPrimitives.ReadUInt64LittleEndian(data[16..]);
+                    if (index > int.MaxValue || BinaryPrimitives.ReadUInt32LittleEndian(data[4..]) != 0
+                        || itemId == 0 || anchorId == 0)
+                        return -112;
+                    session.DispatchListContextMenu(eventToken, new ListContextMenuEvent(
+                        (int)index, itemId, (nativeEvent->flags & 2) == 0 ? null : nativeEvent->revision, anchorId));
+                }
                 else if (nativeEvent->kind is (ushort)ListEventKind.Activated or (ushort)ListEventKind.SelectionRequested)
                 {
                     if ((nativeEvent->flags & ~3u) != 0 || nativeEvent->data_length != 16

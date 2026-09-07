@@ -111,11 +111,18 @@ internal sealed class ViewEventRegistry
         NativeExtension,
         ListActivation,
         ListSelection,
+        ListContextMenu,
         InputWrite,
     }
 
     private readonly struct EventDispatch
     {
+        internal EventDispatch(ListContextMenuEvent request)
+        {
+            Kind = EventDispatchKind.ListContextMenu;
+            ListContextMenu = request;
+        }
+
         internal EventDispatch(InputWriteResult result)
         {
             Kind = EventDispatchKind.InputWrite;
@@ -304,6 +311,7 @@ internal sealed class ViewEventRegistry
         internal EventDispatchKind Kind { get; }
         internal ListActivationEvent ListActivation { get; }
         internal ListSelectionEvent ListSelection { get; }
+        internal ListContextMenuEvent ListContextMenu { get; }
         internal ClickEvent Click { get; }
         internal InputEvent? Input { get; }
         internal InputWriteResult InputWrite { get; }
@@ -350,6 +358,9 @@ internal sealed class ViewEventRegistry
 
     internal ulong BindListActivation<TView>(Action<TView, ListActivationEvent> callback)
         where TView : ViewBase => BindDynamicEvent(_owner!, callback, ListActivationBinder<TView>.Index);
+
+    internal ulong BindListContextMenu<TView>(Action<TView, ListContextMenuEvent> callback)
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ListContextMenuBinder<TView>.Index);
 
     internal ulong BindListSelection<TView>(Action<TView, ListSelectionEvent> callback)
         where TView : ViewBase => BindDynamicEvent(_owner!, callback, ListSelectionBinder<TView>.Index);
@@ -833,6 +844,17 @@ internal sealed class ViewEventRegistry
         EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
+    internal void DispatchListContextMenuCore(uint eventId, ListContextMenuEvent request)
+    {
+        if (!TryGetDynamicEvent(eventId, out var entry))
+        {
+            MissingDynamicEvent(eventId, "list context menu");
+            return;
+        }
+        var dispatch = new EventDispatch(request);
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
+    }
+
     internal void DispatchListSelectionCore(uint eventId, ListSelectionEvent selection)
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
@@ -1001,6 +1023,23 @@ internal sealed class ViewEventRegistry
             if (callback is not Action<TView, InputWriteResult> typedCallback)
                 throw WrongCallback("Action<TView, InputWriteResult>", "input write");
             typedCallback(typedTarget, dispatch.InputWrite);
+        }
+    }
+
+    private static class ListContextMenuBinder<TView>
+        where TView : ViewBase
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.ListContextMenu)
+                throw WrongDispatchKind("list context menu");
+            if (target is not TView typedTarget)
+                throw WrongTarget<TView>(target, "list context menu");
+            if (callback is not Action<TView, ListContextMenuEvent> typedCallback)
+                throw WrongCallback("Action<TView, ListContextMenuEvent>", "list context menu");
+            typedCallback(typedTarget, dispatch.ListContextMenu);
         }
     }
 

@@ -533,11 +533,32 @@ Deferred layers paint relative to the window rather than the local layout tree:
 - `Sheet`: edge-aligned Overlay composition
 - `Tooltip`: delayed trigger-relative content with side flipping and viewport clamping
 - `ContextMenu`: pointer-anchored right-click content
+- `RowContextMenu`: window-owned content responding to a List/Table row request
 - `PopoverMenu`: trigger-attached left-click content with menu switching
 
 Rust owns geometry, input interception, deterministic stacking, focus entry/restoration, and
 dismissal. Managed code owns visuals and actions. Deferred layers can contain normal child views and
 retained controls, but cannot appear inside virtualized rows.
+
+For virtual-row actions, declare `.ItemId(nonzeroId)` on each row root and bind
+`.OnContextMenuRequested(this, static (view, request) => ...)` on the List or Table. Store the
+`ListContextMenuEvent`, invalidate the View, and declare
+`ui.RowContextMenu("row-menu", request, content)` in that same View's ordinary render. The Table
+gallery demonstrates this pattern. Use `request.ItemId` for actions; `Index` describes the
+displayed position at the time of the request. Right-click does not change application selection.
+Use `ListDataSource` with a stable ContentRevision when opening the menu. Count-only declarations
+invalidate row batches on every managed render, which also expires the anchor.
+
+The native window holds at most one row-menu request. It keeps the pointer position, a weak
+collection reference, and the displayed row's artifact identity. Deferred prepaint checks that
+the original row is still painted at the same bounds and clip. Scrolling, movement, clipping,
+cache eviction, content/theme changes, projection replacement, and removal expire the request.
+Escape, outside click, menu selection, a wheel gesture, or omitting the menu declaration also
+dismiss it. The dismissal wheel gesture is consumed; subsequent gestures scroll normally.
+Rendering an expired request never reopens it; another right-click supplies a fresh request.
+Rows without a stable ItemId do not request a menu. No row View, deferred row child, per-row
+managed closure, or pointer-position callback is needed. Row tooltips and keyboard menu requests
+are not exposed by this API.
 
 Tooltip and PopoverMenu delegate trigger measurement and viewport-aware positioning to
 `gpui-base` Popup/Positioner. ContextMenu uses the same Positioner for pointer-corner placement and

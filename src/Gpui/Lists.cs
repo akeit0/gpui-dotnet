@@ -4,6 +4,26 @@ using Gpui.Interop;
 namespace Gpui;
 
 /// <summary>
+/// A right-click request for a stable List/Table item. Pass this value to RowContextMenu in
+/// the owning View's render. Native positioning expires on dismissal or anchor loss.
+/// </summary>
+public readonly record struct ListContextMenuEvent
+{
+    internal ListContextMenuEvent(int index, ulong itemId, ulong? contentRevision, ulong anchorId)
+    {
+        Index = index;
+        ItemId = itemId;
+        ContentRevision = contentRevision;
+        AnchorId = anchorId;
+    }
+
+    public int Index { get; }
+    public ulong ItemId { get; }
+    public ulong? ContentRevision { get; }
+    internal ulong AnchorId { get; }
+}
+
+/// <summary>
 /// A request to select one List/Table row. The application decides whether to accept it and owns
 /// selection state and presentation. Identity describes the accepted datasource snapshot.
 /// </summary>

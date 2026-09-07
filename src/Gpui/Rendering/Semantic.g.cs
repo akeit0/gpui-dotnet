@@ -142,6 +142,7 @@ namespace Gpui.Interop
         ListItemId = 317,
         ListOnActivated = 323,
         ListOnSelectionRequested = 324,
+        ListOnContextMenuRequested = 329,
         ImageObjectFit = 400,
         ImageGrayscale = 401,
         InputDisabled = 500,
@@ -170,6 +171,7 @@ namespace Gpui.Interop
         TooltipMarginPx = 615,
         ContextMenuPriority = 620,
         ContextMenuMarginPx = 621,
+        ContextMenuRowAnchor = 622,
         PopoverMenuPriority = 630,
         PopoverMenuMarginPx = 631,
         TableShowHeader = 318,
@@ -369,7 +371,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x65632B31C14883FFUL;
+        internal const ulong SchemaHash = 0xFA33B5F1BDD4F116UL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -533,6 +535,7 @@ namespace Gpui.Interop
             OpCode.ListItemId => ValueKind.U64,
             OpCode.ListOnActivated => ValueKind.Callback,
             OpCode.ListOnSelectionRequested => ValueKind.Callback,
+            OpCode.ListOnContextMenuRequested => ValueKind.Callback,
             OpCode.ImageObjectFit => ValueKind.U32,
             OpCode.ImageGrayscale => ValueKind.U32,
             OpCode.InputDisabled => ValueKind.U32,
@@ -561,6 +564,7 @@ namespace Gpui.Interop
             OpCode.TooltipMarginPx => ValueKind.F32,
             OpCode.ContextMenuPriority => ValueKind.U32,
             OpCode.ContextMenuMarginPx => ValueKind.F32,
+            OpCode.ContextMenuRowAnchor => ValueKind.U64,
             OpCode.PopoverMenuPriority => ValueKind.U32,
             OpCode.PopoverMenuMarginPx => ValueKind.F32,
             OpCode.TableShowHeader => ValueKind.U32,
@@ -839,6 +843,7 @@ namespace Gpui.Interop
             OpCode.ListItemId => 0x0000000000000001UL,
             OpCode.ListOnActivated => 0x0000000000000100UL,
             OpCode.ListOnSelectionRequested => 0x0000000000000100UL,
+            OpCode.ListOnContextMenuRequested => 0x0000000000000100UL,
             OpCode.ImageObjectFit => 0x0000000000000200UL,
             OpCode.ImageGrayscale => 0x0000000000000200UL,
             OpCode.InputDisabled => 0x0000000000000400UL,
@@ -867,6 +872,7 @@ namespace Gpui.Interop
             OpCode.TooltipMarginPx => 0x0000000000001000UL,
             OpCode.ContextMenuPriority => 0x0000000000004000UL,
             OpCode.ContextMenuMarginPx => 0x0000000000004000UL,
+            OpCode.ContextMenuRowAnchor => 0x0000000000004000UL,
             OpCode.PopoverMenuPriority => 0x0000000000008000UL,
             OpCode.PopoverMenuMarginPx => 0x0000000000008000UL,
             OpCode.TableShowHeader => 0x0000000000010000UL,

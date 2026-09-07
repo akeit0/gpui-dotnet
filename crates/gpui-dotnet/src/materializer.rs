@@ -587,12 +587,23 @@ impl ManagedView {
         let resources = self.resources.clone();
         let row_scope = key.clone();
         let row_resource = resource.clone();
+        let menu_token = last_op(
+            snapshot,
+            node,
+            crate::semantic::OP_LIST_ON_CONTEXT_MENU_REQUESTED,
+        )
+        .map_or(0, |op| op.a);
         let list_element = list(state, move |index, _window, _cx| {
             let element = row_resource
                 .borrow_mut()
                 .render_item(index, &resources, &row_scope);
             CollectionRow::new(element, row_cursor.clone(), row_focus.clone(), index)
                 .with_row_events(row_resource.borrow().cached_row_events(index))
+                .with_context_menu(
+                    menu_token,
+                    resources.row_menus.clone(),
+                    row_resource.clone(),
+                )
                 .into_any_element()
         })
         .flex_grow(1.0)
@@ -702,12 +713,23 @@ impl ManagedView {
         let resources = self.resources.clone();
         let row_scope = key.clone();
         let row_resource = resource.clone();
+        let menu_token = last_op(
+            snapshot,
+            node,
+            crate::semantic::OP_LIST_ON_CONTEXT_MENU_REQUESTED,
+        )
+        .map_or(0, |op| op.a);
         let list_element = list(state, move |index, _window, _cx| {
             let element = row_resource
                 .borrow_mut()
                 .render_item(index, &resources, &row_scope);
             CollectionRow::new(element, row_cursor.clone(), row_focus.clone(), index)
                 .with_row_events(row_resource.borrow().cached_row_events(index))
+                .with_context_menu(
+                    menu_token,
+                    resources.row_menus.clone(),
+                    row_resource.clone(),
+                )
                 .into_any_element()
         })
         .flex_grow(1.0)
@@ -1054,6 +1076,8 @@ impl ManagedView {
             configuration,
             self.overlay_stack.clone(),
             overlay_token,
+            last_op(snapshot, node, crate::semantic::OP_CONTEXT_MENU_ROW_ANCHOR)
+                .map(|op| (self.resources.row_menus.clone(), op.a)),
             window,
             cx,
         )
@@ -2918,17 +2942,22 @@ struct CollectionFocusState {
 }
 
 /// Adds native cursor hit testing without adding a layout box or changing row state IDs.
-struct CollectionRow {
+pub(crate) struct CollectionRow {
     element: AnyElement,
     cursor: std::rc::Rc<CollectionCursor>,
     focus: FocusHandle,
     index: usize,
     epoch: u64,
     row_events: Option<ListRowEvents>,
+    context_menu: Option<(
+        u64,
+        std::rc::Rc<crate::row_menu::RowMenus>,
+        std::rc::Rc<std::cell::RefCell<ManagedListResource>>,
+    )>,
 }
 
 impl CollectionRow {
-    fn new(
+    pub(crate) fn new(
         element: AnyElement,
         cursor: std::rc::Rc<CollectionCursor>,
         focus: FocusHandle,
@@ -2942,11 +2971,24 @@ impl CollectionRow {
             index,
             epoch,
             row_events: None,
+            context_menu: None,
         }
     }
 
     fn with_row_events(mut self, row_events: Option<ListRowEvents>) -> Self {
         self.row_events = row_events;
+        self
+    }
+
+    pub(crate) fn with_context_menu(
+        mut self,
+        token: u64,
+        menus: std::rc::Rc<crate::row_menu::RowMenus>,
+        resource: std::rc::Rc<std::cell::RefCell<ManagedListResource>>,
+    ) -> Self {
+        if token != 0 {
+            self.context_menu = Some((token, menus, resource));
+        }
         self
     }
 }
@@ -2989,6 +3031,9 @@ impl gpui::Element for CollectionRow {
         cx: &mut App,
     ) -> gpui::Hitbox {
         let hitbox = window.insert_hitbox(bounds, gpui::HitboxBehavior::Normal);
+        if let Some((_, menus, resource)) = &self.context_menu {
+            menus.observe(resource, self.index, bounds, hitbox.content_mask.bounds);
+        }
         self.element.prepaint(window, cx);
         hitbox
     }
@@ -3009,8 +3054,28 @@ impl gpui::Element for CollectionRow {
         let index = self.index;
         let epoch = self.epoch;
         let row_events = self.row_events;
+        let context_menu = self.context_menu.clone();
         // Capture precedes child handlers; children can still take focus or consume the event.
         window.on_mouse_event(move |event: &MouseDownEvent, phase, window, cx| {
+            if phase.bubble()
+                && event.button == MouseButton::Right
+                && hitbox.is_hovered(window)
+                && cursor.epoch() == epoch
+                && let Some((token, menus, resource)) = &context_menu
+                && menus.open(
+                    resource,
+                    index,
+                    *token,
+                    hitbox.bounds,
+                    hitbox.content_mask.bounds,
+                    event.position,
+                    window,
+                    cx,
+                )
+            {
+                cx.stop_propagation();
+                window.prevent_default();
+            }
             if phase.capture()
                 && event.button == MouseButton::Left
                 && hitbox.is_hovered(window)

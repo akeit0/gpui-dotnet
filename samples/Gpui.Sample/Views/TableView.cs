@@ -9,6 +9,7 @@ internal sealed partial class TableView : View
     private int _selected = -1;
     private bool _descending;
     private ulong _revision = 1;
+    private ListContextMenuEvent? _menuRequest;
     private string _activation = "Click or press Space to select; double-click or press Enter to activate";
 
     private void ActivateRow(ListActivationEvent e)
@@ -128,11 +129,52 @@ internal sealed partial class TableView : View
             )
             .OnActivated(this, static (view, e) => view.ActivateRow(e))
             .OnSelectionRequested(this, static (view, e) => view.SelectRow(e))
+            .OnContextMenuRequested(this, static (view, e) =>
+            {
+                view._menuRequest = e;
+                view.Invalidate();
+            })
             .Grow()
             .Width(Percent(100))
             .Style(SampleStyles.Table(theme));
 
-        return ui.VStack(header, ui.Text(_activation).TextColor(theme.Colors.TextMuted), grid).Gap(Px(10)).Grow();
+        var body = ui.VStack(header,
+            ui.Text(_activation).TextColor(theme.Colors.TextMuted),
+            ui.Text("Right-click a service for actions").TextColor(theme.Colors.TextMuted), grid)
+            .Gap(Px(10)).Grow();
+        if (_menuRequest is { } request)
+        {
+            var service = checked((int)request.ItemId - 1);
+            var content = ui.VStack(
+                ui.Text($"svc-{service:D4}").FontWeight(600),
+                ui.Text(Region(service)).TextColor(theme.Colors.TextMuted),
+                ui.Button("inspect-service", "Inspect service")
+                    .Style(SampleStyles.Button(theme))
+                    .OnClick(this, static (view, e) => view.InspectService(e.Payload), request.ItemId),
+                ui.Button("select-service", "Select service")
+                    .Style(SampleStyles.Button(theme))
+                    .OnClick(this, static (view, e) => view.SelectService(e.Payload), request.ItemId)
+            ).Gap(Px(6)).Padding(Px(12)).Width(Px(220))
+                .Surface(new(theme.Colors.ElevatedSurfaceBackground, theme.Colors.Text))
+                .BorderColor(theme.Colors.Border).BorderWidth(Px(1)).Radius(Px(8));
+            body = body.Child(ui.RowContextMenu("service-menu", request, content));
+        }
+        return body;
+    }
+
+    private void InspectService(ulong id)
+    {
+        _activation = $"Inspecting svc-{id - 1:D4}";
+        _menuRequest = null;
+        Invalidate();
+    }
+
+    private void SelectService(ulong id)
+    {
+        SelectRow(new ListSelectionEvent(RowIndex(checked((int)id - 1)), id, _revision,
+            ListSelectionSource.Pointer));
+        _menuRequest = null;
+        Invalidate();
     }
 
     private int RowIndex(int service) => _descending ? ItemCount - 1 - service : service;

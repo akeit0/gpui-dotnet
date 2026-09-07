@@ -514,6 +514,7 @@ impl Render for ManagedView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.refresh_if_dirty();
         self.overlay_stack.begin_frame();
+        self.resources.row_menus.begin_frame(window, cx);
         let theme = *self.theme.borrow();
         let dynamic_owners = if self.error.is_none() && self.has_snapshot {
             active_dynamic_owners(&self.snapshot)
@@ -537,6 +538,8 @@ impl Render for ManagedView {
                     .into_any_element()
             }
         };
+
+        self.resources.row_menus.finish_declarations(window, cx);
 
         if trace::enabled() {
             trace::end_frame(&self.list_telemetry_sums());

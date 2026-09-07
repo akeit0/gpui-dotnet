@@ -25,6 +25,18 @@ interning apply; last declarations win. They change the semantic schema hash, no
 
 ## Discovery
 
+List/Table operation 329 (`ListOnContextMenuRequested`) binds a right-click request for rows with
+a nonzero ItemId. Control event 23 carries 24 little-endian bytes: U32 row index, zero U32 reserved,
+nonzero U64 item ID, and nonzero U64 native anchor ID. Flag bit 1 indicates a content revision in
+the existing revision field; other flag bits must be zero. With bit 1 unset, revision must be zero.
+Managed validation checks the complete payload before dispatch.
+
+ContextMenu operation 622 (`ContextMenuRowAnchor`) selects that native request instead of a local
+trigger. `RowContextMenu` emits the existing two-child shape with an empty trigger. The anchor is
+window-local in scope, owned by the callback's View, single-use, and invalid after dismissal or row
+loss. Invalid/expired anchors produce no menu. This changes the semantic hash only; ABI 7 layouts
+and entry points are unchanged.
+
 ```c
 const gpui_dotnet_api_v3* gpui_dotnet_get_api(uint32_t requested_version);
 ```

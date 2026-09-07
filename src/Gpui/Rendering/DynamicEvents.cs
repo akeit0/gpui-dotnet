@@ -11,6 +11,24 @@ namespace Gpui;
 public static partial class ElementExtensions
 {
     /// <summary>
+    /// Requests a window-owned context menu on right-click of a row with ItemId.
+    /// Keep ListDataSource.ContentRevision stable while rendering the requested menu.
+    /// </summary>
+    public static Element<TTag> OnContextMenuRequested<TTag, TView>(
+        this Element<TTag> element,
+        TView view,
+        Action<TView, ListContextMenuEvent> callback
+    )
+        where TTag : unmanaged, IVirtualizedElementTag
+        where TView : ViewBase
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.ListOnContextMenuRequested, view.Runtime.Events.BindListContextMenu(callback));
+        return element;
+    }
+
+    /// <summary>
     /// Requests single-row selection on unmodified Space or an unconsumed primary single press.
     /// The application owns selection state and row styling; navigation alone does not select.
     /// </summary>

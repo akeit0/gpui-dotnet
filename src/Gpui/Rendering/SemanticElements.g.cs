@@ -180,6 +180,8 @@ namespace Gpui
     {
         /// <summary>Opt-in single-row selection request. Uses the List Activated payload and flag layout; selection and presentation remain application-owned.</summary>
         SelectionRequested = 21,
+        /// <summary>Right-click on a row with a stable ItemId. Carries the 16-byte row identity packet followed by a nonzero U64 native anchor. Only flag 1 (content revision present) is allowed.</summary>
+        ContextMenuRequested = 23,
         /// <summary>Opt-in row activation. Data is 16 little-endian bytes: u32 index, zero u32 reserved, u64 ItemId (zero when absent). Flags bit 0 selects keyboard instead of pointer, bit 1 indicates a datasource content revision in revision; all other bits are zero. Without bit 1, revision is zero.</summary>
         Activated = 20,
     }
