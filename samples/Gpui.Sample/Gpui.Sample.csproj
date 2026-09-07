@@ -14,5 +14,6 @@
     </ItemGroup>
     <ItemGroup>
         <None Update="Assets/gpui.svg" CopyToOutputDirectory="PreserveNewest" />
+        <InternalsVisibleTo Include="Gpui.Tests" />
     </ItemGroup>
 </Project>

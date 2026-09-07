@@ -155,15 +155,22 @@ internal sealed partial class InputGalleryView : View
     )
     {
         var theme = ui.Theme;
-        return ui.VStack(
+        var field = ui.VStack(
                 ui.Text(label)
                     .FontSize(Px(theme.Typography.Detail))
                     .TextColor(theme.Colors.TextMuted),
-                input,
-                help is null ? default : ui.Text(help)
+                input
+            );
+        if (help is not null)
+        {
+            field.Child(
+                ui.Text(help)
                     .FontSize(Px(theme.Typography.Detail))
                     .TextColor(invalid ? theme.Colors.Error : theme.Colors.TextMuted)
-            )
+            );
+        }
+
+        return field
             .Gap(Px(6))
             .Padding(Px(12))
             .Width(Percent(50))
