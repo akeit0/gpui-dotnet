@@ -199,6 +199,13 @@ pub struct SnapshotScratch {
     op_offsets: Vec<usize>,
     op_cursor: Vec<usize>,
     resource_keys: Vec<(u32, u32, u32, u16)>,
+    dock: Vec<DockInfo>,
+}
+
+#[derive(Clone, Copy, Default)]
+struct DockInfo {
+    value: u32,
+    area: u32,
 }
 
 impl SnapshotScratch {
@@ -215,6 +222,7 @@ impl SnapshotScratch {
                 + self.op_cursor.capacity())
                 * size_of::<usize>()
             + self.resource_keys.capacity() * size_of::<(u32, u32, u32, u16)>()
+            + self.dock.capacity() * size_of::<DockInfo>()
     }
 
     fn prepare_nodes(&mut self, node_len: usize, child_len: usize) {
@@ -267,9 +275,8 @@ pub fn validate(arena: &RenderArena, root: u32) -> Result<(), i32> {
 
 /// Virtualized lists and tables share one row-engine namespace per owner view, so a List and a
 /// Table (or two of either) must not declare the same `(owner, key)`. Slider resources use a
-/// separate kind namespace and are checked independently. The count of retained nodes per
-/// snapshot is tiny, so the O(K²) pairwise comparison over reusable scratch memory is cheaper
-/// than hashing strings.
+/// separate kind namespace and are checked independently. Sorting reusable offset records
+/// bounds comparisons without allocating or retaining key strings.
 fn validate_resource_key_uniqueness(
     nodes: &[NodeRecord],
     ops: &[OpRecord],
@@ -330,21 +337,28 @@ fn validate_resource_key_uniqueness(
         if owner == 0 || key_length == 0 {
             continue;
         }
-        for previous in &owners[..count] {
-            if previous.0 == owner
-                && previous.3 == kind
-                && previous.2 == key_length
-                && utf8[previous.1 as usize..previous.1 as usize + key_length as usize]
-                    == utf8
-                        [node.data_offset as usize..node.data_offset as usize + key_length as usize]
-            {
-                return Err(-56);
-            }
-        }
         owners[count] = (owner, node.data_offset, key_length, kind);
         count += 1;
     }
+    owners.truncate(count);
+    if duplicate_keys(owners, utf8) {
+        return Err(-56);
+    }
     Ok(())
+}
+
+// Store offsets, never borrowed pointers or allocated strings. Resource namespaces and
+// Dock areas both reduce to (owner/area, kind, UTF-8 key) uniqueness after validation.
+fn duplicate_keys(keys: &mut [(u32, u32, u32, u16)], utf8: &[u8]) -> bool {
+    let compare = |left: &(u32, u32, u32, u16), right: &(u32, u32, u32, u16)| {
+        (left.0, left.3).cmp(&(right.0, right.3)).then_with(|| {
+            utf8[left.1 as usize..left.1 as usize + left.2 as usize]
+                .cmp(&utf8[right.1 as usize..right.1 as usize + right.2 as usize])
+        })
+    };
+    keys.sort_unstable_by(compare);
+    keys.windows(2)
+        .any(|pair| compare(&pair[0], &pair[1]).is_eq())
 }
 
 fn validate_with_scratch(
@@ -515,6 +529,25 @@ fn validate_with_scratch(
     }
 
     scratch.prepare_nodes(node_len, child_len);
+    let has_dock = nodes.iter().any(|node| {
+        matches!(
+            node.component,
+            COMPONENT_DOCK_AREA
+                | COMPONENT_DOCK_SPLIT
+                | COMPONENT_DOCK_TABS
+                | COMPONENT_DOCK_PANEL
+                | COMPONENT_DOCK_REGION
+        )
+    });
+    scratch.dock.clear();
+    if has_dock {
+        scratch.dock.resize(node_len, DockInfo::default());
+        for op in ops {
+            if matches!(op.code, OP_DOCK_ACTIVE_INDEX | OP_DOCK_REGION_SIDE) {
+                scratch.dock[op.node as usize].value = op.a as u32;
+            }
+        }
+    }
     for edge in children {
         if edge.parent as usize >= node_len || edge.child as usize >= node_len {
             return Err(-7);
@@ -593,17 +626,22 @@ fn validate_with_scratch(
     }) {
         return Err(-61);
     }
+    prefix_offsets(&scratch.child_counts, &mut scratch.child_offsets);
+    scratch
+        .child_cursor
+        .copy_from_slice(&scratch.child_offsets[..node_len]);
+    for edge in children {
+        let parent = edge.parent as usize;
+        let destination = scratch.child_cursor[parent];
+        scratch.grouped_children[destination] = edge.child;
+        scratch.child_cursor[parent] += 1;
+    }
+
     for (index, node) in nodes.iter().enumerate() {
         if node.component != COMPONENT_DOCK_TABS {
             continue;
         }
-        let active_index = ops
-            .iter()
-            .rev()
-            .find(|operation| {
-                operation.node as usize == index && operation.code == OP_DOCK_ACTIVE_INDEX
-            })
-            .map_or(0, |operation| operation.a as usize);
+        let active_index = scratch.dock[index].value as usize;
         if active_index >= scratch.child_counts[index] {
             return Err(-61);
         }
@@ -614,18 +652,14 @@ fn validate_with_scratch(
         }
         let mut center_count = 0usize;
         let mut side_mask = 0u32;
-        for edge in children.iter().filter(|edge| edge.parent as usize == index) {
-            if nodes[edge.child as usize].component != COMPONENT_DOCK_REGION {
+        let start = scratch.child_offsets[index];
+        let end = start + scratch.child_counts[index];
+        for &child in &scratch.grouped_children[start..end] {
+            if nodes[child as usize].component != COMPONENT_DOCK_REGION {
                 center_count += 1;
                 continue;
             }
-            let side = ops
-                .iter()
-                .rev()
-                .find(|operation| {
-                    operation.node == edge.child && operation.code == OP_DOCK_REGION_SIDE
-                })
-                .map_or(0, |operation| operation.a as u32);
+            let side = scratch.dock[child as usize].value;
             let bit = 1u32 << side;
             if side_mask & bit != 0 {
                 return Err(-61);
@@ -648,17 +682,6 @@ fn validate_with_scratch(
         return Err(-11);
     }
 
-    prefix_offsets(&scratch.child_counts, &mut scratch.child_offsets);
-    scratch
-        .child_cursor
-        .copy_from_slice(&scratch.child_offsets[..node_len]);
-    for edge in children {
-        let parent = edge.parent as usize;
-        let destination = scratch.child_cursor[parent];
-        scratch.grouped_children[destination] = edge.child;
-        scratch.child_cursor[parent] += 1;
-    }
-
     scratch.pending.push(root);
     while let Some(parent) = scratch.pending.pop() {
         let visited = &mut scratch.visited[parent as usize];
@@ -666,6 +689,17 @@ fn validate_with_scratch(
             return Err(-12);
         }
         *visited = 1;
+        if has_dock {
+            let ancestor = scratch.parents[parent as usize];
+            scratch.dock[parent as usize].area =
+                if nodes[parent as usize].component == COMPONENT_DOCK_AREA {
+                    parent
+                } else if ancestor == u32::MAX {
+                    u32::MAX
+                } else {
+                    scratch.dock[ancestor as usize].area
+                };
+        }
         let start = scratch.child_offsets[parent as usize];
         let end = start + scratch.child_counts[parent as usize];
         scratch
@@ -679,37 +713,25 @@ fn validate_with_scratch(
 
     validate_resource_key_uniqueness(nodes, ops, utf8, scratch)?;
 
-    for left in 0..nodes.len() {
-        if nodes[left].component != COMPONENT_DOCK_PANEL {
-            continue;
-        }
-        let left_area = dock_area_ancestor(left, nodes, &scratch.parents);
-        let left_id = dock_panel_id(&nodes[left], utf8);
-        for right in left + 1..nodes.len() {
-            if nodes[right].component == COMPONENT_DOCK_PANEL
-                && dock_area_ancestor(right, nodes, &scratch.parents) == left_area
-                && dock_panel_id(&nodes[right], utf8) == left_id
-            {
-                return Err(-61);
+    if has_dock {
+        let panels = &mut scratch.resource_keys;
+        panels.clear();
+        for (index, node) in nodes.iter().enumerate() {
+            if node.component == COMPONENT_DOCK_PANEL {
+                panels.push((
+                    scratch.dock[index].area,
+                    node.data_offset,
+                    dock_panel_id(node, utf8).len() as u32,
+                    0,
+                ));
             }
+        }
+        if duplicate_keys(panels, utf8) {
+            return Err(-61);
         }
     }
 
     Ok(())
-}
-
-fn dock_area_ancestor(index: usize, nodes: &[NodeRecord], parents: &[u32]) -> Option<u32> {
-    let mut current = index;
-    loop {
-        let parent = parents[current];
-        if parent == u32::MAX {
-            return None;
-        }
-        if nodes[parent as usize].component == COMPONENT_DOCK_AREA {
-            return Some(parent);
-        }
-        current = parent as usize;
-    }
 }
 
 fn dock_panel_id<'a>(node: &NodeRecord, utf8: &'a [u8]) -> &'a [u8] {
@@ -745,6 +767,7 @@ unsafe fn slice_or_empty<'a, T>(pointer: *const T, len: usize) -> &'a [T] {
 
 #[cfg(test)]
 mod tests {
+    mod validation_workloads;
     use super::*;
     use crate::{
         abi::{ChildRecord, NodeRecord, OpRecord},

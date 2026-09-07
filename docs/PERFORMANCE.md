@@ -26,12 +26,19 @@ Do not replace this model with per-element or per-style P/Invoke calls.
 Child fragments check root identity, generation, and index before copying. Full managed semantic
 validation runs once per assembled root or row batch, preserving diagnostics without rescanning
 descendants at every fragment boundary. Native validation remains authoritative at acceptance.
-Structural validation indexes parent links, child counts, and final Dock operation values once.
+Managed structural validation indexes parent links, child counts, and final Dock operation values once.
 An iterative ancestor walk rejects disconnected cycles and resolves nearest Dock areas. Panel IDs
 are sorted by area and their UTF-8 bytes, avoiding pairwise ancestry searches and string allocation.
 Graph work is O(nodes + edges + operations); panel uniqueness adds O(panels log panels) byte
 comparisons. Small scratch buffers use the stack; larger buffers use ArrayPool and return on both
 success and failure. Cold pool growth can allocate. Wire flags remain untouched.
+
+Native validation reuses vectors for graph and resource indexes. Its graph traversal propagates
+the nearest Dock area from parent to child; final active-index and region-side operations are
+indexed once. Resource keys and Dock panel IDs use sorted UTF-8 offset records, adding
+O(keys log keys) byte comparisons without allocating key strings. Dock snapshots lazily allocate
+eight scratch bytes per node and retain that capacity for reuse; ordinary row snapshots allocate
+no Dock buffer. Scratch retains no borrowed arena pointers.
 
 Acceptance activates only newly mounted Views. Factory-owned child slots reuse accepted children;
 unaccepted candidates retain ownership edges solely for failed-render cleanup. Retirement scratch
@@ -465,7 +472,7 @@ Run the opt-in native probes separately from correctness tests:
 ./eng/measure-native.ps1
 ```
 
-The script runs the ignored `native_workload_measurements` test in Release on one test thread and
+The script runs ignored tests matching `native_workload_measurements` in Release on one test thread and
 restores the working directory. Windows x64 measurements use five measured batches after four
 warmups. Decode and load/release use 64 operations per batch; trimming measures one fully prepared
 cache per batch. Each row has a keyed Button with width, height, and a shared click token.
@@ -510,6 +517,24 @@ The tradeoff is engine-owned high-water scratch capacity: emptying the cache ret
 after 48-row batches or 39,509 after 512-row batches in these probes, until the engine is dropped.
 These numeric buffers retain no snapshot strings, event callbacks, or borrowed arena pointers.
 Separate runs have no CPU affinity or clock control; small differences are inconclusive.
+
+The validation probe uses the production validator with reused scratch, 16 operations per batch,
+four warmup batches, and five measured batches. Resource cases declare Scroll nodes with distinct
+UTF-8 keys and one owner. Dock cases declare one panel per tab group under a split; the depth case
+adds 128 ancestor splits. These are validation timings, excluding decoding and rendering:
+
+| Validation workload | Baseline µs/op (`203beef`) | Current µs/op |
+| --- | ---: | ---: |
+| 128 resource keys | 47.30 | 5.83 |
+| 1,024 resource keys | 2,708.71 | 46.04 |
+| 128 Dock panels | 109.88 | 13.42 |
+| 512 Dock panels | 1,608.02 | 54.44 |
+| 128 Dock panels, 128 additional ancestor splits | 1,287.89 | 15.28 |
+
+Resource scratch capacity is unchanged at 6,837 and 54,325 bytes respectively. Dock scratch
+capacity grows from 19,430 to 22,518 bytes for 128 panels and from 77,414 to 89,718 bytes for 512.
+Ordinary row decode timings remain comparable in the same probe run (3.58 µs for 48 rows,
+36.75 µs for 512); these small differences do not establish a row throughput improvement.
 
 ### Dispatcher callback validation cost
 
