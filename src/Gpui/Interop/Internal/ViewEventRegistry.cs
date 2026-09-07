@@ -15,7 +15,7 @@ internal sealed class ViewEventRegistry
     private List<EventEntry>? EventEntries { get; set; }
     private Stack<int>? FreeEventSlots { get; set; }
     private Dictionary<uint, int>? EventSlots { get; set; }
-    private Dictionary<ulong, List<int>>? ArtifactEventSlots { get; set; }
+    private Dictionary<ulong, int>? ArtifactEventSlots { get; set; }
     private List<int>? RootEventSlots { get; set; }
     private uint NextEventId { get; set; }
     private ulong EventBindingArtifact { get; set; }
@@ -301,6 +301,8 @@ internal sealed class ViewEventRegistry
         internal object? Target;
         internal Delegate? Callback;
         internal int BinderIndex;
+        // Artifact-local chain in recyclable storage; -1 ends the chain.
+        internal int NextArtifactSlot;
         internal long LastPass;
         internal uint Id;
         internal ulong Artifact;
@@ -376,15 +378,12 @@ internal sealed class ViewEventRegistry
         var pass = attachment.EventBindingPass;
         var scopeSlots = attachment.RootEventSlots;
         var demand = scope == ViewEventBindingScope.ListRange;
-        if (demand)
-        {
-            scopeSlots = null;
-            attachment.ArtifactEventSlots?.TryGetValue(attachment.EventBindingArtifact, out scopeSlots);
-        }
+        var artifactHead = demand && attachment.ArtifactEventSlots is { } artifactSlots
+            && artifactSlots.TryGetValue(attachment.EventBindingArtifact, out var head) ? head : -1;
         var count = scopeSlots?.Count ?? 0;
-        for (var candidate = 0; candidate < count; candidate++)
+        var index = demand ? artifactHead : count == 0 ? -1 : scopeSlots![0];
+        for (var candidate = 0; index != -1; candidate++)
         {
-            var index = scopeSlots![candidate];
             var current = entries[index];
             if (
                 current.BinderIndex == binderIndex
@@ -400,6 +399,8 @@ internal sealed class ViewEventRegistry
                 entries[index] = current;
                 return DynamicEventToken(attachment.ViewHandle, current.Id);
             }
+            index = demand ? current.NextArtifactSlot
+                : candidate + 1 < count ? scopeSlots![candidate + 1] : -1;
         }
 
         if (attachment.NextEventId == DynamicEventEntryMask)
@@ -417,6 +418,7 @@ internal sealed class ViewEventRegistry
             Target = target,
             Callback = callback,
             BinderIndex = binderIndex,
+            NextArtifactSlot = artifactHead,
             LastPass = pass,
             Id = id,
             Artifact = attachment.EventBindingArtifact,
@@ -432,12 +434,7 @@ internal sealed class ViewEventRegistry
         (attachment.EventSlots ??= []).Add(id, entryIndex);
         if (entry.Artifact != 0)
         {
-            var artifacts = attachment.ArtifactEventSlots ??= [];
-            if (!artifacts.TryGetValue(entry.Artifact, out var slots))
-            {
-                artifacts.Add(entry.Artifact, slots = []);
-            }
-            slots.Add(entryIndex);
+            (attachment.ArtifactEventSlots ??= [])[entry.Artifact] = entryIndex;
         }
         else
             (attachment.RootEventSlots ??= []).Add(entryIndex);
@@ -518,11 +515,13 @@ internal sealed class ViewEventRegistry
             return;
         }
         attachment.AssertAccess();
-        if (attachment.ArtifactEventSlots?.Remove(artifact, out var slots) == true)
+        if (attachment.ArtifactEventSlots?.Remove(artifact, out var index) == true)
         {
-            foreach (var index in slots)
+            while (index != -1)
             {
+                var next = attachment.EventEntries![index].NextArtifactSlot;
                 ReleaseEventSlot(attachment, index);
+                index = next;
             }
         }
     }

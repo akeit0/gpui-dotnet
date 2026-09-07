@@ -1145,14 +1145,21 @@ public sealed unsafe partial class RuntimeExecutionTests
 
         internal ulong Range(uint start, ulong source = 1, bool accept = true, uint count = 1, ProbeView? owner = null)
         {
-            RenderArena arena = default;
-            uint root = 0;
-            ulong artifact = 0;
-            delegate* unmanaged[Cdecl]<ulong, ulong, ulong, uint, uint, RenderArena*, uint*, ulong*, int> callback = &NativeCallbacks.ListRenderRange;
-            Assert.Equal(0, callback(_id, ((ulong)(owner ?? View).Runtime.RuntimeViewHandle << 32) | 1, source, start, count, &arena, &root, &artifact));
+            Assert.Equal(0, NativeRange(start, out var artifact, source, count, owner));
             if (accept)
                 Assert.Equal(0, Accept(source, artifact));
             return artifact;
+        }
+
+        internal int NativeRange(uint start, out ulong artifact, ulong source = 1, uint count = 1, ProbeView? owner = null)
+        {
+            RenderArena arena = default;
+            uint root = 0;
+            ulong value = 0;
+            delegate* unmanaged[Cdecl]<ulong, ulong, ulong, uint, uint, RenderArena*, uint*, ulong*, int> callback = &NativeCallbacks.ListRenderRange;
+            var status = callback(_id, ((ulong)(owner ?? View).Runtime.RuntimeViewHandle << 32) | 1, source, start, count, &arena, &root, &value);
+            artifact = value;
+            return status;
         }
 
         internal int Accept(ulong source, ulong artifact)

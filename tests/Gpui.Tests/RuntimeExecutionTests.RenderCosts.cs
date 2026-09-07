@@ -59,14 +59,17 @@ public sealed unsafe partial class RuntimeExecutionTests
     [InlineData(512)]
     public void RowArtifactChurnCost(int cached)
     {
-        using var fixture = new SessionFixture(new ProbeView());
+        using var fixture = new SessionFixture(new AllocationRowView("shared-click"));
         fixture.Render();
         for (var index = 0; index < cached; index++) fixture.Range((uint)index * 48, count: 48);
+        var status = 0;
         MeasureRenderCost($"row-churn-with-{cached}-cached-batches", 32, () =>
         {
-            var artifact = fixture.Range((uint)cached * 48, count: 48);
-            Assert.Equal(0, fixture.Release(1, artifact));
+            status |= fixture.NativeRange((uint)cached * 48, out var artifact, count: 48);
+            status |= fixture.Accept(1, artifact);
+            status |= fixture.Release(1, artifact);
         });
+        Assert.Equal(0, status);
     }
 
     private sealed class RetirementRoot : ProbeView

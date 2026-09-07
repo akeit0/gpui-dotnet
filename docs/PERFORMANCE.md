@@ -325,7 +325,10 @@ the last lease into its slot; View retirement visits only that owner's leases, i
 publications and rows without events. The index adds one optional reference per retained View,
 one slot number per session artifact entry, and a lazily allocated list of artifact IDs per row
 owner. Empty lists retain their capacity for reuse until the View retires.
-Equivalent row bindings search only their current artifact's live slots. Root bindings have a
+Equivalent row bindings search only their current artifact's live slots. Each artifact stores a
+head index; event entries link to the next slot, so binding and release need no per-artifact list.
+Release walks the chain before clearing and recycling its slots. External tokens remain unique
+even when a different artifact reuses the same storage. Root bindings have a
 separate slot index for lookup and retirement, independent of cached batches and unused storage.
 Root retirement compacts this index; released entries still receive fresh external IDs on reuse.
 This adds a lazy list per event registry containing root bindings; small linear searches remain
@@ -426,11 +429,27 @@ root publication, assertions, and reporting are outside the interval; acceptance
 inside it. The large cache is a scaling stress case, not a typical viewport.
 
 `RowArtifactChurnCost` loads, accepts, and releases one 48-row batch per operation with 0, 64, or
-512 unrelated batches retained. Five measured batches of 32 operations after four warmup batches
-allocated 2,800 managed bytes per operation both before and after indexing. The indexed timings
-were 6.55–9.05 µs/op, compared with 6.89–9.66 µs/op for the session scan. This includes rendering
-and fixture assertions; it does not isolate lease bookkeeping or native row decoding. These
-separate runs have no CPU affinity or clock control, so small differences are inconclusive.
+512 unrelated batches retained. It uses shared static callbacks and keeps assertions outside the
+measured interval. `RowBatchAllocationPatterns` separates text, shared callbacks, captured
+callbacks, and Signal reads through the native callback entry points. Windows x64 / .NET 10.0.11
+Release with tiering disabled, five measured batches of 32 operations after four warmup batches:
+
+| Row pattern | List of event slots B/batch (`d9274a8`) | Linked event slots B/batch |
+| --- | ---: | ---: |
+| Constant Text, 1 / 48 / 512 rows | 88 | 88 |
+| Shared click handler, 1 / 48 / 512 rows | 160 | 88 |
+| Shared click handler and one shared Signal, 48 rows | 288 | 216 |
+| Fresh callback capturing each row index, 48 rows | 4,960 | 4,312 |
+
+The remaining 88 bytes are the artifact's reactive consumer. One observed Signal adds 128 bytes
+for dependency storage. Capturing each row index adds 88 bytes per row in application code; prefer
+a shared callback with the native event payload when that expresses the same behavior. These
+measurements include managed rendering, validation, acceptance, and release, with warmed arena,
+registry, and dictionary capacity. They exclude native decoding, frame work, and assertions.
+The allocation contracts cover both 1-row and 512-row batches; timing is exploratory.
+
+The earlier 2,800-byte churn result included 1,152 bytes of fixture closure allocation and 1,488
+bytes of assertion overhead. The comparable framework-only baseline is 160 bytes, not 2,800.
 
 ### Dispatcher callback validation cost
 
