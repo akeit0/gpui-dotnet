@@ -4,6 +4,9 @@ using static Gpui.Units;
 [GpuiView]
 internal sealed partial class DashboardView : View
 {
+    [System.Runtime.CompilerServices.InlineArray(36)]
+    private struct CardBuffer { private Element _element; }
+
     private ScrollController _scroll;
     private int _propsRevision;
     private bool _reverseCounters;
@@ -127,7 +130,8 @@ internal sealed partial class DashboardView : View
             )
             .Gap(Px(8));
 
-        Span<Element> cards = stackalloc Element[36];
+        CardBuffer buffer = default;
+        Span<Element> cards = buffer;
         for (var index = 0; index < cards.Length; index++)
         {
             cards[index] = ui.VStack(

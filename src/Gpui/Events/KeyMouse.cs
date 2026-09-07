@@ -89,8 +89,8 @@ public readonly struct ModifiersEvent
 
 /// <summary>
 /// Observer snapshot of a mouse press or release forwarded from native GPUI.
-/// High-frequency mouse movement never crosses; only discrete down/up events do,
-/// and only for elements that opt in. Handlers never stop propagation.
+/// These discrete events and the separate movement/wheel observers cross only for
+/// elements that opt in. Handlers never stop propagation.
 /// </summary>
 public readonly struct MouseEvent
 {

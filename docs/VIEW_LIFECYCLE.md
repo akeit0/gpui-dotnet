@@ -94,6 +94,13 @@ a View, or rely on a one-time side effect. Signal writes remain forbidden, inclu
 Event binding, effect declarations, and ref-bound controller identity are supported declarations.
 Managed arenas grow before writes without retrying user rendering.
 
+Elements belong to one arena generation on its creating thread. Reusing the arena invalidates old
+elements and contexts; disposing it or retiring its child View releases the buffers and invalidates
+all remaining handles. Invalid use throws before reading freed memory. An Element contains a managed
+owner reference, so it cannot be used with `stackalloc`. Span composition remains supported; use a
+local `[InlineArray(N)]` buffer for a fixed number of elements, or reusable array storage for variable
+counts. Clear reusable arrays after composition so they do not retain arena owners unnecessarily.
+
 A `Memo<TInput, TResult>` stores one input/result entry. Its first `Get(input, calculate)` computes
 and returns the result in that same render. Equal inputs reuse it. Read Signals while assembling
 the input, before calling `Get`; the calculation and equality comparison cannot read Signals or

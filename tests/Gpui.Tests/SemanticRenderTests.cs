@@ -257,8 +257,8 @@ public sealed class SemanticRenderTests
         var parentUi = parent.BeginRender();
         var host = parentUi.Div(parentUi.Text("parent-text"));
         var composed = ArenaWriter.AppendFragment(
-            parent.NativeArena,
-            child.NativeArena,
+            parent,
+            child,
             childRoot.Inner.Node
         );
         var root = host.Children(composed);
@@ -2287,7 +2287,7 @@ public sealed class SemanticRenderTests
         public Element RenderChild<TView>(
             ViewBase parent,
             ChildSlot slot,
-            Gpui.Interop.RenderArena* destination
+            RenderArenaOwner destination
         )
             where TView : View, IGeneratedViewFactory<TView> => throw new NotSupportedException();
 
@@ -2295,7 +2295,7 @@ public sealed class SemanticRenderTests
             ViewBase parent,
             ChildSlot slot,
             in TProps props,
-            Gpui.Interop.RenderArena* destination
+            RenderArenaOwner destination
         )
             where TProps : IEquatable<TProps>
             where TView : View<TProps>, IGeneratedViewFactory<TView, TProps> =>

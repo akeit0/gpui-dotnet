@@ -35,7 +35,7 @@ internal sealed unsafe partial class ManagedSession
         {
             var storage = _rootOutputArena ??= new RenderArenaOwner();
             storage.BeginRender();
-            var root = RenderRoot(storage.NativeArena);
+            var root = RenderRoot(storage);
             storage.PublishTo(output, root);
             return root.Node;
         }
@@ -73,7 +73,7 @@ internal sealed unsafe partial class ManagedSession
         {
             var storage = _demandOutputArena ??= new RenderArenaOwner();
             storage.BeginRender();
-            var root = RenderDemand(rendererToken, source, request, storage.NativeArena, out artifact);
+            var root = RenderDemand(rendererToken, source, request, storage, out artifact);
             storage.PublishTo(output, root);
             return root.Node;
         }

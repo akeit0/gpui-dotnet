@@ -4,7 +4,7 @@ namespace Gpui.Interop.Internal.Session;
 
 internal sealed unsafe partial class ManagedSession
 {
-    internal Element RenderRoot(RenderArena* arena)
+    internal Element RenderRoot(RenderArenaOwner arena)
     {
         ThrowIfUnavailable();
         using var execution = Execution.Enter(ExecutionPhase.Ingress);
@@ -21,7 +21,7 @@ internal sealed unsafe partial class ManagedSession
                 var ui = new RenderContext(arena, this, RootView, _application.Theme);
                 var element = RootView.Runtime.RenderCore(ref ui);
                 ThrowIfUnavailable();
-                ManagedValidator.Validate(arena, element);
+                ManagedValidator.Validate(arena.NativeArena, element);
                 CompleteComposition(RootView);
                 completed = true;
                 _pendingRenderRevision = checked(++_nextRenderRevision);
@@ -53,7 +53,7 @@ internal sealed unsafe partial class ManagedSession
         ulong source,
         uint start,
         uint count,
-        RenderArena* arena,
+        RenderArenaOwner arena,
         out ulong artifact
     ) => RenderDemand(rendererToken, source, new ListRangeRenderRequest(start, count), arena, out artifact);
 
@@ -61,7 +61,7 @@ internal sealed unsafe partial class ManagedSession
         ulong rendererToken,
         ulong source,
         TRequest request,
-        RenderArena* arena,
+        RenderArenaOwner arena,
         out ulong artifact
     ) where TRequest : struct, IDemandRenderRequest
     {
@@ -99,7 +99,7 @@ internal sealed unsafe partial class ManagedSession
             var ui = new RenderContext(arena, theme: _application.Theme);
             var batchRoot = request.Render(owner, rendererId, ref ui);
 
-            ManagedValidator.Validate(arena, batchRoot);
+            ManagedValidator.Validate(arena.NativeArena, batchRoot);
             ThrowIfUnavailable();
             completed = true;
             return batchRoot;
@@ -127,7 +127,7 @@ internal sealed unsafe partial class ManagedSession
         }
     }
 
-    private Element RenderResolvedChild(ViewBase view, RenderArena* destination)
+    private Element RenderResolvedChild(ViewBase view, RenderArenaOwner destination)
     {
         ThrowIfUnavailable();
         var state = GetRenderState(view);
@@ -154,7 +154,7 @@ internal sealed unsafe partial class ManagedSession
             }
         }
 
-        return ArenaWriter.AppendFragment(destination, state.Fragment.NativeArena, state.Root);
+        return ArenaWriter.AppendFragment(destination, state.Fragment, state.Root);
     }
 
     private void BeginComposition(ViewBase view)

@@ -71,6 +71,14 @@ internal readonly record struct PrimaryButtonStyle(GpuiTheme Theme)
 `.Style(value)` invokes the typed recipe and returns the normal element builder. A later fluent call
 can override a value. Do not add application variant enums or style objects to the native ABI.
 
+Native component defaults are applied before explicit operations. Operations affecting the same
+property apply in declaration order, including pixel and percentage forms. For ordinary growing
+snapshot elements, `.Grow()` supplies zero minimum width and height so flex content can shrink;
+explicit `MinWidth` and `MinHeight` override those defaults regardless of where `.Grow()` appears.
+Retained controls have separate internal presentation: Input text inherits typography and text color
+through its wrapper, while its placeholder uses the theme's placeholder role and its caret/selection
+use the accent role. Wrapper styling does not provide a general API for internal control parts.
+
 ## Snapshot components
 
 ### Layout and content
@@ -134,9 +142,8 @@ protected override Element Render(ref RenderContext ui) =>
 `Ctrl+Shift+S` does not match `Ctrl+S`. Holding a key produces OS key-repeat `Down` events with
 `IsHeld` set, so one-shot hot-key actions should guard with `!key.IsHeld`. Modifier-only presses
 (e.g. holding Ctrl alone) never produce key events in GPUI; track them with `OnModifiersChanged`,
-which reports the current modifiers. Mouse movement never
-crosses the ABI; only discrete
-down/up for opted-in elements do. These bindings are render-pass declarations like `OnClick`
+which reports the current modifiers. Mouse movement and wheel events cross the ABI only when their
+observer bindings are declared. These bindings are render-pass declarations like `OnClick`
 (pure `Render`, state changes in the handler plus `Invalidate()`), and they are invalid inside
 virtualized List/Table row snapshots, which have no mounted View lifetime.
 
@@ -225,6 +232,10 @@ controller overloads avoid unnecessary UTF-16 allocation. `InputEvent.Value` dec
 
 `InputController` supports `Focus`, `Blur`, `SelectAll`, and `SetValue`. The declarative initial
 value is consumed only when the native keyed resource is created.
+`SetValue` normalizes line breaks to spaces. If the resulting value already matches, it preserves
+selection, IME composition, and horizontal scrolling. A changed value moves the caret to the end,
+clears composition, and resets horizontal scrolling without emitting a change event. Replacement
+is unconditional; asynchronous callers must suppress stale results before issuing it.
 
 The retained GPUI.NET engine remains authoritative after comparison with the foundation Input.
 Foundation `InputState` uses a Rope-backed editor and emits change notifications without a value or

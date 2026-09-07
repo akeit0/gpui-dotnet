@@ -14,6 +14,8 @@ After arena warmup:
 
 - `RenderContext` is stack-only;
 - `Element<TTag>` is a small value;
+- elements retain their arena owner without allocating a separate object per element; fixed-size
+  local inline arrays support allocation-free span composition despite the managed owner reference;
 - child APIs accept spans;
 - event tokens use compact non-reused IDs mapped to recyclable registry slots;
 - framework child activation uses generated factories;
@@ -72,7 +74,7 @@ cancellation source. The construction probe stores every instance in a prealloca
 the objects observable while excluding array allocation. It warms type initialization; these are
 fresh object costs, not process startup costs.
 
-The first accepted render of an already constructed test root returning only constant Text allocates **1,416 managed
+The first accepted render of an already constructed test root returning only constant Text allocates **1,320 managed
 bytes** in the session fixture. This includes preparation, retained/render bookkeeping, first
 capacity growth, and acceptance/mounting. View/application/session construction and disposal are
 outside that interval. The fixture renders roots sequentially, so the bounded attachment pool is

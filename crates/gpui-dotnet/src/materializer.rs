@@ -246,7 +246,6 @@ impl ManagedView {
         for child in snapshot.children(node) {
             element = element.child(self.materialize_node(*child, snapshot, window, cx));
         }
-        element = apply_styles(element, node, snapshot);
         if last_op(snapshot, node, OP_FLEX_GROW).is_some() {
             // A growing flex item must be allowed to shrink below its content's intrinsic
             // size; otherwise a descendant scroll viewport expands to its full content
@@ -254,6 +253,8 @@ impl ManagedView {
             // long text child reports a wide max-content width.
             element = element.min_h_0().min_w_0();
         }
+        // Explicit pixel or percentage minima override these intrinsic-size defaults.
+        element = apply_styles(element, node, snapshot);
         element = apply_window_control_area(element, node, snapshot);
 
         if metadata.capabilities & CAPABILITY_INTERACTIVE != 0 {
@@ -768,7 +769,6 @@ impl ManagedView {
             .border(px(1.))
             .border_color(rgba(theme.border))
             .bg(rgba(theme.element_background))
-            .text_color(rgba(theme.text))
             .child(input);
         if disabled {
             element = element.opacity(0.55);
@@ -2890,9 +2890,181 @@ mod tests {
         semantic::{COMPONENT_BUTTON, COMPONENT_TEXT, ValueKind},
         snapshot::{RetainedStrings, SnapshotScratch},
     };
+    use gpui::AppContext;
 
     fn key() -> ResourceKey {
         ResourceKey::new(4, "service-grid".into())
+    }
+
+    fn inert_callbacks() -> ManagedCallbacks {
+        ManagedCallbacks {
+            struct_size: 0,
+            render: None,
+            click: None,
+            list_render_range: None,
+            control_event: None,
+            application_started: None,
+            window_closed: None,
+            menu_action: None,
+            dynamic_frame: None,
+            render_completed: None,
+            release_artifact: None,
+            accept_artifact: None,
+        }
+    }
+
+    fn style_snapshot(component: u16, data: &str, ops: &mut [OpRecord]) -> ValidatedSnapshot {
+        let mut nodes = [NodeRecord {
+            component,
+            data_length: data.len() as u32,
+            ..Default::default()
+        }];
+        let mut bytes = data.as_bytes().to_vec();
+        let arena = RenderArena {
+            nodes: nodes.as_mut_ptr(),
+            node_length: 1,
+            node_capacity: 1,
+            ops: ops.as_mut_ptr(),
+            op_length: ops.len() as i32,
+            op_capacity: ops.len() as i32,
+            children: std::ptr::null_mut(),
+            child_length: 0,
+            child_capacity: 0,
+            utf8: bytes.as_mut_ptr(),
+            utf8_length: bytes.len() as i32,
+            utf8_capacity: bytes.len() as i32,
+            generation: 1,
+            flags: 0,
+            required_node_capacity: 0,
+            required_op_capacity: 0,
+            required_child_capacity: 0,
+            required_utf8_capacity: 0,
+        };
+        let mut snapshot = ValidatedSnapshot::default();
+        snapshot
+            .decode_into(
+                &arena,
+                0,
+                &mut RetainedStrings::default(),
+                &mut SnapshotScratch::default(),
+            )
+            .unwrap();
+        snapshot
+    }
+
+    fn float_style(code: u16, value: f32) -> OpRecord {
+        OpRecord {
+            code,
+            value_kind: ValueKind::F32 as u16,
+            a: value.to_bits() as u64,
+            ..Default::default()
+        }
+    }
+
+    #[gpui::test]
+    fn growing_elements_preserve_explicit_minima_in_native_layout(cx: &mut gpui::TestAppContext) {
+        let view = cx.new(|_| {
+            ManagedView::new(1, inert_callbacks(), Default::default(), Default::default())
+        });
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        for grow_first in [true, false] {
+            for (width, height, expected) in [
+                (
+                    OP_MIN_WIDTH_PX,
+                    OP_MIN_HEIGHT_PX,
+                    gpui::size(px(240.), px(80.)),
+                ),
+                (
+                    OP_MIN_WIDTH_PERCENT,
+                    OP_MIN_HEIGHT_PERCENT,
+                    gpui::size(px(480.), px(160.)),
+                ),
+            ] {
+                let mut ops = vec![
+                    float_style(OP_WIDTH_PX, 10.),
+                    float_style(OP_HEIGHT_PX, 10.),
+                ];
+                if grow_first {
+                    ops.push(float_style(OP_FLEX_GROW, 1.));
+                }
+                ops.extend([float_style(width, 240.), float_style(height, 80.)]);
+                if !grow_first {
+                    ops.push(float_style(OP_FLEX_GROW, 1.));
+                }
+                let snapshot = style_snapshot(crate::semantic::COMPONENT_DIV, "", &mut ops);
+                cx.draw(
+                    gpui::Point::default(),
+                    gpui::size(px(200.), px(200.)),
+                    |window, cx| {
+                        view.update(cx, |view, cx| {
+                            let mut element = view.materialize_node(0, &snapshot, window, cx);
+                            let size = element.layout_as_root(
+                                gpui::size(
+                                    gpui::AvailableSpace::Definite(px(200.)),
+                                    gpui::AvailableSpace::Definite(px(200.)),
+                                ),
+                                window,
+                                cx,
+                            );
+                            assert_eq!(size, expected);
+                        });
+                        div()
+                    },
+                );
+            }
+        }
+    }
+
+    #[gpui::test]
+    fn input_text_inherits_through_native_wrappers_and_explicit_style_wins(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let view = cx.new(|_| {
+            ManagedView::new(1, inert_callbacks(), Default::default(), Default::default())
+        });
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        for explicit in [false, true, false] {
+            let mut ops = vec![OpRecord {
+                code: OP_RESOURCE_OWNER,
+                value_kind: ValueKind::U32 as u16,
+                a: 1,
+                ..Default::default()
+            }];
+            if explicit {
+                ops.push(OpRecord {
+                    code: OP_TEXT_RGBA,
+                    value_kind: ValueKind::U32 as u16,
+                    a: 0x224466FF,
+                    ..Default::default()
+                });
+            }
+            let snapshot = style_snapshot(
+                crate::semantic::COMPONENT_INPUT,
+                "field\0value\0hint",
+                &mut ops,
+            );
+            let mut retained_input = None;
+            cx.draw(
+                gpui::Point::default(),
+                gpui::size(px(400.), px(100.)),
+                |window, cx| {
+                    view.update(cx, |view, cx| {
+                        let configuration =
+                            input_configuration(&snapshot, &snapshot.nodes[0]).unwrap();
+                        retained_input =
+                            Some(view.resources.input_resource(&configuration, window, cx));
+                        let content = view.materialize_node(0, &snapshot, window, cx);
+                        div().text_color(rgba(0xCC8844FF)).child(content)
+                    })
+                },
+            );
+            cx.read(|cx| {
+                assert_eq!(
+                    retained_input.as_ref().unwrap().read(cx).last_paint_color,
+                    Some(rgba(if explicit { 0x224466FF } else { 0xCC8844FF }).into())
+                );
+            });
+        }
     }
 
     #[test]

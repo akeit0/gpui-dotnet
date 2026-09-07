@@ -167,14 +167,14 @@ public interface IGeneratedViewFactory<TSelf, TProps>
 
 internal unsafe interface IViewRenderer
 {
-    Element RenderChild<TView>(ViewBase parent, ChildSlot slot, Interop.RenderArena* destination)
+    Element RenderChild<TView>(ViewBase parent, ChildSlot slot, RenderArenaOwner destination)
         where TView : View, IGeneratedViewFactory<TView>;
 
     Element RenderChild<TView, TProps>(
         ViewBase parent,
         ChildSlot slot,
         in TProps props,
-        Interop.RenderArena* destination
+        RenderArenaOwner destination
     )
         where TProps : IEquatable<TProps>
         where TView : View<TProps>, IGeneratedViewFactory<TView, TProps>;

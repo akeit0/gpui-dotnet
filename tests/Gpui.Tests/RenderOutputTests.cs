@@ -51,7 +51,7 @@ public sealed unsafe class RenderOutputTests
         Element root = ui.Text("published"u8);
         RenderArena output = default;
         storage.PublishTo(&output, root);
-        ManagedValidator.Validate(&output, new Element(&output, root.Node, output.Generation));
+        ManagedValidator.Validate(&output, root.Node);
         Assert.Equal((nuint)storage.NativeArena->Nodes, (nuint)output.Nodes);
         Assert.Equal((nuint)storage.NativeArena->Utf8, (nuint)output.Utf8);
         Assert.Equal(0u, output.Flags);
@@ -69,7 +69,7 @@ public sealed unsafe class RenderOutputTests
             RenderArena first = default;
             var root = session.RenderRootOutput(&first);
             session.CompleteRender(session.PendingRenderRevision, 0);
-            ManagedValidator.Validate(&first, new Element(&first, root, first.Generation));
+            ManagedValidator.Validate(&first, root);
             Assert.Equal(1, view.RootCalls);
             Assert.True(first.NodeCapacity > 256);
             Assert.True(first.OpCapacity > 2048);
@@ -110,7 +110,7 @@ public sealed unsafe class RenderOutputTests
             var token = ((ulong)view.Runtime.RuntimeViewHandle << 32) | 1;
             RenderArena rangeOutput = default;
             var root = session.RenderListRangeOutput(token, 1, 10, 8, &rangeOutput, out _);
-            ManagedValidator.Validate(&rangeOutput, new Element(&rangeOutput, root, rangeOutput.Generation));
+            ManagedValidator.Validate(&rangeOutput, root);
             Assert.Equal(8, view.RowCalls);
             Assert.Equal(8, rangeOutput.ChildLength);
             Assert.True(rangeOutput.Utf8Capacity > 16 * 1024);

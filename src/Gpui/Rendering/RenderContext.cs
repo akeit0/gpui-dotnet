@@ -9,25 +9,33 @@ namespace Gpui;
 /// </summary>
 public readonly unsafe ref partial struct RenderContext
 {
-    private readonly RenderArena* _arena;
+    private readonly RenderArenaOwner _storage;
+    private readonly uint _generation;
+    private RenderArenaOwner _arena
+    {
+        get { _storage.GetArena(_generation); return _storage; }
+    }
+    internal RenderArenaOwner.AccessScope Access() => _storage.Access(_generation);
+    internal RenderArenaOwner Storage => _arena;
     private readonly IViewRenderer? _views;
     private readonly ViewBase? _owner;
     private readonly GpuiTheme _theme;
 
     internal RenderContext(
-        RenderArena* arena,
+        RenderArenaOwner arena,
         IViewRenderer? views = null,
         ViewBase? owner = null,
         GpuiTheme? theme = null
     )
     {
-        _arena = arena;
+        _storage = arena;
+        _generation = arena.NativeArena->Generation;
         _views = views;
         _owner = owner;
         _theme = theme ?? GpuiTheme.Default;
     }
 
-    internal RenderArena* NativeArena => _arena;
+    internal RenderArena* NativeArena => _arena.NativeArena;
 
     /// <summary>
     /// The active application theme. Element-only contexts use <see cref="GpuiTheme.Default"/>.
@@ -102,7 +110,7 @@ public readonly unsafe ref partial struct RenderContext
     private static InvalidOperationException ChildOwnerRequired() =>
         new("A retained child view requires an owning managed View.");
 
-    public uint Generation => _arena->Generation;
+    public uint Generation => _arena.NativeArena->Generation;
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Element<DivTag> VStack(params ReadOnlySpan<Element> children)
@@ -140,7 +148,7 @@ public readonly unsafe ref partial struct RenderContext
     )
     {
         text.Complete(out var arena, out var offset, out var length);
-        if (arena != _arena)
+        if (arena != NativeArena)
         {
             throw new InvalidOperationException(
                 "The interpolated text belongs to a different render context."

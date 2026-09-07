@@ -90,7 +90,7 @@ public sealed unsafe class ValidatorReviewTests
     }
 
     private static Element<DockAreaTag> Area(RenderArenaOwner arena, string key) =>
-        ArenaWriter.AddNode<DockAreaTag>(arena.NativeArena, ComponentId.DockArea, key);
+        ArenaWriter.AddNode<DockAreaTag>(arena, ComponentId.DockArea, key);
 
     private static void ReverseEdges(RenderArenaOwner arena) =>
         new Span<ChildRecord>(arena.NativeArena->Children, arena.NativeArena->ChildLength).Reverse();

@@ -310,11 +310,14 @@ public sealed partial class RuntimeExecutionTests
 
     private sealed class AllocationTreeRoot(Signal<int>[] signals, int readers) : ProbeView
     {
+        [System.Runtime.CompilerServices.InlineArray(32)]
+        private struct ChildBuffer { private Element _element; }
         internal readonly Signal<int> Alternate = new(42);
         internal readonly Signal<bool> UseAlternate = new(false);
         protected override Element Render(ref RenderContext ui)
         {
-            Span<Element> children = stackalloc Element[readers];
+            ChildBuffer buffer = default;
+            Span<Element> children = ((Span<Element>)buffer)[..readers];
             for (var index = 0; index < readers; index++)
                 children[index] = ui.Child(index, AllocationReaderView.Spec(new(signals, Alternate, UseAlternate)));
             return ui.Div(children);

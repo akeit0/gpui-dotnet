@@ -6,9 +6,13 @@ internal sealed partial class ArenaGrowthView : View
 {
     private static readonly string LargePayload = new('x', 20 * 1024);
 
+    [System.Runtime.CompilerServices.InlineArray(600)]
+    private struct RowBuffer { private Element _element; }
+
     protected override Element Render(ref RenderContext ui)
     {
-        Span<Element> rows = stackalloc Element[600];
+        RowBuffer buffer = default;
+        Span<Element> rows = buffer;
         rows[0] = ui.Text(LargePayload);
         for (var index = 1; index < rows.Length; index++)
         {

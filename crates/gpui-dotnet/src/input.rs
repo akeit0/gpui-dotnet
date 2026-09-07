@@ -85,6 +85,8 @@ pub(crate) struct ManagedInput {
     marked_range: Option<Range<usize>>,
     last_layout: Option<ShapedLine>,
     last_bounds: Option<Bounds<Pixels>>,
+    #[cfg(test)]
+    pub(crate) last_paint_color: Option<gpui::Hsla>,
     scroll_x: Pixels,
     is_selecting: bool,
     disabled: bool,
@@ -119,6 +121,8 @@ impl ManagedInput {
             marked_range: None,
             last_layout: None,
             last_bounds: None,
+            #[cfg(test)]
+            last_paint_color: None,
             scroll_x: px(0.),
             is_selecting: false,
             disabled: initial.disabled,
@@ -183,6 +187,9 @@ impl ManagedInput {
 
     fn set_value(&mut self, value: &str, cx: &mut Context<Self>) {
         let content = single_line(value);
+        if self.content == content {
+            return;
+        }
         let cursor = content.len();
         self.content = content.clone();
         self.last_emitted_content = content;
@@ -674,7 +681,6 @@ impl Render for ManagedInput {
             .min_w_0()
             .flex()
             .items_center()
-            .text_color(rgba(theme.text))
             .key_context("GpuiDotnetInput")
             .track_focus(&self.focus_handle)
             .cursor(if self.disabled {
@@ -709,6 +715,8 @@ struct TextElement {
 }
 
 struct PrepaintState {
+    #[cfg(test)]
+    color: gpui::Hsla,
     line: Option<ShapedLine>,
     cursor: Option<PaintQuad>,
     selection: Option<PaintQuad>,
@@ -873,6 +881,8 @@ impl Element for TextElement {
             )
         };
         PrepaintState {
+            #[cfg(test)]
+            color,
             line: Some(line),
             cursor,
             selection,
@@ -918,6 +928,10 @@ impl Element for TextElement {
             window.paint_quad(cursor);
         }
         self.input.update(cx, |input, _| {
+            #[cfg(test)]
+            {
+                input.last_paint_color = Some(prepaint.color);
+            }
             input.last_layout = Some(line);
             input.last_bounds = Some(bounds);
             input.scroll_x = prepaint.scroll_x;
@@ -1016,5 +1030,34 @@ mod tests {
             });
         });
         cx.read(|cx| assert_eq!(input.read(cx).content.as_str(), "hi"));
+    }
+
+    #[gpui::test]
+    fn identical_set_value_preserves_editing_state(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.set_value("日本語 ", cx);
+                input.selected_range = 3..6;
+                input.selection_reversed = true;
+                input.marked_range = Some(0..6);
+                input.scroll_x = px(12.);
+                input.revision = 9;
+                input.apply_command(&set_value_command("日本語\n"), window, cx);
+                assert_eq!(input.selected_range, 3..6);
+                assert!(input.selection_reversed);
+                assert_eq!(input.marked_range, Some(0..6));
+                assert_eq!(input.scroll_x, px(12.));
+                assert_eq!(input.revision, 9);
+
+                input.apply_command(&set_value_command("changed"), window, cx);
+                assert_eq!(input.content.as_str(), "changed");
+                assert_eq!(input.selected_range, 7..7);
+                assert!(!input.selection_reversed);
+                assert_eq!(input.marked_range, None);
+                assert_eq!(input.scroll_x, px(0.));
+            });
+        });
     }
 }

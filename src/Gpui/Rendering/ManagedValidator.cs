@@ -7,7 +7,7 @@ internal static unsafe class ManagedValidator
 {
     internal static void ValidateRoot(RenderArena* arena, Element root)
     {
-        if (root.Arena != arena || root.Generation != arena->Generation)
+        if (root.Owner is null || root.Owner.NativeArena != arena || root.Generation != arena->Generation)
         {
             throw new InvalidOperationException(
                 "Root does not belong to the active render generation."
@@ -23,6 +23,15 @@ internal static unsafe class ManagedValidator
     internal static void Validate(RenderArena* arena, Element root)
     {
         ValidateRoot(arena, root);
+        using var access = root.Access();
+        Validate(arena, root.Node);
+    }
+
+    // Trusted borrowed descriptors are validated without manufacturing an authoring Element.
+    internal static void Validate(RenderArena* arena, uint root)
+    {
+        if (root >= (uint)arena->NodeLength)
+            throw new InvalidOperationException("Root node is outside the node arena.");
         NodeInfo[]? rented = null;
         Span<NodeInfo> nodes = arena->NodeLength <= 128
             ? stackalloc NodeInfo[arena->NodeLength]
@@ -31,7 +40,7 @@ internal static unsafe class ManagedValidator
         finally { if (rented is not null) ArrayPool<NodeInfo>.Shared.Return(rented); }
     }
 
-    private static void ValidateCore(RenderArena* arena, Element root, Span<NodeInfo> nodes)
+    private static void ValidateCore(RenderArena* arena, uint root, Span<NodeInfo> nodes)
     {
         var panelCount = 0;
         for (var i = 0; i < arena->NodeLength; i++)
@@ -151,7 +160,7 @@ internal static unsafe class ManagedValidator
             }
         }
 
-        var rootComponent = (ComponentId)arena->Nodes[root.Node].Component;
+        var rootComponent = (ComponentId)arena->Nodes[root].Component;
         if (
             rootComponent
             is ComponentId.DockSplit
@@ -285,7 +294,7 @@ internal static unsafe class ManagedValidator
             ref var child = ref nodes[(int)edge.Child];
             if (child.Parent != -1)
                 throw new InvalidOperationException($"Node {edge.Child} was attached more than once.");
-            if (edge.Child == root.Node)
+            if (edge.Child == root)
                 throw new InvalidOperationException("The root node cannot have a parent.");
             child.Parent = (int)edge.Parent;
             ref var parent = ref nodes[(int)edge.Parent];
@@ -327,7 +336,7 @@ internal static unsafe class ManagedValidator
             var component = (ComponentId)arena->Nodes[index].Component;
             if (component == ComponentId.Path && node.Parent == -1)
                 throw new InvalidOperationException($"Path node {index} must belong to a Drawing.");
-            if ((uint)index != root.Node && node.Parent == -1)
+            if ((uint)index != root && node.Parent == -1)
                 throw new InvalidOperationException($"Node {index} ({component}) was declared but never attached to the render tree.");
 
             var validCount = component switch

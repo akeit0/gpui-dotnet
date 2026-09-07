@@ -149,7 +149,10 @@ public readonly struct InputController
 
     public void SelectAll() => Dispatch(ResourceCommandKind.InputSelectAll);
 
-    /// <summary>Replaces the native value and moves the caret to its end.</summary>
+    /// <summary>
+    /// Replaces a changed native value and moves the caret to its end. An identical value
+    /// after single-line normalization preserves selection, composition, and scrolling.
+    /// </summary>
     public void SetValue(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
@@ -167,7 +170,8 @@ public readonly struct InputController
     }
 
     /// <summary>
-    /// Replaces the native value from UTF-8 and moves the caret to its end. The bytes are
+    /// Replaces a changed native value from UTF-8 and moves the caret to its end. An identical
+    /// normalized value preserves selection, composition, and scrolling. The bytes are
     /// trusted: they must contain valid UTF-8 with no interior NUL, and are copied so the
     /// command remains safe after this call returns.
     /// </summary>

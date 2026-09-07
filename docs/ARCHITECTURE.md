@@ -60,6 +60,10 @@ writes without rerunning user rendering. Rust receives a borrowed completed desc
 synchronously decodes it into an owned snapshot before any further managed callback. Native row
 caches retain decoded snapshots, not the borrowed buffers. `Render()` and `[GpuiListItem]` remain
 free of observable application-side effects while allowing pure owned caches; this requirement is independent of capacity.
+Elements and render contexts retain the managed arena owner. Authoring validates its thread,
+disposal state, and captured generation before accessing native memory. Each write keeps the owner
+alive until pointer use ends; disposal and reset cannot interrupt an active write or formatter.
+Disposal still releases buffers immediately, even when an escaped Element retains the disposed owner.
 Row engines reuse numeric validation/grouping scratch across serial batch decodes. A batch keeps
 only its decoded snapshot, artifact lease, and cache metadata. Its temporary string interner ends
 after decoding; the snapshot owns its strings independently. Root snapshots retain their interner

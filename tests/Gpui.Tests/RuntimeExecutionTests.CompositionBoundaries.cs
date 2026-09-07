@@ -5,6 +5,26 @@ namespace Gpui.Tests;
 public sealed unsafe partial class RuntimeExecutionTests
 {
     [Fact]
+    public void RemovedChildElementsCannotWriteToRetiredFragmentStorage()
+    {
+        Element<DivTag> escaped = default;
+        var include = true;
+        var declaration = new FragmentDeclaration((ref RenderContext ui) =>
+        {
+            escaped = ui.Div();
+            return escaped;
+        });
+        using var fixture = new SessionFixture(new DeclarationRoot((ref RenderContext ui) =>
+            include
+                ? ui.Child("fragment", new ViewSpec<DeclarationChild, FragmentDeclaration>(declaration))
+                : ui.Div()));
+        fixture.Render();
+        include = false;
+        fixture.Render();
+        Assert.Throws<ObjectDisposedException>(() => escaped.FontFamily("retired"));
+    }
+
+    [Fact]
     public void RootBindingRemovalAndReintroductionPreserveArtifactSlots()
     {
         var view = new ChangingRootBindings();
@@ -83,7 +103,7 @@ public sealed unsafe partial class RuntimeExecutionTests
                 "default" => default,
                 "foreign" => foreign,
                 "stale" => previous,
-                _ => new Element(current.Arena, uint.MaxValue, current.Generation),
+                _ => new Element(current.Owner!, uint.MaxValue, current.Generation),
             };
         });
         using var fixture = new SessionFixture(new DeclarationRoot((ref RenderContext ui) =>

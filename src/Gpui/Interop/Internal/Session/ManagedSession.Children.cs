@@ -7,7 +7,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     Element IViewRenderer.RenderChild<TView>(
         ViewBase parent,
         ChildSlot requestedSlot,
-        RenderArena* destination
+        RenderArenaOwner destination
     )
     {
         var child = ResolveFrameworkChild<TView>(parent, requestedSlot);
@@ -18,7 +18,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         ViewBase parent,
         ChildSlot requestedSlot,
         in TProps props,
-        RenderArena* destination
+        RenderArenaOwner destination
     )
     {
         var child = ResolveFrameworkChild<TView, TProps>(parent, requestedSlot, in props);

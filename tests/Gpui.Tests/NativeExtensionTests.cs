@@ -536,14 +536,14 @@ public sealed class NativeExtensionTests
 
     private sealed unsafe class ExtensionNoopRenderer : IViewRenderer
     {
-        public Element RenderChild<TView>(ViewBase owner, ChildSlot slot, RenderArena* destination)
+        public Element RenderChild<TView>(ViewBase owner, ChildSlot slot, RenderArenaOwner destination)
             where TView : View, IGeneratedViewFactory<TView> => throw new NotSupportedException();
 
         public Element RenderChild<TView, TProps>(
             ViewBase owner,
             ChildSlot slot,
             in TProps props,
-            RenderArena* destination
+            RenderArenaOwner destination
         )
             where TProps : IEquatable<TProps>
             where TView : View<TProps>, IGeneratedViewFactory<TView, TProps> =>

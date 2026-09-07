@@ -8,12 +8,14 @@ namespace Gpui;
 internal static unsafe class ArenaWriter
 {
     internal static Element<NativeExtensionTag> AddNativeExtensionNode(
-        RenderArena* arena,
+        RenderArenaOwner storage,
         NativeExtensionComponent component,
         ReadOnlySpan<char> key,
         ReadOnlySpan<char> configuration
     )
     {
+        using var access = storage.Access();
+        var arena = access.Arena;
         Span<byte> version = stackalloc byte[10];
         Span<byte> schemaHash = stackalloc byte[16];
         if (!component.Extension.Version.TryFormat(version, out var versionLength))
@@ -68,16 +70,18 @@ internal static unsafe class ArenaWriter
             DataOffset = checked((uint)offset),
             DataLength = checked((uint)written),
         };
-        return new Element<NativeExtensionTag>(new Element(arena, node, arena->Generation));
+        return new Element<NativeExtensionTag>(new Element(storage, node, arena->Generation));
     }
 
     internal static Element<NativeExtensionTag> AddNativeExtensionNode(
-        RenderArena* arena,
+        RenderArenaOwner storage,
         NativeExtensionComponent component,
         ReadOnlySpan<byte> utf8Key,
         ReadOnlySpan<char> configuration
     )
     {
+        using var access = storage.Access();
+        var arena = access.Arena;
         Span<byte> version = stackalloc byte[10];
         Span<byte> schemaHash = stackalloc byte[16];
         if (!component.Extension.Version.TryFormat(version, out var versionLength))
@@ -133,7 +137,7 @@ internal static unsafe class ArenaWriter
             DataOffset = checked((uint)offset),
             DataLength = checked((uint)written),
         };
-        return new Element<NativeExtensionTag>(new Element(arena, node, arena->Generation));
+        return new Element<NativeExtensionTag>(new Element(storage, node, arena->Generation));
     }
 
     /// <summary>
@@ -141,12 +145,14 @@ internal static unsafe class ArenaWriter
     /// contain NUL, which separates the node data fields; validated by the caller.
     /// </summary>
     internal static Element<NativeExtensionTag> AddNativeExtensionNode(
-        RenderArena* arena,
+        RenderArenaOwner storage,
         NativeExtensionComponent component,
         ReadOnlySpan<char> key,
         ReadOnlySpan<byte> utf8Configuration
     )
     {
+        using var access = storage.Access();
+        var arena = access.Arena;
         Span<byte> version = stackalloc byte[10];
         Span<byte> schemaHash = stackalloc byte[16];
         if (!component.Extension.Version.TryFormat(version, out var versionLength))
@@ -202,7 +208,7 @@ internal static unsafe class ArenaWriter
             DataOffset = checked((uint)offset),
             DataLength = checked((uint)written),
         };
-        return new Element<NativeExtensionTag>(new Element(arena, node, arena->Generation));
+        return new Element<NativeExtensionTag>(new Element(storage, node, arena->Generation));
     }
 
     /// <summary>
@@ -210,12 +216,14 @@ internal static unsafe class ArenaWriter
     /// may contain NUL, which separates the node data fields; validated by the caller.
     /// </summary>
     internal static Element<NativeExtensionTag> AddNativeExtensionNode(
-        RenderArena* arena,
+        RenderArenaOwner storage,
         NativeExtensionComponent component,
         ReadOnlySpan<byte> utf8Key,
         ReadOnlySpan<byte> utf8Configuration
     )
     {
+        using var access = storage.Access();
+        var arena = access.Arena;
         Span<byte> version = stackalloc byte[10];
         Span<byte> schemaHash = stackalloc byte[16];
         if (!component.Extension.Version.TryFormat(version, out var versionLength))
@@ -272,24 +280,26 @@ internal static unsafe class ArenaWriter
             DataOffset = checked((uint)offset),
             DataLength = checked((uint)written),
         };
-        return new Element<NativeExtensionTag>(new Element(arena, node, arena->Generation));
+        return new Element<NativeExtensionTag>(new Element(storage, node, arena->Generation));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal static Element<TTag> AddNode<TTag>(RenderArena* arena, ComponentId component)
+    internal static Element<TTag> AddNode<TTag>(RenderArenaOwner storage, ComponentId component)
         where TTag : unmanaged
     {
-        return AddNode<TTag>(arena, component, ReadOnlySpan<char>.Empty);
+        return AddNode<TTag>(storage, component, ReadOnlySpan<char>.Empty);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static Element<TTag> AddNode<TTag>(
-        RenderArena* arena,
+        RenderArenaOwner storage,
         ComponentId component,
         ReadOnlySpan<char> data
     )
         where TTag : unmanaged
     {
+        using var access = storage.Access();
+        var arena = access.Arena;
         EnsureNodes(arena, 1);
 
         var dataOffset = 0u;
@@ -307,7 +317,7 @@ internal static unsafe class ArenaWriter
             DataLength = dataLength,
         };
 
-        return new Element<TTag>(new Element(arena, node, arena->Generation));
+        return new Element<TTag>(new Element(storage, node, arena->Generation));
     }
 
     /// <summary>
@@ -316,7 +326,7 @@ internal static unsafe class ArenaWriter
     /// payload without introducing arena-relative string pointers into operation records.
     /// </summary>
     internal static Element<TTag> AddCompositeNode<TTag>(
-        RenderArena* arena,
+        RenderArenaOwner storage,
         ComponentId component,
         ReadOnlySpan<char> first,
         ReadOnlySpan<char> second,
@@ -324,6 +334,8 @@ internal static unsafe class ArenaWriter
     )
         where TTag : unmanaged
     {
+        using var access = storage.Access();
+        var arena = access.Arena;
         if (first.Contains('\0') || second.Contains('\0') || third.Contains('\0'))
         {
             throw new ArgumentException("Composite render data cannot contain NUL characters.");
@@ -354,12 +366,12 @@ internal static unsafe class ArenaWriter
             DataOffset = checked((uint)offset),
             DataLength = checked((uint)written),
         };
-        return new Element<TTag>(new Element(arena, node, arena->Generation));
+        return new Element<TTag>(new Element(storage, node, arena->Generation));
     }
 
     /// <summary>Adds three already-encoded UTF-8 fields separated by NUL bytes.</summary>
     internal static Element<TTag> AddCompositeNode<TTag>(
-        RenderArena* arena,
+        RenderArenaOwner storage,
         ComponentId component,
         ReadOnlySpan<byte> first,
         ReadOnlySpan<byte> second,
@@ -367,6 +379,8 @@ internal static unsafe class ArenaWriter
     )
         where TTag : unmanaged
     {
+        using var access = storage.Access();
+        var arena = access.Arena;
         if (first.Contains((byte)0) || second.Contains((byte)0) || third.Contains((byte)0))
         {
             throw new ArgumentException("Composite render data cannot contain NUL bytes.");
@@ -395,12 +409,12 @@ internal static unsafe class ArenaWriter
             DataOffset = checked((uint)offset),
             DataLength = checked((uint)written),
         };
-        return new Element<TTag>(new Element(arena, node, arena->Generation));
+        return new Element<TTag>(new Element(storage, node, arena->Generation));
     }
 
     /// <summary>Adds a UTF-8 key followed by two UTF-16 strings as NUL-separated fields.</summary>
     internal static Element<TTag> AddCompositeNode<TTag>(
-        RenderArena* arena,
+        RenderArenaOwner storage,
         ComponentId component,
         ReadOnlySpan<byte> first,
         ReadOnlySpan<char> second,
@@ -408,6 +422,8 @@ internal static unsafe class ArenaWriter
     )
         where TTag : unmanaged
     {
+        using var access = storage.Access();
+        var arena = access.Arena;
         if (first.Contains((byte)0) || second.Contains('\0') || third.Contains('\0'))
         {
             throw new ArgumentException("Composite render data cannot contain NUL characters.");
@@ -439,18 +455,20 @@ internal static unsafe class ArenaWriter
             DataOffset = checked((uint)offset),
             DataLength = checked((uint)written),
         };
-        return new Element<TTag>(new Element(arena, node, arena->Generation));
+        return new Element<TTag>(new Element(storage, node, arena->Generation));
     }
 
     /// <summary>Adds table data with an already encoded UTF-8 key.</summary>
     internal static Element<TTag> AddTableNode<TTag>(
-        RenderArena* arena,
+        RenderArenaOwner storage,
         ComponentId component,
         ReadOnlySpan<byte> key,
         ReadOnlySpan<TableColumn> columns
     )
         where TTag : unmanaged
     {
+        using var access = storage.Access();
+        var arena = access.Arena;
         if (key.Contains((byte)0))
         {
             throw new ArgumentException("Table render data cannot contain NUL bytes.");
@@ -489,17 +507,19 @@ internal static unsafe class ArenaWriter
             DataOffset = checked((uint)offset),
             DataLength = checked((uint)written),
         };
-        return new Element<TTag>(new Element(arena, node, arena->Generation));
+        return new Element<TTag>(new Element(storage, node, arena->Generation));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static Element<TTag> AddNode<TTag>(
-        RenderArena* arena,
+        RenderArenaOwner storage,
         ComponentId component,
         ReadOnlySpan<byte> utf8
     )
         where TTag : unmanaged
     {
+        using var access = storage.Access();
+        var arena = access.Arena;
         EnsureNodes(arena, 1);
 
         var dataOffset = 0u;
@@ -517,18 +537,20 @@ internal static unsafe class ArenaWriter
             DataLength = dataLength,
         };
 
-        return new Element<TTag>(new Element(arena, node, arena->Generation));
+        return new Element<TTag>(new Element(storage, node, arena->Generation));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static Element<TTag> AddNode<TTag>(
-        RenderArena* arena,
+        RenderArenaOwner storage,
         ComponentId component,
         uint dataOffset,
         uint dataLength
     )
         where TTag : unmanaged
     {
+        using var access = storage.Access();
+        var arena = access.Arena;
         EnsureNodes(arena, 1);
 
         var dataEnd = checked(dataOffset + dataLength);
@@ -547,12 +569,13 @@ internal static unsafe class ArenaWriter
             DataLength = dataLength,
         };
 
-        return new Element<TTag>(new Element(arena, node, arena->Generation));
+        return new Element<TTag>(new Element(storage, node, arena->Generation));
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void AddChild(Element parent, Element child)
     {
+        using var access = parent.Access();
         ValidateCurrent(parent);
         ValidateCurrent(child);
         if (child.Arena != parent.Arena)
@@ -573,6 +596,7 @@ internal static unsafe class ArenaWriter
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal static void AddChildren(Element parent, ReadOnlySpan<Element> children)
     {
+        using var access = parent.Access();
         ValidateCurrent(parent);
         EnsureChildren(parent.Arena, children.Length);
 
@@ -633,6 +657,7 @@ internal static unsafe class ArenaWriter
     /// </summary>
     internal static void AddData(Element element, OpCode code, ReadOnlySpan<char> value)
     {
+        using var access = element.Access();
         var (offset, length) = AppendUtf8(element.Arena, value);
         AddOp(element, code, ValueKind.Data, offset, length);
     }
@@ -643,6 +668,7 @@ internal static unsafe class ArenaWriter
     /// </summary>
     internal static void AddData(Element element, OpCode code, ReadOnlySpan<byte> value)
     {
+        using var access = element.Access();
         var (offset, length) = AppendUtf8(element.Arena, value);
         AddOp(element, code, ValueKind.Data, offset, length);
     }
@@ -659,6 +685,7 @@ internal static unsafe class ArenaWriter
         char separator
     )
     {
+        using var access = element.Access();
         var arena = element.Arena;
         var bytes = 0;
         foreach (var entry in entries)
@@ -698,6 +725,7 @@ internal static unsafe class ArenaWriter
         ReadOnlySpan<(string Tag, uint Value)> features
     )
     {
+        using var access = element.Access();
         var arena = element.Arena;
         var bytes = 0;
         foreach (var (tag, value) in features)
@@ -756,11 +784,15 @@ internal static unsafe class ArenaWriter
     }
 
     internal static Element AppendFragment(
-        RenderArena* destination,
-        RenderArena* source,
+        RenderArenaOwner destinationStorage,
+        RenderArenaOwner sourceStorage,
         uint sourceRoot
     )
     {
+        using var destinationAccess = destinationStorage.Access();
+        using var sourceAccess = sourceStorage.Access();
+        var destination = destinationAccess.Arena;
+        var source = sourceAccess.Arena;
         if (source == destination)
         {
             throw new InvalidOperationException("A render arena cannot append itself.");
@@ -818,7 +850,7 @@ internal static unsafe class ArenaWriter
             destination->Utf8Length += source->Utf8Length;
         }
 
-        return new Element(destination, checked(sourceRoot + nodeOffset), destination->Generation);
+        return new Element(destinationStorage, checked(sourceRoot + nodeOffset), destination->Generation);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -830,10 +862,11 @@ internal static unsafe class ArenaWriter
         ulong b = 0
     )
     {
-        ValidateCurrent(element);
-        EnsureOps(element.Arena, 1);
+        using var access = element.Access();
+        var arena = access.Arena;
+        EnsureOps(arena, 1);
 
-        element.Arena->Ops[element.Arena->OpLength++] = new OpRecord
+        arena->Ops[arena->OpLength++] = new OpRecord
         {
             Node = element.Node,
             Code = (ushort)code,
