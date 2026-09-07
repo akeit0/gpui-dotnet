@@ -50,8 +50,7 @@ internal static class WanderThemes
               "appearance": "dark",
               "colors": {
                 "text.muted": "#CBD5E1",
-                "icon.muted": "#CBD5E1",
-                "accent.active": "#7578F5"
+                "icon.muted": "#CBD5E1"
               }
             }
             """);

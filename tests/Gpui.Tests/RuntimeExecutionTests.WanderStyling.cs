@@ -50,7 +50,7 @@ public sealed unsafe partial class RuntimeExecutionTests
                     Assert.Equal(expected.Colors.Normal.Foreground, foreground);
                     Assert.Equal(expected.Colors.Normal.Background, background);
                     Assert.NotEqual(theme.Colors.Text, background);
-                    WanderStyleTests.AssertReadable(foreground, background, $"{theme.Name}, tab {tab}");
+                    ContrastAssert.OpaqueText(foreground, background, $"{theme.Name}, tab {tab}");
                 }
                 var click = SampleButtonClick(arena, System.Text.Encoding.UTF8.GetBytes($"tab-{(selected + 1) % 4}"));
                 Assert.Equal(0, fixture.Complete(revision));

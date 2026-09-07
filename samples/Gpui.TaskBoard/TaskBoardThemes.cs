@@ -49,8 +49,7 @@ internal static class TaskBoardThemes
               "name": "TaskBoard Dark",
               "appearance": "dark",
               "colors": {
-                "text.muted": "#CBD5E1",
-                "accent.active": "#7578F5"
+                "text.muted": "#CBD5E1"
               }
             }
             """);
