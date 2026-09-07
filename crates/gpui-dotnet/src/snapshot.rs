@@ -16,8 +16,8 @@ use crate::{
         COMPONENT_PATH, COMPONENT_POPOVER_MENU, COMPONENT_SCROLL, COMPONENT_SLIDER,
         COMPONENT_TABLE, COMPONENT_TOOLTIP, DataKind, OP_DOCK_ACTIVE_INDEX, OP_DOCK_REGION_SIDE,
         OP_DRAWING_VIEW_BOX_SIZE, OP_FONT_FALLBACKS, OP_FONT_FEATURES, OP_PATH_ARC_RADII,
-        OP_RESOURCE_OWNER, ValueKind, allows_payload, component_metadata, operation_metadata,
-        payload_error,
+        OP_RESOURCE_OWNER, OP_TABLE_COLUMN, ValueKind, allows_payload, component_metadata,
+        operation_metadata, payload_error,
     },
 };
 
@@ -655,6 +655,26 @@ fn validate_with_scratch(
         node.component == COMPONENT_OVERLAY && scratch.child_counts[index] != 1
     }) {
         return Err(-32);
+    }
+    if nodes
+        .iter()
+        .enumerate()
+        .any(|(index, node)| node.component == COMPONENT_TABLE && scratch.child_counts[index] != 0)
+    {
+        // Reuse decode scratch only when custom headers need structural validation.
+        reset_vec(&mut scratch.op_counts, node_len, 0);
+        for op in ops {
+            if op.code == OP_TABLE_COLUMN {
+                scratch.op_counts[op.node as usize] += 1;
+            }
+        }
+        if nodes.iter().enumerate().any(|(index, node)| {
+            node.component == COMPONENT_TABLE
+                && scratch.child_counts[index] != 0
+                && scratch.child_counts[index] != scratch.op_counts[index]
+        }) {
+            return Err(-57);
+        }
     }
     if nodes.iter().enumerate().any(|(index, node)| {
         node.component == COMPONENT_TOOLTIP && scratch.child_counts[index] != 2

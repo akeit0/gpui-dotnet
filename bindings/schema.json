@@ -410,10 +410,11 @@
       "csharp": "Table",
       "data": "utf8",
       "dataRequired": true,
-      "children": false,
+      "children": true,
       "managedFactory": "manual",
       "capabilities": [
         "styled",
+        "parent",
         "native_state",
         "virtualized",
         "table"
@@ -1469,6 +1470,33 @@
       "value": "callback",
       "requires": "input",
       "managedApi": null
+    },
+    {
+      "id": 506,
+      "name": "input_placeholder_rgba",
+      "csharp": "InputPlaceholderRgba",
+      "value": "u32",
+      "requires": "input",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "PlaceholderColor", "param": "color", "doc": "Overrides Input placeholder text color. Omission uses the current theme." }
+    },
+    {
+      "id": 507,
+      "name": "input_caret_rgba",
+      "csharp": "InputCaretRgba",
+      "value": "u32",
+      "requires": "input",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "CaretColor", "param": "color", "doc": "Overrides Input caret color. Omission uses the current theme accent." }
+    },
+    {
+      "id": 508,
+      "name": "input_selection_rgba",
+      "csharp": "InputSelectionRgba",
+      "value": "u32",
+      "requires": "input",
+      "managedApi": null,
+      "managedMethod": { "kind": "color", "method": "SelectionColor", "param": "color", "doc": "Overrides Input selection background, including alpha. Omission uses the translucent theme accent." }
     },
     {
       "id": 600,

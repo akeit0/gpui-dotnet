@@ -19,14 +19,15 @@ use crate::{
     extension::{
         NativeExtensionResourceKey, NativeExtensionStore, declaration as extension_declaration,
     },
-    input::{InputBindings, InputInitialState, ManagedInput},
+    input::{InputBindings, InputInitialState, InputPresentation, ManagedInput},
     scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics},
     semantic::{
         COMMAND_LIST_REFRESH, COMMAND_LIST_RESET, COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_LIST_SPLICE,
         COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP,
-        EVENT_LIST_ACTIVATED, EVENT_LIST_SELECTION_REQUESTED, NativeAdapter, OP_INPUT_DISABLED,
-        OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED, OP_INPUT_ON_SUBMITTED, OP_INPUT_PASSWORD,
-        OP_INPUT_READ_ONLY, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION,
+        EVENT_LIST_ACTIVATED, EVENT_LIST_SELECTION_REQUESTED, NativeAdapter, OP_INPUT_CARET_RGBA,
+        OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED, OP_INPUT_ON_SUBMITTED,
+        OP_INPUT_PASSWORD, OP_INPUT_PLACEHOLDER_RGBA, OP_INPUT_READ_ONLY, OP_INPUT_SELECTION_RGBA,
+        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION,
         OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_ITEM_ID,
         OP_LIST_ON_ACTIVATED, OP_LIST_ON_SELECTION_REQUESTED, OP_LIST_OVERDRAW_PX,
         OP_LIST_RENDERER, OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH,
@@ -281,6 +282,7 @@ impl ResourceStore {
                 configuration.read_only,
                 configuration.password,
                 configuration.bindings,
+                configuration.presentation,
                 cx,
             );
         });
@@ -556,6 +558,7 @@ pub(crate) struct InputConfiguration {
     pub(crate) read_only: bool,
     pub(crate) password: bool,
     pub(crate) bindings: InputBindings,
+    pub(crate) presentation: InputPresentation,
 }
 
 #[derive(Clone, Copy)]
@@ -1492,6 +1495,11 @@ pub(crate) fn input_configuration(
         disabled: last_u32(snapshot, node, OP_INPUT_DISABLED).is_some_and(|value| value != 0),
         read_only: last_u32(snapshot, node, OP_INPUT_READ_ONLY).is_some_and(|value| value != 0),
         password: last_u32(snapshot, node, OP_INPUT_PASSWORD).is_some_and(|value| value != 0),
+        presentation: InputPresentation {
+            placeholder: last_u32(snapshot, node, OP_INPUT_PLACEHOLDER_RGBA),
+            caret: last_u32(snapshot, node, OP_INPUT_CARET_RGBA),
+            selection: last_u32(snapshot, node, OP_INPUT_SELECTION_RGBA),
+        },
         bindings: InputBindings {
             changed: last_callback(snapshot, node, OP_INPUT_ON_CHANGED),
             submitted: last_callback(snapshot, node, OP_INPUT_ON_SUBMITTED),

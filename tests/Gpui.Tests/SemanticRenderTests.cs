@@ -1318,6 +1318,54 @@ public sealed class SemanticRenderTests
         }
     }
 
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    [InlineData(3, false)]
+    public void TableHeadersMustMatchDeclaredColumns(int headerCount, bool valid)
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var table = ui.Table("grid", new ListDataSource(10, 1), view.Row,
+                new TableColumn("name", "Name", 120), new TableColumn("size", "Size", 80));
+            var headers = new Element[headerCount];
+            for (var i = 0; i < headers.Length; i++)
+                headers[i] = ui.Button($"header-{i}", ui.Text($"Column {i}"));
+            table.Header(headers);
+            if (valid) arena.Validate(table);
+            else Assert.Contains("child count", Assert.Throws<InvalidOperationException>(
+                () => arena.Validate(table)).Message);
+        }
+        finally { view.Runtime.UnmountRuntime(); }
+    }
+
+    [Fact]
+    public void InputPartColorsAreTypedAndLastDeclarationWins()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var input = ui.Input("field", new InputOptions(placeholder: "Hint"))
+                .PlaceholderColor(Hex("#112233"))
+                .CaretColor(Hex("#445566"))
+                .SelectionColor(Hex("#77889940"))
+                .PlaceholderColor(Hex("#AABBCC"));
+            arena.Validate(input);
+            Assert.Equal(0xAABBCCFFu, ReadLastU32Op(arena, OpCode.InputPlaceholderRgba));
+            Assert.Equal(0x445566FFu, ReadLastU32Op(arena, OpCode.InputCaretRgba));
+            Assert.Equal(0x77889940u, ReadLastU32Op(arena, OpCode.InputSelectionRgba));
+        }
+        finally { view.Runtime.UnmountRuntime(); }
+    }
+
     [Fact]
     public void ManagedValidatorRejectsMalformedTableColumnRecords()
     {

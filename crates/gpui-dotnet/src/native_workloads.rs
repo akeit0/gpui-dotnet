@@ -11,9 +11,23 @@ pub(crate) struct WorkloadArena {
     nodes: Vec<NodeRecord>,
     ops: Vec<OpRecord>,
     children: Vec<ChildRecord>,
+    utf8: Vec<u8>,
 }
 
 impl WorkloadArena {
+    pub(crate) fn node_with_data(
+        &mut self,
+        component: u16,
+        parent: Option<u32>,
+        data: &str,
+    ) -> u32 {
+        let id = self.node(component, parent);
+        self.nodes[id as usize].data_offset = self.utf8.len() as u32;
+        self.nodes[id as usize].data_length = data.len() as u32;
+        self.utf8.extend_from_slice(data.as_bytes());
+        id
+    }
+
     pub(crate) fn node(&mut self, component: u16, parent: Option<u32>) -> u32 {
         let id = self.nodes.len() as u32;
         self.nodes.push(NodeRecord {
@@ -61,9 +75,9 @@ impl WorkloadArena {
             children: self.children.as_mut_ptr(),
             child_length: self.children.len() as i32,
             child_capacity: self.children.len() as i32,
-            utf8: std::ptr::null_mut(),
-            utf8_length: 0,
-            utf8_capacity: 0,
+            utf8: self.utf8.as_mut_ptr(),
+            utf8_length: self.utf8.len() as i32,
+            utf8_capacity: self.utf8.len() as i32,
             generation: 1,
             flags: 0,
             required_node_capacity: 0,

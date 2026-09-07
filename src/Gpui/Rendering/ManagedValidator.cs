@@ -282,7 +282,9 @@ internal static unsafe class ManagedValidator
                 );
             }
             if (code is OpCode.DockActiveIndex or OpCode.DockRegionSide)
-                nodes[(int)operation.Node].DockValue = (uint)operation.A;
+                nodes[(int)operation.Node].ComponentValue = (uint)operation.A;
+            else if (code == OpCode.TableColumn)
+                nodes[(int)operation.Node].ComponentValue++;
         }
 
         for (var i = 0; i < arena->ChildLength; i++)
@@ -321,7 +323,7 @@ internal static unsafe class ManagedValidator
             {
                 if (childComponent == ComponentId.DockRegion)
                 {
-                    var side = 1u << (int)child.DockValue;
+                    var side = 1u << (int)child.ComponentValue;
                     if ((parent.SideMask & side) != 0)
                         throw new InvalidOperationException($"DockArea node {edge.Parent} declares the same side more than once.");
                     parent.SideMask |= side;
@@ -345,11 +347,12 @@ internal static unsafe class ManagedValidator
                 ComponentId.Tooltip or ComponentId.ContextMenu or ComponentId.PopoverMenu => node.ChildCount == 2,
                 ComponentId.DockArea => node.ChildCount is >= 1 and <= 4,
                 ComponentId.DockSplit or ComponentId.DockTabs => node.ChildCount > 0,
+                ComponentId.Table => node.ChildCount == 0 || node.ChildCount == node.ComponentValue,
                 _ => true,
             };
             if (!validCount)
                 throw new InvalidOperationException($"{component} node {index} has an invalid child count.");
-            if (component == ComponentId.DockTabs && node.DockValue >= node.ChildCount)
+            if (component == ComponentId.DockTabs && node.ComponentValue >= node.ChildCount)
                 throw new InvalidOperationException($"DockTabs node {index} has an active index outside its panels.");
             if (component == ComponentId.DockArea && node.CenterCount != 1)
                 throw new InvalidOperationException($"DockArea node {index} must declare exactly one center layout.");
@@ -389,7 +392,8 @@ internal static unsafe class ManagedValidator
     {
         internal int Parent;
         internal int ChildCount;
-        internal uint DockValue;
+        // Dock active index/region side, or Table column count; component kinds are exclusive.
+        internal uint ComponentValue;
         internal int CenterCount;
         internal uint SideMask;
         internal int DockArea;

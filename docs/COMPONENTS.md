@@ -75,9 +75,13 @@ Native component defaults are applied before explicit operations. Operations aff
 property apply in declaration order, including pixel and percentage forms. For ordinary growing
 snapshot elements, `.Grow()` supplies zero minimum width and height so flex content can shrink;
 explicit `MinWidth` and `MinHeight` override those defaults regardless of where `.Grow()` appears.
-Retained controls have separate internal presentation: Input text inherits typography and text color
-through its wrapper, while its placeholder uses the theme's placeholder role and its caret/selection
-use the accent role. Wrapper styling does not provide a general API for internal control parts.
+Retained controls have separate internal presentation. Input text inherits typography and text color
+through its wrapper. `PlaceholderColor`, `CaretColor`, and `SelectionColor` override its native text
+parts and compose with `IGpuiElementStyle<InputTag>` recipes. Omitted parts use the current theme:
+placeholder text, accent caret, and accent selection at alpha 0x40. Explicit selection color preserves
+the supplied alpha. These declarations update presentation without replacing text, selection, IME
+composition, focus, or revision. Omitting a previous override on a later render restores its theme
+default. Other internal control parts require focused APIs rather than wrapper styling.
 
 ## Snapshot components
 
@@ -279,6 +283,22 @@ splice ranges. A remove-then-insert sequence treats the removed active item as d
 
 `ui.Table` uses the List row engine and adds declarative `TableColumn[]` metadata. Rust materializes
 the header and applies the same column widths and alignment to `ui.TableCell(column, ...)` nodes.
+
+`.Header(...)` supplies one normal managed content element per column, in declaration order. Call it
+once; no header children means the native strip uses `TableColumn.Header` labels. Both validators
+reject a nonzero header count that differs from the number of columns. Header content supports
+ordinary buttons, icons, typed styles, and View composition; it is outside virtual row snapshots.
+The native strip preserves column widths/alignment and scrollbar gutter, with a minimum height of
+32 pixels that grows for taller content. `TableOptions(showHeader: false)` hides either header form.
+Header controls own their focus and keyboard activation; table navigation runs only while the table
+itself has focus.
+
+Sorting belongs to the application: a header button changes model order and content revision, then
+calls `ListController.Reset(count)` for an arbitrary reorder. Keep selection by model identity.
+Header content is separate from the column metadata used to reconcile row layout. See the
+[Table sample](../samples/Gpui.Sample/Views/TableView.cs) for a sortable service header and stable
+selection, and the [Input sample](../samples/Gpui.Sample/Views/InputGalleryView.cs) and
+[sample styles](../samples/Gpui.Sample/SampleStyles.cs) for composed fields with help/error text.
 
 Rows keep List semantics, including batching, model identity, keyboard navigation, refresh, and
 splice behavior. A changed column declaration invalidates row batches because cell layout changes.

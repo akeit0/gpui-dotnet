@@ -729,7 +729,7 @@ impl ManagedView {
             })
             .key_context("GpuiDotnetTable")
             .on_key_down(move |event, window, cx| {
-                if keyboard_cursor.epoch() != keyboard_epoch {
+                if keyboard_cursor.epoch() != keyboard_epoch || !keyboard_focus.is_focused(window) {
                     return;
                 }
                 if handle_collection_row_event_key(
@@ -753,7 +753,12 @@ impl ManagedView {
             });
         let show_header = last_op(snapshot, node, OP_TABLE_SHOW_HEADER).is_none_or(|op| op.a != 0);
         if show_header {
-            let header = table_header_strip(&spec, theme).flex_grow(1.0);
+            let header = table_header_strip(&spec, theme, |index| {
+                snapshot
+                    .children(node)
+                    .get(index)
+                    .map(|&child| self.materialize_node(child, snapshot, window, cx))
+            });
             if configuration.scrollbar.gutter > px(0.) {
                 // The header excludes the gutter too, so fraction columns align with row cells.
                 host = host.child(
@@ -761,7 +766,7 @@ impl ManagedView {
                         .flex()
                         .flex_row()
                         .flex_shrink_0()
-                        .child(header)
+                        .child(header.flex_grow(1.0))
                         .child(gutter_spacer(configuration.scrollbar.gutter)),
                 );
             } else {
@@ -2389,7 +2394,7 @@ where
 /// from the table spec so header cells and row cells are laid out from one source of truth.
 /// Applying it after apply_styles lets a cell still declare its own padding or text styles.
 fn apply_table_cell_layout(
-    mut element: gpui::Div,
+    element: gpui::Div,
     node: &SnapshotNode,
     snapshot: &ValidatedSnapshot,
     resources: &ResourceStore,
@@ -2404,6 +2409,13 @@ fn apply_table_cell_layout(
     let Some(column) = spec.columns.get(op.a as usize) else {
         return element;
     };
+    apply_column_layout(element, column)
+}
+
+fn apply_column_layout(
+    mut element: gpui::Div,
+    column: &crate::resources::TableColumnSpec,
+) -> gpui::Div {
     element = element.flex().overflow_hidden();
     element = if column.width_is_fraction {
         element.w(relative(column.width.into()))
@@ -2500,42 +2512,37 @@ fn gutter_spacer(gutter: gpui::Pixels) -> gpui::Div {
     div().flex_shrink_0().w(gutter)
 }
 
-/// Native header strip for a table. Fixed chrome by design: product styling belongs to
-/// managed code, but header geometry must come from the same column resolution as rows.
-fn table_header_strip(spec: &std::rc::Rc<TableSpec>, theme: NativeTheme) -> gpui::Div {
+/// Header content is managed; cell geometry shares the row column policy and gutter.
+fn table_header_strip(
+    spec: &std::rc::Rc<TableSpec>,
+    theme: NativeTheme,
+    mut content: impl FnMut(usize) -> Option<AnyElement>,
+) -> gpui::Div {
     let mut strip = div()
         .flex()
         .flex_row()
-        .h(px(32.))
+        .min_h(px(32.))
         .flex_shrink_0()
         .bg(rgba(theme.element_background))
         .border_b_1()
         .border_color(rgba(theme.border_variant));
-    for column in &spec.columns {
-        let mut cell = div()
-            .flex()
-            .items_center()
-            .px(px(10.))
-            .overflow_hidden()
-            .whitespace_nowrap();
-        cell = if column.width_is_fraction {
-            cell.w(relative(f32::from(column.width)))
-        } else {
-            cell.w(column.width)
-        };
-        cell = match column.alignment {
-            1 => cell.justify_center(),
-            2 => cell.justify_end(),
-            _ => cell,
-        };
-        strip = strip.child(
-            cell.child(
-                div()
-                    .child(column.header.clone())
-                    .text_size(px(12.))
-                    .text_color(rgba(theme.text_muted)),
-            ),
+    for (index, column) in spec.columns.iter().enumerate() {
+        let cell = apply_column_layout(
+            div()
+                .items_center()
+                .px(px(10.))
+                .overflow_hidden()
+                .whitespace_nowrap(),
+            column,
         );
+        let content = content(index).unwrap_or_else(|| {
+            div()
+                .child(column.header.clone())
+                .text_size(px(12.))
+                .text_color(rgba(theme.text_muted))
+                .into_any_element()
+        });
+        strip = strip.child(cell.child(content));
     }
     strip
 }
@@ -3320,6 +3327,225 @@ mod tests {
                 );
             });
         }
+    }
+
+    #[test]
+    fn custom_table_header_counts_are_validated_and_content_does_not_change_row_columns() {
+        use crate::native_workloads::WorkloadArena;
+        let mut baseline = None;
+        for count in [0, 1, 2, 3, 2] {
+            let mut arena = WorkloadArena::default();
+            let root = arena.node_with_data(
+                crate::semantic::COMPONENT_TABLE,
+                None,
+                "grid\0name\0Name\0size\0Size",
+            );
+            arena.op(root, OP_RESOURCE_OWNER, 1);
+            arena.op(
+                root,
+                crate::semantic::OP_TABLE_COLUMN,
+                120f32.to_bits() as u64,
+            );
+            arena.op(
+                root,
+                crate::semantic::OP_TABLE_COLUMN,
+                80f32.to_bits() as u64,
+            );
+            for index in 0..count {
+                arena.node_with_data(
+                    crate::semantic::COMPONENT_TEXT,
+                    Some(root),
+                    if index == 0 { "Name ↑" } else { "Custom" },
+                );
+            }
+            let mut snapshot = ValidatedSnapshot::default();
+            let result = arena.decode_into(&mut snapshot);
+            if count == 1 || count == 3 {
+                assert_eq!(result, Err(-57));
+            } else {
+                result.unwrap();
+                let (_, spec) = table_configuration(&snapshot, &snapshot.nodes[0]).unwrap();
+                if let Some(baseline) = &baseline {
+                    assert_eq!(baseline, &spec);
+                } else {
+                    baseline = Some(spec);
+                }
+            }
+        }
+    }
+
+    #[gpui::test]
+    fn custom_headers_align_with_rows_after_resize_and_allow_taller_content(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        use std::{cell::RefCell, rc::Rc};
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        let (_, columns) = crate::resources::parse_table_spec(
+            "grid\0a\0A\0b\0B\0c\0C",
+            &[
+                0.5f32.to_bits() as u64 | (1 << 32),
+                100f32.to_bits() as u64 | (1 << 34),
+                80f32.to_bits() as u64 | (2 << 34),
+            ],
+        )
+        .unwrap();
+        let spec = Rc::new(TableSpec { columns });
+        for width in [320., 720., 320.] {
+            for gutter in [0., 12.] {
+                let bounds = Rc::new(RefCell::new(vec![gpui::Bounds::default(); 6]));
+                let marker = |index: usize, height: f32| {
+                    let bounds = bounds.clone();
+                    canvas(
+                        move |value, _, _| {
+                            bounds.borrow_mut()[index] = value;
+                        },
+                        |_, _, _, _| {},
+                    )
+                    .w(px(10.))
+                    .h(px(height))
+                    .into_any_element()
+                };
+                cx.draw(
+                    point(px(0.), px(0.)),
+                    gpui::size(px(width), px(160.)),
+                    |_, _| {
+                        let header = table_header_strip(&spec, NativeTheme::default(), |index| {
+                            Some(marker(index, 48.))
+                        })
+                        .flex_grow(1.);
+                        let mut row = div().flex().flex_row().flex_grow(1.);
+                        for (index, column) in spec.columns.iter().enumerate() {
+                            row = row.child(
+                                apply_column_layout(div().px(px(10.)), column)
+                                    .child(marker(index + 3, 20.)),
+                            );
+                        }
+                        div()
+                            .flex()
+                            .flex_col()
+                            .w_full()
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_row()
+                                    .child(header)
+                                    .child(gutter_spacer(px(gutter))),
+                            )
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_row()
+                                    .child(row)
+                                    .child(gutter_spacer(px(gutter))),
+                            )
+                    },
+                );
+                let bounds = bounds.borrow();
+                for index in 0..3 {
+                    assert_eq!(bounds[index].origin.x, bounds[index + 3].origin.x);
+                    assert_eq!(bounds[index].size.width, bounds[index + 3].size.width);
+                    assert!(bounds[index + 3].top() >= bounds[index].bottom());
+                    assert_eq!(bounds[index].size.height, px(48.));
+                }
+            }
+        }
+    }
+
+    #[gpui::test]
+    fn header_button_focus_does_not_navigate_table_rows(cx: &mut gpui::TestAppContext) {
+        use crate::native_workloads::WorkloadArena;
+        struct HeaderView {
+            native: Entity<ManagedView>,
+            snapshot: ValidatedSnapshot,
+        }
+        impl gpui::Render for HeaderView {
+            fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+                self.native.update(cx, |view, cx| {
+                    view.materialize_node(0, &self.snapshot, window, cx)
+                })
+            }
+        }
+        unsafe extern "C" fn unavailable_rows(
+            _: u64,
+            _: u64,
+            _: u64,
+            _: u32,
+            _: u32,
+            _: *mut RenderArena,
+            _: *mut u32,
+            _: *mut u64,
+        ) -> i32 {
+            -1
+        }
+        let mut arena = WorkloadArena::default();
+        let table =
+            arena.node_with_data(crate::semantic::COMPONENT_TABLE, None, "grid\0name\0Name");
+        arena.op(table, OP_RESOURCE_OWNER, 1);
+        arena.op(
+            table,
+            crate::semantic::OP_TABLE_COLUMN,
+            200f32.to_bits() as u64,
+        );
+        arena.op(table, crate::semantic::OP_LIST_RENDERER, 1);
+        arena.op(table, crate::semantic::OP_LIST_ITEM_COUNT, 3);
+        arena.op(table, OP_WIDTH_PERCENT, 100f32.to_bits() as u64);
+        arena.op(table, OP_HEIGHT_PX, 150f32.to_bits() as u64);
+        let header = arena.node_with_data(crate::semantic::COMPONENT_BUTTON, Some(table), "sort");
+        arena.node_with_data(
+            crate::semantic::COMPONENT_TEXT,
+            Some(header),
+            "Sort services",
+        );
+        let snapshot = arena.decode();
+        let native = cx.new(|_| {
+            let mut callbacks = inert_callbacks();
+            // Row data is irrelevant to focus routing; keep the real row engine with error rows.
+            callbacks.list_render_range = Some(unavailable_rows);
+            ManagedView::new(1, callbacks, Default::default(), Default::default())
+        });
+        let (view, cx) = cx.add_window_view(|_, _| HeaderView {
+            native: native.clone(),
+            snapshot,
+        });
+        cx.draw(
+            point(px(0.), px(0.)),
+            gpui::size(px(300.), px(160.)),
+            |_, _| view.clone().into_any_element(),
+        );
+        let (state, cursor) = cx.update(|_, cx| {
+            let configuration =
+                list_configuration(&view.read(cx).snapshot, &view.read(cx).snapshot.nodes[0])
+                    .unwrap();
+            native.update(cx, |native, _| {
+                let key = ResourceKey::new(1, "grid".into());
+                let engine =
+                    native
+                        .resources
+                        .list_resource(&key, &configuration, native.snapshot_revision);
+                let engine = engine.borrow();
+                (engine.state.clone(), engine.cursor.clone())
+            })
+        });
+        cx.simulate_mouse_down(
+            point(px(25.), px(16.)),
+            MouseButton::Left,
+            gpui::Modifiers::none(),
+        );
+        cx.simulate_mouse_up(
+            point(px(25.), px(16.)),
+            MouseButton::Left,
+            gpui::Modifiers::none(),
+        );
+        let header_focus =
+            cx.update(|window, cx| window.focused(cx).expect("header button has focus"));
+        cx.simulate_keystrokes("down");
+        assert_eq!(cursor.active(), Some(0));
+        let first_row = state.bounds_for_item(0).unwrap().center();
+        cx.simulate_mouse_down(first_row, MouseButton::Left, gpui::Modifiers::none());
+        cx.simulate_mouse_up(first_row, MouseButton::Left, gpui::Modifiers::none());
+        cx.update(|window, _| assert!(!header_focus.is_focused(window)));
+        cx.simulate_keystrokes("down");
+        assert_eq!(cursor.active(), Some(1));
     }
 
     #[test]

@@ -71,6 +71,13 @@ pub(crate) struct InputBindings {
     pub(crate) focus_changed: u64,
 }
 
+#[derive(Clone, Copy, Default, PartialEq)]
+pub(crate) struct InputPresentation {
+    pub(crate) placeholder: Option<u32>,
+    pub(crate) caret: Option<u32>,
+    pub(crate) selection: Option<u32>,
+}
+
 pub(crate) struct InputInitialState<'a> {
     pub(crate) value: &'a str,
     pub(crate) placeholder: &'a str,
@@ -87,6 +94,7 @@ pub(crate) struct ManagedInput {
     content: SharedString,
     last_emitted_content: SharedString,
     placeholder: SharedString,
+    presentation: InputPresentation,
     selected_range: Range<usize>,
     selection_reversed: bool,
     marked_range: Option<Range<usize>>,
@@ -123,6 +131,7 @@ impl ManagedInput {
             last_emitted_content: content.clone(),
             content,
             placeholder: shared(initial.placeholder),
+            presentation: InputPresentation::default(),
             selected_range: cursor..cursor,
             selection_reversed: false,
             marked_range: None,
@@ -150,10 +159,12 @@ impl ManagedInput {
         read_only: bool,
         password: bool,
         bindings: InputBindings,
+        presentation: InputPresentation,
         cx: &mut Context<Self>,
     ) {
         let placeholder = shared(placeholder);
         let changed = self.placeholder != placeholder
+            || self.presentation != presentation
             || self.disabled != disabled
             || self.read_only != read_only
             || self.password != password
@@ -161,6 +172,7 @@ impl ManagedInput {
             || self.bindings.submitted != bindings.submitted
             || self.bindings.focus_changed != bindings.focus_changed;
         self.placeholder = placeholder;
+        self.presentation = presentation;
         self.disabled = disabled;
         self.read_only = read_only;
         self.password = password;
@@ -809,7 +821,13 @@ impl Element for TextElement {
         let style = window.text_style();
         let theme = *input.theme.borrow();
         let color: gpui::Hsla = if content_empty {
-            rgba(theme.text_placeholder).into()
+            rgba(
+                input
+                    .presentation
+                    .placeholder
+                    .unwrap_or(theme.text_placeholder),
+            )
+            .into()
         } else {
             style.color
         };
@@ -893,7 +911,7 @@ impl Element for TextElement {
                         point(origin_x + cursor_x, bounds.top()),
                         size(px(1.5), bounds.size.height),
                     ),
-                    rgba(theme.accent),
+                    rgba(input.presentation.caret.unwrap_or(theme.accent)),
                 )),
             )
         } else {
@@ -909,7 +927,12 @@ impl Element for TextElement {
                             bounds.bottom(),
                         ),
                     ),
-                    rgba((theme.accent & 0xFFFFFF00) | 0x40),
+                    rgba(
+                        input
+                            .presentation
+                            .selection
+                            .unwrap_or((theme.accent & 0xFFFFFF00) | 0x40),
+                    ),
                 )),
                 None,
             )
@@ -1070,6 +1093,91 @@ mod tests {
             a: 0,
             b: 0,
             data: data.into(),
+        }
+    }
+
+    #[gpui::test]
+    fn presentation_updates_paint_without_changing_editing_state(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        for (phase, explicit) in [false, true, true, false].into_iter().enumerate() {
+            for selected in [false, true] {
+                cx.draw(Point::default(), size(px(300.), px(40.)), |window, cx| {
+                    input.update(cx, |input, cx| {
+                        input.content = shared(if selected { "hello" } else { "" });
+                        input.selected_range = if selected { 1..4 } else { 0..0 };
+                        input.selection_reversed = selected;
+                        input.marked_range = selected.then_some(1..3);
+                        input.focus_handle.focus(window, cx);
+                        let revision = input.revision;
+                        let presentation = if explicit {
+                            InputPresentation {
+                                placeholder: Some(0x112233FF),
+                                caret: Some(0x445566FF),
+                                selection: Some(0x77889940),
+                            }
+                        } else {
+                            InputPresentation::default()
+                        };
+                        input.configure(
+                            "hint",
+                            false,
+                            false,
+                            false,
+                            input.bindings,
+                            presentation,
+                            cx,
+                        );
+                        input.theme.borrow_mut().text_placeholder =
+                            0xAABBCCFF + phase as u32 * 0x100;
+                        input.theme.borrow_mut().accent = 0xDDEEFFFF - phase as u32 * 0x100;
+                        assert_eq!(input.revision, revision);
+                        assert_eq!(input.selected_range, if selected { 1..4 } else { 0..0 });
+                        assert_eq!(input.selection_reversed, selected);
+                        assert_eq!(input.marked_range, selected.then_some(1..3));
+                        assert!(input.focus_handle.is_focused(window));
+                    });
+                    let mut element = TextElement {
+                        input: input.clone(),
+                    };
+                    let painted = element.prepaint(
+                        None,
+                        None,
+                        Bounds::new(Point::default(), size(px(300.), px(24.))),
+                        &mut (),
+                        window,
+                        cx,
+                    );
+                    let theme = *input.read(cx).theme.borrow();
+                    if selected {
+                        assert_eq!(
+                            painted.selection.unwrap().background,
+                            rgba(if explicit {
+                                0x77889940
+                            } else {
+                                (theme.accent & 0xFFFFFF00) | 0x40
+                            })
+                            .into()
+                        );
+                        assert!(painted.cursor.is_none());
+                    } else {
+                        assert_eq!(
+                            painted.color,
+                            rgba(if explicit {
+                                0x112233FF
+                            } else {
+                                theme.text_placeholder
+                            })
+                            .into()
+                        );
+                        assert_eq!(
+                            painted.cursor.unwrap().background,
+                            rgba(if explicit { 0x445566FF } else { theme.accent }).into()
+                        );
+                    }
+                    div()
+                });
+            }
         }
     }
 

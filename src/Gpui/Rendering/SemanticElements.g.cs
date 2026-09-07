@@ -50,7 +50,7 @@ namespace Gpui
     public readonly struct TooltipTag : IParentElementTag, INativeStateElementTag, ITooltipElementTag { }
     public readonly struct ContextMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IContextMenuElementTag { }
     public readonly struct PopoverMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IPopoverMenuElementTag { }
-    public readonly struct TableTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag, ITableElementTag { }
+    public readonly struct TableTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IVirtualizedElementTag, ITableElementTag { }
     public readonly struct SliderTag : IStyledElementTag, INativeStateElementTag, ISliderElementTag { }
     public readonly struct DrawingTag : IStyledElementTag, IParentElementTag, IDrawingElementTag { }
     public readonly struct PathTag : IPathElementTag { }
@@ -942,6 +942,33 @@ namespace Gpui
             }
 
             ArenaWriter.AddU64(element.Inner, OpCode.ListItemId, itemId);
+            return element;
+        }
+
+        /// <summary>Overrides Input placeholder text color. Omission uses the current theme.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> PlaceholderColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInputElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.InputPlaceholderRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Input caret color. Omission uses the current theme accent.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> CaretColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInputElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.InputCaretRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Input selection background, including alpha. Omission uses the translucent theme accent.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelectionColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInputElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.InputSelectionRgba, color.Rgba);
             return element;
         }
 

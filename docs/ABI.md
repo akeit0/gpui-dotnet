@@ -30,6 +30,14 @@ The generated base schema hash is deliberately separate from the ABI version. Co
 operation IDs, capabilities, or payload constraints can change without altering C record layouts;
 the hash rejects a managed/native pair built from different schemas.
 
+Table nodes may contain zero header children or exactly one content child per `TableColumn`
+operation (322), in column order. Other counts fail native validation with `-57`; managed validation
+rejects the same structure before publication. Header children are ordinary retained-snapshot
+content, not virtual row batches. Input part colors use U32 RGBA operations 506 (placeholder),
+507 (caret), and 508 (selection); the last declaration for each part wins, including its alpha.
+Omitted colors resolve from the current native theme. These semantic additions change the schema
+hash without changing ABI 7, C layouts, entry points, or callback packets.
+
 An optional extension has its own ID, protocol version, and schema hash. `supports_extension`
 checks that tuple before application startup. Extension-specific definitions never enter the base
 schema; the generic NativeExtension node carries the tuple, component kind, retained key, and an

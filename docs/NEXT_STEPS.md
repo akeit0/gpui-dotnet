@@ -5,16 +5,19 @@ documents.
 
 ## Implementation priorities
 
-1. Drawing performance: evaluate reusable tessellation and scene-buffer APIs in GPUI; its current
-   public API consumes these buffers. Measure platform presentation/GPU work and mixed retained-tree
-   updates before changing transport or duplicating tessellation behavior. Preserve full validation,
-   bounded retention, and ownership boundaries.
-2. Input editing: word navigation, undo/redo, richer pointer selection, platform IME tests, and
-   controlled-binding helpers built on conditional replacement.
-3. Virtual-row menus and tooltips: design window-owned overlays anchored to stable item identities,
+1. Control customization: use concrete sample needs to scope Slider track/thumb presentation,
+   header-strip styling, and combined interaction-state precedence. Keep application variants in
+   managed style recipes and native interaction intact.
+2. Virtual-row menus and tooltips: design window-owned overlays anchored to stable item identities,
    with explicit behavior on scrolling, eviction, movement, and removal.
-4. Control customization and custom keyboard/accessibility behavior: use concrete sample needs to
-   introduce typed presentation parts, scoped commands, focus targets, and accessible names.
+3. Input editing: word navigation, undo/redo, richer pointer selection, platform IME tests, and
+   controlled-binding helpers built on conditional replacement.
+4. Performance: optimize a measured application bottleneck. Evaluate GPUI tessellation/scene-buffer
+   APIs only when workloads justify the work; its current public API consumes these buffers.
+
+Build on existing gpui-base component behavior and accessibility. Keep customization in GPUI.NET's
+managed declarations, native adapters, and samples. Change gpui-base only for a concrete blocker;
+further foundation migration or rewriting working behavior is not a priority.
 
 Preserve the semantic batching and ownership boundaries. Native-retained fragment transport,
 general item-scoped editors, universal state styling, and scoped themes require separate design
@@ -41,17 +44,19 @@ The focused analysis and acceptance criteria are in
 
 ## Accessibility
 
-The pinned GPUI revision does not expose a complete cross-platform accessibility-tree API. When a
-durable API is available, add semantic roles, names, values, selection, and announcements for:
+Button, Checkbox, and Radio already use foundation activation, focus, accessibility, and disabled
+behavior. The retained Input declares the TextInput role; Slider supplies its role, numeric value,
+bounds, step, and orientation. Preserve these integrations as presentation becomes customizable.
 
-- Input and Slider;
-- List/Table viewport, rows, headers, and cells;
-- custom title-bar controls;
-- dialogs, sheets, tooltips, and menus.
+Remaining work is focused coverage, authoring, and platform verification:
 
-Treat accessibility as a semantic batch rather than platform-specific managed branches. Develop
-the managed authoring contract for names, roles, values, and relationships alongside scoped
-commands and focus targets; expose backend capability limits explicitly.
+- explicit accessible names for icon-only controls and field relationships;
+- List/Table viewport, row, header, cell, and selection semantics;
+- Dock tabs, custom title-bar controls, and deferred-layer semantics;
+- platform verification of focus, roles, values, and announcements, with backend limits documented.
+
+Reuse existing foundation and GPUI capabilities. Add missing managed semantics in coarse
+declarations alongside scoped commands and focus targets; do not restart the foundation work.
 
 ## Input
 
@@ -112,7 +117,7 @@ Keep stacking and dismissal window-owned in Rust while product visuals remain ma
 - improve demand-driven rendering separately from View Signal work, preserving targeted row-cache
   invalidation and measurement refresh for changed items, including items outside cached batches;
 - optional public cache/overscan diagnostics when benchmarks justify an ABI query;
-- table header sort events and column visibility/reordering;
+- column visibility/reordering;
 - range/multi-selection, selection anchors, and modifier policies when application needs justify them;
 - active-item preservation across arbitrary reorder if applications require a coarse identity map;
 - frozen columns or resize chrome only when application requirements and measurements justify the
@@ -126,7 +131,7 @@ interaction ownership separate from row-batch eviction; do not introduce mounted
 
 ## Control presentation and commands
 
-- application-owned table header content and slider/indicator presentation driven by sample needs;
+- header-strip styling and slider/indicator presentation driven by sample needs;
 - paint-state precedence for combined states such as selected/hovered and invalid/focused;
 - scoped native key bindings with explicit consumption, separate from observer events;
 - general focus targets, restoration, and composite entry behavior;

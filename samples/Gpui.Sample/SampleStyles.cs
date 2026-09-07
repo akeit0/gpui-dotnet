@@ -51,8 +51,48 @@ internal readonly record struct SampleCollectionRowStyle(
             .TextColor(Text);
 }
 
+internal readonly record struct SampleTableRowStyle(GpuiTheme Theme, bool Selected)
+    : IGpuiElementStyle<DivTag>
+{
+    public Element<DivTag> Apply(Element<DivTag> row) => row
+        .Background(Selected ? Theme.Colors.ElementSelected : Theme.Colors.SurfaceBackground)
+        .TextColor(Selected ? Theme.Colors.TextAccent : Theme.Colors.Text)
+        .PaddingY(Px(8));
+}
+
+internal readonly record struct SampleInputStyle(GpuiTheme Theme, bool Invalid)
+    : IGpuiElementStyle<InputTag>
+{
+    public Element<InputTag> Apply(Element<InputTag> input)
+    {
+        var colors = Theme.Colors;
+        var accent = Invalid ? colors.Error : colors.Accent;
+        return input
+            .Background(colors.SurfaceBackground)
+            .TextColor(colors.Text)
+            .BorderColor(Invalid ? colors.Error : colors.Border)
+            .PlaceholderColor(Invalid ? colors.Error : colors.TextMuted)
+            .CaretColor(accent)
+            .SelectionColor(Invalid ? colors.ErrorBackground : colors.InfoBackground);
+    }
+}
+
 internal static class SampleStyles
 {
+    internal static SampleTableRowStyle TableRow(GpuiTheme theme, bool selected) => new(theme, selected);
+
+    internal static SampleInputStyle Input(GpuiTheme theme, bool invalid = false) => new(theme, invalid);
+
+    internal static SampleButtonStyle TableHeader(GpuiTheme theme) => new(
+        theme.Colors.ElementBackground,
+        theme.Colors.ElementHover,
+        theme.Colors.ElementActive,
+        theme.Colors.TextAccent,
+        theme.Colors.ElementBackground,
+        Px(6),
+        Px(4)
+    );
+
     internal static SampleCollectionRowStyle CollectionRow(GpuiTheme theme, bool selected)
     {
         var colors = theme.Colors;

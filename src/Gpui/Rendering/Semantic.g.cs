@@ -147,6 +147,9 @@ namespace Gpui.Interop
         InputOnChanged = 503,
         InputOnSubmitted = 504,
         InputOnFocusChanged = 505,
+        InputPlaceholderRgba = 506,
+        InputCaretRgba = 507,
+        InputSelectionRgba = 508,
         OverlayPlacement = 600,
         OverlayPriority = 601,
         OverlayMarginPx = 602,
@@ -353,7 +356,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x5B3FFDD0ACFD2A5CUL;
+        internal const ulong SchemaHash = 0xD9C7A79AD3010B5CUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -522,6 +525,9 @@ namespace Gpui.Interop
             OpCode.InputOnChanged => ValueKind.Callback,
             OpCode.InputOnSubmitted => ValueKind.Callback,
             OpCode.InputOnFocusChanged => ValueKind.Callback,
+            OpCode.InputPlaceholderRgba => ValueKind.U32,
+            OpCode.InputCaretRgba => ValueKind.U32,
+            OpCode.InputSelectionRgba => ValueKind.U32,
             OpCode.OverlayPlacement => ValueKind.U32,
             OpCode.OverlayPriority => ValueKind.U32,
             OpCode.OverlayMarginPx => ValueKind.F32,
@@ -686,7 +692,7 @@ namespace Gpui.Interop
             ComponentId.Tooltip => 0x0000000000001042UL,
             ComponentId.ContextMenu => 0x0000000000004043UL,
             ComponentId.PopoverMenu => 0x0000000000008043UL,
-            ComponentId.Table => 0x0000000000010141UL,
+            ComponentId.Table => 0x0000000000010143UL,
             ComponentId.Slider => 0x0000000000020041UL,
             ComponentId.Drawing => 0x0000000000040003UL,
             ComponentId.Path => 0x0000000000080000UL,
@@ -814,6 +820,9 @@ namespace Gpui.Interop
             OpCode.InputOnChanged => 0x0000000000000400UL,
             OpCode.InputOnSubmitted => 0x0000000000000400UL,
             OpCode.InputOnFocusChanged => 0x0000000000000400UL,
+            OpCode.InputPlaceholderRgba => 0x0000000000000400UL,
+            OpCode.InputCaretRgba => 0x0000000000000400UL,
+            OpCode.InputSelectionRgba => 0x0000000000000400UL,
             OpCode.OverlayPlacement => 0x0000000000000800UL,
             OpCode.OverlayPriority => 0x0000000000000800UL,
             OpCode.OverlayMarginPx => 0x0000000000000800UL,

@@ -7,11 +7,14 @@ internal sealed partial class TableView : View
     private const int ItemCount = 5_000;
     private ListController _grid;
     private int _selected = -1;
+    private bool _descending;
+    private ulong _revision = 1;
     private string _activation = "Click or press Space to select; double-click or press Enter to activate";
 
     private void ActivateRow(ListActivationEvent e)
     {
-        _activation = $"Activated svc-{e.Index:D4} via {e.Source} (ID {e.ItemId})";
+        if (e.ItemId is not { } id || id is 0 or > ItemCount) return;
+        _activation = $"Activated svc-{id - 1:D4} via {e.Source} (ID {id})";
         Invalidate();
     }
 
@@ -25,25 +28,25 @@ internal sealed partial class TableView : View
 
     private void SelectRow(ListSelectionEvent e)
     {
-        // This datasource has fixed ordering. Mutable models should resolve ItemId against their
-        // current data before accepting a request from an earlier content revision.
-        var index = e.Index;
+        if (e.ItemId is not { } id || id is 0 or > ItemCount) return;
+        var index = checked((int)id - 1);
         var previous = _selected;
         if (previous == index) return;
         _selected = index;
         if (previous >= 0)
         {
-            _grid.RefreshRanges((previous, 1), (index, 1));
+            _grid.RefreshRanges((RowIndex(previous), 1), (RowIndex(index), 1));
         }
         else
         {
-            _grid.Refresh(index, 1);
+            _grid.Refresh(RowIndex(index), 1);
         }
     }
 
     [GpuiListItem]
     private Element ServiceRow(int index, ref RenderContext ui)
     {
+        index = RowIndex(index);
         var theme = ui.Theme;
         var colors = theme.Colors;
         var selected = index == _selected;
@@ -65,26 +68,26 @@ internal sealed partial class TableView : View
                             0,
                             ui.Text($"svc-{index:D4}")
                                 .FontSize(Px(theme.Typography.BodySmall))
-                        ),
+                        ).PaddingX(Px(10)),
                         ui.TableCell(
                             1,
                             ui.Text(Region(index))
                                 .FontSize(Px(theme.Typography.Detail))
                                 .TextColor(colors.TextMuted)
-                        ),
-                        ui.TableCell(2, ui.Text(status).TextColor(statusColor)),
+                        ).PaddingX(Px(10)),
+                        ui.TableCell(2, ui.Text(status).TextColor(statusColor)).PaddingX(Px(10)),
                         ui.TableCell(
                             3,
                             ui.Text(Throughput(index))
                                 .FontSize(Px(theme.Typography.Detail))
                                 .TextColor(colors.TextMuted)
-                        )
+                        ).PaddingX(Px(10))
                     )
                     .Width(Percent(100))
             )
             .ItemId(checked((ulong)index) + 1)
             .Width(Percent(100))
-            .Style(SampleStyles.CollectionRow(theme, selected));
+            .Style(SampleStyles.TableRow(theme, selected));
     }
 
     protected override Element Render(ref RenderContext ui)
@@ -104,7 +107,7 @@ internal sealed partial class TableView : View
 
         var grid = ui.Table(
                 ref _grid,
-                new ListDataSource(ItemCount, 1),
+                new ListDataSource(ItemCount, _revision),
                 Rows.ServiceRow,
                 new TableOptions(
                     batchSize: 64,
@@ -113,6 +116,15 @@ internal sealed partial class TableView : View
                     scrollbarGutter: true
                 ),
                 Columns
+            )
+            .Header(
+                ui.Button("sort-service", _descending ? "Service ↓" : "Service ↑")
+                    .Style(SampleStyles.TableHeader(theme))
+                    .OnClick(this, static (view, _) => view.ToggleSort()),
+                ui.Text("Region").TextColor(theme.Colors.TextMuted),
+                ui.HStack(ui.Text("●").TextColor(theme.Colors.Success), ui.Text("Status"))
+                    .Gap(Px(5)).ItemsCenter(),
+                ui.Text("Req/s").TextColor(theme.Colors.TextMuted)
             )
             .OnActivated(this, static (view, e) => view.ActivateRow(e))
             .OnSelectionRequested(this, static (view, e) => view.SelectRow(e))
@@ -124,6 +136,16 @@ internal sealed partial class TableView : View
             .Radius(Px(8));
 
         return ui.VStack(header, ui.Text(_activation).TextColor(theme.Colors.TextMuted), grid).Gap(Px(10)).Grow();
+    }
+
+    private int RowIndex(int service) => _descending ? ItemCount - 1 - service : service;
+
+    private void ToggleSort()
+    {
+        _descending = !_descending;
+        _revision++;
+        // Arbitrary reordering resets the native cursor/cache. Selection remains model-owned.
+        _grid.Reset(ItemCount);
     }
 
     private static string Region(int index) =>
