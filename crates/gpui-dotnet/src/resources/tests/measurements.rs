@@ -119,3 +119,68 @@ fn native_workload_measurements() {
         );
     }
 }
+
+#[test]
+#[ignore = "native timing probe; run explicitly in Release with --nocapture"]
+fn native_workload_measurements_invalidation() {
+    for (engines, batches, scope) in [
+        (1, 4, "all"),
+        (16, 16, "all"),
+        (64, 16, "all"),
+        (64, 16, "one-source"),
+        (64, 16, "stale"),
+    ] {
+        let mut samples = Vec::new();
+        for iteration in 0..9 {
+            prepare_capture();
+            let store = ResourceStore::new(1, artifact_callbacks(), theme());
+            let mut config = configuration(Some(1));
+            config.batch_size = 1;
+            config.item_count = batches;
+            let mut keys = Vec::new();
+            for engine in 0..engines {
+                let resource_key = ResourceKey::new(1, format!("list-{engine}").into());
+                let resource = store.list_resource(&resource_key, &config, 1);
+                let mut resource = resource.borrow_mut();
+                for start in 0..batches {
+                    resource.load_batch(start as u32).unwrap();
+                    if scope != "one-source" || engine == 0 {
+                        keys.push(crate::abi::NativeArtifactKey {
+                            source: if scope == "stale" {
+                                u64::MAX
+                            } else {
+                                resource.source_id
+                            },
+                            artifact: resource.batches[&(start as u32)]
+                                .lease
+                                .as_ref()
+                                .unwrap()
+                                .artifact_id,
+                        });
+                    }
+                }
+            }
+            for index in 0..keys.len() {
+                let other = (index * 17 + 13) % keys.len();
+                keys.swap(index, other);
+            }
+            let start = Instant::now();
+            let changed = store.invalidate_artifacts(black_box(&mut keys));
+            let elapsed = start.elapsed().as_secs_f64() * 1e6;
+            assert_eq!(changed, scope != "stale");
+            let expected = match scope {
+                "stale" => 0,
+                "one-source" => batches,
+                _ => engines * batches,
+            };
+            ARTIFACTS.with(|capture| assert_eq!(capture.borrow().releases.len(), expected));
+            if iteration >= 4 {
+                samples.push(elapsed);
+            }
+        }
+        report(
+            &format!("invalidate-{engines}-engines-{batches}-batches-{scope}"),
+            &mut samples,
+        );
+    }
+}

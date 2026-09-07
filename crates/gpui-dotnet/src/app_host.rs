@@ -352,7 +352,7 @@ impl ManagedView {
         notify_native_only
     }
 
-    fn deliver_artifact_invalidations(&self, keys: &[crate::abi::NativeArtifactKey]) -> bool {
+    fn deliver_artifact_invalidations(&self, keys: &mut [crate::abi::NativeArtifactKey]) -> bool {
         self.error.is_none() && self.resources.invalidate_artifacts(keys)
     }
 
@@ -1049,8 +1049,8 @@ fn create_managed_view(
                         invalidate_pending.store(false, Ordering::Release);
                         view.invalidate(cx);
                     }
-                    ViewMessage::InvalidateArtifacts(keys) => {
-                        if view.deliver_artifact_invalidations(&keys) {
+                    ViewMessage::InvalidateArtifacts(mut keys) => {
+                        if view.deliver_artifact_invalidations(&mut keys) {
                             cx.notify();
                         }
                     }
@@ -1400,7 +1400,7 @@ mod tests {
         let mut view = ManagedView::new(7, callbacks, Rc::default(), presence.clone());
         view.dirty = false;
         assert!(
-            !view.deliver_artifact_invalidations(&[crate::abi::NativeArtifactKey {
+            !view.deliver_artifact_invalidations(&mut [crate::abi::NativeArtifactKey {
                 source: 1,
                 artifact: 1
             }])

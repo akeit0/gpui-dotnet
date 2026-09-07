@@ -94,11 +94,35 @@ pub(crate) struct ResourceStore {
     extension_active_scratch: RefCell<HashSet<NativeExtensionResourceKey>>,
 }
 
+struct ArtifactInvalidations<'a> {
+    keys: &'a [crate::abi::NativeArtifactKey],
+}
+
+impl<'a> ArtifactInvalidations<'a> {
+    fn new(keys: &'a mut [crate::abi::NativeArtifactKey]) -> Self {
+        // The ingress message already owns these records. Index it in place once for
+        // all row engines, without another allocation or retained artifact registry.
+        keys.sort_unstable_by_key(|key| (key.source, key.artifact));
+        Self { keys }
+    }
+
+    fn for_source(&self, source: u64) -> &[crate::abi::NativeArtifactKey] {
+        let start = self.keys.partition_point(|key| key.source < source);
+        let rest = &self.keys[start..];
+        let count = rest.partition_point(|key| key.source == source);
+        &rest[..count]
+    }
+}
+
 impl ResourceStore {
-    pub(crate) fn invalidate_artifacts(&self, keys: &[crate::abi::NativeArtifactKey]) -> bool {
+    pub(crate) fn invalidate_artifacts(&self, keys: &mut [crate::abi::NativeArtifactKey]) -> bool {
+        if keys.is_empty() {
+            return false;
+        }
+        let keys = ArtifactInvalidations::new(keys);
         let mut changed = false;
         for engine in self.lists.borrow().values() {
-            changed |= engine.borrow_mut().invalidate_artifacts(keys);
+            changed |= engine.borrow_mut().invalidate_artifacts(&keys);
         }
         changed
     }
@@ -1135,12 +1159,16 @@ impl ManagedListResource {
         self.clear_batches();
     }
 
-    fn invalidate_artifacts(&mut self, keys: &[crate::abi::NativeArtifactKey]) -> bool {
+    fn invalidate_artifacts(&mut self, keys: &ArtifactInvalidations<'_>) -> bool {
+        let keys = keys.for_source(self.source_id);
+        if keys.is_empty() {
+            return false;
+        }
         let before = self.batches.len();
         self.batches.retain(|start, batch| {
             let remove = batch.lease.as_ref().is_some_and(|lease| {
-                keys.iter()
-                    .any(|key| key.source == self.source_id && key.artifact == lease.artifact_id)
+                keys.binary_search_by_key(&lease.artifact_id, |key| key.artifact)
+                    .is_ok()
             });
             if remove {
                 let count = self
@@ -1802,10 +1830,12 @@ mod tests {
         assert!(second.ops(&second.nodes[1]).is_empty());
         assert_eq!(resource.batches[&512].snapshot.nodes.len(), 513);
         assert!(
-            resource.invalidate_artifacts(&[crate::abi::NativeArtifactKey {
-                source: resource.source_id,
-                artifact: first_id,
-            }])
+            resource.invalidate_artifacts(&ArtifactInvalidations::new(&mut [
+                crate::abi::NativeArtifactKey {
+                    source: resource.source_id,
+                    artifact: first_id,
+                }
+            ]))
         );
         assert_eq!(batch_keys(&resource), vec![48, 512]);
         ARTIFACTS.with(|capture| {
@@ -1830,15 +1860,17 @@ mod tests {
             artifact: 1,
         };
         assert!(
-            !resource.invalidate_artifacts(&[crate::abi::NativeArtifactKey {
-                source: key.source + 1,
-                ..key
-            }])
+            !resource.invalidate_artifacts(&ArtifactInvalidations::new(&mut [
+                crate::abi::NativeArtifactKey {
+                    source: key.source + 1,
+                    ..key
+                }
+            ]))
         );
-        assert!(resource.invalidate_artifacts(&[key]));
+        assert!(resource.invalidate_artifacts(&ArtifactInvalidations::new(&mut [key])));
         assert!(resource.batches.contains_key(&1));
         resource.load_batch(0).unwrap();
-        assert!(!resource.invalidate_artifacts(&[key]));
+        assert!(!resource.invalidate_artifacts(&ArtifactInvalidations::new(&mut [key])));
         assert_eq!(resource.batches.len(), 2);
         ARTIFACTS.with(|capture| assert_eq!(capture.borrow().releases, vec![(key.source, 1, 0)]));
     }
@@ -1847,6 +1879,90 @@ mod tests {
         let mut config = configuration(Some(1));
         config.batch_size = 1;
         ManagedListResource::new(1, artifact_callbacks(), &config, 1)
+    }
+
+    #[test]
+    fn invalidation_batch_handles_unsorted_duplicates_and_overlapping_artifact_ids() {
+        use crate::abi::NativeArtifactKey;
+
+        ARTIFACTS.with(|capture| *capture.borrow_mut() = ArtifactCapture::default());
+        let store = ResourceStore::new(1, artifact_callbacks(), theme());
+        let mut config = configuration(Some(1));
+        config.batch_size = 1;
+        let engines: Vec<_> = ["first", "second", "unrelated"]
+            .into_iter()
+            .map(|name| {
+                let engine = store.list_resource(&ResourceKey::new(1, shared(name)), &config, 1);
+                {
+                    let mut resource = engine.borrow_mut();
+                    for start in 0..3 {
+                        resource.load_batch(start).unwrap();
+                        // Artifact identity is scoped by source, even when IDs overlap.
+                        resource
+                            .batches
+                            .get_mut(&start)
+                            .unwrap()
+                            .lease
+                            .as_mut()
+                            .unwrap()
+                            .artifact_id = start as u64 + 1;
+                    }
+                    resource.last_batch = Some(1);
+                }
+                engine
+            })
+            .collect();
+        let sources: Vec<_> = engines
+            .iter()
+            .map(|engine| engine.borrow().source_id)
+            .collect();
+        let mut keys = [
+            NativeArtifactKey {
+                source: sources[1],
+                artifact: 2,
+            },
+            NativeArtifactKey {
+                source: u64::MAX,
+                artifact: 1,
+            },
+            NativeArtifactKey {
+                source: sources[0],
+                artifact: 3,
+            },
+            NativeArtifactKey {
+                source: sources[0],
+                artifact: 1,
+            },
+            NativeArtifactKey {
+                source: sources[1],
+                artifact: 2,
+            },
+            NativeArtifactKey {
+                source: sources[0],
+                artifact: u64::MAX,
+            },
+        ];
+        assert!(!store.invalidate_artifacts(&mut []));
+        assert!(store.invalidate_artifacts(&mut keys));
+        for (index, expected) in [vec![1], vec![0, 2], vec![0, 1, 2]].iter().enumerate() {
+            let resource = engines[index].borrow();
+            assert_eq!(&batch_keys(&resource), expected);
+            assert_eq!(
+                resource.telemetry.batch_invalidations,
+                (3 - expected.len()) as u64
+            );
+            assert_eq!(resource.last_batch, if index == 2 { Some(1) } else { None });
+            assert_eq!(resource.state.max_offset_for_scrollbar().y, px(4_000.));
+        }
+        assert!(!store.invalidate_artifacts(&mut keys));
+        ARTIFACTS.with(|capture| {
+            let mut releases = capture.borrow().releases.clone();
+            releases.sort_unstable();
+            assert_eq!(
+                releases,
+                vec![(sources[0], 1, 0), (sources[0], 3, 0), (sources[1], 2, 0)]
+            );
+        });
     }
 
     #[test]

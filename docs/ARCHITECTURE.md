@@ -64,6 +64,9 @@ Row engines reuse numeric validation/grouping scratch across serial batch decode
 only its decoded snapshot, artifact lease, and cache metadata. Its temporary string interner ends
 after decoding; the snapshot owns its strings independently. Root snapshots retain their interner
 across renders so consecutive values can reuse allocations.
+Reactive invalidation sorts the owned ingress message by source and artifact once. Each row
+engine searches its source range, skipping its cache entirely when that range is empty; no
+additional artifact registry or persistent index is retained.
 Child fragment boundaries check arena identity, generation, and root index before copying. Full
 managed semantic validation runs once on the assembled root or row batch before publication;
 native decoding independently validates the complete snapshot before acceptance.

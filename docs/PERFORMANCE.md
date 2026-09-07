@@ -132,6 +132,14 @@ changed writes produce one notification per cycle. Constant text prevents applic
 formatting from contaminating the render measurements. Zero allocation does not imply constant
 execution time: writes still traverse subscribers, and rendering still visits affected Views.
 
+Native artifact invalidation sorts the ingress-owned key buffer in place by `(source, artifact)`.
+Each row engine locates its source range once and tests cached leases with binary search.
+Unrelated engines skip their batch maps. For K keys, E engines, and B cached batches belonging
+to addressed sources, matching takes O(K log K + E log K + B log K) comparisons, replacing a
+scan of all keys per cached batch. No second key buffer or persistent artifact index is allocated.
+Eviction still releases each matching lease once, clears its measurements, and preserves unrelated
+batch identity. Duplicate and late keys remain harmless.
+
 All creation, tracking, and integration measurements use `GC.GetAllocatedBytesForCurrentThread`,
 four warmup batches, and three measured batches of 128 operations. All three measured batches
 produced the values above. Test setup, assertions, and output are excluded. The integration fixture
@@ -535,6 +543,22 @@ Resource scratch capacity is unchanged at 6,837 and 54,325 bytes respectively. D
 capacity grows from 19,430 to 22,518 bytes for 128 panels and from 77,414 to 89,718 bytes for 512.
 Ordinary row decode timings remain comparable in the same probe run (3.58 µs for 48 rows,
 36.75 µs for 512); these small differences do not establish a row throughput improvement.
+
+The native invalidation probe prepares real cached one-row batches outside the timed interval,
+shuffles the input keys, and measures message indexing, matching, eviction, release callbacks,
+and measurement refresh together. It uses four warmups and five measured messages per case.
+The Rust callback fixture excludes managed Signal propagation and the native ingress copy.
+
+| Invalidation workload | Baseline µs/message (`7b7a4ef`) | Current µs/message |
+| --- | ---: | ---: |
+| All 256 batches across 16 engines | 246.70 | 241.60 |
+| All 1,024 batches across 64 engines | 1,095.90 | 936.60 |
+| 16 batches in one of 64 engines | 20.90 | 15.40 |
+| 1,024 stale keys across 64 engines with 16 batches each | 215.00 | 17.00 |
+
+The strongest gain is skipping caches for unrelated sources. Full eviction still pays native
+batch destruction and ListState measurement refresh costs. These timings are exploratory;
+small messages and differences of a few microseconds need more samples to distinguish noise.
 
 ### Dispatcher callback validation cost
 
