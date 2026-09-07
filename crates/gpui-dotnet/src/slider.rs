@@ -71,8 +71,9 @@ impl Render for SliderDrag {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct SliderPresentation {
+    pub(crate) accessibility: crate::accessibility::Accessibility,
     pub(crate) track: Option<u32>,
     pub(crate) fill: Option<u32>,
     pub(crate) thumb: Option<u32>,
@@ -129,7 +130,7 @@ impl ManagedSlider {
             active_thumb_is_start: false,
             keyboard_active: false,
             bindings: configuration.bindings,
-            presentation: configuration.presentation,
+            presentation: configuration.presentation.clone(),
             revision: 0,
             callback_error: None,
             theme,
@@ -158,7 +159,7 @@ impl ManagedSlider {
         self.disabled = configuration.disabled;
         self.logarithmic = configuration.logarithmic;
         self.bindings = configuration.bindings;
-        self.presentation = configuration.presentation;
+        self.presentation = configuration.presentation.clone();
         if disabled_changed {
             self.focus_handle = self.focus_handle.clone().tab_stop(!self.disabled);
         }
@@ -176,7 +177,8 @@ impl ManagedSlider {
     }
 
     pub(crate) fn apply_command(&mut self, command: &ResourceCommand, cx: &mut Context<Self>) {
-        if command.command != COMMAND_SLIDER_SET_VALUE || self.disabled {
+        // Disabled blocks user interaction, not authoritative model updates.
+        if command.command != COMMAND_SLIDER_SET_VALUE {
             return;
         }
         let start = f32::from_bits(command.a as u32);
@@ -560,6 +562,7 @@ impl Render for ManagedSlider {
         let root = div()
             .id(&focus_handle)
             .role(Role::Slider)
+            .map(|element| self.presentation.accessibility.apply(element))
             .aria_numeric_value(value)
             .aria_min_numeric_value(min)
             .aria_max_numeric_value(max)
@@ -622,6 +625,7 @@ mod tests {
         assert_eq!(
             configuration.presentation,
             SliderPresentation {
+                accessibility: Default::default(),
                 track: Some(0x11223340),
                 fill: Some(0xDDEEFF00),
                 thumb: Some(0x778899FF),
@@ -687,6 +691,10 @@ mod tests {
                 assert_eq!(events(), vec![(EVENT_SLIDER_CHANGED, 1, value)]);
 
                 configuration.presentation = SliderPresentation {
+                    accessibility: crate::accessibility::Accessibility {
+                        name: Some("Volume".into()),
+                        description: Some("Playback volume".into()),
+                    },
                     track: Some(0x11223340),
                     fill: Some(0x445566FF),
                     thumb: Some(0x778899FF),
@@ -892,6 +900,31 @@ mod tests {
         };
         slider.update(cx, |slider, cx| slider.apply_command(&command, cx));
 
+        assert!(events().is_empty());
+        slider.update(cx, |slider, _| {
+            assert_eq!(slider.value, SliderValue::Single(20.))
+        });
+    }
+
+    #[gpui::test]
+    fn disabled_slider_accepts_programmatic_value_without_interaction_events(
+        cx: &mut TestAppContext,
+    ) {
+        clear_events();
+        let mut configuration = configuration(SliderValue::Single(10.));
+        configuration.disabled = true;
+        let (slider, _) = cx.add_window_view(|_, cx| {
+            ManagedSlider::new(10, callbacks(), &configuration, theme(), cx)
+        });
+        let command = ResourceCommand {
+            key: crate::resources::ResourceKey::new(1, gpui::SharedString::new("slider")),
+            resource_kind: 4,
+            command: COMMAND_SLIDER_SET_VALUE,
+            a: (20f32.to_bits() as u64) | ((20f32.to_bits() as u64) << 32),
+            b: 0,
+            data: gpui::SharedString::new(""),
+        };
+        slider.update(cx, |slider, cx| slider.apply_command(&command, cx));
         assert!(events().is_empty());
         slider.update(cx, |slider, _| {
             assert_eq!(slider.value, SliderValue::Single(20.))

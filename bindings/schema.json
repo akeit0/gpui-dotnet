@@ -29,9 +29,20 @@
     "dock_panel",
     "dock_region",
     "extension",
-    "key_mouse"
+    "key_mouse",
+    "accessible"
   ],
   "enums": [
+    {
+      "name": "input_write_outcome",
+      "csharp": "InputWriteOutcome",
+      "variants": [
+        { "name": "applied", "csharp": "Applied", "value": 0 },
+        { "name": "unchanged", "csharp": "Unchanged", "value": 1 },
+        { "name": "stale", "csharp": "Stale", "value": 2 },
+        { "name": "composing", "csharp": "Composing", "value": 3 }
+      ]
+    },
     {
       "name": "list_selection_source",
       "csharp": "ListSelectionSource",
@@ -196,6 +207,7 @@
       "children": true,
       "managedFactory": "idContainer",
       "capabilities": [
+        "accessible",
         "styled",
         "parent",
         "interactive",
@@ -214,6 +226,7 @@
       "children": true,
       "managedFactory": "idContainer",
       "capabilities": [
+        "accessible",
         "styled",
         "parent",
         "interactive",
@@ -232,6 +245,7 @@
       "children": true,
       "managedFactory": "idContainer",
       "capabilities": [
+        "accessible",
         "styled",
         "parent",
         "interactive",
@@ -336,6 +350,7 @@
       "children": false,
       "managedFactory": "manual",
       "capabilities": [
+        "accessible",
         "styled",
         "native_state",
         "input"
@@ -430,6 +445,7 @@
       "children": false,
       "managedFactory": "manual",
       "capabilities": [
+        "accessible",
         "styled",
         "native_state",
         "slider"
@@ -574,6 +590,34 @@
     }
   ],
   "operations": [
+    {
+      "id": 900,
+      "name": "accessible_name",
+      "csharp": "AccessibleName",
+      "value": "data",
+      "requires": "accessible",
+      "managedApi": null,
+      "managedMethod": {
+        "kind": "string",
+        "method": "AccessibleName",
+        "param": "name",
+        "doc": "Sets the native accessible name, overriding inferred control text."
+      }
+    },
+    {
+      "id": 901,
+      "name": "accessible_description",
+      "csharp": "AccessibleDescription",
+      "value": "data",
+      "requires": "accessible",
+      "managedApi": null,
+      "managedMethod": {
+        "kind": "string",
+        "method": "AccessibleDescription",
+        "param": "description",
+        "doc": "Sets supplementary native accessibility help without changing the visible content."
+      }
+    },
     {
       "id": 1,
       "name": "flex",
@@ -1378,6 +1422,14 @@
       "managedApi": null
     },
     {
+      "id": 328,
+      "name": "list_projection_revision",
+      "csharp": "ListProjectionRevision",
+      "value": "u64",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
       "id": 317,
       "name": "list_item_id",
       "csharp": "ListItemId",
@@ -1451,6 +1503,14 @@
       "id": 503,
       "name": "input_on_changed",
       "csharp": "OnChanged",
+      "value": "callback",
+      "requires": "input",
+      "managedApi": null
+    },
+    {
+      "id": 509,
+      "name": "input_on_write_completed",
+      "csharp": "InputOnWriteCompleted",
       "value": "callback",
       "requires": "input",
       "managedApi": null
@@ -3022,7 +3082,8 @@
         { "id": 21, "name": "blur", "csharp": "InputBlur", "doc": "Releases native keyboard focus from the input." },
         { "id": 22, "name": "set_value", "csharp": "InputSetValue", "doc": "Replaces the input value without emitting events." },
         { "id": 23, "name": "select_all", "csharp": "InputSelectAll", "doc": "Selects the whole input value." },
-        { "id": 24, "name": "set_value_if_current", "csharp": "InputSetValueIfCurrent", "doc": "Replaces UTF-8 data without events only when a matches the nonzero native revision. Word b packs input_selection_policy in bit 0 and input_composition_policy in bit 1; other bits are reserved zero. Identical normalized values preserve editing state." }
+        { "id": 24, "name": "set_value_if_current", "csharp": "InputSetValueIfCurrent", "doc": "Replaces UTF-8 data without events only when a matches the nonzero native revision. Word b packs input_selection_policy in bit 0 and input_composition_policy in bit 1; other bits are reserved zero. Identical normalized values preserve editing state." },
+        { "id": 25, "name": "set_value_if_current_with_result", "csharp": "InputSetValueIfCurrentWithResult", "doc": "Conditional UTF-8 replacement with opt-in input_write_completed delivery. Word a is the nonzero expected revision; b contains policies in bits 0-1 and a nonzero caller request ID in bits 2-63. No result is delivered after resource removal or binding retirement." }
       ]
     },
     {
@@ -3046,6 +3107,7 @@
     }
   ],
   "controlEvents": [
+    { "id": 22, "name": "input_write_completed", "csharp": "Completed", "group": "input_write", "doc": "Opt-in conditional write result. Payload: u64 request ID (1..2^62-1), u32 input_write_outcome, zero u32 reserved, all little-endian. Revision is the nonzero native revision at decision time; flags are zero. Delivered after native borrows are released, while the event binding remains live." },
     { "id": 21, "name": "list_selection_requested", "csharp": "SelectionRequested", "group": "list", "doc": "Opt-in single-row selection request. Uses the List Activated payload and flag layout; selection and presentation remain application-owned." },
     { "id": 20, "name": "list_activated", "csharp": "Activated", "group": "list", "doc": "Opt-in row activation. Data is 16 little-endian bytes: u32 index, zero u32 reserved, u64 ItemId (zero when absent). Flags bit 0 selects keyboard instead of pointer, bit 1 indicates a datasource content revision in revision; all other bits are zero. Without bit 1, revision is zero." },
     { "id": 1, "name": "input_changed", "csharp": "Changed", "group": "input", "doc": "The input value changed." },

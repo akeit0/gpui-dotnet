@@ -35,6 +35,8 @@ namespace Gpui.Interop
 
     internal enum OpCode : ushort
     {
+        AccessibleName = 900,
+        AccessibleDescription = 901,
         Flex = 1,
         VStack = 2,
         ItemsCenter = 3,
@@ -136,6 +138,7 @@ namespace Gpui.Interop
         ListAlignment = 314,
         ListEstimatedItemHeightPx = 315,
         ListContentRevision = 316,
+        ListProjectionRevision = 328,
         ListItemId = 317,
         ListOnActivated = 323,
         ListOnSelectionRequested = 324,
@@ -145,6 +148,7 @@ namespace Gpui.Interop
         InputReadOnly = 501,
         InputPassword = 502,
         InputOnChanged = 503,
+        InputOnWriteCompleted = 509,
         InputOnSubmitted = 504,
         InputOnFocusChanged = 505,
         InputPlaceholderRgba = 506,
@@ -348,6 +352,8 @@ namespace Gpui.Interop
         InputSelectAll = 23,
         /// <summary>Replaces UTF-8 data without events only when a matches the nonzero native revision. Word b packs input_selection_policy in bit 0 and input_composition_policy in bit 1; other bits are reserved zero. Identical normalized values preserve editing state.</summary>
         InputSetValueIfCurrent = 24,
+        /// <summary>Conditional UTF-8 replacement with opt-in input_write_completed delivery. Word a is the nonzero expected revision; b contains policies in bits 0-1 and a nonzero caller request ID in bits 2-63. No result is delivered after resource removal or binding retirement.</summary>
+        InputSetValueIfCurrentWithResult = 25,
         /// <summary>Sets the slider value without emitting events.</summary>
         SliderSetValue = 30,
         /// <summary>Removes a panel natively and fires the closed event.</summary>
@@ -363,7 +369,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x0D37FE0340E554AFUL;
+        internal const ulong SchemaHash = 0x65632B31C14883FFUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -420,6 +426,8 @@ namespace Gpui.Interop
 
         internal static ValueKind? ExpectedValueKind(OpCode operation) => operation switch
         {
+            OpCode.AccessibleName => ValueKind.Data,
+            OpCode.AccessibleDescription => ValueKind.Data,
             OpCode.Flex => ValueKind.None,
             OpCode.VStack => ValueKind.None,
             OpCode.ItemsCenter => ValueKind.None,
@@ -521,6 +529,7 @@ namespace Gpui.Interop
             OpCode.ListAlignment => ValueKind.U32,
             OpCode.ListEstimatedItemHeightPx => ValueKind.F32,
             OpCode.ListContentRevision => ValueKind.U64,
+            OpCode.ListProjectionRevision => ValueKind.U64,
             OpCode.ListItemId => ValueKind.U64,
             OpCode.ListOnActivated => ValueKind.Callback,
             OpCode.ListOnSelectionRequested => ValueKind.Callback,
@@ -530,6 +539,7 @@ namespace Gpui.Interop
             OpCode.InputReadOnly => ValueKind.U32,
             OpCode.InputPassword => ValueKind.U32,
             OpCode.InputOnChanged => ValueKind.Callback,
+            OpCode.InputOnWriteCompleted => ValueKind.Callback,
             OpCode.InputOnSubmitted => ValueKind.Callback,
             OpCode.InputOnFocusChanged => ValueKind.Callback,
             OpCode.InputPlaceholderRgba => ValueKind.U32,
@@ -692,22 +702,22 @@ namespace Gpui.Interop
         {
             ComponentId.Div => 0x0000000010002007UL,
             ComponentId.Text => 0x0000000000000001UL,
-            ComponentId.Button => 0x000000001000202BUL,
-            ComponentId.Checkbox => 0x000000001000003BUL,
-            ComponentId.Radio => 0x000000001000003BUL,
+            ComponentId.Button => 0x000000003000202BUL,
+            ComponentId.Checkbox => 0x000000003000003BUL,
+            ComponentId.Radio => 0x000000003000003BUL,
             ComponentId.Badge => 0x0000000000000003UL,
             ComponentId.Divider => 0x0000000000000001UL,
             ComponentId.Spacer => 0x0000000000000001UL,
             ComponentId.Scroll => 0x00000000000000C7UL,
             ComponentId.List => 0x0000000000000141UL,
             ComponentId.Image => 0x0000000000000201UL,
-            ComponentId.Input => 0x0000000000000441UL,
+            ComponentId.Input => 0x0000000020000441UL,
             ComponentId.Overlay => 0x0000000000000842UL,
             ComponentId.Tooltip => 0x0000000000001042UL,
             ComponentId.ContextMenu => 0x0000000000004043UL,
             ComponentId.PopoverMenu => 0x0000000000008043UL,
             ComponentId.Table => 0x0000000000010143UL,
-            ComponentId.Slider => 0x0000000000020041UL,
+            ComponentId.Slider => 0x0000000020020041UL,
             ComponentId.Drawing => 0x0000000000040003UL,
             ComponentId.Path => 0x0000000000080000UL,
             ComponentId.Dynamic => 0x0000000000100042UL,
@@ -722,6 +732,8 @@ namespace Gpui.Interop
 
         private static ulong RequiredCapability(OpCode operation) => operation switch
         {
+            OpCode.AccessibleName => 0x0000000020000000UL,
+            OpCode.AccessibleDescription => 0x0000000020000000UL,
             OpCode.Flex => 0x0000000000000004UL,
             OpCode.VStack => 0x0000000000000004UL,
             OpCode.ItemsCenter => 0x0000000000000001UL,
@@ -823,6 +835,7 @@ namespace Gpui.Interop
             OpCode.ListAlignment => 0x0000000000000100UL,
             OpCode.ListEstimatedItemHeightPx => 0x0000000000000100UL,
             OpCode.ListContentRevision => 0x0000000000000100UL,
+            OpCode.ListProjectionRevision => 0x0000000000000100UL,
             OpCode.ListItemId => 0x0000000000000001UL,
             OpCode.ListOnActivated => 0x0000000000000100UL,
             OpCode.ListOnSelectionRequested => 0x0000000000000100UL,
@@ -832,6 +845,7 @@ namespace Gpui.Interop
             OpCode.InputReadOnly => 0x0000000000000400UL,
             OpCode.InputPassword => 0x0000000000000400UL,
             OpCode.InputOnChanged => 0x0000000000000400UL,
+            OpCode.InputOnWriteCompleted => 0x0000000000000400UL,
             OpCode.InputOnSubmitted => 0x0000000000000400UL,
             OpCode.InputOnFocusChanged => 0x0000000000000400UL,
             OpCode.InputPlaceholderRgba => 0x0000000000000400UL,

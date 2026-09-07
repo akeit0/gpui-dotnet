@@ -40,15 +40,26 @@ public enum ListAlignment : uint
 /// </summary>
 public readonly struct ListDataSource
 {
-    public ListDataSource(int count, ulong contentRevision)
+    public ListDataSource(int count, ulong contentRevision) : this(count, contentRevision, null) { }
+
+    public ListDataSource(int count, ulong contentRevision, ulong? projectionRevision)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
         Count = count;
         ContentRevision = contentRevision;
+        ProjectionRevision = projectionRevision;
     }
 
     public int Count { get; }
     public ulong ContentRevision { get; }
+
+    /// <summary>
+    /// Optional identity/order stamp. Changing it resets cursor, scrolling, measurements, and
+    /// cached rows when the declaration is accepted, overriding queued positional hints.
+    /// Keep it stable for content-only edits and valid Splice sequences. Adding or removing
+    /// the stamp also resets an existing resource; zero is a valid stamp.
+    /// </summary>
+    public ulong? ProjectionRevision { get; }
 }
 
 /// <summary>

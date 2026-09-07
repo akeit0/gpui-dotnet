@@ -210,6 +210,41 @@ public sealed class SemanticRenderTests
     }
 
     [Fact]
+    public void AccessibleMetadataSupportsSemanticControlsAndBothTextEncodings()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var root = ui.Div(
+                ui.Button("save").AccessibleName("Save").AccessibleDescription("Save changes"u8),
+                ui.Checkbox("check").AccessibleName("Remember me"u8).AccessibleDescription("Keep this session"),
+                ui.Radio("radio").AccessibleName("Standard"),
+                ui.Input("account", new InputOptions()).AccessibleName("Account"),
+                ui.Slider("volume", new SliderOptions()).AccessibleName("Old").AccessibleName("音量"u8)
+                    .AccessibleDescription("Playback volume"));
+            arena.Validate(root);
+            Assert.Equal("音量", ReadDataOp(arena, OpCode.AccessibleName));
+            Assert.Equal("Playback volume", ReadDataOp(arena, OpCode.AccessibleDescription));
+        }
+        finally { view.Runtime.UnmountRuntime(); }
+    }
+
+    [Fact]
+    public void AccessibleMetadataRejectsEmptyDeclarations()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var button = ui.Button("save");
+        Assert.Throws<ArgumentException>(() => button.AccessibleName(string.Empty));
+        Assert.Throws<ArgumentException>(() => button.AccessibleName(ReadOnlySpan<byte>.Empty));
+        Assert.Throws<ArgumentException>(() => button.AccessibleDescription(string.Empty));
+        Assert.Throws<ArgumentException>(() => button.AccessibleDescription(ReadOnlySpan<byte>.Empty));
+    }
+
+    [Fact]
     public void FontListsPassManagedValidation()
     {
         using var arena = new RenderArenaOwner();
@@ -1064,6 +1099,41 @@ public sealed class SemanticRenderTests
         {
             view.Runtime.UnmountRuntime();
         }
+    }
+
+    [Theory]
+    [InlineData(false, false, null)]
+    [InlineData(false, false, 0UL)]
+    [InlineData(false, true, ulong.MaxValue)]
+    [InlineData(true, false, null)]
+    [InlineData(true, false, 0UL)]
+    [InlineData(true, true, ulong.MaxValue)]
+    public unsafe void CollectionProjectionRevisionPreservesOptionalU64(bool table, bool bound, ulong? projection)
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var source = new ListDataSource(10, 1, projection);
+            ListController controller = default;
+            Element element = table
+                ? bound
+                    ? ui.Table(ref controller, source, view.Row, new TableColumn("name", "Name", 120))
+                    : ui.Table("grid", source, view.Row, new TableColumn("name", "Name", 120))
+                : bound
+                    ? ui.List(ref controller, source, view.Row)
+                    : ui.List("rows", source, view.Row);
+            arena.Validate(element);
+            var ops = new ReadOnlySpan<OpRecord>(arena.NativeArena->Ops, arena.NativeArena->OpLength)
+                .ToArray().Where(op => op.Code == (ushort)OpCode.ListProjectionRevision).ToArray();
+            if (projection.HasValue)
+                Assert.Equal(projection.Value, Assert.Single(ops).A);
+            else
+                Assert.Empty(ops);
+        }
+        finally { view.Runtime.UnmountRuntime(); }
     }
 
     [Fact]

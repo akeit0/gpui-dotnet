@@ -10,6 +10,9 @@ internal sealed partial class InputGalleryView : View
     private bool _customSliderStyle = true;
     private string _value = "Type in the first field";
     private string _lastEvent = "No input event yet";
+    private ulong _lastInputRevision;
+    private ulong _writeRequest;
+    private string _lastWrite = "Edit or focus the first field, then try a conditional write.";
     private string _lastSliderEvent = "No slider event yet";
     private float _volumeValue = 40;
 
@@ -20,12 +23,15 @@ internal sealed partial class InputGalleryView : View
             ref ui,
             "Interactive + UTF-8 events",
             ui.Input(ref _search, new Utf8InputOptions(placeholder: "Search or enter 日本語…"u8))
+                .AccessibleName("Search")
+                .AccessibleDescription(_invalid ? "Enter at most 24 characters." : "Search using any language.")
                 .Style(SampleStyles.Input(theme, _invalid))
                 .OnChanged(
                     this,
                     (view, input) =>
                     {
                         view._value = input.Value;
+                        view._lastInputRevision = input.Revision;
                         view._invalid = input.Value.Length > 24;
                         view._lastEvent =
                             $"Changed · revision {input.Revision} · {input.Utf8Value.Length} UTF-8 bytes";
@@ -37,6 +43,7 @@ internal sealed partial class InputGalleryView : View
                     (view, input) =>
                     {
                         view._lastEvent = $"Submitted “{input.Value}” · revision {input.Revision}";
+                        view._lastInputRevision = input.Revision;
                         view.Invalidate();
                     }
                 )
@@ -45,9 +52,15 @@ internal sealed partial class InputGalleryView : View
                     (view, input) =>
                     {
                         view._lastEvent = input.IsFocused ? "Focused" : "Blurred";
+                        view._lastInputRevision = input.Revision;
                         view.Invalidate();
                     }
                 )
+                .OnWriteCompleted(this, static (view, result) =>
+                {
+                    view._lastWrite = $"Write #{result.RequestId}: {result.Outcome} · revision {result.Revision}";
+                    view.Invalidate();
+                })
                 .Width(Percent(100)),
             _invalid ? "Use at most 24 characters." : "Select text to preview the custom selection color.",
             _invalid
@@ -121,11 +134,18 @@ internal sealed partial class InputGalleryView : View
                     .Padding(Px(8)),
                 ui.Button("clear-search", "Clear")
                     .OnClick(this, (view, _) => view._search.SetValue(ReadOnlySpan<byte>.Empty))
+                    .Padding(Px(8)),
+                ui.Button("conditional-write", "Write at last event revision")
+                    .Disabled(_lastInputRevision == 0)
+                    .OnClick(this, static (view, _) =>
+                        view._search.SetValueIfCurrentWithResult("Conditional write"u8,
+                            view._lastInputRevision, checked(++view._writeRequest)))
                     .Padding(Px(8))
             )
             .Gap(Px(8));
 
         return ui.VStack(
+                ui.Text(_lastWrite).TextColor(theme.Colors.TextMuted),
                 ui.Text(
                         "Editing and pointer/keyboard state stay in Rust. Managed callbacks are opt-in."u8
                     )

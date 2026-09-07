@@ -33,6 +33,24 @@ when interaction state must survive independently from managed renders.
 
 ## Styling
 
+Button, Checkbox, Radio, Input, and Slider accept `AccessibleName(...)` and
+`AccessibleDescription(...)` in UTF-16 or UTF-8. These declarations set the name and supplementary
+help on the native interactive control; they do not create visible labels or additional wrapper
+accessibility nodes. For example:
+
+```csharp
+ui.Input("account", new InputOptions())
+    .AccessibleName("Account name")
+    .AccessibleDescription("Use the name shown on your account");
+```
+
+Explicit names override Button/Checkbox/Radio descendant-text inference, including in virtual
+rows. Input and Slider do not infer names from placeholders or values. Declarations must be nonempty,
+and the last declaration wins. Omit a declaration in a later snapshot to remove it (restoring text
+inference where applicable). Updating retained control metadata preserves native values, selection,
+composition, focus, and interaction state. Descriptions are resolved text, not references to other
+elements; label/help/error relationships and platform screen-reader verification remain open work.
+
 Styled elements support the generated fluent operations declared by `bindings/schema.json`,
 including layout, dimensions, uniform and per-side/axis margins, padding, and gaps, min/max
 sizes, flex basis/shrink/wrap, container and self alignment, relative/absolute positioning with
@@ -47,9 +65,8 @@ The application theme supplies semantic tokens:
 ```csharp
 var card = ui.VStack(content)
     .Padding(Px(16))
-    .Background(ui.Theme.Colors.SurfaceBackground)
-    .BorderColor(ui.Theme.Colors.BorderVariant)
-    .TextColor(ui.Theme.Colors.Text);
+    .Surface(new(ui.Theme.Colors.SurfaceBackground, ui.Theme.Colors.Text))
+    .BorderColor(ui.Theme.Colors.BorderVariant);
 ```
 
 Native controls receive a resolved subset of the same theme. Product variants remain in the
@@ -61,15 +78,29 @@ internal readonly record struct PrimaryButtonStyle(GpuiTheme Theme)
 {
     public Element<ButtonTag> Apply(Element<ButtonTag> button) =>
         button
-            .Background(Theme.Colors.Accent)
-            .HoverBackground(Theme.Colors.AccentHover)
-            .ActiveBackground(Theme.Colors.AccentActive)
-            .TextColor(Theme.Colors.TextOnAccent);
+            .Paint(new InteractionColors(
+                new(Theme.Colors.Accent, Theme.Colors.TextOnAccent),
+                new(Theme.Colors.AccentHover, Theme.Colors.TextOnAccent),
+                new(Theme.Colors.AccentActive, Theme.Colors.TextOnAccent)));
 }
 ```
 
 `.Style(value)` invokes the typed recipe and returns the normal element builder. A later fluent call
 can override a value. Do not add application variant enums or style objects to the native ABI.
+
+`SurfaceColors` and `InteractionColors` pair backgrounds with inherited foregrounds. `Surface`
+and `Paint` write existing operations; no additional schema or native state is needed. `Paint`
+declares every state's foreground explicitly, so a subsequent `TextColor` overrides only the
+normal state. See [Styling](STYLING.md) for the full contract and current inheritance limits.
+
+Composite control recipes should resolve their backgrounds and content colors together. Let primary
+content inherit the control's text color. If a child needs secondary emphasis, expose a typed child
+style from the same resolved recipe, as TaskBoard's `BoardButtonStyle.SecondaryContent` does. A
+global `TextMuted` color is not necessarily readable on a selected or pressed background. Secondary
+content can share the primary foreground on accent surfaces; do not assume reduced opacity or a
+muted color is always appropriate. Verify both foregrounds against normal, hover, and active
+backgrounds in each supported application theme. These are application-owned style decisions;
+explicit child colors still override inheritance and are not automatically recolored by GPUI.
 
 Native component defaults are applied before explicit operations. Operations affecting the same
 property apply in declaration order, including pixel and percentage forms. For ordinary growing
@@ -267,6 +298,12 @@ normal View event boundary after native resource borrows are released.
 Keep `contentRevision` stable when a managed render cannot change any row output. Increment it when
 row content, styling, or height can change. Theme changes invalidate batches automatically.
 
+The revision must also cover filter and sort inputs: changing to a different projection with
+the same item count still requires invalidation. Refreshing a range does not recompute a managed
+memo or replace immutable records held by a row source. Update that source before issuing a
+targeted refresh. `RefreshRanges` invalidates the owning View, not other store subscribers; Rust
+discards intersecting cached batches and remeasures the affected items, not necessarily one row.
+
 Native adapters that use `gpui-base` read the same application theme through the projected global
 foundation theme. Product variants still flatten into semantic operations; they do not become
 foundation theme types or cross the ABI.
@@ -281,6 +318,9 @@ Row renderer restrictions:
 
 Declare `.ItemId(id)` on a row root when interactive state should survive structural splices. ID
 zero is reserved. An `OnClick` binding without an explicit payload receives that model ID.
+
+Child element keys are scoped beneath their row root, so row-local keys such as `"like"` may
+repeat across distinct rows. Use stable row identity and event payloads for application actions.
 
 `ListController` supports `ScrollToItem`, `Refresh`, `RefreshRanges`, `Splice`, and `Reset`.
 Structural commands preserve unaffected measurements and row batches when their declared result
@@ -298,6 +338,15 @@ declaration cannot change the new cursor before the next paint.
 index. Native cursor preservation follows valid splices and does not search unseen rows for a moved
 ID. Use `Reset` for arbitrary reorder/replacement whose identity cannot be expressed by surviving
 splice ranges. A remove-then-insert sequence treats the removed active item as deleted.
+
+For declarative projection replacement, pass `projectionRevision` as the optional third argument
+to `ListDataSource(count, contentRevision, projectionRevision)`. Changing this stamp resets cursor,
+scroll position, measurements, and row batches in the same accepted snapshot, even when count and
+content revision are unchanged. Adding or removing the stamp also resets an existing resource;
+zero is valid. Omission preserves the existing command-based contract. A projection change
+overrides all queued positional commands, including splices and scroll requests for the old order.
+Keep the stamp stable for content-only edits and identity changes described by valid splices.
+Applications own the stamp and model selection; native code does not build an ID-to-index map.
 
 ## Retained Table
 
@@ -347,6 +396,8 @@ Div children.
 Bindings are opt-in: `OnChanged`, `OnSubmitted`, and `OnFocusChanged`. Without a binding, native
 editing does not cross into managed code. `Utf8InputOptions`, `InputEvent.Utf8Value`, and UTF-8
 controller overloads avoid unnecessary UTF-16 allocation. `InputEvent.Value` decodes lazily.
+Password inputs reject Copy and Cut without changing the clipboard, value, or selection.
+Paste and ordinary editing remain available subject to disabled and read-only settings.
 
 `InputController` supports `Focus`, `Blur`, `SelectAll`, `SetValue`, and `SetValueIfCurrent`.
 The declarative initial value is consumed only when the native keyed resource is created.
@@ -364,6 +415,24 @@ to the end. `InputCompositionPolicy.CancelComposition` explicitly permits a chan
 composition. Identical normalized values preserve editing state regardless of these policies.
 Queueing is not confirmation that the replacement applied, and replacements emit no change event.
 Use the next native event's revision for subsequent conditional work.
+
+For an observable decision, bind `.OnWriteCompleted(this, static (view, result) => ...)` and call
+`controller.SetValueIfCurrentWithResult(value, expectedRevision, requestId)`. The UTF-8 overload
+uses the same policies. Request IDs are application-owned values from 1 through `2^62 - 1`;
+use distinct IDs for outstanding requests. `InputWriteResult` contains `RequestId`, `Outcome`,
+and the native `Revision` at decision time, with no text payload:
+
+- `Applied`: the value changed and the native revision advanced.
+- `Unchanged`: normalized text matched; selection, scrolling, and composition were preserved.
+- `Stale`: the expected revision did not match; no editing state changed.
+- `Composing`: the revision matched but composition policy rejected the write.
+
+Revision checking precedes composition checking; `Unchanged` requires both checks to allow the
+write. The result is delivered after native borrows are released. Further edits can occur before
+delivery, so the result revision is not a guarantee of current state. These are ordinary live
+View-bound events, not guaranteed task completions: resource removal, rebinding, or owner retirement
+can drop delivery. With no binding the write still executes, without a callback. Existing
+`SetValue` and `SetValueIfCurrent` remain silent. The Input gallery demonstrates reporting results.
 
 Revisions are nonzero opaque tokens, not edit counts. They change for controller writes, IME content
 and composition transitions, and resource recreation; caret movement and focus do not change them.
@@ -386,7 +455,8 @@ logarithmic mapping, bounds, and step size. GPUI owns pointer drag and keyboard 
 
 `OnChanged` fires for value changes; `OnReleased` marks the end of a pointer or keyboard
 interaction. `SliderController.SetValue` updates retained native state without synthesizing an
-interaction event.
+interaction event, including while disabled. Disabled state blocks user interaction, not
+programmatic synchronization.
 
 `TrackColor`, `FillColor`, `ThumbColor`, and `ThumbBorderColor` customize the retained parts through
 `IGpuiElementStyle<SliderTag>` recipes. Omitted colors resolve from the current theme: border variant
@@ -479,6 +549,10 @@ GPUI.NET retains tooltip timing, menu-group switching, overlay placement and bac
 priority arbitration, topmost dismissal guards, and managed dismissal callback routing. The
 foundation Sheet host couples Escape and backdrop closing and does not expose the independent
 semantic options or ordering needed by the generic Overlay contract.
+Overlay registrations use non-reused window-local sequence numbers. Deferred focus and dismissal
+callbacks from an earlier frame cannot act on a newly registered layer with the same key.
+An unfulfilled initial focus request remains pending until a current topmost registration can
+deliver it.
 
 ## Window chrome
 

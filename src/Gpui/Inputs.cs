@@ -4,6 +4,12 @@ using Gpui.Interop;
 
 namespace Gpui;
 
+/// <summary>
+/// Result of an opt-in conditional write. Revision describes native state at the decision,
+/// not necessarily at delivery. RequestId is supplied by the caller; no input text is included.
+/// </summary>
+public readonly record struct InputWriteResult(ulong RequestId, InputWriteOutcome Outcome, ulong Revision);
+
 /// <summary>Initial configuration for a retained native single-line input.</summary>
 public readonly struct InputOptions
 {
@@ -249,6 +255,42 @@ public readonly struct InputController
             throw new ArgumentOutOfRangeException(nameof(composition));
         }
         return (ulong)selection | ((ulong)composition << 1);
+    }
+
+    /// <summary>
+    /// Queues a conditional write and reports its decision through the input's OnWriteCompleted
+    /// binding. Request IDs must be 1..2^62-1; use distinct IDs for outstanding writes. Delivery
+    /// is not guaranteed after resource removal, event rebinding, or owner retirement.
+    /// </summary>
+    public void SetValueIfCurrentWithResult(
+        string value, ulong expectedRevision, ulong requestId,
+        InputSelectionPolicy selection = InputSelectionPolicy.Preserve,
+        InputCompositionPolicy composition = InputCompositionPolicy.RejectWhileComposing)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        var packed = PackWriteRequest(expectedRevision, requestId, selection, composition);
+        Owner.Runtime.DispatchResourceCommand(new ResourceCommand(
+            ResourceKind.Input, ResourceCommandKind.InputSetValueIfCurrentWithResult,
+            null, expectedRevision, packed, value, Utf8KeyArray));
+    }
+
+    /// <summary>UTF-8 form of the opt-in conditional write. Bytes are copied before return.</summary>
+    public void SetValueIfCurrentWithResult(
+        ReadOnlySpan<byte> utf8Value, ulong expectedRevision, ulong requestId,
+        InputSelectionPolicy selection = InputSelectionPolicy.Preserve,
+        InputCompositionPolicy composition = InputCompositionPolicy.RejectWhileComposing)
+    {
+        var packed = PackWriteRequest(expectedRevision, requestId, selection, composition);
+        Owner.Runtime.DispatchUtf8InputValue(Utf8KeyArray, utf8Value,
+            ResourceCommandKind.InputSetValueIfCurrentWithResult, expectedRevision, packed);
+    }
+
+    private static ulong PackWriteRequest(ulong revision, ulong requestId,
+        InputSelectionPolicy selection, InputCompositionPolicy composition)
+    {
+        ArgumentOutOfRangeException.ThrowIfZero(requestId);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(requestId, ulong.MaxValue >> 2);
+        return (requestId << 2) | ValidateReplacement(revision, selection, composition);
     }
 
     private void Dispatch(ResourceCommandKind command) =>

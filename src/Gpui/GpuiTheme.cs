@@ -218,7 +218,7 @@ public sealed class GpuiThemeColors
                 TextOnAccent = Colors.Hex("#0F172A"),
                 Accent = Colors.Hex("#818CF8"),
                 AccentHover = Colors.Hex("#A5B4FC"),
-                AccentActive = Colors.Hex("#6366F1"),
+                AccentActive = Colors.Hex("#7578F5"),
                 Icon = Colors.Hex("#E2E8F0"),
                 IconMuted = Colors.Hex("#94A3B8"),
                 IconDisabled = Colors.Hex("#64748B"),

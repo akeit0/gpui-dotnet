@@ -29,6 +29,13 @@ The direct `gpui` dependency deliberately uses the same Git source declaration a
 crates/gpui-dotnet/Cargo.toml --invert gpui` must resolve without an ambiguous package error; this
 guards against incompatible GPUI type universes.
 
+Consume GPUI itself unmodified; this repository does not maintain a Zed/GPUI fork or patch
+Cargo's cached sources. When a missing GPUI capability has a reusable native use case, document
+the limitation and an upstream proposal, then adopt it only through a validated upstream
+revision. The [content-color proposal](proposals/GPUI_CONTENT_COLORS.md) records the current
+single-foreground limitation and the requirements for contextual roles. GPUI Kit's separate,
+narrowly scoped fork policy below remains unchanged.
+
 ## Downstream patches
 
 | Patch | Reason | Upstream status |

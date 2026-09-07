@@ -22,7 +22,7 @@ use crate::{
         NativeExtensionEventEmitter, NativeExtensionRequest, declaration as extension_declaration,
         provider as extension_provider,
     },
-    overlay::OverlayKind,
+    overlay::{OverlayKind, OverlayStack, OverlayToken},
     popover_menu::{PopoverMenuConfiguration, popover_menu},
     presentation,
     resources::{
@@ -322,6 +322,7 @@ impl ManagedView {
             disabled,
             theme,
         );
+        element = crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
         if let Some(label) = accessibility_label(node, snapshot) {
             element = element.accessibility_label(label);
         }
@@ -378,6 +379,7 @@ impl ManagedView {
             disabled,
             theme,
         );
+        element = crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
         if let Some(label) = accessibility_label(node, snapshot) {
             element = element.accessibility_label(label);
         }
@@ -434,6 +436,7 @@ impl ManagedView {
             disabled,
             theme,
         );
+        element = crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
         if let Some(label) = accessibility_label(node, snapshot) {
             element = element.accessibility_label(label);
         }
@@ -871,12 +874,14 @@ impl ManagedView {
             modal || (dismiss_token != 0 && dismiss_on_escape),
         );
         if focus_state.read(cx).focus_pending {
-            focus_state.update(cx, |state, _| state.focus_pending = false);
             let deferred_focus = focus.clone();
             let deferred_focus_state = overlay_stack.clone();
             let deferred_focus_token = overlay_token.clone();
+            let pending_focus_state = focus_state.clone();
             window.defer(cx, move |window, cx| {
-                if !deferred_focus_state.is_topmost(&deferred_focus_token) {
+                if !pending_focus_state.update(cx, |state, _| {
+                    state.take_pending_focus(&deferred_focus_state, &deferred_focus_token)
+                }) {
                     return;
                 }
                 deferred_focus.focus(window, cx);
@@ -1103,6 +1108,17 @@ struct OverlayFocusState {
     focus_pending: bool,
 }
 
+impl OverlayFocusState {
+    fn take_pending_focus(&mut self, stack: &OverlayStack, token: &OverlayToken) -> bool {
+        if !self.focus_pending || !stack.is_topmost(token) {
+            return false;
+        }
+        // A superseded frame leaves the request pending for its successor.
+        self.focus_pending = false;
+        true
+    }
+}
+
 fn place_overlay(element: gpui::Div, placement: u32) -> gpui::Div {
     match placement {
         1 => element.items_start().justify_center(),
@@ -1317,6 +1333,8 @@ fn materialize_detached_foundation_control(
     Some(match adapter {
         NativeAdapter::Button => {
             let mut element = components::button(element_id, disabled, theme);
+            element =
+                crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
             if let Some(label) = label {
                 element = element.accessibility_label(label);
             }
@@ -1344,6 +1362,8 @@ fn materialize_detached_foundation_control(
         NativeAdapter::Checkbox => {
             let checked = components::has_u32_flag(node, snapshot, OP_CHECKED);
             let mut element = components::checkbox(element_id, checked, disabled, theme);
+            element =
+                crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
             if let Some(label) = label {
                 element = element.accessibility_label(label);
             }
@@ -1370,6 +1390,8 @@ fn materialize_detached_foundation_control(
         NativeAdapter::Radio => {
             let checked = components::has_u32_flag(node, snapshot, OP_CHECKED);
             let mut element = components::radio(element_id, checked, disabled, theme);
+            element =
+                crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
             if let Some(label) = label {
                 element = element.accessibility_label(label);
             }
@@ -1437,6 +1459,9 @@ fn use_default_cursor(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> bool
 }
 
 fn accessibility_label(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> Option<SharedString> {
+    if let Some(name) = snapshot.last_data_op(node, crate::semantic::OP_ACCESSIBLE_NAME) {
+        return Some(name);
+    }
     let mut label = String::new();
     append_accessibility_text(node, snapshot, &mut label);
     (!label.is_empty()).then(|| SharedString::from(label))
@@ -3164,6 +3189,36 @@ mod tests {
         ResourceKey::new(4, "service-grid".into())
     }
 
+    #[gpui::test]
+    fn overlay_focus_request_survives_superseded_and_shadowed_registrations(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        cx.update(|cx| {
+            let mut state = OverlayFocusState {
+                focus: cx.focus_handle(),
+                previous_focus: None,
+                focus_pending: true,
+            };
+            let stack = OverlayStack::default();
+            let old = stack.register(key(), OverlayKind::Overlay, 10, true);
+            stack.begin_frame();
+            let current = stack.register(key(), OverlayKind::Overlay, 10, true);
+            assert!(!state.take_pending_focus(&stack, &old));
+            assert!(state.focus_pending);
+            let menu = stack.register(
+                ResourceKey::new(4, "menu".into()),
+                OverlayKind::PopoverMenu,
+                20,
+                true,
+            );
+            assert!(!state.take_pending_focus(&stack, &current));
+            assert!(state.focus_pending);
+            stack.set_captures_input(&menu, false);
+            assert!(state.take_pending_focus(&stack, &current));
+            assert!(!state.take_pending_focus(&stack, &current));
+        });
+    }
+
     fn inert_callbacks() -> ManagedCallbacks {
         ManagedCallbacks {
             struct_size: 0,
@@ -3331,6 +3386,117 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[gpui::test]
+    fn paired_foregrounds_reach_nested_text_paint_and_preserve_literal_children(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        use std::{cell::Cell, rc::Rc};
+
+        fn text_probe(observed: Rc<Cell<Hsla>>) -> impl IntoElement {
+            canvas(
+                |_, window, _| {
+                    let run = window.text_style().to_run(4);
+                    let color = run.color;
+                    let line =
+                        window
+                            .text_system()
+                            .shape_line("text".into(), px(14.), &[run], None);
+                    (color, line)
+                },
+                move |bounds, (color, line), window, cx| {
+                    line.paint(bounds.origin, px(20.), TextAlign::Left, None, window, cx)
+                        .unwrap();
+                    observed.set(color);
+                },
+            )
+            .w(px(60.))
+            .h(px(20.))
+        }
+
+        struct PaintProbe {
+            snapshot: ValidatedSnapshot,
+            inherited: Rc<Cell<Hsla>>,
+            literal: Rc<Cell<Hsla>>,
+            disabled: bool,
+        }
+        impl gpui::Render for PaintProbe {
+            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+                let theme = NativeTheme::default();
+                let node = &self.snapshot.nodes[0];
+                let button = components::button("paired-paint".into(), self.disabled, theme)
+                    .w(px(200.))
+                    .h(px(80.))
+                    .on_click(|_, _, _| {})
+                    .child(div().child(div().child(text_probe(self.inherited.clone()))))
+                    .child(
+                        div()
+                            .text_color(rgba(0x998877FF))
+                            .child(text_probe(self.literal.clone())),
+                    );
+                let mut button = apply_styles(button, node, &self.snapshot);
+                if !self.disabled {
+                    button = apply_interaction_styles(button, node, &self.snapshot, theme);
+                }
+                presentation::disabled(button, self.disabled)
+            }
+        }
+
+        let inherited = Rc::new(Cell::new(Hsla::default()));
+        let literal = Rc::new(Cell::new(Hsla::default()));
+        let mut ops = [
+            (OP_BACKGROUND_RGBA, 0x112233FF),
+            (OP_TEXT_RGBA, 0xAABBCCFF),
+            (OP_HOVER_BACKGROUND_RGBA, 0x223344FF),
+            (OP_HOVER_TEXT_RGBA, 0xBBCCDDFF),
+            (OP_ACTIVE_BACKGROUND_RGBA, 0x334455FF),
+            (OP_ACTIVE_TEXT_RGBA, 0xCCDDEEFF),
+        ]
+        .map(|(code, a)| OpRecord {
+            code,
+            a,
+            value_kind: ValueKind::U32 as u16,
+            ..Default::default()
+        });
+        let (view, cx) = cx.add_window_view(|_, _| PaintProbe {
+            snapshot: style_snapshot(COMPONENT_BUTTON, "paired-paint", &mut ops),
+            inherited: inherited.clone(),
+            literal: literal.clone(),
+            disabled: false,
+        });
+        cx.simulate_resize(gpui::size(px(320.), px(160.)));
+        let outside = point(px(300.), px(140.));
+        let inside = point(px(100.), px(40.));
+        let assert_colors = |color| {
+            assert_eq!(inherited.get(), rgba(color).into());
+            assert_eq!(literal.get(), rgba(0x998877FF).into());
+        };
+        cx.simulate_mouse_move(outside, None, gpui::Modifiers::none());
+        assert_colors(0xAABBCCFF);
+        cx.simulate_mouse_move(inside, None, gpui::Modifiers::none());
+        assert_colors(0xBBCCDDFF);
+        cx.simulate_mouse_down(inside, MouseButton::Left, gpui::Modifiers::none());
+        assert_colors(0xCCDDEEFF);
+        cx.simulate_mouse_move(outside, MouseButton::Left, gpui::Modifiers::none());
+        cx.simulate_mouse_up(outside, MouseButton::Left, gpui::Modifiers::none());
+        assert_colors(0xAABBCCFF);
+
+        view.update(cx, |view, cx| {
+            view.disabled = true;
+            cx.notify();
+        });
+        cx.simulate_mouse_move(inside, None, gpui::Modifiers::none());
+        cx.simulate_mouse_down(inside, MouseButton::Left, gpui::Modifiers::none());
+        assert_colors(0xAABBCCFF);
+        cx.simulate_mouse_up(inside, MouseButton::Left, gpui::Modifiers::none());
+
+        view.update(cx, |view, cx| {
+            view.snapshot = style_snapshot(COMPONENT_BUTTON, "paired-paint", &mut []);
+            cx.notify();
+        });
+        cx.update(|window, _| window.refresh());
+        assert_colors(NativeTheme::default().text);
     }
 
     #[gpui::test]
@@ -3811,6 +3977,27 @@ mod tests {
             accessibility_label(&snapshot.nodes[0], &snapshot).as_deref(),
             Some("Hello")
         );
+    }
+
+    #[test]
+    fn explicit_accessible_name_overrides_visible_text() {
+        use crate::native_workloads::WorkloadArena;
+        for component in [
+            COMPONENT_BUTTON,
+            crate::semantic::COMPONENT_CHECKBOX,
+            crate::semantic::COMPONENT_RADIO,
+        ] {
+            let mut arena = WorkloadArena::default();
+            let root = arena.node_with_data(component, None, "control");
+            arena.node_with_data(COMPONENT_TEXT, Some(root), "Visible");
+            arena.data_op(root, crate::semantic::OP_ACCESSIBLE_NAME, "First");
+            arena.data_op(root, crate::semantic::OP_ACCESSIBLE_NAME, "Explicit");
+            let snapshot = arena.decode();
+            assert_eq!(
+                accessibility_label(&snapshot.nodes[0], &snapshot).as_deref(),
+                Some("Explicit")
+            );
+        }
     }
 
     #[test]

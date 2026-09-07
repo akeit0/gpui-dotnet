@@ -21,8 +21,9 @@ use crate::{
     resources::ResourceCommand,
     semantic::{
         COMMAND_INPUT_BLUR, COMMAND_INPUT_FOCUS, COMMAND_INPUT_SELECT_ALL, COMMAND_INPUT_SET_VALUE,
-        COMMAND_INPUT_SET_VALUE_IF_CURRENT, EVENT_INPUT_CHANGED, EVENT_INPUT_FOCUS_CHANGED,
-        EVENT_INPUT_SUBMITTED,
+        COMMAND_INPUT_SET_VALUE_IF_CURRENT, COMMAND_INPUT_SET_VALUE_IF_CURRENT_WITH_RESULT,
+        EVENT_INPUT_CHANGED, EVENT_INPUT_FOCUS_CHANGED, EVENT_INPUT_SUBMITTED,
+        EVENT_INPUT_WRITE_COMPLETED,
     },
     theme::SharedTheme,
 };
@@ -69,10 +70,54 @@ pub(crate) struct InputBindings {
     pub(crate) changed: u64,
     pub(crate) submitted: u64,
     pub(crate) focus_changed: u64,
+    pub(crate) write_completed: u64,
 }
 
-#[derive(Clone, Copy, Default, PartialEq)]
+// Wire values are input_write_outcome in bindings/schema.json.
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum InputWriteOutcome {
+    Applied = 0,
+    Unchanged = 1,
+    Stale = 2,
+    Composing = 3,
+}
+
+pub(crate) struct InputWriteCompletion {
+    session_id: u64,
+    callbacks: ManagedCallbacks,
+    token: u64,
+    request_id: u64,
+    revision: u64,
+    outcome: InputWriteOutcome,
+}
+
+impl InputWriteCompletion {
+    pub(crate) fn emit(self) {
+        let mut data = [0u8; 16];
+        data[..8].copy_from_slice(&self.request_id.to_le_bytes());
+        data[8..12].copy_from_slice(&(self.outcome as u32).to_le_bytes());
+        let event = NativeControlEvent {
+            kind: EVENT_INPUT_WRITE_COMPLETED,
+            flags: 0,
+            reserved: 0,
+            revision: self.revision,
+            data: data.as_ptr(),
+            data_length: 16,
+            reserved2: 0,
+        };
+        let callback = self
+            .callbacks
+            .control_event
+            .expect("callbacks validated at startup");
+        let status = unsafe { callback(self.session_id, self.token, &event) };
+        crate::app_host::after_detached_callback(self.session_id, status);
+    }
+}
+
+#[derive(Clone, Default, PartialEq)]
 pub(crate) struct InputPresentation {
+    pub(crate) accessibility: crate::accessibility::Accessibility,
     pub(crate) placeholder: Option<u32>,
     pub(crate) caret: Option<u32>,
     pub(crate) selection: Option<u32>,
@@ -170,7 +215,8 @@ impl ManagedInput {
             || self.password != password
             || self.bindings.changed != bindings.changed
             || self.bindings.submitted != bindings.submitted
-            || self.bindings.focus_changed != bindings.focus_changed;
+            || self.bindings.focus_changed != bindings.focus_changed
+            || self.bindings.write_completed != bindings.write_completed;
         self.placeholder = placeholder;
         self.presentation = presentation;
         self.disabled = disabled;
@@ -195,11 +241,8 @@ impl ManagedInput {
             COMMAND_INPUT_FOCUS if !self.disabled => self.focus_handle.focus(window, cx),
             COMMAND_INPUT_BLUR if self.focus_handle.is_focused(window) => window.blur(cx),
             COMMAND_INPUT_SET_VALUE => self.set_value(command.data.as_ref(), cx),
-            COMMAND_INPUT_SET_VALUE_IF_CURRENT
-                if command.a == self.revision
-                    && (self.marked_range.is_none() || command.b & 2 != 0) =>
-            {
-                self.replace_value(command.data.as_ref(), command.b & 1 == 0, cx);
+            COMMAND_INPUT_SET_VALUE_IF_CURRENT => {
+                self.conditional_write(command, cx);
             }
             COMMAND_INPUT_SELECT_ALL if !self.disabled => {
                 self.selected_range = 0..self.content.len();
@@ -212,6 +255,47 @@ impl ManagedInput {
 
     fn set_value(&mut self, value: &str, cx: &mut Context<Self>) {
         self.replace_value(value, false, cx);
+    }
+
+    pub(crate) fn apply_command_with_result(
+        &mut self,
+        command: &ResourceCommand,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<InputWriteCompletion> {
+        if command.command != COMMAND_INPUT_SET_VALUE_IF_CURRENT_WITH_RESULT {
+            self.apply_command(command, window, cx);
+            return None;
+        }
+        let outcome = self.conditional_write(command, cx);
+        (self.bindings.write_completed != 0).then_some(InputWriteCompletion {
+            session_id: self.session_id,
+            callbacks: self.callbacks,
+            token: self.bindings.write_completed,
+            request_id: command.b >> 2,
+            revision: self.revision,
+            outcome,
+        })
+    }
+
+    fn conditional_write(
+        &mut self,
+        command: &ResourceCommand,
+        cx: &mut Context<Self>,
+    ) -> InputWriteOutcome {
+        if command.a != self.revision {
+            return InputWriteOutcome::Stale;
+        }
+        if self.marked_range.is_some() && command.b & 2 == 0 {
+            return InputWriteOutcome::Composing;
+        }
+        let before = self.revision;
+        self.replace_value(command.data.as_ref(), command.b & 1 == 0, cx);
+        if before == self.revision {
+            InputWriteOutcome::Unchanged
+        } else {
+            InputWriteOutcome::Applied
+        }
     }
 
     fn replace_value(&mut self, value: &str, preserve_selection: bool, cx: &mut Context<Self>) {
@@ -338,7 +422,7 @@ impl ManagedInput {
     }
 
     fn copy(&mut self, _: &Copy, _: &mut Window, cx: &mut Context<Self>) {
-        if !self.disabled && !self.selected_range.is_empty() {
+        if !self.disabled && !self.password && !self.selected_range.is_empty() {
             cx.write_to_clipboard(ClipboardItem::new_string(
                 self.content[self.selected_range.clone()].to_string(),
             ));
@@ -346,7 +430,7 @@ impl ManagedInput {
     }
 
     fn cut(&mut self, _: &Cut, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.can_edit() || self.selected_range.is_empty() {
+        if !self.can_edit() || self.password || self.selected_range.is_empty() {
             return;
         }
         cx.write_to_clipboard(ClipboardItem::new_string(
@@ -723,6 +807,7 @@ impl Render for ManagedInput {
         div()
             .id(&self.focus_handle)
             .role(Role::TextInput)
+            .map(|element| self.presentation.accessibility.apply(element))
             .size_full()
             .min_w_0()
             .flex()
@@ -1077,6 +1162,7 @@ mod tests {
                         changed: 0,
                         submitted: 0,
                         focus_changed: 0,
+                        write_completed: 0,
                     },
                 },
                 theme(),
@@ -1097,6 +1183,32 @@ mod tests {
     }
 
     #[gpui::test]
+    fn password_copy_and_cut_leave_clipboard_and_value_unchanged(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.password = true;
+                input.content = shared("secret");
+                input.selected_range = 0..6;
+                cx.write_to_clipboard(ClipboardItem::new_string("sentinel".to_string()));
+                input.copy(&Copy, window, cx);
+                assert_eq!(
+                    cx.read_from_clipboard().and_then(|item| item.text()),
+                    Some("sentinel".to_string())
+                );
+                input.cut(&Cut, window, cx);
+                assert_eq!(
+                    cx.read_from_clipboard().and_then(|item| item.text()),
+                    Some("sentinel".to_string())
+                );
+                assert_eq!(input.content.as_ref(), "secret");
+                assert_eq!(input.selected_range, 0..6);
+            });
+        });
+    }
+
+    #[gpui::test]
     fn presentation_updates_paint_without_changing_editing_state(cx: &mut gpui::TestAppContext) {
         let input = cx.update(input_entity);
         let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
@@ -1112,6 +1224,10 @@ mod tests {
                         let revision = input.revision;
                         let presentation = if explicit {
                             InputPresentation {
+                                accessibility: crate::accessibility::Accessibility {
+                                    name: Some("Account".into()),
+                                    description: Some("Enter your account name".into()),
+                                },
                                 placeholder: Some(0x112233FF),
                                 caret: Some(0x445566FF),
                                 selection: Some(0x77889940),
@@ -1312,6 +1428,135 @@ mod tests {
                 assert_eq!(input.content.as_str(), "");
             })
         });
+    }
+
+    #[gpui::test]
+    fn conditional_write_results_cover_decision_precedence_without_change_events(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let input = cx.update(input_entity);
+        let (_, window_cx) = cx.add_window_view(|_, _| gpui::Empty);
+        window_cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.bindings.write_completed = 9;
+                input.disabled = true;
+                input.read_only = true;
+                let initial = input.revision;
+                let mut command = conditional_value("abc", initial, 4);
+                command.command = COMMAND_INPUT_SET_VALUE_IF_CURRENT_WITH_RESULT;
+                let applied = input
+                    .apply_command_with_result(&command, window, cx)
+                    .unwrap();
+                assert_eq!(applied.outcome, InputWriteOutcome::Applied);
+                assert_eq!(applied.request_id, 1);
+                assert_ne!(applied.revision, initial);
+                assert_eq!(input.content.as_str(), "abc");
+                assert_eq!(input.last_emitted_content, input.content);
+
+                input.selected_range = 0..2;
+                command.a = input.revision;
+                let unchanged = input
+                    .apply_command_with_result(&command, window, cx)
+                    .unwrap();
+                assert_eq!(unchanged.outcome, InputWriteOutcome::Unchanged);
+                assert_eq!(unchanged.revision, applied.revision);
+                assert_eq!(input.selected_range, 0..2);
+                input.marked_range = Some(0..2);
+                let composing = input
+                    .apply_command_with_result(&command, window, cx)
+                    .unwrap();
+                assert_eq!(composing.outcome, InputWriteOutcome::Composing);
+                assert_eq!(input.marked_range, Some(0..2));
+                command.a = initial;
+                let stale = input
+                    .apply_command_with_result(&command, window, cx)
+                    .unwrap();
+                assert_eq!(stale.outcome, InputWriteOutcome::Stale);
+
+                command.a = input.revision;
+                command.b = u64::MAX;
+                let equal_composition = input
+                    .apply_command_with_result(&command, window, cx)
+                    .unwrap();
+                assert_eq!(equal_composition.outcome, InputWriteOutcome::Unchanged);
+                assert_eq!(equal_composition.request_id, u64::MAX >> 2);
+                assert_eq!(input.marked_range, Some(0..2));
+                command.data = shared("replacement");
+                let replaced = input
+                    .apply_command_with_result(&command, window, cx)
+                    .unwrap();
+                assert_eq!(replaced.outcome, InputWriteOutcome::Applied);
+                assert!(input.marked_range.is_none());
+                assert_eq!(input.selected_range, 11..11);
+                input.bindings.write_completed = 0;
+                command.a = input.revision;
+                assert!(
+                    input
+                        .apply_command_with_result(&command, window, cx)
+                        .is_none()
+                );
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn write_completion_captures_scalars_and_defers_callback_until_after_input_borrow(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        static REQUEST: AtomicU64 = AtomicU64::new(0);
+        static REVISION: AtomicU64 = AtomicU64::new(0);
+        static VALID: AtomicU64 = AtomicU64::new(0);
+        unsafe extern "C" fn completed(
+            session: u64,
+            token: u64,
+            event: *const NativeControlEvent,
+        ) -> i32 {
+            let event = unsafe { &*event };
+            let data =
+                unsafe { std::slice::from_raw_parts(event.data, event.data_length as usize) };
+            REQUEST.store(
+                u64::from_le_bytes(data[..8].try_into().unwrap()),
+                Ordering::Relaxed,
+            );
+            REVISION.store(event.revision, Ordering::Relaxed);
+            VALID.store(
+                u64::from(
+                    session == 1
+                        && token == 9
+                        && event.kind == EVENT_INPUT_WRITE_COMPLETED
+                        && event.flags == 0
+                        && event.reserved == 0
+                        && event.reserved2 == 0
+                        && data[8..] == [0; 8],
+                ),
+                Ordering::Relaxed,
+            );
+            0
+        }
+        REQUEST.store(0, Ordering::Relaxed);
+        let input = cx.update(input_entity);
+        let (_, window_cx) = cx.add_window_view(|_, _| gpui::Empty);
+        let mut decision_revision = 0;
+        window_cx.update(|window, cx| {
+            let result = input.update(cx, |input, cx| {
+                input.session_id = 1;
+                input.callbacks.control_event = Some(completed);
+                input.bindings.write_completed = 9;
+                let mut command = conditional_value("new", input.revision, 7 << 2);
+                command.command = COMMAND_INPUT_SET_VALUE_IF_CURRENT_WITH_RESULT;
+                input
+                    .apply_command_with_result(&command, window, cx)
+                    .unwrap()
+            });
+            decision_revision = result.revision;
+            assert_eq!(REQUEST.load(Ordering::Relaxed), 0);
+            input.update(cx, |input, cx| input.set_value("later edit", cx));
+            window.defer(cx, move |_, _| result.emit());
+        });
+        cx.run_until_parked();
+        assert_eq!(REQUEST.load(Ordering::Relaxed), 7);
+        assert_eq!(REVISION.load(Ordering::Relaxed), decision_revision);
+        assert_eq!(VALID.load(Ordering::Relaxed), 1);
     }
 
     #[gpui::test]

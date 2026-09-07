@@ -26,16 +26,17 @@ use crate::{
         COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP,
         EVENT_LIST_ACTIVATED, EVENT_LIST_SELECTION_REQUESTED, NativeAdapter, OP_INPUT_CARET_RGBA,
         OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED, OP_INPUT_ON_SUBMITTED,
-        OP_INPUT_PASSWORD, OP_INPUT_PLACEHOLDER_RGBA, OP_INPUT_READ_ONLY, OP_INPUT_SELECTION_RGBA,
-        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION,
-        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_ITEM_ID,
-        OP_LIST_ON_ACTIVATED, OP_LIST_ON_SELECTION_REQUESTED, OP_LIST_OVERDRAW_PX,
-        OP_LIST_RENDERER, OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH,
-        OP_SLIDER_AXIS, OP_SLIDER_DISABLED, OP_SLIDER_FILL_RGBA, OP_SLIDER_MAX, OP_SLIDER_MIN,
-        OP_SLIDER_ON_CHANGED, OP_SLIDER_ON_RELEASED, OP_SLIDER_RANGE_END, OP_SLIDER_RANGE_START,
-        OP_SLIDER_SCALE, OP_SLIDER_STEP, OP_SLIDER_THUMB_BORDER_RGBA, OP_SLIDER_THUMB_RGBA,
-        OP_SLIDER_TRACK_RGBA, OP_SLIDER_VALUE, OP_TABLE_COLUMN, RESOURCE_DOCK, RESOURCE_INPUT,
-        RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER, component_metadata,
+        OP_INPUT_ON_WRITE_COMPLETED, OP_INPUT_PASSWORD, OP_INPUT_PLACEHOLDER_RGBA,
+        OP_INPUT_READ_ONLY, OP_INPUT_SELECTION_RGBA, OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE,
+        OP_LIST_CONTENT_REVISION, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT,
+        OP_LIST_ITEM_ID, OP_LIST_ON_ACTIVATED, OP_LIST_ON_SELECTION_REQUESTED, OP_LIST_OVERDRAW_PX,
+        OP_LIST_PROJECTION_REVISION, OP_LIST_RENDERER, OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER,
+        OP_SCROLLBAR_WIDTH, OP_SLIDER_AXIS, OP_SLIDER_DISABLED, OP_SLIDER_FILL_RGBA, OP_SLIDER_MAX,
+        OP_SLIDER_MIN, OP_SLIDER_ON_CHANGED, OP_SLIDER_ON_RELEASED, OP_SLIDER_RANGE_END,
+        OP_SLIDER_RANGE_START, OP_SLIDER_SCALE, OP_SLIDER_STEP, OP_SLIDER_THUMB_BORDER_RGBA,
+        OP_SLIDER_THUMB_RGBA, OP_SLIDER_TRACK_RGBA, OP_SLIDER_VALUE, OP_TABLE_COLUMN,
+        RESOURCE_DOCK, RESOURCE_INPUT, RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER,
+        component_metadata,
     },
     slider::{ManagedSlider, SliderPresentation, SliderValue},
     snapshot::{SnapshotScratch, ValidatedSnapshot},
@@ -283,7 +284,7 @@ impl ResourceStore {
                 configuration.read_only,
                 configuration.password,
                 configuration.bindings,
-                configuration.presentation,
+                configuration.presentation.clone(),
                 cx,
             );
         });
@@ -293,7 +294,13 @@ impl ResourceStore {
             .remove(&(RESOURCE_INPUT, configuration.key.clone()))
             .unwrap_or_default();
         for command in pending {
-            resource.update(cx, |input, cx| input.apply_command(&command, window, cx));
+            let completion = resource.update(cx, |input, cx| {
+                input.apply_command_with_result(&command, window, cx)
+            });
+            if let Some(completion) = completion {
+                // No managed callbacks while either the input or materializing root is borrowed.
+                window.defer(cx, move |_, _| completion.emit());
+            }
         }
         resource
     }
@@ -601,6 +608,7 @@ pub(crate) struct ListConfiguration {
     pub(crate) estimated_item_height: Pixels,
     pub(crate) content_revision: Option<u64>,
     pub(crate) scrollbar: ScrollbarMetrics,
+    pub(crate) projection_revision: Option<u64>,
 }
 
 /// One declared table column. Widths are declarative intents (px or fraction); the native
@@ -809,6 +817,7 @@ pub(crate) struct ManagedListResource {
     snapshot_revision: u64,
     content_revision: Option<u64>,
     batches: HashMap<u32, CachedBatch>,
+    projection_revision: Option<u64>,
     // Batches own decoded output; validation/grouping scratch is reused serially by the engine.
     scratch: SnapshotScratch,
     pending_commands: Vec<ResourceCommand>,
@@ -849,6 +858,7 @@ impl ManagedListResource {
             snapshot_revision,
             content_revision: configuration.content_revision,
             batches: HashMap::new(),
+            projection_revision: configuration.projection_revision,
             scratch: SnapshotScratch::default(),
             pending_commands: Vec::new(),
             use_clock: 0,
@@ -877,7 +887,10 @@ impl ManagedListResource {
             || self.estimated_item_height != configuration.estimated_item_height;
 
         // Reconcile positional identity before a simultaneous layout rebuild discards measurements.
-        if revision_changed && !self.pending_commands.is_empty() {
+        if self.projection_revision != configuration.projection_revision {
+            // The accepted projection supersedes hints expressed in the old index space.
+            self.reset_native_state(configuration.item_count);
+        } else if revision_changed && !self.pending_commands.is_empty() {
             self.commit_pending_commands(configuration.item_count);
         }
         if self.item_count != configuration.item_count {
@@ -918,6 +931,7 @@ impl ManagedListResource {
             self.cursor.invalidate_rows();
         }
         self.content_revision = configuration.content_revision;
+        self.projection_revision = configuration.projection_revision;
     }
 
     fn apply_command(&mut self, command: &ResourceCommand) {
@@ -1498,6 +1512,7 @@ pub(crate) fn input_configuration(
         read_only: last_u32(snapshot, node, OP_INPUT_READ_ONLY).is_some_and(|value| value != 0),
         password: last_u32(snapshot, node, OP_INPUT_PASSWORD).is_some_and(|value| value != 0),
         presentation: InputPresentation {
+            accessibility: crate::accessibility::Accessibility::from_snapshot(node, snapshot),
             placeholder: last_u32(snapshot, node, OP_INPUT_PLACEHOLDER_RGBA),
             caret: last_u32(snapshot, node, OP_INPUT_CARET_RGBA),
             selection: last_u32(snapshot, node, OP_INPUT_SELECTION_RGBA),
@@ -1506,6 +1521,7 @@ pub(crate) fn input_configuration(
             changed: last_callback(snapshot, node, OP_INPUT_ON_CHANGED),
             submitted: last_callback(snapshot, node, OP_INPUT_ON_SUBMITTED),
             focus_changed: last_callback(snapshot, node, OP_INPUT_ON_FOCUS_CHANGED),
+            write_completed: last_callback(snapshot, node, OP_INPUT_ON_WRITE_COMPLETED),
         },
     })
 }
@@ -1552,6 +1568,7 @@ pub(crate) fn slider_configuration(
         disabled: last_u32(snapshot, node, OP_SLIDER_DISABLED).unwrap_or(0) != 0,
         logarithmic,
         presentation: SliderPresentation {
+            accessibility: crate::accessibility::Accessibility::from_snapshot(node, snapshot),
             track: last_u32(snapshot, node, OP_SLIDER_TRACK_RGBA),
             fill: last_u32(snapshot, node, OP_SLIDER_FILL_RGBA),
             thumb: last_u32(snapshot, node, OP_SLIDER_THUMB_RGBA),
@@ -1625,6 +1642,12 @@ pub(crate) fn list_configuration(
         estimated_item_height,
         content_revision,
         scrollbar,
+        projection_revision: snapshot
+            .ops(node)
+            .iter()
+            .rev()
+            .find(|op| op.code == OP_LIST_PROJECTION_REVISION)
+            .map(|op| op.a),
     })
 }
 
@@ -2505,6 +2528,7 @@ mod tests {
             estimated_item_height: px(40.),
             content_revision,
             scrollbar: ScrollbarMetrics::new(DEFAULT_SCROLLBAR_WIDTH, false),
+            projection_revision: None,
         }
     }
 
@@ -2656,6 +2680,55 @@ mod tests {
 
         resource.configure(&configuration(Some(revision + 1)), 3);
         assert!(resource.batches.is_empty());
+    }
+
+    #[test]
+    fn projection_changes_reset_same_count_rows_and_override_queued_hints() {
+        for (previous, current) in [(None, Some(0)), (Some(0), Some(u64::MAX)), (Some(7), None)] {
+            let mut config = configuration(Some(1));
+            config.projection_revision = previous;
+            let mut resource = ManagedListResource::new(1, callbacks(), &config, 1);
+            resource.cursor.set(50);
+            let old_epoch = resource.cursor.epoch();
+            resource.state.scroll_to(ListOffset {
+                item_ix: 50,
+                offset_in_item: px(0.),
+            });
+            resource.batches.insert(0, CachedBatch::new());
+            resource.apply_command(&command(COMMAND_LIST_SPLICE, 0, (1_u64 << 32) | 1, ""));
+
+            config.projection_revision = current;
+            resource.configure(&config, 2);
+
+            assert_eq!(resource.cursor.active(), Some(0));
+            assert!(!resource.cursor.set_from_row(50, old_epoch));
+            assert_eq!(resource.state.scroll_px_offset_for_scrollbar().y, px(0.));
+            assert!(resource.batches.is_empty());
+            assert!(resource.pending_commands.is_empty());
+            assert_eq!(resource.item_count, 100);
+        }
+    }
+
+    #[test]
+    fn stable_projection_preserves_cursor_for_content_edits_and_valid_splices() {
+        let mut config = configuration(Some(1));
+        config.projection_revision = Some(0);
+        let mut resource = ManagedListResource::new(1, callbacks(), &config, 1);
+        resource.cursor.set(50);
+        resource.batches.insert(0, CachedBatch::new());
+        resource.configure(&config, 2);
+        assert_eq!(resource.batches.len(), 1);
+        assert_eq!(resource.cursor.active(), Some(50));
+
+        config.content_revision = Some(2);
+        resource.configure(&config, 3);
+        assert!(resource.batches.is_empty());
+        assert_eq!(resource.cursor.active(), Some(50));
+
+        resource.apply_command(&command(COMMAND_LIST_SPLICE, 0, 2, ""));
+        config.item_count += 2;
+        resource.configure(&config, 4);
+        assert_eq!(resource.cursor.active(), Some(52));
     }
 
     #[test]
