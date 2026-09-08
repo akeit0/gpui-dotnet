@@ -95,7 +95,7 @@ Event operations store compact runtime tokens. `OnClick` may additionally store 
 
 ## Roslyn source generator
 
-`src/Gpui.Generators` runs in application compilations and generates view factories and virtual-row
+`src/Gpui.Generators` runs in application compilations and generates view factories and virtual-item
 dispatch.
 
 ### `[GpuiView]`
@@ -118,19 +118,19 @@ Events are runtime fluent bindings (`OnClick`, `OnChanged`, `OnSubmitted`, `OnFo
 Accepted methods are synchronous, non-generic instance methods with this shape:
 
 ```csharp
-Element Row(int index, ref RenderContext ui)
+Element Item(int index, ref RenderContext ui)
 ```
 
-Props-bearing Views instead require `Element Row(int index, in TProps props, ref RenderContext ui)`.
+Props-bearing Views instead require `Element Item(int index, in TProps props, ref RenderContext ui)`.
 Dispatch supplies the owner's accepted props. `Element<TTag>` return types are also accepted.
 The generator emits:
 
 - a deterministic nonzero renderer ID;
-- a `Rows.Row` `ListItemRenderer` token;
+- a `Items.Item` `ListItemRenderer` token;
 - direct switch-based dispatch on the owning mounted View;
 - diagnostics for invalid signatures, duplicate names, reserved members, and ID collisions.
 
-A row renderer grows output before writes, without capacity retry, and follows the same purity rules as
+An item renderer grows output before writes, without capacity retry, and follows the same purity rules as
 `View.Render()`.
 
 ## Native C-layout generation

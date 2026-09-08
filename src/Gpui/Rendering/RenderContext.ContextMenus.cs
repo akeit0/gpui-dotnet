@@ -7,10 +7,10 @@ public readonly unsafe ref partial struct RenderContext
 {
     /// <summary>
     /// Declares window-owned menu content for an accepted List/Table right-click request.
-    /// Declare outside the row renderer. Movement, eviction, replacement, and dismissal expire
+    /// Declare outside the item renderer. Movement, eviction, replacement, and dismissal expire
     /// the native anchor; rendering an expired request does not reopen it.
     /// </summary>
-    public Element<ContextMenuTag> RowContextMenu(
+    public Element<ContextMenuTag> ItemContextMenu(
         ReadOnlySpan<char> key,
         ListContextMenuEvent request,
         Element content,
@@ -19,11 +19,11 @@ public readonly unsafe ref partial struct RenderContext
     {
         if (request.AnchorId == 0)
             throw new ArgumentException(
-                "A native row context-menu request is required.",
+                "A native item context-menu request is required.",
                 nameof(request)
             );
         var element = ContextMenu(key, Div(), content, options);
-        ArenaWriter.AddU64(element.Inner, OpCode.ContextMenuRowAnchor, request.AnchorId);
+        ArenaWriter.AddU64(element.Inner, OpCode.ContextMenuItemAnchor, request.AnchorId);
         return element;
     }
 

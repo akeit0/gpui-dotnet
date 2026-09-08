@@ -97,7 +97,7 @@ public sealed unsafe class RenderOutputTests
     }
 
     [Fact]
-    public void DemandRangeCallsEachRequestedRowOnceAndDoesNotOverwriteRootStorage()
+    public void DemandRangeCallsEachRequestedItemOnceAndDoesNotOverwriteRootStorage()
     {
         var view = new LargeView();
         var session = CreateSession(view);
@@ -111,7 +111,7 @@ public sealed unsafe class RenderOutputTests
             RenderArena rangeOutput = default;
             var root = session.RenderListRangeOutput(token, 1, 10, 8, &rangeOutput, out _);
             ManagedValidator.Validate(&rangeOutput, root);
-            Assert.Equal(8, view.RowCalls);
+            Assert.Equal(8, view.ItemCalls);
             Assert.Equal(8, rangeOutput.ChildLength);
             Assert.True(rangeOutput.Utf8Capacity > 16 * 1024);
             Assert.NotEqual((nuint)rootOutput.Utf8, (nuint)rangeOutput.Utf8);
@@ -237,9 +237,9 @@ public sealed unsafe class RenderOutputTests
             : base(construction) { }
 
         private readonly string _text = new('x', 128);
-        private readonly string _rowText = new('r', 16384);
+        private readonly string _itemText = new('r', 16384);
         internal int RootCalls;
-        internal int RowCalls;
+        internal int ItemCalls;
 
         protected override Element Render(ref RenderContext ui)
         {
@@ -255,8 +255,8 @@ public sealed unsafe class RenderOutputTests
 
         protected override Element RenderListItem(uint rendererId, int index, ref RenderContext ui)
         {
-            RowCalls++;
-            return ui.Text(_rowText);
+            ItemCalls++;
+            return ui.Text(_itemText);
         }
     }
 

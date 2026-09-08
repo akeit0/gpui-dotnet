@@ -22,7 +22,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         );
         Assert.Equal((ushort)ComponentId.Button, output.nodes[root].component);
         Assert.Equal(1, output.child_length); // The Button's text, with no range wrapper.
-        var click = fixture.View.RowToken;
+        var click = fixture.View.ItemToken;
         signal.Value = "changed before acceptance";
         Assert.Empty(fixture.ArtifactBatches);
         Assert.Equal(0, fixture.Accept(17, artifact));
@@ -74,7 +74,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             var view = (ProbeView)owner;
             if (mutate)
                 text.Value = "forbidden";
-            view.RowToken = view.Runtime.Events.BindClick<ProbeView>(
+            view.ItemToken = view.Runtime.Events.BindClick<ProbeView>(
                 static (view, _) => view.SecondClickCount++
             );
             return ui.Button("card", text.Value)

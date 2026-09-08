@@ -1,7 +1,7 @@
 namespace Gpui;
 
 /// <summary>
-/// Generates AOT-safe root/child factories, typed Spec declarations, and virtual-row dispatch.
+/// Generates AOT-safe root/child factories, typed Spec declarations, and virtual-item dispatch.
 /// Constructors receive ViewConstruction and initial props; subsequent declarations supply render inputs.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]

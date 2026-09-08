@@ -7,9 +7,12 @@ public sealed unsafe partial class RuntimeExecutionTests
     [InlineData("text", 512)]
     [InlineData("shared-click", 1)]
     [InlineData("shared-click", 512)]
-    public void WarmRowBatchesHaveBoundedAllocationIndependentOfRowCount(string pattern, int count)
+    public void WarmItemBatchesHaveBoundedAllocationIndependentOfItemCount(
+        string pattern,
+        int count
+    )
     {
-        using var fixture = new SessionFixture(new AllocationRowView(pattern));
+        using var fixture = new SessionFixture(new AllocationItemView(pattern));
         fixture.Render();
         var status = 0;
         for (var batch = 0; batch < 5; batch++)
@@ -31,7 +34,7 @@ public sealed unsafe partial class RuntimeExecutionTests
     [Fact]
     public void InterleavedArtifactReleasePreservesEveryBindingInReusedSlots()
     {
-        var view = new DistinctRowView();
+        var view = new DistinctItemView();
         using var fixture = new SessionFixture(view);
         fixture.Render();
         var first = fixture.Range(0, count: 32);
@@ -65,22 +68,22 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Null(fixture.Session.Failure);
     }
 
-    private sealed class DistinctRowView : ProbeView
+    private sealed class DistinctItemView : ProbeView
     {
         internal readonly ulong[] Tokens = new ulong[32];
         internal readonly int[] Clicks = new int[32];
-        private readonly Action<DistinctRowView, ClickEvent>[] _callbacks = Enumerable
+        private readonly Action<DistinctItemView, ClickEvent>[] _callbacks = Enumerable
             .Range(0, 32)
             .Select(Capture)
             .ToArray();
 
-        private static Action<DistinctRowView, ClickEvent> Capture(int index) =>
+        private static Action<DistinctItemView, ClickEvent> Capture(int index) =>
             (view, _) => view.Clicks[index]++;
 
         protected override Element RenderListItem(uint rendererId, int index, ref RenderContext ui)
         {
             Tokens[index] = Runtime.Events.BindClick(_callbacks[index]);
-            return ui.Button("row", "row").OnClick(this, _callbacks[index]);
+            return ui.Button("item", "item").OnClick(this, _callbacks[index]);
         }
     }
 
@@ -94,13 +97,13 @@ public sealed unsafe partial class RuntimeExecutionTests
     [InlineData("shared-click", 512)]
     [InlineData("captured-click", 48)]
     [InlineData("signal", 48)]
-    public void RowBatchAllocationPatterns(string pattern, int count)
+    public void ItemBatchAllocationPatterns(string pattern, int count)
     {
-        using var fixture = new SessionFixture(new AllocationRowView(pattern));
+        using var fixture = new SessionFixture(new AllocationItemView(pattern));
         fixture.Render();
         var status = 0;
         MeasureRenderCost(
-            $"row-{pattern}-{count}",
+            $"item-{pattern}-{count}",
             32,
             () =>
             {
@@ -112,24 +115,24 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Equal(0, status);
     }
 
-    private sealed class AllocationRowView(string pattern) : ProbeView
+    private sealed class AllocationItemView(string pattern) : ProbeView
     {
         private readonly Signal<int> _value = new(0);
 
         protected override Element RenderListItem(uint rendererId, int index, ref RenderContext ui)
         {
             if (pattern == "text")
-                return ui.Text("row");
+                return ui.Text("item");
             if (pattern == "signal")
                 _ = _value.Value;
             var callback = pattern == "captured-click" ? Capture(index) : SharedClick;
-            return ui.Button("row", "row").OnClick(this, callback, (ulong)index);
+            return ui.Button("item", "item").OnClick(this, callback, (ulong)index);
         }
 
-        private static void SharedClick(AllocationRowView view, ClickEvent click) =>
+        private static void SharedClick(AllocationItemView view, ClickEvent click) =>
             view.ClickCount++;
 
-        private static Action<AllocationRowView, ClickEvent> Capture(int index) =>
+        private static Action<AllocationItemView, ClickEvent> Capture(int index) =>
             (view, _) => view.ClickCount += index;
     }
 }

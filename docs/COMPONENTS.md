@@ -36,7 +36,7 @@ when interaction state must survive independently from managed renders.
 | Topic | Reference |
 | --- | --- |
 | Themes, recipes, inheritance, native presentation | [Styling](STYLING.md) |
-| Scroll, List, Table, virtual rows | [Collections](COLLECTIONS.md) |
+| Scroll, List, Table, virtual items | [Collections](COLLECTIONS.md) |
 | Input, Slider, Dock, controller behavior | [Retained controls](CONTROLS.md) |
 | Focus, shortcuts, observers, accessible names | [Interaction](INTERACTION.md) |
 | Overlays, tooltips, menus, window chrome | [Deferred layers](LAYERS.md) |
@@ -58,9 +58,9 @@ when interaction state must survive independently from managed renders.
 - `Checkbox` and `Radio` use the controlled `Checked(bool)` operation. Foundation change requests
   translate back into the existing managed click callback; the next managed snapshot remains
   authoritative.
-- Mounted and virtual-row Button, Checkbox, and Radio use the same native presentation builder
+- Mounted and virtual-item Button, Checkbox, and Radio use the same native presentation builder
   for child composition, accessible names/descriptions, authored styles, and interaction/disabled
-  paint. Each caller supplies its own stable identity and event route. Row callbacks retain their
+  paint. Each caller supplies its own stable identity and event route. Item callbacks retain their
   item-ID payload fallback; mounted controls retain View observers and shortcut routing.
 - `Badge` provides minimal native defaults that managed styling can override.
 - `Image` uses GPUI's decoder and cache. Its data is a filesystem path; presentation supports

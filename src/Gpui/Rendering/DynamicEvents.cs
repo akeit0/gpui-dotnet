@@ -11,9 +11,9 @@ namespace Gpui;
 public static partial class ElementExtensions
 {
     /// <summary>
-    /// Requests tooltip content after hovering a marked row element (500 ms by default).
-    /// Options configure the complete native tooltip behavior; RowTooltip supplies only its content.
-    /// Use RowTooltipTarget in rows and keep ListDataSource.ContentRevision stable while opening.
+    /// Requests tooltip content after hovering a marked item element (500 ms by default).
+    /// Options configure the complete native tooltip behavior; ItemTooltip supplies only its content.
+    /// Use ItemTooltipTarget in items and keep ListDataSource.ContentRevision stable while opening.
     /// </summary>
     public static Element<TTag> OnTooltipRequested<TTag, TView>(
         this Element<TTag> element,
@@ -35,19 +35,19 @@ public static partial class ElementExtensions
         return element;
     }
 
-    /// <summary>Marks an element inside a virtual row as the hover target for its collection's tooltip.</summary>
-    public static Element<TTag> RowTooltipTarget<TTag>(
+    /// <summary>Marks an element inside a virtual item as the hover target for its collection's tooltip.</summary>
+    public static Element<TTag> ItemTooltipTarget<TTag>(
         this Element<TTag> element,
         bool enabled = true
     )
         where TTag : unmanaged, IStyledElementTag
     {
-        ArenaWriter.AddU32(element.Inner, OpCode.RowTooltipTarget, enabled ? 1u : 0u);
+        ArenaWriter.AddU32(element.Inner, OpCode.ItemTooltipTarget, enabled ? 1u : 0u);
         return element;
     }
 
     /// <summary>
-    /// Requests a window-owned context menu on right-click of a row with ItemId.
+    /// Requests a window-owned context menu on right-click of an item with ItemId.
     /// Keep ListDataSource.ContentRevision stable while rendering the requested menu.
     /// </summary>
     public static Element<TTag> OnContextMenuRequested<TTag, TView>(
@@ -69,8 +69,8 @@ public static partial class ElementExtensions
     }
 
     /// <summary>
-    /// Requests single-row selection on unmodified Space or an unconsumed primary single press.
-    /// The application owns selection state and row styling; navigation alone does not select.
+    /// Requests single-item selection on unmodified Space or an unconsumed primary single press.
+    /// The application owns selection state and item styling; navigation alone does not select.
     /// </summary>
     public static Element<TTag> OnSelectionRequested<TTag, TView>(
         this Element<TTag> element,
@@ -91,8 +91,8 @@ public static partial class ElementExtensions
     }
 
     /// <summary>
-    /// Activates a List/Table row on unmodified Enter or an unconsumed primary double press.
-    /// Does not change selection or synthesize row/child click events.
+    /// Activates a List/Table item on unmodified Enter or an unconsumed primary double press.
+    /// Does not change selection or synthesize item/child click events.
     /// </summary>
     public static Element<TTag> OnActivated<TTag, TView>(
         this Element<TTag> element,

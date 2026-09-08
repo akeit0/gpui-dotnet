@@ -27,8 +27,8 @@ callback throws. The application's final error report may retain a session's fai
 it does not act as an independent recovery mechanism. Metadata updates invalidate
 healthy sessions but cannot revive a faulted session; restarting is required.
 
-The outer execution boundary flushes row invalidations and retires failed sessions. Cleanup can
-invalidate rows in surviving windows, so the boundary drains that work and any resulting failures
+The outer execution boundary flushes item invalidations and retires failed sessions. Cleanup can
+invalidate items in surviving windows, so the boundary drains that work and any resulting failures
 before returning, retaining the first error. The ordinary successful path needs one flush.
 
 ## Acceptance and resource presence
@@ -58,7 +58,7 @@ Those View invalidations enter the existing coalesced ingress queue. During acce
 consumers commit parent-before-child, so revision-gap invalidations can mark their already-committed
 ancestor path immediately. Effect setup runs after the entire tree commits.
 
-Native row cache ownership also follows the frame: layout/prepaint pins requested batches, and
+Native item cache ownership also follows the frame: layout/prepaint pins requested batches, and
 post-prepaint trimming evicts only idle batches. This does not delay explicit source or owner
 revocation. See [Runtime boundaries](RUNTIME_BOUNDARIES.md).
 
@@ -90,13 +90,13 @@ Test the production dispatch and cache routes: remove/rebind under one live View
 retain A while rendering B, evict only A, and bind two sources to the same method.
 Tests must establish callback liveness as well as retained-memory release.
 
-The concrete transport uses ABI 7. A native row engine receives a process-unique, non-reused
+The concrete transport uses ABI 7. A native collection engine receives a process-unique, non-reused
 64-bit source ID when created. Each range request carries that source ID alongside the renderer
 token and returns a session-unique artifact ID. Managed code owns an artifact's event slots;
 the native cached batch owns the corresponding release obligation. Batch eviction, invalidation,
 decode failure, or source destruction releases `(session, source, artifact)` exactly once.
 Repeated release is harmless. Release invokes no user code and is allowed while a root awaits
-acceptance, since native resource reconciliation may retire row engines at that boundary.
+acceptance, since native resource reconciliation may retire collection engines at that boundary.
 
 Dynamic event tokens retain the owner handle in their upper 32 bits, with a monotonically
 allocated 31-bit external ID and dynamic marker below. Internal storage slots can be recycled;
@@ -135,7 +135,7 @@ ownership checks, and range transport are described in [Reactivity](REACTIVITY.m
 permanently on its first tracked read to an application identity without strongly
 retaining the application. Both reads and writes then assert the owner thread.
 Accept dependency edges with their consumer and detach them on retirement. Reuse
-unchanged edges; a row-only dependency invalidates its artifact rather than its View.
+unchanged edges; an item-only dependency invalidates its artifact rather than its View.
 
 Event callbacks are synchronous. A View-owned asynchronous operation receives an
 explicit request snapshot and cancellation token on the calling UI thread. The application

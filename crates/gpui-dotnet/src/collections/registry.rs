@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-/// Retained List/Table ownership. Tables share the List row engine; only their column
+/// Retained List/Table ownership. Tables share the List collection engine; only their column
 /// metadata lives here. The registry owns *which* collections exist and their pre-declaration
 /// command queue. Each engine owns *how* configuration, commands, invalidation, and
 /// retirement affect its native `ListState`, batches, measurements, and cursor.
@@ -71,8 +71,8 @@ impl CollectionRegistry {
         resource
     }
 
-    /// Binds the column metadata declared by the current snapshot to a table's row engine.
-    /// A changed column table changes row layout, so every cached row batch is invalidated.
+    /// Binds the column metadata declared by the current snapshot to a table's collection engine.
+    /// A changed column table changes cell layout, so every cached item batch is invalidated.
     pub(crate) fn bind_table_spec(
         &self,
         key: &ResourceKey,
@@ -95,7 +95,7 @@ impl CollectionRegistry {
         self.engines.borrow().get(key).cloned()
     }
 
-    /// Clones the row-engine handles for diagnostics aggregation. Safe outside the render path
+    /// Clones the collection-engine handles for diagnostics aggregation. Safe outside the render path
     /// (frame boundaries hold no RefCell borrows).
     pub(crate) fn engines(&self) -> Vec<Rc<RefCell<CollectionEngine>>> {
         self.engines.borrow().values().cloned().collect()
@@ -105,8 +105,8 @@ impl CollectionRegistry {
         self.engines.borrow().len()
     }
 
-    /// Discards retained managed row snapshots after an ambient theme or managed-code update.
-    /// Tables use the same row engines as lists, so this covers both.
+    /// Discards retained managed item snapshots after an ambient theme or managed-code update.
+    /// Tables use the same collection engines as lists, so this covers both.
     pub(crate) fn invalidate_managed_rows(&self) {
         for engine in self.engines() {
             engine.borrow_mut().invalidate_all_batches();
@@ -118,7 +118,7 @@ impl CollectionRegistry {
             return false;
         }
         // The ingress message already owns these records. Index it in place once for
-        // all row engines, without another allocation or retained artifact registry.
+        // all collection engines, without another allocation or retained artifact registry.
         keys.sort_unstable_by_key(|key| (key.source, key.artifact));
         let mut changed = false;
         for engine in self.engines() {

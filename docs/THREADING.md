@@ -28,7 +28,7 @@ Each native window owns one GPUI `Entity<ManagedView>`. The C# root and child `V
 not separate GPUI entities. They form a binding-managed retained tree whose fragments are combined
 into the snapshot consumed by that native `ManagedView`.
 
-Native-to-managed render, acceptance, virtual-row, dynamic-frame, event, startup, and window-close callbacks
+Native-to-managed render, acceptance, virtual-item, dynamic-frame, event, startup, and window-close callbacks
 originate from GPUI foreground work. Managed mounting, rendering, event-table access,
 reconciliation, and unmounting therefore stay serialized on that thread once a View is prepared.
 Roots and children construct on this thread under a pre-existing local ownership scope. Candidates
@@ -94,7 +94,7 @@ chooses when to post; the framework does not move producers to a different threa
 
 | Operation | Thread contract |
 | --- | --- |
-| Constructors, Render, virtual-row renderers, effect setup/cleanup, events | GPUI application thread |
+| Constructors, Render, virtual-item renderers, effect setup/cleanup, events | GPUI application thread |
 | Child reconciliation, props commit, event binding | GPUI application thread |
 | Bound Signal reads and writes | Owning application's GPUI thread; writes forbidden during rendering |
 | Read or mutate ordinary View fields | GPUI application thread unless the application adds its own synchronization |
@@ -120,7 +120,7 @@ This index contains identities and generations, never GPUI entities or managed r
 
 ## Render and teardown ordering
 
-Managed render and row callbacks are synchronous. Their managed-owned buffers grow before writes
+Managed render and item callbacks are synchronous. Their managed-owned buffers grow before writes
 without capacity retry. They must remain free of observable effects. Posted callbacks are drained before root rendering;
 their state changes are included in that render. Each drain has a bounded work budget so a
 self-posting callback cannot prevent rendering indefinitely; excess work requests a later frame.

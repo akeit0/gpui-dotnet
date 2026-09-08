@@ -115,11 +115,11 @@ internal sealed partial class TableView : View
         var grid = ui.Table(
                 ref _grid,
                 new ListDataSource(ItemCount, _revision),
-                Rows.ServiceRow,
+                Items.ServiceRow,
                 new TableOptions(
                     batchSize: 64,
                     overdraw: 320,
-                    estimatedItemHeight: 38,
+                    estimatedItemExtent: 38,
                     scrollbarGutter: true
                 ),
                 Columns
@@ -184,7 +184,7 @@ internal sealed partial class TableView : View
                 .BorderColor(theme.Colors.Border)
                 .BorderWidth(Px(1))
                 .Radius(Px(8));
-            body = body.Child(ui.RowContextMenu("service-menu", request, content));
+            body = body.Child(ui.ItemContextMenu("service-menu", request, content));
         }
         return body;
     }

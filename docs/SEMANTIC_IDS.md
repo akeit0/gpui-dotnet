@@ -302,7 +302,7 @@ The schema owns these IDs. See [Binding generation](BINDING_GENERATION.md) for a
 | 1100 | `ListAlignment` | `virtualized` |
 | 1101 | `ListBatchSize` | `virtualized` |
 | 1102 | `ListContentRevision` | `virtualized` |
-| 1103 | `ListEstimatedItemHeightPx` | `virtualized` |
+| 1103 | `ListEstimatedItemExtentPx` | `virtualized` |
 | 1104 | `ListItemCount` | `virtualized` |
 | 1105 | `ListItemId` | `styled` |
 | 1106 | `OnActivated` | `virtualized` |
@@ -312,7 +312,8 @@ The schema owns these IDs. See [Binding generation](BINDING_GENERATION.md) for a
 | 1110 | `ListOverdrawPx` | `virtualized` |
 | 1111 | `ListProjectionRevision` | `virtualized` |
 | 1112 | `ListRenderer` | `virtualized` |
-| 1113 | `RowTooltipTarget` | `styled` |
+| 1113 | `ItemTooltipTarget` | `styled` |
+| 1114 | `ListOrientation` | `virtualized` |
 
 ### table
 
@@ -382,7 +383,7 @@ The schema owns these IDs. See [Binding generation](BINDING_GENERATION.md) for a
 | 1602 | `TooltipHideDelayMs` | `tooltip_options` |
 | 1603 | `TooltipMarginPx` | `tooltip_options` |
 | 1604 | `TooltipPlacement` | `tooltip_options` |
-| 1605 | `TooltipRowAnchor` | `tooltip` |
+| 1605 | `TooltipItemAnchor` | `tooltip` |
 | 1606 | `TooltipShowDelayMs` | `tooltip_options` |
 
 ### menus
@@ -391,7 +392,7 @@ The schema owns these IDs. See [Binding generation](BINDING_GENERATION.md) for a
 | --- | --- | --- |
 | 1700 | `ContextMenuMarginPx` | `context_menu` |
 | 1701 | `ContextMenuPriority` | `context_menu` |
-| 1702 | `ContextMenuRowAnchor` | `context_menu` |
+| 1702 | `ContextMenuItemAnchor` | `context_menu` |
 | 1703 | `PopoverMenuMarginPx` | `popover_menu` |
 | 1704 | `PopoverMenuPriority` | `popover_menu` |
 
@@ -458,6 +459,8 @@ The schema owns these IDs. See [Binding generation](BINDING_GENERATION.md) for a
 | 1 | `Scroll` | 100 | `ScrollToOffset` |
 | 1 | `Scroll` | 101 | `ScrollToTop` |
 | 1 | `Scroll` | 102 | `ScrollToBottom` |
+| 1 | `Scroll` | 103 | `ScrollToLeft` |
+| 1 | `Scroll` | 104 | `ScrollToRight` |
 | 2 | `List` | 200 | `ListScrollToItem` |
 | 2 | `List` | 201 | `ListSplice` |
 | 2 | `List` | 202 | `ListReset` |

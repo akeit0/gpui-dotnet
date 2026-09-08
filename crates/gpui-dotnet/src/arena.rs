@@ -36,7 +36,7 @@ pub(crate) fn with_root_render_output(
 /// Managed code owns all four allocations. `consume` must copy/decode everything it
 /// needs into native-owned state before returning; it must not call managed code,
 /// retain arena pointers, or close the session. Rust must never free these buffers.
-/// A descriptor lives on this stack, never in a root or cached row batch.
+/// A descriptor lives on this stack, never in a root or cached item batch.
 pub(crate) fn with_render_output(
     render: impl FnOnce(*mut RenderArena, *mut u32) -> i32,
     consume: impl FnOnce(&RenderArena, u32) -> Result<(), i32>,

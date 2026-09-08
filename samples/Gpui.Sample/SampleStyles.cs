@@ -23,15 +23,15 @@ internal readonly record struct SampleButtonStyle(
         button.Padding(Padding).Radius(Radius).Paint(Colors).BorderWidth(Px(1)).BorderColor(Border);
 }
 
-internal readonly record struct SampleCollectionRowStyle(
+internal readonly record struct SampleCollectionItemStyle(
     Color Background,
     Color Border,
     Color Text,
     Pixels Padding
 ) : IGpuiElementStyle<DivTag>
 {
-    public Element<DivTag> Apply(Element<DivTag> row) =>
-        row.Padding(Padding)
+    public Element<DivTag> Apply(Element<DivTag> item) =>
+        item.Padding(Padding)
             .Radius(Px(6))
             .Surface(new(Background, Text))
             .BorderColor(Border)
@@ -114,7 +114,7 @@ internal static class SampleStyles
             Px(4)
         );
 
-    internal static SampleCollectionRowStyle CollectionRow(GpuiTheme theme, bool selected)
+    internal static SampleCollectionItemStyle CollectionItem(GpuiTheme theme, bool selected)
     {
         var colors = theme.Colors;
         return new(

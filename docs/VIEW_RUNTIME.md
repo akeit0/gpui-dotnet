@@ -69,11 +69,11 @@ outside memo calculations to preserve dependencies on cache hits. Effect declara
 equatable inputs and retain unchanged scopes. Optional lists, work, cancellation, and callback
 registries allocate when used. Clean native repaints do not enter managed rendering.
 
-Signals continue to use accepted reactive consumers for View fragments and row artifacts. Small
+Signals continue to use accepted reactive consumers for View fragments and item artifacts. Small
 dependency sets use dense arrays; sets above 64 edges switch to a dictionary. Each consumer may
 retain eight cleared detached edges. No reactive scheduler is added for View-local memoization.
 
 Hot Reload invalidates fragments, memo entries, and effect code generations through queued application
-ingress. Constructors and semantic state are preserved. Native row caches are invalidated separately
+ingress. Constructors and semantic state are preserved. Native item caches are invalidated separately
 by the existing code-update command. See [performance](PERFORMANCE.md) for measurements and
 [View lifecycle](VIEW_LIFECYCLE.md) for the public contract.

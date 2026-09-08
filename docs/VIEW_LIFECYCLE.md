@@ -83,8 +83,8 @@ read from an event. It throws before the first acceptance. Render methods use th
 argument. Bind a particular displayed value as event state when an event needs that snapshot.
 
 Props-bearing `[GpuiListItem]` methods receive accepted props explicitly:
-`Element Row(int index, in TProps props, ref RenderContext ui)`.
-No-props methods use `Element Row(int index, ref RenderContext ui)`.
+`Element Item(int index, in TProps props, ref RenderContext ui)`.
+No-props methods use `Element Item(int index, ref RenderContext ui)`.
 
 ## Render work and caches
 
@@ -143,7 +143,7 @@ protected override Element Render(in InspectorProps props, ref RenderContext ui)
 
 The application's `Document` supplies an equality contract and a disposable subscription.
 The handle identifies the effect without positional hook ordering. Declare it at most once in an
-owning View render. Effects are not permitted in virtual-row or standalone element contexts.
+owning View render. Effects are not permitted in virtual-item or standalone element contexts.
 
 | Accepted declaration | Behavior |
 | --- | --- |
@@ -196,16 +196,16 @@ Artifact release and acceptance failures defer user cleanup to a normal ingress 
 cannot reenter native resource reconciliation.
 The original failure remains authoritative. Other windows remain independent.
 
-## Hot Reload and virtual rows
+## Hot Reload and virtual items
 
 Code updates preserve semantic state, View identity, and native resources. They clear memo entries
 and replace effects on the next accepted render, even when inputs are equal. Setup method-body edits
 therefore take effect; constructors and field initializers are not rerun. Pending effect work and
 subscriptions may be replaced. Constructor/factory-shape changes require the normal runtime restart.
 
-Virtual rows remain cached element snapshots, not Views. They have no constructors, effects, child
+Virtual items remain cached element snapshots, not Views. They have no constructors, effects, child
 slots, or independent controllers. Native artifacts own their events and reactive dependencies.
-Eviction, source removal, and retirement release those artifacts precisely. Cache row-derived data
+Eviction, source removal, and retirement release those artifacts precisely. Cache item-derived data
 by stable item identity/revision under an explicitly bounded owner.
 
 See [asynchronous work](ASYNC_WORK.md), [reactivity](REACTIVITY.md), and

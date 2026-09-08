@@ -46,14 +46,14 @@ public abstract class ViewBase
     /// <summary>Requests a dirty render. Safe from any thread while mounted.</summary>
     protected internal void Invalidate() => Runtime.Invalidate();
 
-    /// <summary>Binds a generated element-only row renderer to this View's native handle.</summary>
+    /// <summary>Binds a generated element-only item renderer to this View's native handle.</summary>
     protected ListItemRenderer BindListRenderer(uint rendererId) =>
         Runtime.BindListRenderer(rendererId);
 
     /// <summary>Builds render IR without observable state changes or external effects.</summary>
     internal abstract Element RenderCore(ref RenderContext ui);
 
-    /// <summary>Generated dispatch for element-only virtual rows; called on demand.</summary>
+    /// <summary>Generated dispatch for element-only virtual items; called on demand.</summary>
     protected virtual Element RenderListItem(uint rendererId, int index, ref RenderContext ui) =>
         throw new InvalidOperationException(
             $"Generated list renderer 0x{rendererId:X8} is not defined on {GetType().Name}."

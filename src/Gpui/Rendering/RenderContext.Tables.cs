@@ -139,13 +139,9 @@ public readonly unsafe ref partial struct RenderContext
         {
             ArenaWriter.AddF32(element.Inner, OpCode.ListOverdrawPx, options.EffectiveOverdraw);
         }
-        if (options.EffectiveEstimatedItemHeight != 40)
+        if (options.EffectiveEstimatedItemExtent is { } extent)
         {
-            ArenaWriter.AddF32(
-                element.Inner,
-                OpCode.ListEstimatedItemHeightPx,
-                options.EffectiveEstimatedItemHeight
-            );
+            ArenaWriter.AddF32(element.Inner, OpCode.ListEstimatedItemExtentPx, extent);
         }
         ArenaWriter.AddU64(element.Inner, OpCode.ListContentRevision, dataSource.ContentRevision);
         if (dataSource.ProjectionRevision is { } projection)

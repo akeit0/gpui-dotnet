@@ -47,7 +47,7 @@ Classify its state first:
 6. managed composition requiring no new ABI component.
 
 Use the least stateful class that works. Do not add one P/Invoke per GPUI builder method or one
-reverse callback per row, frame, scroll delta, or pointer movement.
+reverse callback per item, frame, scroll delta, or pointer movement.
 
 ## Snapshot component workflow
 
@@ -76,11 +76,11 @@ No raw Rust pointer or GPUI type may become a managed public handle.
 
 ## Virtual datasource workflow
 
-Reverse calls must be batched. Keep row renderers synchronous, allocation-conscious, and free of
+Reverse calls must be batched. Keep item renderers synchronous, allocation-conscious, and free of
 mounted child-view or nested resource lifetimes. Use `ulong` event payloads and stable `.ItemId`
 values instead of one closure allocation per model.
 
-Changes to row caching must preserve correctness across root snapshots, content revisions, theme
+Changes to item caching must preserve correctness across root snapshots, content revisions, theme
 changes, refreshes, splices, and table column changes.
 
 ## Render and lifecycle rules

@@ -3,7 +3,7 @@ using Gpui.Interop;
 
 namespace Gpui;
 
-/// <summary>A delayed hover request for a stable List/Table item. Declare RowTooltip in the owning View.</summary>
+/// <summary>A delayed hover request for a stable List/Table item. Declare ItemTooltip in the owning View.</summary>
 public readonly record struct ListTooltipEvent
 {
     internal ListTooltipEvent(int index, ulong itemId, ulong? contentRevision, ulong anchorId)
@@ -21,7 +21,7 @@ public readonly record struct ListTooltipEvent
 }
 
 /// <summary>
-/// A right-click request for a stable List/Table item. Pass this value to RowContextMenu in
+/// A right-click request for a stable List/Table item. Pass this value to ItemContextMenu in
 /// the owning View's render. Native positioning expires on dismissal or anchor loss.
 /// </summary>
 public readonly record struct ListContextMenuEvent
@@ -41,7 +41,7 @@ public readonly record struct ListContextMenuEvent
 }
 
 /// <summary>
-/// A request to select one List/Table row. The application decides whether to accept it and owns
+/// A request to select one List/Table item. The application decides whether to accept it and owns
 /// selection state and presentation. Identity describes the accepted datasource snapshot.
 /// </summary>
 public readonly record struct ListSelectionEvent(
@@ -52,7 +52,7 @@ public readonly record struct ListSelectionEvent(
 );
 
 /// <summary>
-/// An explicit List/Table row activation. Index and optional ItemId identify the row in the
+/// An explicit List/Table item activation. Index and optional ItemId identify the item in the
 /// accepted datasource; ContentRevision is absent for declarations without a content revision.
 /// Cursor movement and application selection do not emit this event.
 /// </summary>
@@ -70,10 +70,17 @@ public enum ListAlignment : uint
     Bottom = 1,
 }
 
+/// <summary>Virtualized list orientation. Items flow top-to-bottom or left-to-right.</summary>
+public enum ListOrientation : uint
+{
+    Vertical = 0,
+    Horizontal = 1,
+}
+
 /// <summary>
 /// Declares the current shape and content identity of a virtualized datasource. Keep
 /// <see cref="ContentRevision"/> stable across unrelated View renders and change it whenever
-/// cached row output may have changed.
+/// cached item output may have changed.
 /// </summary>
 public readonly struct ListDataSource
 {
@@ -93,7 +100,7 @@ public readonly struct ListDataSource
 
     /// <summary>
     /// Optional identity/order stamp. Changing it resets cursor, scrolling, measurements, and
-    /// cached rows when the declaration is accepted, overriding queued positional hints.
+    /// cached items when the declaration is accepted, overriding queued positional hints.
     /// Keep it stable for content-only edits and valid Splice sequences. Adding or removing
     /// the stamp also resets an existing resource; zero is a valid stamp.
     /// </summary>
@@ -101,8 +108,8 @@ public readonly struct ListDataSource
 }
 
 /// <summary>
-/// Native virtualization options. List rows may have different heights; GPUI measures visible
-/// rows and retains those measurements. Managed rendering is requested in coarse batches.
+/// Native virtualization options. List items may have different heights; GPUI measures visible
+/// items and retains those measurements. Managed rendering is requested in coarse batches.
 /// Options that equal their defaults are not written into the render arena at all; native
 /// applies the same defaults when an option is absent.
 /// </summary>
@@ -114,11 +121,12 @@ public readonly struct ListOptions
         int batchSize = 48,
         float overdraw = 240,
         ListAlignment alignment = ListAlignment.Top,
-        float estimatedItemHeight = 40,
+        float? estimatedItemExtent = null,
         bool smoothScrolling = true,
         bool showScrollbar = true,
         bool scrollbarGutter = false,
-        float scrollbarWidth = 8
+        float scrollbarWidth = 8,
+        ListOrientation orientation = ListOrientation.Vertical
     )
     {
         if (batchSize is < 1 or > 512)
@@ -133,35 +141,55 @@ public readonly struct ListOptions
         {
             throw new ArgumentOutOfRangeException(nameof(alignment));
         }
-        if (!float.IsFinite(estimatedItemHeight) || estimatedItemHeight <= 0)
+        if (estimatedItemExtent is { } extent && (!float.IsFinite(extent) || extent <= 0))
         {
-            throw new ArgumentOutOfRangeException(nameof(estimatedItemHeight));
+            throw new ArgumentOutOfRangeException(nameof(estimatedItemExtent));
+        }
+        if ((uint)orientation > (uint)ListOrientation.Horizontal)
+        {
+            throw new ArgumentOutOfRangeException(nameof(orientation));
         }
         ScrollOptions.ValidateScrollbarWidth(scrollbarWidth);
         BatchSize = batchSize;
         Overdraw = overdraw;
         Alignment = alignment;
-        EstimatedItemHeight = estimatedItemHeight;
+        EstimatedItemExtent = estimatedItemExtent;
         SmoothScrolling = smoothScrolling;
         ShowScrollbar = showScrollbar;
         ScrollbarGutter = scrollbarGutter;
         ScrollbarWidth = scrollbarWidth;
+        Orientation = orientation;
         _initialized = true;
     }
 
     public int BatchSize { get; }
     public float Overdraw { get; }
     public ListAlignment Alignment { get; }
-    public float EstimatedItemHeight { get; }
+
+    /// <summary>
+    /// The size hint for unmeasured items along the scroll axis: heights in a vertical
+    /// list, widths in a horizontal one. Replaced by actual measurements as items render.
+    /// Null omits the hint; native defaults to 40 px vertically and 160 px horizontally.
+    /// </summary>
+    public float? EstimatedItemExtent { get; }
     public bool SmoothScrolling { get; }
     public bool ShowScrollbar { get; }
     public bool ScrollbarGutter { get; }
     public float ScrollbarWidth { get; }
 
+    /// <summary>
+    /// The scroll axis of the virtualized list. Horizontal lists lay items out left-to-right
+    /// with per-item measured widths; <see cref="Alignment"/> maps to start (Top) or end
+    /// (Bottom) anchoring and <see cref="Overdraw"/> extends along the horizontal axis.
+    /// </summary>
+    public ListOrientation Orientation { get; }
+
     internal int EffectiveBatchSize => _initialized ? BatchSize : 48;
     internal float EffectiveOverdraw => _initialized ? Overdraw : 240;
     internal ListAlignment EffectiveAlignment => _initialized ? Alignment : ListAlignment.Top;
-    internal float EffectiveEstimatedItemHeight => _initialized ? EstimatedItemHeight : 40;
+    internal float? EffectiveEstimatedItemExtent => _initialized ? EstimatedItemExtent : null;
+    internal ListOrientation EffectiveOrientation =>
+        _initialized ? Orientation : ListOrientation.Vertical;
     internal bool EffectiveSmoothScrolling => !_initialized || SmoothScrolling;
     internal bool EffectiveShowScrollbar => !_initialized || ShowScrollbar;
     internal bool EffectiveScrollbarGutter => _initialized && ScrollbarGutter;
@@ -232,7 +260,7 @@ public readonly struct ListController
     }
 
     /// <summary>
-    /// Invalidates a stable item range without changing item count. Use this when row content or
+    /// Invalidates a stable item range without changing item count. Use this when item content or
     /// height changes and GPUI must discard measurements for the affected items.
     /// </summary>
     public void Refresh(int start, int count)

@@ -476,7 +476,7 @@ impl ManagedView {
         cx.notify();
     }
 
-    /// Cumulative list cache telemetry across every active list/table row engine, appended to
+    /// Cumulative list cache telemetry across every active list/table collection engine, appended to
     /// the per-frame trace report.
     fn list_telemetry_sums(&self) -> [(&'static str, u64); 8] {
         let engines = self.resources.list_engine_count();
@@ -489,7 +489,7 @@ impl ManagedView {
             sums[3] += telemetry.batch_invalidations;
             sums[4] += telemetry.full_invalidations;
             sums[5] += telemetry.batch_crossings;
-            sums[6] += telemetry.rendered_rows;
+            sums[6] += telemetry.rendered_items;
         }
         [
             ("engines", engines as u64),
@@ -499,7 +499,7 @@ impl ManagedView {
             ("inval", sums[3]),
             ("full", sums[4]),
             ("cross", sums[5]),
-            ("rows", sums[6]),
+            ("items", sums[6]),
         ]
     }
 }
@@ -516,8 +516,8 @@ impl Render for ManagedView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.refresh_if_dirty();
         self.overlay_stack.begin_frame();
-        self.resources.row_menus.begin_frame(window, cx);
-        self.resources.row_tooltips.begin_frame();
+        self.resources.item_menus.begin_frame(window, cx);
+        self.resources.item_tooltips.begin_frame();
         let theme = *self.theme.borrow();
         let dynamic_owners = if self.error.is_none() && self.has_snapshot {
             active_dynamic_owners(&self.snapshot)
@@ -542,20 +542,20 @@ impl Render for ManagedView {
             }
         };
 
-        self.resources.row_menus.finish_declarations(window, cx);
-        self.resources.row_tooltips.finish_declarations(window);
+        self.resources.item_menus.finish_declarations(window, cx);
+        self.resources.item_tooltips.finish_declarations(window);
 
         if trace::enabled() {
             trace::end_frame(&self.list_telemetry_sums());
         }
         self.schedule_dynamic_frame(dynamic_owners, window, cx);
 
-        let row_tooltips = self.resources.row_tooltips.clone();
+        let item_tooltips = self.resources.item_tooltips.clone();
         div()
             .tab_group()
             .capture_key_down(cx.listener(|this, _, _, _| this.resources.shortcuts.begin()))
             .on_key_down(move |event, window, cx| {
-                row_tooltips.dismiss(window);
+                item_tooltips.dismiss(window);
                 let modifiers = event.keystroke.modifiers;
                 if event.keystroke.key != "tab"
                     || modifiers.control
@@ -576,8 +576,8 @@ impl Render for ManagedView {
             .bg(rgba(theme.background))
             .text_color(rgba(theme.text))
             .child(content)
-            .child(crate::row_tooltip::frame_end(
-                self.resources.row_tooltips.clone(),
+            .child(crate::item_tooltip::frame_end(
+                self.resources.item_tooltips.clone(),
             ))
     }
 }
@@ -813,7 +813,7 @@ fn apply_application_command(
                     continue;
                 };
                 let _ = handle.update(cx, |view, window, cx| {
-                    view.resources.invalidate_managed_rendered_rows();
+                    view.resources.invalidate_managed_rendered_items();
                     view.invalidate(cx);
                     window.refresh();
                 });
@@ -825,7 +825,7 @@ fn apply_application_command(
                     continue;
                 };
                 let _ = handle.update(cx, |view, window, cx| {
-                    view.resources.invalidate_managed_rendered_rows();
+                    view.resources.invalidate_managed_rendered_items();
                     view.invalidate(cx);
                     window.refresh();
                 });
@@ -1540,7 +1540,8 @@ mod tests {
             batch_size: 48,
             overdraw: px(240.),
             alignment: gpui::ListAlignment::Top,
-            estimated_item_height: px(40.),
+            estimated_item_extent: px(40.),
+            orientation: crate::collections::ListOrientation::Vertical,
             content_revision: Some(1),
             scrollbar: crate::scrolling::ScrollbarMetrics::new(px(8.), false),
             projection_revision: None,

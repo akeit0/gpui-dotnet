@@ -18,7 +18,7 @@ already do not subscribe, while values used in rendering normally belong in its 
 
 The runtime supplies application-thread entry, terminal session faults, retained dirty flags,
 root acceptance, and explicit demand artifacts. Observation revisions connect reads to later
-acceptance; artifact invalidation updates native row caches without requesting a managed root render.
+acceptance; artifact invalidation updates native item caches without requesting a managed root render.
 
 ## Ownership and access
 
@@ -67,11 +67,11 @@ reactive scheduler or per-View epoch is needed.
 ## Demand artifacts and native transport
 
 ABI 7 requires `accept_artifact(session, source, artifact)` after native range decoding and
-row-count validation, after the output borrow ends. Root dependencies commit at the existing root
+item-count validation, after the output borrow ends. Root dependencies commit at the existing root
 acknowledgement. Range dependencies commit only at artifact acknowledgement. Decode or acceptance
 failure releases the artifact; duplicate or mismatched acceptance is a protocol fault.
 
-A row-only Signal change queues the artifact's non-reused `(source, artifact)` identity once.
+An item-only Signal change queues the artifact's non-reused `(source, artifact)` identity once.
 At the outer managed callback boundary, each affected session sends a single
 `invalidate_artifacts(session, keys, count)` batch. Native ingress copies the keys and the GPUI
 thread evicts just those batches, clears their cached measurements, and requests a repaint without
@@ -96,9 +96,9 @@ an equal-value retry does not trigger another update.
 
 The Signal example targets shared View state. The Activity List uses an ordinary selected index
 and explicit `Refresh`/`RefreshRanges` for the previous and next selection, with a stable content
-revision. Reading one selection Signal in every row would subscribe every cached batch, broadening
+revision. Reading one selection Signal in every item would subscribe every cached batch, broadening
 invalidation beyond the two changed items. Demand-driven List improvements are separate work;
-they must also preserve measurement invalidation for items whose row batches have been evicted.
+they must also preserve measurement invalidation for items whose item batches have been evicted.
 
 The component gallery's **Reactivity** page passes one `Signal<int>` by reference through props
 to sibling Views. The parent owns its lifetime but never reads its value during rendering. A
@@ -127,7 +127,7 @@ thread-safe message routing; there is no second reactive scheduler.
 
 Tests exercise production root/range callbacks: conditional and nested reads, sharing across
 windows, wrong-thread and cross-application access, render-time writes, equality, the observation
-gap, rejection, teardown retention, independent sources, and row-only invalidation. Native tests
+gap, rejection, teardown retention, independent sources, and item-only invalidation. Native tests
 cover acceptance after decoding, selective eviction, stale keys, and repaint without root dirtiness.
 Allocation checks cover construction, first tracking, stable and conditional dependencies,
 cross-view updates, paused readers, and repeated writes with an already-pending notification.

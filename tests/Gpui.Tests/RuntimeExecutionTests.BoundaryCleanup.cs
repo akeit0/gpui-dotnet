@@ -32,15 +32,15 @@ public sealed unsafe partial class RuntimeExecutionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void StandaloneSignalFailureFlushesRowChangesMadeDuringRetirement(bool failDuringFlush)
+    public void StandaloneSignalFailureFlushesItemChangesMadeDuringRetirement(bool failDuringFlush)
     {
         var application = new GpuiApplication();
         var trigger = new Signal<int>(0);
         var cleanupSignal = new Signal<int>(0);
-        using var healthyRows = new SessionFixture(
+        using var healthyItems = new SessionFixture(
             new ProbeView
             {
-                DuringRow = _ =>
+                DuringItem = _ =>
                 {
                     _ = cleanupSignal.Value;
                 },
@@ -56,15 +56,15 @@ public sealed unsafe partial class RuntimeExecutionTests
                     {
                         _ = trigger.Value;
                     },
-                DuringRow = _ =>
+                DuringItem = _ =>
                 {
                     _ = trigger.Value;
                 },
             },
             application
         );
-        healthyRows.Render();
-        var artifact = healthyRows.Range(0);
+        healthyItems.Render();
+        var artifact = healthyItems.Range(0);
         failing.Render();
         if (failDuringFlush)
         {
@@ -81,9 +81,9 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Same(failing.Session.Failure, error);
         Assert.True(failing.View.Runtime.IsUnmounted);
         Assert.Equal(1, cleanupSignal.Value);
-        Assert.Null(healthyRows.Session.Failure);
-        Assert.False(healthyRows.State(healthyRows.View).Dirty);
-        Assert.Equal(artifact, Assert.Single(Assert.Single(healthyRows.ArtifactBatches)).artifact);
+        Assert.Null(healthyItems.Session.Failure);
+        Assert.False(healthyItems.State(healthyItems.View).Dirty);
+        Assert.Equal(artifact, Assert.Single(Assert.Single(healthyItems.ArtifactBatches)).artifact);
         Assert.Null(ApplicationExecution.Current);
     }
 
@@ -97,7 +97,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         using var first = new SessionFixture(
             new ProbeView
             {
-                DuringRow = _ =>
+                DuringItem = _ =>
                 {
                     _ = trigger.Value;
                 },
@@ -107,7 +107,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         using var second = new SessionFixture(
             new ProbeView
             {
-                DuringRow = _ =>
+                DuringItem = _ =>
                 {
                     _ = intermediate.Value;
                 },
@@ -117,7 +117,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         using var healthy = new SessionFixture(
             new ProbeView
             {
-                DuringRow = _ =>
+                DuringItem = _ =>
                 {
                     _ = final.Value;
                 },

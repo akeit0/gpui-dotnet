@@ -9,7 +9,7 @@ and product-specific style variants. Rust owns GPUI, native windows, validation,
 virtualization, deferred layers, and frame-sensitive interaction.
 
 Do not turn the project into a one-to-one P/Invoke mirror of GPUI. Prefer one semantic declaration,
-coarse data batches, and native retained state over per-property, per-frame, or per-row crossings.
+coarse data batches, and native retained state over per-property, per-frame, or per-item crossings.
 
 ## Start here
 
@@ -20,7 +20,7 @@ Read the relevant focused document before changing a subsystem:
 - `README.md`: setup and public API overview
 - `docs/ARCHITECTURE.md`: ownership and render/resource paths
 - `docs/COMPONENTS.md`: component classes and authoring workflow
-- `docs/COLLECTIONS.md`: Scroll, List, Table, and virtual rows
+- `docs/COLLECTIONS.md`: Scroll, List, Table, and virtual items
 - `docs/CONTROLS.md`: retained Input, Slider, and Dock
 - `docs/INTERACTION.md`: focus, shortcuts, observers, and accessible names
 - `docs/LAYERS.md`: overlays, tooltips, menus, and window chrome
@@ -72,7 +72,7 @@ Changes must add or preserve support rather than replacing one platform path wit
 `GpuiTheme` is application-wide ambient render input. Theme changes must update:
 
 - every retained managed child fragment;
-- virtual List/Table row batches;
+- virtual List/Table item batches;
 - native component defaults and retained controls;
 - window/root inherited colors.
 
@@ -112,8 +112,8 @@ Keep one-shot View identity separate from mounted runtime state. Any-thread oper
 stable, non-pooled command route and must not inspect the GPUI-thread-only attachment. Remove and
 fully reset that attachment before user unmount cleanup; only the attachment may be pooled.
 
-Virtual rows are element-only cached snapshots. Do not add mounted child Views, nested retained
-resources, or deferred layers inside a row renderer.
+Virtual items are element-only cached snapshots. Do not add mounted child Views, nested retained
+resources, or deferred layers inside an item renderer.
 
 ## Native and ABI rules
 
@@ -124,7 +124,7 @@ resources, or deferred layers inside a row renderer.
 - Preserve retained resource identity as `(session, owner View, UTF-8 key)`.
 - Reconcile commands with declarative snapshots; the snapshot is authoritative.
 - Keep high-frequency pointer, scroll, IME, focus, and measurement state native.
-- Batch reverse datasource calls and avoid per-row managed closures.
+- Batch reverse datasource calls and avoid per-item managed closures.
 
 An ABI layout or entry-point change requires Rust and managed contract updates, generated bindings,
 tests, and `docs/ABI.md`. A semantic-only schema change normally keeps the current ABI version and changes the
@@ -140,7 +140,7 @@ schema hash.
   generator-owned outputs. Use `dotnet csharpier check .` to verify formatting.
 - Use `cargo fmt` for Rust. Generated semantic output must still pass generator verification.
 - Keep nullable analysis and warnings-as-errors clean.
-- Avoid allocations and string formatting in native row/render hot paths.
+- Avoid allocations and string formatting in native item/render hot paths.
 - Keep comments focused on invariants and non-obvious ownership, not development history.
 
 Documentation must describe the current repository for a new reader. Put only genuinely open work

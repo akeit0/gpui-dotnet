@@ -182,7 +182,7 @@ internal static class NativeStatus
                 -62 => "InvalidExtensionPayload",
                 // These codes have multiple meanings even inside the render path.
                 -56 => "InvalidResourceIdentityOrBorderStyle",
-                -63 => "EmptyOperationDataOrWrongRowCount",
+                -63 => "EmptyOperationDataOrWrongItemCount",
                 -64 => "InvalidFontDataOrMissingArtifact",
                 -66 => "InvalidShortcutBinding",
                 -67 => "InvalidFocusTarget",

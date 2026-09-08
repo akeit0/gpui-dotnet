@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using static Gpui.Units;
 
 namespace Gpui;
@@ -7,26 +6,24 @@ internal readonly record struct ExploreProps(TravelStore Store);
 
 /// <summary>
 /// Home tab: stories rail, filter chips, virtual feed, bottom detail sheet.
-/// Store notifications rebuild row content; a separate projection stamp resets native
-/// positional state when visible identities change. Static handlers, stack spans, and an
-/// inline stories buffer reduce allocations; rebuilding the memoized projection allocates.
+/// Store notifications rebuild item content; a separate projection stamp resets native
+/// positional state when visible identities change. Static handlers and stack spans
+/// reduce allocations; rebuilding the memoized projection allocates.
 /// </summary>
 [GpuiView]
 internal sealed partial class ExploreView : View<ExploreProps>
 {
-    [InlineArray(9)]
-    private struct StoryBuffer
-    {
-        private Element _element;
-    }
-
     private static readonly ListOptions FeedListOptions = new(
         batchSize: 32,
         overdraw: 480,
-        estimatedItemHeight: 150
+        estimatedItemExtent: 150
     );
 
-    private static readonly ScrollOptions StoriesScrollOptions = new(showScrollbar: false);
+    private static readonly ListOptions StoriesListOptions = new(
+        orientation: ListOrientation.Horizontal,
+        estimatedItemExtent: 76,
+        showScrollbar: false
+    );
 
     private static readonly string CoverPath = Path.Combine(
         AppContext.BaseDirectory,
@@ -52,13 +49,15 @@ internal sealed partial class ExploreView : View<ExploreProps>
     private readonly WorkScope _work;
     private InputController _search;
     private ListController _feed;
+    private ListController _stories;
     private ulong _feedRevision = 1;
+    private ulong _storiesRevision = 1;
     private string _query = string.Empty;
     private int _chip;
     private int _storyDest = -1;
     private int _sheetDest = -1;
     private bool _refreshing;
-    private List<FeedEntry> _rows = [];
+    private List<FeedEntry> _items = [];
     private TravelStore? _projectionStore;
     private ulong _projectionRevision = 1;
 
@@ -97,6 +96,7 @@ internal sealed partial class ExploreView : View<ExploreProps>
     {
         _storyDest = checked((int)payload) - 1;
         _feedRevision++;
+        _storiesRevision++;
         Invalidate();
     }
 
@@ -166,9 +166,9 @@ internal sealed partial class ExploreView : View<ExploreProps>
     }
 
     [GpuiListItem]
-    private Element FeedRow(int index, in ExploreProps props, ref RenderContext ui)
+    private Element FeedItem(int index, in ExploreProps props, ref RenderContext ui)
     {
-        var entry = _rows[index];
+        var entry = _items[index];
         var theme = ui.Theme;
         var dest = props.Store.FindDest(entry.DestId);
         return ui.Div(
@@ -220,8 +220,10 @@ internal sealed partial class ExploreView : View<ExploreProps>
                         ui.Button("view", "View place →")
                             .OnClick(
                                 this,
-                                static (view, e) => view.OpenSheet(e.Payload),
-                                checked((ulong)entry.DestId)
+                                static (view, e) => view.OpenDest(checked((int)e.Payload) - 1),
+                                // Payload 0 means "unset" next to the item ItemId below, so
+                                // shift by one; Bali is DestId 0.
+                                checked((ulong)entry.DestId) + 1
                             )
                             .Style(WanderStyles.Button(theme, WanderButtonVariant.Chip))
                     )
@@ -249,7 +251,7 @@ internal sealed partial class ExploreView : View<ExploreProps>
     {
         ui.Effect(_watch, props);
         var theme = ui.Theme;
-        var rows = _visible.Get(
+        var items = _visible.Get(
             new ExploreFilter(
                 props.Store,
                 props.Store.Revision,
@@ -259,16 +261,16 @@ internal sealed partial class ExploreView : View<ExploreProps>
             ),
             static input => TravelStore.ApplyFilter(input)
         );
-        if (!ReferenceEquals(rows, _rows))
+        if (!ReferenceEquals(items, _items))
         {
             var sameOrder =
-                ReferenceEquals(_projectionStore, props.Store) && rows.Count == _rows.Count;
-            for (var index = 0; sameOrder && index < rows.Count; index++)
-                sameOrder = rows[index].Id == _rows[index].Id;
+                ReferenceEquals(_projectionStore, props.Store) && items.Count == _items.Count;
+            for (var index = 0; sameOrder && index < items.Count; index++)
+                sameOrder = items[index].Id == _items[index].Id;
             if (!sameOrder)
                 _projectionRevision = checked(_projectionRevision + 1);
             _projectionStore = props.Store;
-            _rows = rows;
+            _items = items;
         }
 
         var page = ui.VStack(
@@ -291,11 +293,11 @@ internal sealed partial class ExploreView : View<ExploreProps>
                 ChipsRow(ref ui),
                 ui.List(
                         ref _feed,
-                        // Local revision, not the store revision: row output depends on
+                        // Local revision, not the store revision: item output depends on
                         // filter state too, and equal counts across filters must still
-                        // evict (Mountains and Cities both yield 9 rows).
-                        new ListDataSource(_rows.Count, _feedRevision, _projectionRevision),
-                        Rows.FeedRow,
+                        // evict (Mountains and Cities both yield 9 items).
+                        new ListDataSource(_items.Count, _feedRevision, _projectionRevision),
+                        Items.FeedItem,
                         FeedListOptions
                     )
                     .Grow()
@@ -318,26 +320,29 @@ internal sealed partial class ExploreView : View<ExploreProps>
 
     private Element StoriesRail(ref RenderContext ui, TravelStore store)
     {
-        var theme = ui.Theme;
-        StoryBuffer buffer = default;
-        buffer[0] = StoryItem(ref ui, this, theme, null, 0);
-        var count = 1;
-        var limit = Math.Min(store.Destinations.Count, StoryIds.Length - 1);
-        for (var i = 0; i < limit; i++)
-        {
-            buffer[count++] = StoryItem(ref ui, this, theme, store.Destinations[i], i + 1);
-        }
-        Span<Element> stories = buffer;
-        return ui.Scroll(
-                "stories",
-                ScrollAxis.Horizontal,
-                StoriesScrollOptions,
-                ui.HStack(stories[..count]).Gap(Px(12))
+        var count = 1 + Math.Min(store.Destinations.Count, StoryIds.Length - 1);
+        return ui.List(
+                ref _stories,
+                new ListDataSource(count, _storiesRevision),
+                Items.StoryItem,
+                StoriesListOptions
             )
-            .Width(Percent(100));
+            .Width(Percent(100))
+            .Height(Px(88));
     }
 
-    private static Element StoryItem(
+    [GpuiListItem]
+    private Element StoryItem(int index, in ExploreProps props, ref RenderContext ui)
+    {
+        var theme = ui.Theme;
+        var dest = index == 0 ? null : props.Store.Destinations[index - 1];
+        // No ItemId here: the rail is static, and an explicit click payload of 0 ("All")
+        // means "unset" next to an item ItemId, so the native side would substitute the item
+        // identity and "All" would behave like the second story.
+        return ui.Div(StoryTile(ref ui, this, theme, dest, index)).PaddingX(Px(6));
+    }
+
+    private static Element StoryTile(
         ref RenderContext ui,
         ExploreView view,
         GpuiTheme theme,

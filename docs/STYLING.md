@@ -72,7 +72,7 @@ Interaction presentation follows a shared native contract:
   opacity by 0.72.
 - Button, Checkbox, Radio, List, Table, and Slider keyboard focus uses a two-pixel outer ring in
   the theme's focused-border color. This paint layer preserves application borders, shadows,
-  dimensions, and padding. It follows ancestor clipping and does not change row measurement or
+  dimensions, and padding. It follows ancestor clipping and does not change item measurement or
   viewport geometry. Input retains its native caret/selection focus presentation.
 - Disabled Button, Checkbox, Radio, Input, and Slider multiply their authored opacity by 0.5.
   An omitted opacity starts at 1; an explicit zero remains invisible. Disabled interactive controls
@@ -166,7 +166,7 @@ Enter/Space activation uses the existing foundation behavior. The pinned GPUI st
 keyboard activation separately from pointer active state; do not assume a held activation key
 displays `Pressed` colors. See the [upstream proposal](proposals/GPUI_CONTENT_COLORS.md).
 
-Theme changes still rerender managed fragments and invalidate virtual row batches because
+Theme changes still rerender managed fragments and invalidate virtual item batches because
 recipes resolve theme tokens to literal colors. Presentation changes do not change retained
 resource keys or reset Input editing, collection state, or Dock structure.
 

@@ -17,7 +17,7 @@ dotnet run --project samples/Gpui.Wander -- --dark
 - **Explore tab** — retained search `Input`, horizontal stories rail (retained
   `Scroll`), filter chips, and a virtual `List` feed. Likes notify the store's
   subscribers and rebuild the immutable-record projection through its revision.
-  A separate projection revision resets native cursor/scroll state when visible row IDs change;
+  A separate projection revision resets native cursor/scroll state when visible item IDs change;
   likes retain the current position because they only change content.
   Tapping a place opens a bottom `Sheet` with a native-decoded SVG cover, like
   and add-to-trip actions. Refresh simulates pull-to-refresh through `WorkScope`.
@@ -49,12 +49,11 @@ so same-field external edits can end active IME composition under this sample po
   with a monotonic `Revision`. Observable mutations notify every consumer.
   `ResetRevision` separately identifies document resets that replace profile drafts.
 - Props-bearing `[GpuiListItem]` methods take `(int index, in TProps props, ref
-  RenderContext ui)` — rows read the store through accepted props, never through
+  RenderContext ui)` — items read the store through accepted props, never through
   `CommittedProps`.
 - Render code uses allocation-conscious mechanisms: ref-bound controllers, static
   handlers with `ulong` payloads (packed `tripId << 8 | day` where one payload
-  must carry two values), stack-span collection expressions, one inline buffer
-  for variable-length rails/cards, static id tables, and arena-direct
-  interpolated text. This is not a zero-allocation measurement: projection rebuilds,
-  capturing lookup predicates, and the current time-label helper can allocate.
-  See `FINDINGS.md` for the gaps this surface exposed.
+  must carry two values), stack-span collection expressions, static id tables,
+  and arena-direct interpolated text. This is not a zero-allocation measurement:
+  projection rebuilds, capturing lookup predicates, and the current time-label
+  helper can allocate. See `FINDINGS.md` for the gaps this surface exposed.

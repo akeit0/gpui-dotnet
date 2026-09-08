@@ -14,12 +14,12 @@ component model.
 
 ## Goals
 
-- Show supported edits to `Render()`, list/table row renderers, event handlers, and style helpers
+- Show supported edits to `Render()`, list/table item renderers, event handlers, and style helpers
   without restarting the process.
 - Preserve existing View instances and their fields, committed props, controllers, and lifetime.
 - Preserve native input, focus, scrolling, selection, window, and retained-resource state when
   stable resource keys still match.
-- Refresh all managed fragments and every native row snapshot that can contain managed output.
+- Refresh all managed fragments and every native item snapshot that can contain managed output.
 - Remain cross-platform and use the same path on macOS and Windows.
 - Keep all Hot Reload work outside normal frame and event hot paths.
 
@@ -35,11 +35,11 @@ component model.
 ## Why metadata updates fit the renderer
 
 The CLR applies supported edits to code in the existing process. GPUI.NET already calls virtual
-managed methods whenever a fragment or virtual row must be rendered, so the next invocation can
+managed methods whenever a fragment or virtual item must be rendered, so the next invocation can
 execute updated IL on the existing object.
 
 The retained renderer currently prevents that invocation when nothing else is dirty. It also keeps
-native List and Table row batches after unrelated managed renders when their content revision is
+native List and Table item batches after unrelated managed renders when their content revision is
 stable. Hot Reload therefore needs an explicit invalidation path on both sides of the binding.
 
 Replacing assemblies through `AssemblyLoadContext` is the wrong model. Existing Views, delegates,
@@ -62,7 +62,7 @@ GPUI.NET metadata-update handler
                  └── enqueue ManagedCodeUpdated to the native application
                                       │
                                       ▼
-                    clear managed List/Table row snapshots
+                    clear managed List/Table item snapshots
                     and invalidate each native ManagedView
                                       │
                                       ▼
@@ -129,7 +129,7 @@ restart; compatible setup method-body edits apply through effect replacement.
 
 A distinct native application command, `ManagedCodeUpdated`:
 
-1. invalidate every cached List and Table row batch;
+1. invalidate every cached List and Table item batch;
 2. mark every native `ManagedView` dirty;
 3. refresh its window.
 
@@ -138,7 +138,7 @@ focus, overlays, and other resources will reconcile normally against the next sn
 whose stable owner/key identity disappears from that snapshot will be released by ordinary
 retention.
 
-Do not reuse `SetTheme` as the Hot Reload command merely because it currently performs similar row
+Do not reuse `SetTheme` as the Hot Reload command merely because it currently performs similar item
 invalidation. Theme and managed-code revisions are separate causes and should remain independently
 observable and testable.
 
@@ -152,23 +152,23 @@ An event can race the short interval between metadata application and the reques
 observe the last committed binding, but it must never observe a partially rendered binding table.
 Normal render commit/error behavior remains authoritative.
 
-## Virtual List and Table rows
+## Virtual List and Table items
 
 Invalidating only managed fragments is insufficient. A List or Table with an explicit unchanged
-content revision can continue displaying previously rendered native row snapshots indefinitely.
+content revision can continue displaying previously rendered native item snapshots indefinitely.
 The native Hot Reload command must clear those batches even when item count, renderer token, and
-content revision are unchanged. New rows remain lazily requested in coarse managed batches.
+content revision are unchanged. New items remain lazily requested in coarse managed batches.
 
 Scroll position, list interaction state, and measurements should be preserved unless the updated
 declaration changes a structural option that already requires a normal reset.
 
 ## Generated View shape
 
-Generated factory support and virtual-row dispatch have a stable initial shape. Every `[GpuiView]`
-receives its factory, an empty `RenderListItem` override, and a `Rows` helper even when the View has
+Generated factory support and virtual-item dispatch have a stable initial shape. Every `[GpuiView]`
+receives its factory, an empty `RenderListItem` override, and an `Items` helper even when the View has
 no `[GpuiListItem]` methods. Adding the first list renderer then updates existing dispatch machinery
 instead of introducing the virtual override during Hot Reload. Renderer ids remain derived from
-stable method identity; changing that identity is allowed to produce a new token because native row
+stable method identity; changing that identity is allowed to produce a new token because native item
 batches are cleared for the update.
 
 ## Fault behavior
@@ -189,7 +189,7 @@ error and restart the application. Healthy windows continue to accept compatible
 | Change a style/helper method used by Views | All Views rerender |
 | Change a compatible event-handler or lambda body | Updated behavior and refreshed bindings |
 | Add/remove/reorder child declarations | Normal slot reconciliation and terminal unmount |
-| Change an existing `[GpuiListItem]` body | Native batches clear and rows regenerate lazily |
+| Change an existing `[GpuiListItem]` body | Native batches clear and items regenerate lazily |
 | Add the first `[GpuiListItem]` | Supported after stable generated scaffolding |
 | Add an ordinary field | Runtime-dependent; existing instances receive no constructor migration |
 | Change constructor or initializer | Existing instances are not reinitialized |
@@ -205,9 +205,9 @@ attempting its own fallback type migration.
 ## Verification
 
 Automated managed tests verify handler registration and harmless updates when no application is
-running. Generator tests verify that a View with no row renderer still receives the stable generated
-row scaffold. Native tests verify command scoping and that ambient managed-render changes clear
-retained List/Table row batches.
+running. Generator tests verify that a View with no item renderer still receives the stable generated
+item scaffold. Native tests verify command scoping and that ambient managed-render changes clear
+retained List/Table item batches.
 
 Broader framework tests should continue to cover:
 
@@ -220,7 +220,7 @@ Broader framework tests should continue to cover:
 
 Native coverage should continue to verify that `ManagedCodeUpdated`:
 
-- clears List and Table row batches;
+- clears List and Table item batches;
 - dirties every managed native window;
 - preserves input, scroll, focus, slider, and other retained-resource identities;
 - is safe with zero windows and during normal window removal.

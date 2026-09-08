@@ -1,6 +1,6 @@
 # Architecture
 
-Cross-layer acceptance, displayed-row ownership, and callback-admission invariants are specified
+Cross-layer acceptance, displayed-item ownership, and callback-admission invariants are specified
 in [Runtime boundaries](RUNTIME_BOUNDARIES.md). Allocation measurements are reported separately in
 [Performance](PERFORMANCE.md); architectural guarantees do not imply measured end-to-end costs.
 
@@ -17,7 +17,7 @@ C# owns:
 - `GpuiApplication`, window definitions, and managed window handles;
 - managed `View` instances, props, lifecycle, and child-slot identity;
 - application themes and application-specific style variants;
-- event handlers and virtual-row renderer methods;
+- event handlers and virtual-item renderer methods;
 - dirty render descriptions.
 
 Rust owns:
@@ -25,14 +25,14 @@ Rust owns:
 - `gpui::Application`, native windows, and the event loop;
 - native validation and owned retained snapshots;
 - semantic component materialization;
-- scrolling, list/table viewport state, measurements, and row caches;
+- scrolling, list/table viewport state, measurements, and item caches;
 - retained Input, Slider, and Dock entities;
 - deferred-layer geometry, focus, stacking, and dismissal;
 - native title-bar hit testing and platform window commands;
 - painting and clean repaints.
 
 The boundary rule is: cross the ABI for state transitions or coarse batches, never for every
-builder call, frame, pointer delta, or virtual row.
+builder call, frame, pointer delta, or virtual item.
 
 ## Render path
 
@@ -57,29 +57,29 @@ ValidatedSnapshot ──► semantic adapters ──► GPUI elements
 
 Managed code owns reusable root, retained-fragment, and range-output arenas. Buffers grow before
 writes without rerunning user rendering. Rust receives a borrowed completed descriptor and
-synchronously decodes it into an owned snapshot before any further managed callback. Native row
+synchronously decodes it into an owned snapshot before any further managed callback. Native item
 caches retain decoded snapshots, not the borrowed buffers. `Render()` and `[GpuiListItem]` remain
 free of observable application-side effects while allowing pure owned caches; this requirement is independent of capacity.
 Elements and render contexts retain the managed arena owner. Authoring validates its thread,
 disposal state, and captured generation before accessing native memory. Each write keeps the owner
 alive until pointer use ends; disposal and reset cannot interrupt an active write or formatter.
 Disposal still releases buffers immediately, even when an escaped Element retains the disposed owner.
-Row engines reuse numeric validation/grouping scratch across serial batch decodes. A batch keeps
+Collection engines reuse numeric validation/grouping scratch across serial batch decodes. A batch keeps
 only its decoded snapshot, artifact lease, and cache metadata. Its temporary string interner ends
 after decoding; the snapshot owns its strings independently. Root snapshots retain their interner
 across renders so consecutive values can reuse allocations.
-Reactive invalidation sorts the owned ingress message by source and artifact once. Each row
+Reactive invalidation sorts the owned ingress message by source and artifact once. Each collection
 engine searches its source range, skipping its cache entirely when that range is empty; no
 additional artifact registry or persistent index is retained.
 Child fragment boundaries check arena identity, generation, and root index before copying. Full
-managed semantic validation runs once on the assembled root or row batch before publication;
+managed semantic validation runs once on the assembled root or item batch before publication;
 native decoding independently validates the complete snapshot before acceptance.
 Decoded snapshots lazily own a drawing geometry cache. Each Drawing retains at most one bounds
 variant after repeated use, with a shared limit of 256 entries and 16 MiB of path/vector capacity
 per snapshot. New descriptions detach the old cache after validation; frame-owned handles may keep
 it alive until the old frame is released. Cache entries hold geometry and resolved colors only, with
 no View callbacks or borrowed arena memory. Snapshots without materialized Drawings allocate no
-drawing cache. This is native derived data and does not add a retained resource or managed row View.
+drawing cache. This is native derived data and does not add a retained resource or managed item View.
 Drawing canvases copy commands into one owned buffer per Drawing. A lazy snapshot-owned pool
 recycles buffers after prepaint consumes their commands or the canvas is dropped, retaining at
 most 256 free buffers and 4 MiB of free command capacity. Live captures exclusively own their
@@ -156,11 +156,11 @@ adapters validate and render an element tree under the session's demand scope. T
 theme, render-purity guards, dependency tracking, and artifact-owned event bindings. Native
 `demand::load_artifact` decodes borrowed output, validates the adapter's expected shape, accepts
 the artifact, and returns an owned snapshot and release lease. Source IDs come from the shared
-demand module. Neither the common loader nor the managed demand scope assumes rows or indices.
+demand module. Neither the common loader nor the managed demand scope assumes items or indices.
 
 List/Table currently provide the production request adapter: a bounded contiguous range rendered
-under a synthetic root, with one child per requested row. Their cache eviction and measurement
-policies remain in the row engine. Non-range snapshot tests exercise the same lifecycle. Public
+under a synthetic root, with one child per requested item. Their cache eviction and measurement
+policies remain in the collection engine. Non-range snapshot tests exercise the same lifecycle. Public
 custom demand-renderer registration and a general request ABI are not exposed yet; the existing
 `list_render_range` callback remains this adapter's wire entry point.
 
@@ -186,37 +186,37 @@ accepted effect setup can command its resources before they materialize.
 
 ## Virtual datasource path
 
-List and Table rows are not managed child views. GPUI requests item indices from a Rust closure;
+List and Table items are not managed child views. GPUI requests item indices from a Rust closure;
 Rust aligns cache misses to a configured batch and invokes managed code once for that range:
 
 ```text
 GPUI item request
       │
       ▼
-Rust row-batch cache ── hit ──► retained row snapshot
+Rust item-batch cache ── hit ──► retained item snapshot
       │ miss
       ▼
 list_render_range(source, start, count) → artifact
       │
       ▼
-one arena containing count row roots
+one arena containing count item roots
 ```
 
-`ListDataSource.ContentRevision` controls row-snapshot validity independently from the root snapshot
-revision. Theme changes also evict row batches because rows contain resolved theme colors. List
+`ListDataSource.ContentRevision` controls item-snapshot validity independently from the root snapshot
+revision. Theme changes also evict item batches because items contain resolved theme colors. List
 viewport and measurement state survive either invalidation.
 An optional `ListDataSource.ProjectionRevision` declares replacement of positional identity.
 Changing it resets native cursor, viewport, measurements, and batches at reconciliation, even for
 equal counts. It overrides queued positional hints; stable stamps preserve the existing splice
 contract. C# owns this coarse stamp and model selection; Rust does not scan managed IDs per frame.
 
-Every native row engine owns a non-reused source identity, separate from its generated renderer
+Every native collection engine owns a non-reused source identity, separate from its generated renderer
 method. Every loaded batch owns a managed artifact lease that keeps only that batch's event
 bindings live. Eviction, revision/theme invalidation, source removal, and shutdown release those
 bindings explicitly. Native decode failure releases the unpublished batch's lease and faults the
 session. Artifact release runs no application code, including during root reconciliation.
 
-After range decode, `accept_artifact` commits its reactive observations. Row-only Signal changes
+After range decode, `accept_artifact` commits its reactive observations. Item-only Signal changes
 batch source/artifact keys at the managed callback boundary; native evicts and remeasures those
 batches without requiring managed root rendering. These identities never reach application code.
 
@@ -224,10 +224,10 @@ Dynamic event tokens identify a never-reused ID under a one-shot View handle. Li
 recyclable slots. Root rendering retires only root bindings; each artifact releases only its own
 bindings. Stale tokens are harmless and released slots no longer retain targets or delegates.
 
-Virtual-row context menus and tooltips use collection-level requests with stable item IDs. The owning
-managed View declares the content in its root/fragment snapshot, outside the row batch. A window-owned
+Virtual-item context menus and tooltips use collection-level requests with stable item IDs. The owning
+managed View declares the content in its root/fragment snapshot, outside the item batch. A window-owned
 native anchor records the pointer position or marked element bounds and artifact identity without
-retaining the batch. Tooltip targets are scalar row markers; the collection declares the complete
+retaining the batch. Tooltip targets are scalar item markers; the collection declares the complete
 tooltip options and native timing requests managed content only after sustained hover. Deferred
 prepaint checks current geometry and cache identity before exposing content
 or hitboxes. Anchor loss expires the request; a stale managed declaration cannot reopen it.

@@ -8,7 +8,7 @@ Start with the repository [README](../README.md) for setup and a small applicati
 | --- | --- |
 | [Components](COMPONENTS.md) | Component classes, snapshot elements, adding a component |
 | [Styling](STYLING.md) | Themes, recipes, inheritance, native presentation |
-| [Collections](COLLECTIONS.md) | Scroll, List, Table, virtual rows |
+| [Collections](COLLECTIONS.md) | Scroll, List, Table, virtual items |
 | [Retained controls](CONTROLS.md) | Input, Slider, Dock |
 | [Interaction](INTERACTION.md) | Focus targets, shortcuts, observers, accessible names |
 | [Layers](LAYERS.md) | Overlays, tooltips, menus, window chrome |

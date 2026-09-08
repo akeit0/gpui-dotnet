@@ -3157,8 +3157,8 @@
         },
         {
           "id": 1103,
-          "name": "list_estimated_item_height_px",
-          "csharp": "ListEstimatedItemHeightPx",
+          "name": "list_estimated_item_extent_px",
+          "csharp": "ListEstimatedItemExtentPx",
           "value": "f32",
           "requires": "virtualized",
           "managedApi": null,
@@ -3190,7 +3190,7 @@
             "param": "itemId",
             "guard": "nonZero",
             "guardMessage": "Item ID 0 is reserved.",
-            "doc": "Declares the stable model identity of a virtualized list row. IDs must be unique within one list; payload 0 is reserved."
+            "doc": "Declares the stable model identity of a virtualized list item. IDs must be unique within one list; payload 0 is reserved."
           }
         },
         {
@@ -3256,14 +3256,27 @@
         },
         {
           "id": 1113,
-          "name": "row_tooltip_target",
-          "csharp": "RowTooltipTarget",
+          "name": "item_tooltip_target",
+          "csharp": "ItemTooltipTarget",
           "value": "u32",
           "requires": "styled",
           "managedApi": null,
           "validation": {
             "kind": "bool",
             "status": -21
+          }
+        },
+        {
+          "id": 1114,
+          "name": "list_orientation",
+          "csharp": "ListOrientation",
+          "value": "u32",
+          "requires": "virtualized",
+          "managedApi": null,
+          "validation": {
+            "kind": "u32Max",
+            "max": 1,
+            "status": -28
           }
         }
       ]
@@ -3788,8 +3801,8 @@
         },
         {
           "id": 1605,
-          "name": "tooltip_row_anchor",
-          "csharp": "TooltipRowAnchor",
+          "name": "tooltip_item_anchor",
+          "csharp": "TooltipItemAnchor",
           "value": "u64",
           "requires": "tooltip",
           "managedApi": null
@@ -3832,8 +3845,8 @@
         },
         {
           "id": 1702,
-          "name": "context_menu_row_anchor",
-          "csharp": "ContextMenuRowAnchor",
+          "name": "context_menu_item_anchor",
+          "csharp": "ContextMenuItemAnchor",
           "value": "u64",
           "requires": "context_menu",
           "managedApi": null
@@ -4494,6 +4507,18 @@
           "name": "to_bottom",
           "csharp": "ScrollToBottom",
           "doc": "Scrolls to the bottom."
+        },
+        {
+          "id": 103,
+          "name": "to_left",
+          "csharp": "ScrollToLeft",
+          "doc": "Scrolls to the left edge, preserving the vertical offset."
+        },
+        {
+          "id": 104,
+          "name": "to_right",
+          "csharp": "ScrollToRight",
+          "doc": "Scrolls to the right edge, preserving the vertical offset."
         }
       ]
     },
@@ -4669,28 +4694,28 @@
       "name": "list_activated",
       "csharp": "Activated",
       "group": "list",
-      "doc": "Opt-in row activation. Data is 16 little-endian bytes: u32 index, zero u32 reserved, u64 ItemId (zero when absent). Flags bit 0 selects keyboard instead of pointer, bit 1 indicates a datasource content revision in revision; all other bits are zero. Without bit 1, revision is zero."
+      "doc": "Opt-in item activation. Data is 16 little-endian bytes: u32 index, zero u32 reserved, u64 ItemId (zero when absent). Flags bit 0 selects keyboard instead of pointer, bit 1 indicates a datasource content revision in revision; all other bits are zero. Without bit 1, revision is zero."
     },
     {
       "id": 301,
       "name": "list_context_menu_requested",
       "csharp": "ContextMenuRequested",
       "group": "list",
-      "doc": "Right-click on a row with a stable ItemId. Carries the 16-byte row identity packet followed by a nonzero U64 native anchor. Only flag 1 (content revision present) is allowed."
+      "doc": "Right-click on an item with a stable ItemId. Carries the 16-byte item identity packet followed by a nonzero U64 native anchor. Only flag 1 (content revision present) is allowed."
     },
     {
       "id": 302,
       "name": "list_selection_requested",
       "csharp": "SelectionRequested",
       "group": "list",
-      "doc": "Opt-in single-row selection request. Uses the List Activated payload and flag layout; selection and presentation remain application-owned."
+      "doc": "Opt-in single-item selection request. Uses the List Activated payload and flag layout; selection and presentation remain application-owned."
     },
     {
       "id": 303,
       "name": "list_tooltip_requested",
       "csharp": "TooltipRequested",
       "group": "list",
-      "doc": "Delayed hover on a marked row element with stable ItemId. Uses the Row ContextMenu 24-byte identity/anchor packet and revision flag. No pointer motion crosses the ABI."
+      "doc": "Delayed hover on a marked item element with stable ItemId. Uses the Item ContextMenu 24-byte identity/anchor packet and revision flag. No pointer motion crosses the ABI."
     },
     {
       "id": 400,

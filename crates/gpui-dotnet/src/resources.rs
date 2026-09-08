@@ -23,11 +23,12 @@ use crate::{
     },
     input::{InputBindings, InputInitialState, InputPresentation, ManagedInput},
     semantic::{
-        COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP, NativeAdapter,
-        OP_INPUT_CARET_RGBA, OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED,
-        OP_INPUT_ON_SUBMITTED, OP_INPUT_ON_WRITE_COMPLETED, OP_INPUT_PASSWORD,
-        OP_INPUT_PLACEHOLDER_RGBA, OP_INPUT_READ_ONLY, OP_INPUT_SELECTION_RGBA, OP_RESOURCE_OWNER,
-        OP_SLIDER_AXIS, OP_SLIDER_DISABLED, OP_SLIDER_FILL_RGBA, OP_SLIDER_MAX, OP_SLIDER_MIN,
+        COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_LEFT, COMMAND_SCROLL_TO_OFFSET,
+        COMMAND_SCROLL_TO_RIGHT, COMMAND_SCROLL_TO_TOP, NativeAdapter, OP_INPUT_CARET_RGBA,
+        OP_INPUT_DISABLED, OP_INPUT_ON_CHANGED, OP_INPUT_ON_FOCUS_CHANGED, OP_INPUT_ON_SUBMITTED,
+        OP_INPUT_ON_WRITE_COMPLETED, OP_INPUT_PASSWORD, OP_INPUT_PLACEHOLDER_RGBA,
+        OP_INPUT_READ_ONLY, OP_INPUT_SELECTION_RGBA, OP_RESOURCE_OWNER, OP_SLIDER_AXIS,
+        OP_SLIDER_DISABLED, OP_SLIDER_FILL_RGBA, OP_SLIDER_MAX, OP_SLIDER_MIN,
         OP_SLIDER_ON_CHANGED, OP_SLIDER_ON_RELEASED, OP_SLIDER_RANGE_END, OP_SLIDER_RANGE_START,
         OP_SLIDER_SCALE, OP_SLIDER_STEP, OP_SLIDER_THUMB_BORDER_RGBA, OP_SLIDER_THUMB_RGBA,
         OP_SLIDER_TRACK_RGBA, OP_SLIDER_VALUE, RESOURCE_DOCK, RESOURCE_FOCUS, RESOURCE_INPUT,
@@ -75,8 +76,8 @@ impl ResourceCommand {
 
 pub(crate) struct ResourceStore {
     pub(crate) shortcuts: crate::shortcuts::ShortcutDispatch,
-    pub(crate) row_menus: Rc<crate::row_menu::RowMenus>,
-    pub(crate) row_tooltips: Rc<crate::row_tooltip::RowTooltips>,
+    pub(crate) item_menus: Rc<crate::item_menu::ItemMenus>,
+    pub(crate) item_tooltips: Rc<crate::item_tooltip::ItemTooltips>,
     session_id: u64,
     callbacks: ManagedCallbacks,
     theme: SharedTheme,
@@ -112,9 +113,9 @@ impl ResourceStore {
 
     pub(crate) fn new(session_id: u64, callbacks: ManagedCallbacks, theme: SharedTheme) -> Self {
         Self {
-            row_menus: Rc::new(crate::row_menu::RowMenus::default()),
+            item_menus: Rc::new(crate::item_menu::ItemMenus::default()),
             shortcuts: Default::default(),
-            row_tooltips: Rc::new(crate::row_tooltip::RowTooltips::default()),
+            item_tooltips: Rc::new(crate::item_tooltip::ItemTooltips::default()),
             session_id,
             callbacks,
             theme,
@@ -132,7 +133,7 @@ impl ResourceStore {
         }
     }
 
-    pub(crate) fn row_tooltip_target(
+    pub(crate) fn item_tooltip_target(
         &self,
         key: &ResourceKey,
         index: usize,
@@ -142,12 +143,12 @@ impl ResourceStore {
         let Some(source) = self.collections.lookup(key) else {
             return child;
         };
-        crate::row_tooltip::Target {
+        crate::item_tooltip::Target {
             child,
             source,
             index,
             target,
-            tooltips: self.row_tooltips.clone(),
+            tooltips: self.item_tooltips.clone(),
         }
         .into_any_element()
     }
@@ -220,8 +221,8 @@ impl ResourceStore {
         )
     }
 
-    /// Binds the column metadata declared by the current snapshot to a table's row engine.
-    /// A changed column table changes row layout, so every cached row batch is invalidated.
+    /// Binds the column metadata declared by the current snapshot to a table's collection engine.
+    /// A changed column table changes cell layout, so every cached item batch is invalidated.
     pub(crate) fn bind_table_spec(
         &self,
         key: &ResourceKey,
@@ -235,15 +236,15 @@ impl ResourceStore {
         self.collections.table_spec(key)
     }
 
-    /// Clones the row-engine handles for diagnostics aggregation. Safe outside the render path
+    /// Clones the collection-engine handles for diagnostics aggregation. Safe outside the render path
     /// (frame boundaries hold no RefCell borrows).
     pub(crate) fn list_engines(&self) -> Vec<Rc<RefCell<CollectionEngine>>> {
         self.collections.engines()
     }
 
-    /// Discards retained managed row snapshots after an ambient theme or managed-code update.
-    /// Tables use the same row engines as lists, so this covers both.
-    pub(crate) fn invalidate_managed_rendered_rows(&self) {
+    /// Discards retained managed item snapshots after an ambient theme or managed-code update.
+    /// Tables use the same collection engines as lists, so this covers both.
+    pub(crate) fn invalidate_managed_rendered_items(&self) {
         self.collections.invalidate_managed_rows()
     }
 
@@ -465,6 +466,11 @@ impl ResourceStore {
             }
             COMMAND_SCROLL_TO_TOP => handle.set_offset(point(px(0.), px(0.))),
             COMMAND_SCROLL_TO_BOTTOM => handle.scroll_to_bottom(),
+            COMMAND_SCROLL_TO_LEFT => handle.set_offset(point(px(0.), handle.offset().y)),
+            COMMAND_SCROLL_TO_RIGHT => {
+                let max = handle.max_offset();
+                handle.set_offset(point(-max.x, handle.offset().y))
+            }
             _ => {}
         }
         true

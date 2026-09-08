@@ -60,7 +60,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             fixture.Control(
                 request,
                 (ushort)ListEventKind.ContextMenuRequested,
-                RowMenuPayload(0, (ulong)target.Id, 99),
+                ItemMenuPayload(0, (ulong)target.Id, 99),
                 2,
                 1
             )
@@ -81,7 +81,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Equal(0, fixture.NativePublish(out revision, out arena));
         Assert.DoesNotContain(
             new ReadOnlySpan<OpRecord>(arena.Ops, arena.OpLength).ToArray(),
-            op => op.Code == (ushort)OpCode.ContextMenuRowAnchor
+            op => op.Code == (ushort)OpCode.ContextMenuItemAnchor
         );
 
         if (action == "ctx-delete")

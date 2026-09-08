@@ -17,7 +17,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         var root = ui.Div();
         for (var index = 0; index < leaves; index++)
             root = root.Children(
-                ui.Text("retained row label")
+                ui.Text("retained item label")
                     .FontSize(Units.Px(14))
                     .TextColor(new Color(0x112233FF))
             );

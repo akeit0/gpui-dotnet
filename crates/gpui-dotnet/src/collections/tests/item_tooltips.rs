@@ -2,26 +2,26 @@ use super::*;
 use gpui::{MouseButton, Styled};
 use std::time::Duration;
 
-struct TooltipRows {
+struct TooltipItems {
     store: Rc<ResourceStore>,
     resource: Rc<RefCell<CollectionEngine>>,
     paints: Rc<Cell<usize>>,
-    show_rows: bool,
+    show_items: bool,
     show_tooltip: bool,
     horizontal: bool,
 }
 
-impl gpui::Render for TooltipRows {
+impl gpui::Render for TooltipItems {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.paints.set(0);
-        self.store.row_tooltips.begin_frame();
+        self.store.item_tooltips.begin_frame();
         self.resource.borrow_mut().begin_frame();
         let mut root = div()
             .flex()
             .flex_col()
             .w(px(if self.horizontal { 600. } else { 300. }))
             .h(px(240.));
-        if self.show_rows && self.horizontal {
+        if self.show_items && self.horizontal {
             // Exercise the same cached item targets side by side, independently of List's
             // vertical layout adapter. Anchoring must use target bounds on both axes.
             let mut items = div().flex().w(px(400.)).h(px(40.));
@@ -33,7 +33,7 @@ impl gpui::Render for TooltipRows {
                 ));
             }
             root = root.child(items);
-        } else if self.show_rows {
+        } else if self.show_items {
             let state = self.resource.borrow().state.clone();
             let resource = self.resource.clone();
             let store = self.store.clone();
@@ -63,8 +63,8 @@ impl gpui::Render for TooltipRows {
                 |_, _, _| (),
                 move |_, _, _, _| paints.set(paints.get() + 1),
             ));
-            root = root.child(crate::row_tooltip::tooltip(
-                self.store.row_tooltips.clone(),
+            root = root.child(crate::item_tooltip::tooltip(
+                self.store.item_tooltips.clone(),
                 id,
                 1,
                 content.into_any_element(),
@@ -72,9 +72,9 @@ impl gpui::Render for TooltipRows {
                 cx,
             ));
         }
-        self.store.row_tooltips.finish_declarations(window);
-        root.child(crate::row_tooltip::frame_end(
-            self.store.row_tooltips.clone(),
+        self.store.item_tooltips.finish_declarations(window);
+        root.child(crate::item_tooltip::frame_end(
+            self.store.item_tooltips.clone(),
         ))
     }
 }
@@ -82,7 +82,7 @@ impl gpui::Render for TooltipRows {
 fn fixture(
     cx: &mut gpui::TestAppContext,
 ) -> (
-    Entity<TooltipRows>,
+    Entity<TooltipItems>,
     &mut gpui::VisualTestContext,
     Rc<RefCell<CollectionEngine>>,
     Rc<Cell<usize>>,
@@ -96,7 +96,7 @@ fn fixture(
         }
     });
     let callbacks = ManagedCallbacks {
-        control_event: Some(capture_row_menu),
+        control_event: Some(capture_item_menu),
         ..artifact_callbacks()
     };
     let store = Rc::new(ResourceStore::new(1, callbacks, theme()));
@@ -107,11 +107,11 @@ fn fixture(
     config.item_count = 20;
     let resource = store.list_resource(&ResourceKey::new(1, "tooltip-rows".into()), &config, 1);
     let paints = Rc::new(Cell::new(0));
-    let (view, cx) = cx.add_window_view(|_, _| TooltipRows {
+    let (view, cx) = cx.add_window_view(|_, _| TooltipItems {
         store,
         resource: resource.clone(),
         paints: paints.clone(),
-        show_rows: true,
+        show_items: true,
         show_tooltip: true,
         horizontal: false,
     });
@@ -138,7 +138,7 @@ fn requests() -> usize {
 }
 
 #[gpui::test]
-fn row_tooltip_uses_collection_timing_and_expires_when_options_change(
+fn item_tooltip_uses_collection_timing_and_expires_when_options_change(
     cx: &mut gpui::TestAppContext,
 ) {
     let (_, cx, resource, paints) = fixture(cx);
@@ -185,7 +185,7 @@ fn row_tooltip_uses_collection_timing_and_expires_when_options_change(
 }
 
 #[gpui::test]
-fn row_tooltip_anchors_to_horizontal_item_bounds(cx: &mut gpui::TestAppContext) {
+fn item_tooltip_anchors_to_horizontal_item_bounds(cx: &mut gpui::TestAppContext) {
     let (view, cx, resource, paints) = fixture(cx);
     resource.borrow_mut().tooltip.placement = 2;
     view.update(cx, |view, _| view.horizontal = true);
@@ -213,7 +213,7 @@ fn row_tooltip_anchors_to_horizontal_item_bounds(cx: &mut gpui::TestAppContext) 
 }
 
 #[gpui::test]
-fn row_tooltip_waits_for_hover_and_allows_entering_its_content(cx: &mut gpui::TestAppContext) {
+fn item_tooltip_waits_for_hover_and_allows_entering_its_content(cx: &mut gpui::TestAppContext) {
     let (_, cx, resource, paints) = fixture(cx);
     move_to(cx, 50., 60.);
     advance(cx, 499);
@@ -248,7 +248,7 @@ fn row_tooltip_waits_for_hover_and_allows_entering_its_content(cx: &mut gpui::Te
 }
 
 #[gpui::test]
-fn row_tooltip_expires_on_scroll_press_replacement_and_removal(cx: &mut gpui::TestAppContext) {
+fn item_tooltip_expires_on_scroll_press_replacement_and_removal(cx: &mut gpui::TestAppContext) {
     let (view, cx, resource, paints) = fixture(cx);
     for change in 0..6 {
         move_to(cx, 250., 10.);
@@ -271,14 +271,14 @@ fn row_tooltip_expires_on_scroll_press_replacement_and_removal(cx: &mut gpui::Te
                 gpui::Modifiers::none(),
             ),
             2 => resource.borrow_mut().clear_batches(),
-            3 => view.update(cx, |view, _| view.show_rows = false),
+            3 => view.update(cx, |view, _| view.show_items = false),
             4 => view.update(cx, |view, _| view.show_tooltip = false),
             _ => resource.borrow_mut().scroll_to_item(19),
         }
         draw(cx);
         assert_eq!(paints.get(), 0, "tooltip survived change {change}");
         view.update(cx, |view, _| {
-            view.show_rows = true;
+            view.show_items = true;
             view.show_tooltip = true;
         });
         resource.borrow_mut().scroll_to_item(0);

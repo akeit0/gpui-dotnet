@@ -15,6 +15,8 @@ mod drawing_cache;
 mod drawing_commands;
 pub mod extension;
 mod input;
+mod item_menu;
+mod item_tooltip;
 mod materializer;
 #[cfg(test)]
 mod native_workloads;
@@ -24,8 +26,6 @@ mod popover_menu;
 mod presence;
 mod presentation;
 mod resources;
-mod row_menu;
-mod row_tooltip;
 mod scrolling;
 #[path = "semantic.g.rs"]
 mod semantic;
@@ -49,9 +49,9 @@ use semantic::{
     COMMAND_INPUT_FOCUS, COMMAND_INPUT_SELECT_ALL, COMMAND_INPUT_SET_VALUE,
     COMMAND_INPUT_SET_VALUE_IF_CURRENT, COMMAND_INPUT_SET_VALUE_IF_CURRENT_WITH_RESULT,
     COMMAND_LIST_REFRESH, COMMAND_LIST_RESET, COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_LIST_SPLICE,
-    COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP,
-    COMMAND_SLIDER_SET_VALUE, RESOURCE_DOCK, RESOURCE_FOCUS, RESOURCE_INPUT, RESOURCE_LIST,
-    RESOURCE_SCROLL, RESOURCE_SLIDER, SCHEMA_HASH,
+    COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_LEFT, COMMAND_SCROLL_TO_OFFSET,
+    COMMAND_SCROLL_TO_RIGHT, COMMAND_SCROLL_TO_TOP, COMMAND_SLIDER_SET_VALUE, RESOURCE_DOCK,
+    RESOURCE_FOCUS, RESOURCE_INPUT, RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER, SCHEMA_HASH,
 };
 
 static API_V3: GpuiDotnetApiV3 = GpuiDotnetApiV3 {
@@ -257,7 +257,11 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         RESOURCE_FOCUS => matches!(command.command, COMMAND_FOCUS_FOCUS | COMMAND_FOCUS_BLUR),
         RESOURCE_SCROLL => matches!(
             command.command,
-            COMMAND_SCROLL_TO_OFFSET | COMMAND_SCROLL_TO_TOP | COMMAND_SCROLL_TO_BOTTOM
+            COMMAND_SCROLL_TO_OFFSET
+                | COMMAND_SCROLL_TO_TOP
+                | COMMAND_SCROLL_TO_BOTTOM
+                | COMMAND_SCROLL_TO_LEFT
+                | COMMAND_SCROLL_TO_RIGHT
         ),
         RESOURCE_LIST => matches!(
             command.command,
@@ -302,6 +306,9 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
             }
         }
         (RESOURCE_SCROLL, COMMAND_SCROLL_TO_TOP | COMMAND_SCROLL_TO_BOTTOM) => {
+            command.data_length == 0 && command.a == 0 && command.b == 0
+        }
+        (RESOURCE_SCROLL, COMMAND_SCROLL_TO_LEFT | COMMAND_SCROLL_TO_RIGHT) => {
             command.data_length == 0 && command.a == 0 && command.b == 0
         }
         (RESOURCE_LIST, COMMAND_LIST_SCROLL_TO_ITEM) => {

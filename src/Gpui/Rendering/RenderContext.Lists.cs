@@ -7,7 +7,7 @@ public readonly unsafe ref partial struct RenderContext
 {
     /// <summary>
     /// Declares a variable-height virtualized list. GPUI retains measurements and requests managed
-    /// rows in coarse batches. The renderer must be generated from a [GpuiListItem] method.
+    /// items in coarse batches. The renderer must be generated from a [GpuiListItem] method.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Element<ListTag> List(
@@ -47,7 +47,7 @@ public readonly unsafe ref partial struct RenderContext
 
     /// <summary>
     /// Declares a variable-height virtualized list. GPUI retains measurements and requests managed
-    /// rows in coarse batches. The renderer must be generated from a [GpuiListItem] method.
+    /// items in coarse batches. The renderer must be generated from a [GpuiListItem] method.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Element<ListTag> List(
@@ -63,7 +63,7 @@ public readonly unsafe ref partial struct RenderContext
 
     /// <summary>
     /// Declares a variable-height virtualized list with explicit datasource content identity.
-    /// Native row batches survive unrelated managed renders while the revision is unchanged.
+    /// Native item batches survive unrelated managed renders while the revision is unchanged.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Element<ListTag> List(
@@ -146,6 +146,10 @@ public readonly unsafe ref partial struct RenderContext
         {
             throw new ArgumentOutOfRangeException(nameof(options));
         }
+        if ((uint)options.EffectiveOrientation > (uint)ListOrientation.Horizontal)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options));
+        }
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -183,12 +187,16 @@ public readonly unsafe ref partial struct RenderContext
                 (uint)options.EffectiveAlignment
             );
         }
-        if (options.EffectiveEstimatedItemHeight != 40)
+        if (options.EffectiveEstimatedItemExtent is { } extent)
         {
-            ArenaWriter.AddF32(
+            ArenaWriter.AddF32(element.Inner, OpCode.ListEstimatedItemExtentPx, extent);
+        }
+        if (options.EffectiveOrientation != ListOrientation.Vertical)
+        {
+            ArenaWriter.AddU32(
                 element.Inner,
-                OpCode.ListEstimatedItemHeightPx,
-                options.EffectiveEstimatedItemHeight
+                OpCode.ListOrientation,
+                (uint)options.EffectiveOrientation
             );
         }
         if (contentRevision is { } revision)
