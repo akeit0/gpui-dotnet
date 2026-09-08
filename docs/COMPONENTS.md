@@ -63,8 +63,11 @@ when interaction state must survive independently from managed renders.
   paint. Each caller supplies its own stable identity and event route. Item callbacks retain their
   item-ID payload fallback; mounted controls retain View observers and shortcut routing.
 - `Badge` provides minimal native defaults that managed styling can override.
-- `Image` uses GPUI's decoder and cache. Its data is a filesystem path; presentation supports
-  object fit and grayscale.
+- `Image` uses GPUI's decoder and a per-view scoped cache. Its data is a filesystem path;
+  presentation supports object fit and grayscale. After each frame the cache releases decoded
+  images (and their GPU textures) that neither mounted nodes nor cached virtual-item batches
+  declare anymore, so an image viewer that navigates between files stays near its visible
+  working set instead of accumulating every previously displayed file.
 - `Drawing` owns ordered `Path` children and paints them through GPUI's native path tessellator.
   `ViewBox` independently maps each coordinate axis into the final layout bounds, making plot
   geometry responsive without a managed paint callback. Stroke widths stay in

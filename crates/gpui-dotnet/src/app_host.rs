@@ -527,6 +527,9 @@ impl Render for ManagedView {
 
         let content = {
             let _stage = trace::span(trace::Stage::Materialize);
+            // Ensure the scoped image cache exists before materialization so every `img`
+            // resolves through it instead of GPUI's never-evicted global asset map.
+            let _image_cache = self.resources.image_cache(cx);
             if let Some(error) = &self.error {
                 div()
                     .p(px(20.0))
@@ -544,6 +547,14 @@ impl Render for ManagedView {
 
         self.resources.item_menus.finish_declarations(window, cx);
         self.resources.item_tooltips.finish_declarations(window);
+
+        if self.error.is_none() && self.has_snapshot {
+            // The snapshot is authoritative: release decoded images (and their GPU textures)
+            // that neither mounted nodes nor cached virtual-item batches declare anymore.
+            // Revision gating keeps re-renders of an unchanged tree allocation-free.
+            self.resources
+                .retain_live_images(&self.snapshot, self.snapshot_revision, window, cx);
+        }
 
         if trace::enabled() {
             trace::end_frame(&self.list_telemetry_sums());

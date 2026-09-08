@@ -14,6 +14,7 @@ mod dock_skin;
 mod drawing_cache;
 mod drawing_commands;
 pub mod extension;
+mod images;
 mod input;
 mod item_menu;
 mod item_tooltip;

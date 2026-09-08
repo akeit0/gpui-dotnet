@@ -113,6 +113,15 @@ impl CollectionRegistry {
         }
     }
 
+    /// Unions image hashes declared by every cached virtual-item batch into `live`. Item
+    /// snapshots are authoritative for item content the same way the mounted snapshot is for
+    /// mounted content, so the image cache must not evict them while they are cached.
+    pub(crate) fn cached_image_hashes(&self, live: &mut HashSet<u64>) {
+        for engine in self.engines() {
+            engine.borrow().cached_image_hashes(live);
+        }
+    }
+
     pub(crate) fn invalidate_artifacts(&self, keys: &mut [NativeArtifactKey]) -> bool {
         if keys.is_empty() {
             return false;

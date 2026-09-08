@@ -6,17 +6,15 @@ use controls::ControlPresentation;
 use events::*;
 use styles::*;
 
-use std::path::PathBuf;
-
 use gpui::{
     AnyElement, App, BoxShadow, ClickEvent, Context, CursorStyle, DefiniteLength, ElementId,
     Entity, ExternalPaths, FillOptions, FillRule, FocusHandle, Font, FontFallbacks, FontStyle,
-    FontWeight, Hsla, InteractiveElement, IntoElement, KeyDownEvent, KeyUpEvent, Length,
-    ListOffset, ListState, ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseMoveEvent,
-    MouseUpEvent, ObjectFit, ParentElement, PathBuilder, PathStyle, Pixels, ScrollWheelEvent,
-    SharedString, StatefulInteractiveElement, Styled, StyledImage, TextAlign, TextOverflow,
-    WeakFocusHandle, Window, WindowControlArea, anchored, canvas, deferred, div, img, list, point,
-    px, relative, rgba,
+    FontWeight, Hsla, ImageSource, InteractiveElement, IntoElement, KeyDownEvent, KeyUpEvent,
+    Length, ListOffset, ListState, ModifiersChangedEvent, MouseButton, MouseDownEvent,
+    MouseMoveEvent, MouseUpEvent, ObjectFit, ParentElement, PathBuilder, PathStyle, Pixels,
+    ScrollWheelEvent, SharedString, StatefulInteractiveElement, Styled, StyledImage, TextAlign,
+    TextOverflow, WeakFocusHandle, Window, WindowControlArea, anchored, canvas, deferred, div, img,
+    list, point, px, relative, rgba,
 };
 use gpui_base::FocusTrapElement as _;
 
@@ -35,6 +33,7 @@ use crate::{
         NativeExtensionEventEmitter, NativeExtensionRequest, declaration as extension_declaration,
         provider as extension_provider,
     },
+    images::{ManagedImageCache, image_resource},
     overlay::{OverlayKind, OverlayStack, OverlayToken},
     popover_menu::{PopoverMenuConfiguration, popover_menu},
     presentation,
@@ -121,7 +120,12 @@ impl ManagedView {
             NativeAdapter::Scroll => self.materialize_scroll(node_id, node, snapshot, window, cx),
             NativeAdapter::List => self.materialize_list(node, snapshot, window, cx),
             NativeAdapter::Table => self.materialize_table(node, snapshot, window, cx),
-            NativeAdapter::Image => materialize_image(node, snapshot, *self.theme.borrow()),
+            NativeAdapter::Image => materialize_image(
+                node,
+                snapshot,
+                *self.theme.borrow(),
+                self.resources.existing_image_cache(),
+            ),
             NativeAdapter::Drawing => materialize_drawing(node_id, snapshot),
             NativeAdapter::Dynamic => self.materialize_dynamic(node, snapshot, window, cx),
             NativeAdapter::Path => div().into_any_element(),
@@ -1285,7 +1289,12 @@ fn materialize_item_node(
             .into_any_element();
     }
     if metadata.adapter == NativeAdapter::Image {
-        return materialize_image(node, snapshot, resources.theme());
+        return materialize_image(
+            node,
+            snapshot,
+            resources.theme(),
+            resources.existing_image_cache(),
+        );
     }
     if metadata.adapter == NativeAdapter::Drawing {
         return materialize_drawing(node_id, snapshot);
@@ -2028,8 +2037,15 @@ fn materialize_image(
     node: &SnapshotNode,
     snapshot: &ValidatedSnapshot,
     theme: NativeTheme,
+    image_cache: Option<Entity<ManagedImageCache>>,
 ) -> AnyElement {
-    let mut element = img(PathBuf::from(node.data.as_ref()));
+    // Route through the view's scoped image cache when it exists so evicted images release
+    // their decoded frames and GPU textures. Direct materialization without a render frame
+    // (tests, first paint) keeps the previous global-asset behavior.
+    let mut element = img(ImageSource::Resource(image_resource(node.data.as_ref())));
+    if let Some(cache) = &image_cache {
+        element = element.image_cache(cache);
+    }
     let fit = match last_op(snapshot, node, OP_IMAGE_OBJECT_FIT).map(|op| op.a as u32) {
         Some(0) => ObjectFit::Fill,
         Some(2) => ObjectFit::Cover,

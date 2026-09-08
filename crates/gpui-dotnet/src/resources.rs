@@ -6,8 +6,8 @@ use std::{
 };
 
 use gpui::{
-    AnyElement, AppContext, Context, Entity, FocusHandle, IntoElement, Pixels, Point, ScrollHandle,
-    SharedString, Subscription, WeakEntity, Window, point, px,
+    AnyElement, App, AppContext, Context, Entity, FocusHandle, IntoElement, Pixels, Point,
+    ScrollHandle, SharedString, Subscription, WeakEntity, Window, point, px,
 };
 
 use crate::{
@@ -21,6 +21,7 @@ use crate::{
     extension::{
         NativeExtensionResourceKey, NativeExtensionStore, declaration as extension_declaration,
     },
+    images::ManagedImageCache,
     input::{InputBindings, InputInitialState, InputPresentation, ManagedInput},
     semantic::{
         COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_LEFT, COMMAND_SCROLL_TO_OFFSET,
@@ -89,6 +90,8 @@ pub(crate) struct ResourceStore {
     docks: RefCell<HashMap<ResourceKey, Rc<RefCell<ManagedDockResource>>>>,
     dock_subscriptions: RefCell<HashMap<ResourceKey, Subscription>>,
     extensions: NativeExtensionStore,
+    images: RefCell<Option<Entity<ManagedImageCache>>>,
+    image_revision: Cell<u64>,
     pending: RefCell<HashMap<(u16, ResourceKey), Vec<ResourceCommand>>>,
     active_scratch: RefCell<HashSet<(u16, ResourceKey)>>,
     extension_active_scratch: RefCell<HashSet<NativeExtensionResourceKey>>,
@@ -127,6 +130,8 @@ impl ResourceStore {
             docks: RefCell::new(HashMap::new()),
             dock_subscriptions: RefCell::new(HashMap::new()),
             extensions: NativeExtensionStore::new(),
+            images: RefCell::new(None),
+            image_revision: Cell::new(0),
             pending: RefCell::new(HashMap::new()),
             active_scratch: RefCell::new(HashSet::new()),
             extension_active_scratch: RefCell::new(HashSet::new()),
@@ -155,6 +160,43 @@ impl ResourceStore {
 
     pub(crate) fn theme(&self) -> NativeTheme {
         *self.theme.borrow()
+    }
+
+    /// The view's scoped image cache, created on first render. Images resolve through this
+    /// cache instead of GPUI's global asset map so navigation evicts what is no longer shown.
+    pub(crate) fn image_cache(&self, cx: &mut App) -> Entity<ManagedImageCache> {
+        if let Some(cache) = self.images.borrow().clone() {
+            return cache;
+        }
+        let cache = ManagedImageCache::new(cx);
+        *self.images.borrow_mut() = Some(cache.clone());
+        cache
+    }
+
+    pub(crate) fn existing_image_cache(&self) -> Option<Entity<ManagedImageCache>> {
+        self.images.borrow().clone()
+    }
+
+    /// Drops cached images the latest snapshot no longer declares: mounted nodes plus
+    /// virtual-item batches. Runs at most once per snapshot revision; re-renders of the same
+    /// revision describe the same live set.
+    pub(crate) fn retain_live_images(
+        &self,
+        snapshot: &ValidatedSnapshot,
+        revision: u64,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        if self.image_revision.get() == revision {
+            return;
+        }
+        self.image_revision.set(revision);
+        let Some(cache) = self.existing_image_cache() else {
+            return;
+        };
+        let mut live = crate::images::live_image_hashes(snapshot);
+        self.collections.cached_image_hashes(&mut live);
+        cache.update(cx, |cache, cx| cache.retain_live(&live, window, cx));
     }
 
     pub(crate) fn focus_target(

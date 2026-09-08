@@ -2468,6 +2468,7 @@ version = "0.2.0-preview.1"
 dependencies = [
  "async-channel",
  "csbindgen",
+ "futures",
  "gpui",
  "gpui-base",
  "gpui_platform",

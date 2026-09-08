@@ -32,6 +32,7 @@ allocation-tracking = []
 
 [dependencies]
 async-channel = "2"
+futures = "0.3"
 # The submodule pins the validated foundation revision. Keep this crate's direct GPUI source
 # identical to gpui-base's workspace dependency so Cargo resolves one GPUI type universe.
 gpui = { git = "https://github.com/zed-industries/zed" }
