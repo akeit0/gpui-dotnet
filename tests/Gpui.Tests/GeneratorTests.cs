@@ -21,7 +21,7 @@ public sealed class GeneratorTests
                 private void SearchChanged(InputEvent e) { }
 
                 [GpuiListItem]
-                private Element Row(int index, ref RenderContext ui) => ui.Text($"Row {index}");
+                private Element Item(int index, ref RenderContext ui) => ui.Text($"Item {index}");
 
                 protected override Element Render(ref RenderContext ui) => ui.Div();
             }
@@ -42,7 +42,7 @@ public sealed class GeneratorTests
         Assert.DoesNotContain("GeneratedGpuiEvents", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("DispatchClickAsync", generated, StringComparison.Ordinal);
         Assert.DoesNotContain("DispatchInputAsync", generated, StringComparison.Ordinal);
-        Assert.Contains("ListItemRenderer Row", generated, StringComparison.Ordinal);
+        Assert.Contains("ListItemRenderer Item", generated, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void ViewsWithoutRowsStillGenerateStableRowDispatch()
+    public void ViewsWithoutItemsStillGenerateStableItemDispatch()
     {
         const string source = """
             using Gpui;
@@ -89,8 +89,8 @@ public sealed class GeneratorTests
         );
         var generated = Assert.Single(result.GeneratedTrees).ToString();
         Assert.Contains("override global::Gpui.Element RenderListItem", generated);
-        Assert.Contains("private GeneratedGpuiRows Rows => new(this);", generated);
-        Assert.Contains("private readonly struct GeneratedGpuiRows", generated);
+        Assert.Contains("private GeneratedGpuiItems Items => new(this);", generated);
+        Assert.Contains("private readonly struct GeneratedGpuiItems", generated);
     }
 
     [Fact]
@@ -245,20 +245,20 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void ExplicitConstructionAndPropsRowsCompileThroughTheGeneratedFactory()
+    public void ExplicitConstructionAndPropsItemsCompileThroughTheGeneratedFactory()
     {
         const string source = """
             using Gpui;
             public readonly record struct Inputs(string Text);
             [GpuiView]
-            public sealed partial class Items : View<Inputs>
+            public sealed partial class ItemHost : View<Inputs>
             {
                 private readonly string _initial;
-                public Items(ViewConstruction construction, Inputs initialProps) : base(construction)
+                public ItemHost(ViewConstruction construction, Inputs initialProps) : base(construction)
                     => _initial = initialProps.Text;
                 protected override Element Render(in Inputs props, ref RenderContext ui) => ui.Text(props.Text);
                 [GpuiListItem]
-                private Element Row(int index, in Inputs props, ref RenderContext ui) => ui.Text(props.Text);
+                private Element Item(int index, in Inputs props, ref RenderContext ui) => ui.Text(props.Text);
             }
             """;
         var (result, output) = RunGeneratorAndUpdateCompilation(source);
@@ -267,12 +267,12 @@ public sealed class GeneratorTests
             diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
         );
         var generated = string.Join("\n", result.GeneratedTrees.Select(tree => tree.ToString()));
-        Assert.Contains("new Items(construction, initialProps)", generated);
-        Assert.Contains("Row(index, in CommittedProps, ref ui)", generated);
+        Assert.Contains("new ItemHost(construction, initialProps)", generated);
+        Assert.Contains("Item(index, in CommittedProps, ref ui)", generated);
     }
 
     [Fact]
-    public void InvalidPropsRowDiagnosticIncludesThePropsParameter()
+    public void InvalidPropsItemDiagnosticIncludesThePropsParameter()
     {
         const string source = """
             using Gpui;
@@ -282,7 +282,7 @@ public sealed class GeneratorTests
             {
                 protected override Element Render(in Inputs props, ref RenderContext ui) => ui.Text(props.Text);
                 [GpuiListItem]
-                private Element Row(int index, ref RenderContext ui) => ui.Div();
+                private Element Item(int index, ref RenderContext ui) => ui.Div();
             }
             """;
         var diagnostic = Assert.Single(
@@ -295,7 +295,7 @@ public sealed class GeneratorTests
     }
 
     [Fact]
-    public void InvalidNoPropsRowDiagnosticKeepsTheNoPropsSignature()
+    public void InvalidNoPropsItemDiagnosticKeepsTheNoPropsSignature()
     {
         const string source = """
             using Gpui;
@@ -304,7 +304,7 @@ public sealed class GeneratorTests
             {
                 protected override Element Render(ref RenderContext ui) => ui.Div();
                 [GpuiListItem]
-                private static Element Row(int index, ref RenderContext ui) => ui.Div();
+                private static Element Item(int index, ref RenderContext ui) => ui.Div();
             }
             """;
         var diagnostic = Assert.Single(

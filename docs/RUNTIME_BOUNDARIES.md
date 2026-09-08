@@ -8,15 +8,15 @@ measured cost and a clear ownership purpose.
 | --- | --- | --- |
 | Every node belongs to one rooted acyclic tree | Indexed managed publication validation and authoritative native graph validation precede ancestor queries | Reject invalid output before materialization |
 | Retained declarations have unique owner/kind/key identities | Existing native resource validation | Reject duplicate declarations; List and Table share one namespace |
-| Displayed row callbacks and dependencies retain their artifact authority | Batches requested in frame layout/prepaint are pinned until the next frame; trimming follows prepaint | Only idle batches are cache-evicted; explicit invalidation and source removal revoke artifacts |
+| Displayed item callbacks and dependencies retain their artifact authority | Batches requested in frame layout/prepaint are pinned until the next frame; trimming follows prepaint | Only idle batches are cache-evicted; explicit invalidation and source removal revoke artifacts |
 | Acceptance cannot conceal a dirty reused descendant | Signal invalidations during pending acceptance enter coalesced ingress | Next render propagates dirtiness after staged ancestors commit |
 | Rendering cannot enqueue framework effects | Caller-thread phase check at command admission | Throw before enqueueing; concurrent worker ingress remains allowed |
 | Detached callback failures reach native fault display | Nonzero callback status wakes the existing native refresh path | Managed session preserves the first exception; refresh displays its terminal failure |
 | Native pointers cannot substitute for managed lifetime ownership | Owners stay alive through raw-pointer calls | Explicit concurrent disposal is unsupported |
 
-Row identity combines owner/list, tagged model ItemId (or position), and a row-local element key.
-Interactive row controls already require a key, so there is no additional structural-path traversal
-or hashing of every row node. Serialization offsets do not identify elements. Keys remain stable
+Item identity combines owner/list, tagged model ItemId (or position), and an item-local element key.
+Interactive item controls already require a key, so there is no additional structural-path traversal
+or hashing of every item node. Serialization offsets do not identify elements. Keys remain stable
 when other siblings are inserted. Content belongs in child Text declarations, separate from keys.
 
 Input, Scroll, List/Table, Slider, DockArea, and NativeExtension declarations participate in

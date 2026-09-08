@@ -137,7 +137,7 @@ impl ValidatedSnapshot {
             if !is_data {
                 continue;
             }
-            // Most row operations are numeric or callbacks. Keep the indexed string table
+            // Most operations are numeric or callbacks. Keep the indexed string table
             // absent unless a data operation actually needs it; subsequent decodes reuse capacity.
             if self.op_data.is_empty() {
                 self.op_data.resize(self.ops.len(), None);
@@ -333,7 +333,7 @@ pub fn validate(arena: &RenderArena, root: u32) -> Result<(), i32> {
     validate_with_scratch(arena, root, &mut SnapshotScratch::default())
 }
 
-/// Virtualized lists and tables share one row-engine namespace per owner view, so a List and a
+/// Virtualized lists and tables share one collection-engine namespace per owner view, so a List and a
 /// Table (or two of either) must not declare the same `(owner, key)`. Slider resources use a
 /// separate kind namespace and are checked independently. Sorting reusable offset records
 /// bounds comparisons without allocating or retaining key strings.
@@ -377,7 +377,7 @@ fn validate_resource_key_uniqueness(
             count += 1;
             continue;
         }
-        // A table's row-engine key is the first NUL-separated field of its data blob; a list's
+        // A table's collection-engine key is the first NUL-separated field of its data blob; a list's
         // key is the whole payload. The kind keeps Slider's separate resource namespace apart.
         let (kind, key_length) = match node.component {
             COMPONENT_LIST => (crate::semantic::RESOURCE_LIST, node.data_length),

@@ -49,7 +49,7 @@ callback table provides:
 - virtual list/table range rendering;
 - cached range artifact release;
 - owner-view preparation for a requested dynamic frame;
-- retained control events (Input, Slider, Dock, List/Table row events, and observer key/mouse);
+- retained control events (Input, Slider, Dock, List/Table item events, and observer key/mouse);
 - application-started notification;
 - window-closed notification;
 - application-menu action dispatch.
@@ -82,7 +82,7 @@ written contents and does not change the current render generation or rerun user
 Status `0` means success; every nonzero status is an error, including the old value `1`. Rust
 immediately validates and decodes the borrowed buffers into an owned `ValidatedSnapshot`. It must
 finish decoding before any further managed callback or session teardown, and must not retain or free
-a buffer pointer. Root and range rendering use separate reusable managed owners. Cached native row
+a buffer pointer. Root and range rendering use separate reusable managed owners. Cached native item
 batches own decoded snapshots, never borrowed output arenas.
 
 A successful root publication returns a nonzero, monotonically increasing session revision. This is
@@ -104,7 +104,7 @@ offset 36 on 32-bit targets). `release_artifact` is at offset 80/40 and `accept_
 Managed acceptance commits the complete reachable tree and props, retires replaced subtrees, then
 activates all new View routes, then starts effects parent-first. New root/range render and event
 dispatch are excluded until it finishes. Mount hooks can enqueue accepted-resource commands and
-invalidate a later frame. Native materialization and row requests begin only after successful
+invalidate a later frame. Native materialization and item requests begin only after successful
 acknowledgement.
 
 The output descriptor's `flags` and all four legacy `required_*_capacity` fields are reserved and
@@ -119,7 +119,7 @@ and native decoding/lease ownership do not impose those rules on other demand sh
 currently no public custom demand-request entry point. Separating this implementation does not
 change the ABI 7 layouts, callback signatures, or semantic schema hash.
 
-Virtual rows use:
+Virtual items use:
 
 ```c
 int32_t list_render_range(
@@ -133,11 +133,11 @@ int32_t list_render_range(
     uint64_t* artifact_id);
 ```
 
-The returned root must contain exactly `count` direct row children. `count` is limited to 512. Range
-rendering uses the same single-call, borrowed-output contract as root rendering. Each requested row
+The returned root must contain exactly `count` direct item children. `count` is limited to 512. Range
+rendering uses the same single-call, borrowed-output contract as root rendering. Each requested item
 is rendered once per range request; later cache misses can request that range again.
 
-Each native row engine has a nonzero, non-reused source ID independent of its renderer method. Two
+Each native collection engine has a nonzero, non-reused source ID independent of its renderer method. Two
 controls using the same renderer still have distinct source IDs. Successful managed range
 publication returns a nonzero, non-reused session artifact ID. Its event bindings remain live until
 the native batch releases them:
@@ -153,10 +153,10 @@ no artifact. Normal release occurs on eviction, invalidation, source removal, or
 native batch owns exactly one release obligation. Duplicate releases and releases after managed
 shutdown are harmless. A live artifact cannot be released by another source. Release runs framework
 cleanup only and is allowed during pending root acceptance and after a session fault. Removing a
-source releases its batches even if an old native frame retains the row engine. No cache hit or
-individual cached row requires a release callback.
+source releases its batches even if an old native frame retains the collection engine. No cache hit or
+individual cached item requires a release callback.
 
-After successful decode and row-count validation, native calls the required
+After successful decode and item-count validation, native calls the required
 `accept_artifact(session_id, source_id, artifact_id)` callback, returning `int32_t`. It runs after
 the arena borrow ends and before the batch enters the cache. Managed code commits the artifact's
 Signal dependencies here. Duplicate or mismatched acceptance faults the session. Acceptance failure
@@ -172,7 +172,7 @@ int32_t invalidate_artifacts(uint64_t session_id, const native_artifact_key* key
 Each key is 16 bytes, with `artifact` at offset 8. The required API entry is at offset 80/48 on
 64/32-bit targets. Count must be positive, the pointer non-null, and both IDs nonzero. Native copies
 the batch before returning and delivers it through the existing window message channel. Delivery
-evicts matching artifacts and remeasures their rows, preserving other cached batches and requesting
+evicts matching artifacts and remeasures their items, preserving other cached batches and requesting
 native repaint without marking the managed root dirty. Stale source/artifact pairs are harmless. The
 regular release callback retires their managed dependencies and event bindings.
 
@@ -185,7 +185,7 @@ Renderer tokens pack a prepared/mounted View handle in the high 32 bits and a ge
 below. Event tokens pack the View handle above a dynamic marker (bit 31) and a non-reused 31-bit
 event ID. Live IDs map to recyclable storage slots; retired IDs never resolve to new callbacks.
 Retired event IDs and owner handles are ignored. Malformed or never-issued identities are errors.
-Click records carry a separate unmanaged `uint64_t` payload for row or model identity.
+Click records carry a separate unmanaged `uint64_t` payload for item or model identity.
 
 ## Render arena
 
@@ -248,18 +248,18 @@ IDs](SEMANTIC_IDS.md) reference. Code uses generated symbols; this document spec
 lifetime rather than duplicating ID assignments.
 
 List/Table activation binds `ListOnActivated` to a View callback token. Its payload is exactly 16
-little-endian bytes: `u32` row index (at most `Int32.MaxValue`), `u32` reserved zero, and `u64`
-row-root ItemId (zero means absent). Flag bit 0 selects Keyboard (1) or Pointer (0); bit 1 indicates
+little-endian bytes: `u32` item index (at most `Int32.MaxValue`), `u32` reserved zero, and `u64`
+item-root ItemId (zero means absent). Flag bit 0 selects Keyboard (1) or Pointer (0); bit 1 indicates
 that revision contains the accepted datasource content revision, including zero. Without bit 1,
 revision must be zero. All other flags are reserved zero. Managed code rejects malformed packets
 with `-112` and copies the scalar identity before callback delivery.
 
 List/Table selection requests bind `ListOnSelectionRequested` to an independent View callback token
 and use the same payload, flag, revision, and validation contract as activation. Native emits a
-single-row request on unmodified Space or an unconsumed primary single press; the managed
-application owns accepted selection and its row presentation. There is no selected-state command or
-per-row selection callback in the datasource protocol. Both event bindings reuse one cached identity
-lookup, and keyboard requests load at most one ordinary aligned row batch when needed.
+single-item request on unmodified Space or an unconsumed primary single press; the managed
+application owns accepted selection and its item presentation. There is no selected-state command or
+per-item selection callback in the datasource protocol. Both event bindings reuse one cached identity
+lookup, and keyboard requests load at most one ordinary aligned item batch when needed.
 
 Key observer payloads carry the UTF-8 GPUI key name (non-empty, NUL-free, at most 128 bytes) as
 borrowed data. Flags carry modifiers in bits 0-4 (control, alt, shift, platform, function, matching
@@ -317,7 +317,7 @@ version 2 is 20 sequential little-endian `u32` values: version, appearance (`0` 
 and 18 resolved RGBA semantic roles. The native entry point requires the exact payload size and
 rejects unsupported versions or appearance values. Resolved roles feed GPUI.NET native rendering and
 the global `gpui-base` theme; application style variants and Rust foundation types do not cross the
-ABI. The managed-code update command clears native List/Table row snapshots and dirties each managed
+ABI. The managed-code update command clears native List/Table item snapshots and dirties each managed
 window without resetting retained control or Dock identity and interaction state.
 
 ## Application menus
@@ -347,8 +347,8 @@ materialization.
 
 | Resource | Commands |
 |---|---|
-| Scroll | ScrollToOffset, ScrollToTop, ScrollToBottom |
-| List/Table row engine | ScrollToItem, Splice, Reset, Refresh |
+| Scroll | ScrollToOffset, ScrollToTop, ScrollToBottom, ScrollToLeft, ScrollToRight |
+| List/Table collection engine | ScrollToItem, Splice, Reset, Refresh |
 | Input | Focus, Blur, SetValue, SetValueIfCurrent, SelectAll |
 | Focus target | Focus, Blur |
 | Slider | SetValue |
@@ -472,7 +472,7 @@ Managed dispatch uses an `Action<TView>` binding.
 Table nodes may contain zero header children or exactly one content child per `TableColumn`
 operation, in column order. Other counts fail native validation with `-57`; managed validation
 rejects the same structure before publication. Header children are ordinary retained-snapshot
-content, not virtual row batches. Input part colors use U32 RGBA operations `InputPlaceholderRgba`,
+content, not virtual item batches. Input part colors use U32 RGBA operations `InputPlaceholderRgba`,
 `InputCaretRgba`, and `InputSelectionRgba`; the last declaration for each part wins, including its
 alpha. Omitted colors resolve from the current native theme.
 
@@ -485,30 +485,30 @@ Table header colors use U32 RGBA operations `TableHeaderBackgroundRgba`, `TableH
 `TableHeaderBorderRgba`, restricted to Table nodes. They affect both native labels and managed
 header content. Omission uses current theme roles; later declarations override earlier colors
 without discarding alpha. Header paint is not part of retained column metadata and does not
-invalidate row batches. List/Table projection revision is the optional U64 `ListProjectionRevision`
+invalidate item batches. List/Table projection revision is the optional U64 `ListProjectionRevision`
 operation. Last declaration wins; omission and zero are distinct. Changing the optional value resets
 the retained collection and discards queued positional commands during snapshot reconciliation.
 Content revision and event packets retain their existing meaning.
 
-### Row menus and tooltips
+### Item menus and tooltips
 
-`ListOnContextMenuRequested` binds a right-click request for rows with a nonzero ItemId.
-`ListEventKind.ContextMenuRequested` carries 24 little-endian bytes: U32 row index, zero U32
+`ListOnContextMenuRequested` binds a right-click request for items with a nonzero ItemId.
+`ListEventKind.ContextMenuRequested` carries 24 little-endian bytes: U32 item index, zero U32
 reserved, nonzero U64 item ID, and nonzero U64 native anchor ID. Flag bit 1 indicates a content
 revision in the existing revision field; other flag bits must be zero. With bit 1 unset, revision
 must be zero. Managed validation checks the complete payload before dispatch.
 
-`ContextMenuRowAnchor` selects that native request instead of a local trigger. `RowContextMenu`
+`ContextMenuItemAnchor` selects that native request instead of a local trigger. `ItemContextMenu`
 emits the existing two-child shape with an empty trigger. The anchor is window-local in scope, owned
-by the callback's View, single-use, and invalid after dismissal or row loss. Invalid/expired anchors
+by the callback's View, single-use, and invalid after dismissal or item loss. Invalid/expired anchors
 produce no menu.
 
 `ListOnTooltipRequested` binds delayed hover requests. The shared `tooltip_options` capability
 allows Tooltip, List, and Table to declare placement, alignment, show/hide delays, gap, and viewport
-margin. `RowTooltipTarget` is a Boolean marker on an element inside a virtual item.
+margin. `ItemTooltipTarget` is a Boolean marker on an element inside a virtual item.
 `ListEventKind.TooltipRequested` uses the same validated 24-byte identity/anchor packet and optional
 revision flag as `ListEventKind.ContextMenuRequested`. No pointer-motion events cross the ABI.
-`TooltipRowAnchor` binds the requested content to the marked element's native bounds; it uses the
+`TooltipItemAnchor` binds the requested content to the marked element's native bounds; it uses the
 existing two-child Tooltip shape with an empty trigger and takes timing and placement from the
 collection request. Anchors are window-scoped, owned by the callback's View, and expire on dismissal
 or anchor loss.
@@ -543,12 +543,12 @@ bound, so unregistered elements cost nothing; registered handlers must stay chea
 at pointer frequency, and wheel observation never replaces retained Scroll resources. `OnHover`
 needs stable element state, so plain Divs are wrapped with their deterministic node id for that
 listener only. `OnFileDrop` fires on the bound element under the cursor with the dropped paths; like
-the other observers it never consumes the drop. These bindings are invalid inside virtualized row
+the other observers it never consumes the drop. These bindings are invalid inside virtualized item
 snapshots, which have no mounted View lifetime.
 
 ContextMenu and PopoverMenu are keyed two-child semantic components. Their native adapters own
 trigger interception, deferred placement, viewport snapping, focus restoration, and dismissal. They
-are invalid inside virtualized row snapshots because rows have no mounted View lifetime.
+are invalid inside virtualized item snapshots because items have no mounted View lifetime.
 
 DockArea is a keyed retained semantic component with one center tree and up to one DockRegion for
 each left, bottom, and right placement. Center and region trees use DockSplit/DockTabs/DockPanel
@@ -576,7 +576,7 @@ Formatting occurs only on failure and adds no successful-call crossing or alloca
 The internal `NativeStatus` catalog preserves numeric values and reports `UnknownStatus` for
 unmapped values. Some render codes are ambiguous even within that operation: `-56` can mean
 duplicate retained-resource identity or invalid border style; `-63` can mean empty operation data or
-wrong row count; `-64` can mean invalid font data or a missing row artifact. Diagnostics name these
+wrong item count; `-64` can mean invalid font data or a missing item artifact. Diagnostics name these
 alternatives rather than claiming a precise cause unavailable from the current ABI. This diagnostic
 catalog does not change wire layouts, entry points, or ABI version.
 

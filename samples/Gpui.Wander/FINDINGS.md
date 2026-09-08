@@ -9,8 +9,8 @@ items here are specific to web/mobile-style composition.
   buttons, badges, and one keyed child slot. No tab primitive was missed.
 - Bottom `Sheet` detail panels feel native with zero animation code.
 - Store notifications keep feed projections and shell badges consistent after likes.
-  Targeted refresh requires an up-to-date row source; it cannot repair stale records.
-- Props-bearing row methods (`in TProps`) give rows clean access to accepted
+  Targeted refresh requires an up-to-date item source; it cannot repair stale records.
+- Props-bearing item methods (`in TProps`) give items clean access to accepted
   inputs; the generator diagnostic (GPUI012) fires precisely when the arity is
   wrong.
 
@@ -41,7 +41,7 @@ items here are specific to web/mobile-style composition.
    notify unrelated Views. A three-call wrapper alone is insufficient.
 7. **`contentRevision` must cover filter state, not just store mutations.** The
    feed first used `store.Revision` as its revision; switching Mountains ↔
-   Cities (both 9 rows, same count, same revision) served stale batches while
+   Cities (both 9 items, same count, same revision) served stale batches while
    every count-changing filter worked. The fix is a local revision bumped on
    every filter mutation plus every store notification — the same discipline
    TaskBoard uses. This failure mode (equal-count staleness) deserves an
@@ -52,22 +52,22 @@ items here are specific to web/mobile-style composition.
    changes replace only changed fields, including the goal slider. Save reconciles pending
    external changes before committing. Same-field replacement can cancel IME composition;
    a general binding should expose selectable conflict and composition policies.
-9. **Row button ids repeat by design.** Every feed row declares `Button("like")`
+9. **Item button ids repeat by design.** Every feed item declares `Button("like")`
    and relies on event tokens, not ids, for routing (same as the gallery's
-   `activity-row`). This works but deserves one explicit sentence in the row
-   restrictions: ids scope to the row root, payloads carry identity.
+   `activity-row`). This works but deserves one explicit sentence in the item
+   restrictions: ids scope to the item root, payloads carry identity.
 
 ## Documentation nits found
 
 - A `Div` wrapper without an explicit height breaks the fill chain exactly like
   an unsized overlay trigger: intrinsic-height siblings (toolbar, rail, chips)
   render while the virtual list's `Grow` collapses to a zero viewport and no
-  rows materialize. Worse, `Grow` is inert inside a block parent at all — the
+  items materialize. Worse, `Grow` is inert inside a block parent at all — the
   wrapper itself must be a flex container (`VStack`/`HStack`), not merely sized.
   The rule "every link between a definite height and a virtual collection must
   be a sized flex ancestor, down to the collection" belongs next to the
   overlay-trigger note in `COMPONENTS.md`.
-- Props-bearing row diagnostics must name the `(int, in TProps, ref RenderContext)`
+- Props-bearing item diagnostics must name the `(int, in TProps, ref RenderContext)`
   shape rather than the no-props overload.
 - The `Sheet(side)` option reads like free placement, but all sides are
   window-edge anchored; container-anchored sheets (item 2) are a real

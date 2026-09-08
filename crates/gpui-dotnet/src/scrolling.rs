@@ -14,7 +14,7 @@ use crate::{
 };
 
 const SMOOTHING: f32 = 0.24;
-const FINISH_THRESHOLD: Pixels = px(0.5);
+pub(crate) const FINISH_THRESHOLD: Pixels = px(0.5);
 const BAR_MARGIN: Pixels = px(2.0);
 /// Extra hit area beyond the visual bar so imprecise pointers still grab it.
 const HIT_FORGIVENESS: Pixels = px(8.0);
@@ -124,13 +124,20 @@ pub(crate) fn list_overlay(
 fn scroll_delta(event: &ScrollWheelEvent, window: &Window, axis: u32) -> Point<Pixels> {
     let delta = event.delta.pixel_delta(window.line_height());
     match axis {
-        1 => point(if delta.x == px(0.) { delta.y } else { delta.x }, px(0.)),
+        1 => point(horizontal_wheel_delta(delta), px(0.)),
         2 => delta,
         _ => point(px(0.), if delta.y == px(0.) { delta.x } else { delta.y }),
     }
 }
 
-fn queue_scroll_delta(interaction: &ScrollInteraction, delta: Point<Pixels>) {
+/// Maps a wheel pixel delta onto the horizontal axis, letting a vertical wheel drive
+/// horizontal panning when it carries no horizontal component. Shared by scroll containers
+/// and the horizontal list so the mapping cannot drift between them.
+pub(crate) fn horizontal_wheel_delta(delta: Point<Pixels>) -> Pixels {
+    if delta.x == px(0.) { delta.y } else { delta.x }
+}
+
+pub(crate) fn queue_scroll_delta(interaction: &ScrollInteraction, delta: Point<Pixels>) {
     let current = interaction.remaining.get();
     interaction.remaining.set(point(
         coalesce_axis(current.x, delta.x),
@@ -223,7 +230,7 @@ fn eased_step(remaining: Point<Pixels>) -> Point<Pixels> {
     point(eased_axis(remaining.x), eased_axis(remaining.y))
 }
 
-fn eased_axis(remaining: Pixels) -> Pixels {
+pub(crate) fn eased_axis(remaining: Pixels) -> Pixels {
     if remaining.abs() <= FINISH_THRESHOLD {
         remaining
     } else {
@@ -353,21 +360,21 @@ impl FoundationScrollbarHandle for ListFoundationHandle {
     }
 }
 
-fn adjusted_bounds(bounds: Bounds<Pixels>, metrics: ScrollbarMetrics) -> Bounds<Pixels> {
+pub(crate) fn adjusted_bounds(bounds: Bounds<Pixels>, metrics: ScrollbarMetrics) -> Bounds<Pixels> {
     Bounds::new(
         bounds.origin + point(BAR_MARGIN, BAR_MARGIN),
         adjusted_size(bounds.size, metrics),
     )
 }
 
-fn adjusted_size(value: Size<Pixels>, metrics: ScrollbarMetrics) -> Size<Pixels> {
+pub(crate) fn adjusted_size(value: Size<Pixels>, metrics: ScrollbarMetrics) -> Size<Pixels> {
     size(
         (value.width - BAR_MARGIN * 2.0 + metrics.gutter).max(px(0.)),
         (value.height - BAR_MARGIN * 2.0).max(px(0.)),
     )
 }
 
-fn foundation_scrollbar<H>(
+pub(crate) fn foundation_scrollbar<H>(
     handle: &H,
     axis: u32,
     metrics: ScrollbarMetrics,

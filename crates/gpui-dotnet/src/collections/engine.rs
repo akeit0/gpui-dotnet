@@ -6,9 +6,10 @@ use gpui::{
 };
 
 use super::{
-    configuration::ListConfiguration,
+    configuration::{ListConfiguration, ListOrientation},
     cursor::CollectionCursor,
-    events::{ListRowEventKind, ListRowEvents},
+    events::{ListItemEventKind, ListItemEvents},
+    horizontal::HorizontalState,
 };
 use crate::{
     abi::ManagedCallbacks,
@@ -31,7 +32,7 @@ pub(crate) struct ListTelemetry {
     pub(crate) batch_invalidations: u64,
     pub(crate) full_invalidations: u64,
     pub(crate) batch_crossings: u64,
-    pub(crate) rendered_rows: u64,
+    pub(crate) rendered_items: u64,
 }
 
 /// A queued structural hint normalized for validation and replay. Every entry uses the item
@@ -67,7 +68,9 @@ pub(crate) struct CollectionEngine {
     pub(crate) batch_size: usize,
     overdraw: Pixels,
     alignment: ListAlignment,
-    estimated_item_height: Pixels,
+    estimated_item_extent: Pixels,
+    orientation: ListOrientation,
+    pub(crate) horizontal: HorizontalState,
     hinted_viewport_width: Option<Pixels>,
     snapshot_revision: u64,
     content_revision: Option<u64>,
@@ -100,7 +103,7 @@ impl CollectionEngine {
                 configuration.alignment,
                 configuration.overdraw,
             )
-            .with_uniform_item_height(configuration.estimated_item_height),
+            .with_uniform_item_height(configuration.estimated_item_extent),
             interaction: Rc::new(ScrollInteraction::default()),
             cursor: Rc::new(CollectionCursor::new(configuration.item_count)),
             item_count: configuration.item_count,
@@ -110,7 +113,13 @@ impl CollectionEngine {
             batch_size: configuration.batch_size,
             overdraw: configuration.overdraw,
             alignment: configuration.alignment,
-            estimated_item_height: configuration.estimated_item_height,
+            estimated_item_extent: configuration.estimated_item_extent,
+            orientation: configuration.orientation,
+            horizontal: HorizontalState::new(
+                configuration.item_count,
+                configuration.estimated_item_extent,
+                configuration.alignment == ListAlignment::Bottom,
+            ),
             hinted_viewport_width: None,
             snapshot_revision,
             content_revision: configuration.content_revision,
@@ -133,7 +142,7 @@ impl CollectionEngine {
         {
             self.activation_token = configuration.activation_token;
             self.selection_token = configuration.selection_token;
-            self.cursor.invalidate_rows();
+            self.cursor.invalidate_items();
         }
         let revision_changed = self.snapshot_revision != snapshot_revision;
         let content_changed = match (self.content_revision, configuration.content_revision) {
@@ -143,7 +152,29 @@ impl CollectionEngine {
         };
         let layout_changed = self.alignment != configuration.alignment
             || self.overdraw != configuration.overdraw
-            || self.estimated_item_height != configuration.estimated_item_height;
+            || self.estimated_item_extent != configuration.estimated_item_extent;
+        let end_anchored = configuration.alignment == ListAlignment::Bottom;
+
+        if self.orientation != configuration.orientation {
+            // An axis change discards every axis-specific measurement and hint. Item indices
+            // are unchanged, so the cursor survives; scroll restarts at the anchored edge.
+            self.orientation = configuration.orientation;
+            self.estimated_item_extent = configuration.estimated_item_extent;
+            self.horizontal.reset(
+                self.item_count,
+                configuration.estimated_item_extent,
+                end_anchored,
+            );
+            self.pending_commands.clear();
+            self.clear_batches();
+            self.cursor.invalidate_items();
+        } else if self.estimated_item_extent != configuration.estimated_item_extent {
+            self.estimated_item_extent = configuration.estimated_item_extent;
+            if self.orientation == ListOrientation::Horizontal {
+                self.horizontal
+                    .rehint_estimates(configuration.estimated_item_extent);
+            }
+        }
 
         // Reconcile positional identity before a simultaneous layout rebuild discards measurements.
         if self.projection_revision != configuration.projection_revision {
@@ -157,21 +188,29 @@ impl CollectionEngine {
         }
 
         if layout_changed {
-            // Rebuild measurements while keeping the cursor reconciled with the accepted items.
-            self.state = ListState::new(
-                configuration.item_count,
-                configuration.alignment,
-                configuration.overdraw,
-            )
-            .with_uniform_item_height(configuration.estimated_item_height);
+            if self.orientation == ListOrientation::Horizontal {
+                // Widths are axis-independent of alignment; only the anchored edge moves.
+                // The vertical ListState below is unused while horizontal.
+                if self.alignment != configuration.alignment {
+                    self.horizontal.set_end_anchored(end_anchored);
+                }
+            } else {
+                // Rebuild measurements while keeping the cursor reconciled with the accepted items.
+                self.state = ListState::new(
+                    configuration.item_count,
+                    configuration.alignment,
+                    configuration.overdraw,
+                )
+                .with_uniform_item_height(configuration.estimated_item_extent);
+            }
             self.item_count = configuration.item_count;
             self.alignment = configuration.alignment;
             self.overdraw = configuration.overdraw;
-            self.estimated_item_height = configuration.estimated_item_height;
+            self.estimated_item_extent = configuration.estimated_item_extent;
             self.hinted_viewport_width = None;
             self.pending_commands.clear();
             self.clear_batches();
-            self.cursor.invalidate_rows();
+            self.cursor.invalidate_items();
         }
 
         if self.renderer_token != configuration.renderer_token
@@ -180,14 +219,14 @@ impl CollectionEngine {
             self.renderer_token = configuration.renderer_token;
             self.batch_size = configuration.batch_size;
             self.clear_batches();
-            self.cursor.invalidate_rows();
+            self.cursor.invalidate_items();
         }
         if revision_changed {
             self.snapshot_revision = snapshot_revision;
         }
         if content_changed {
             self.clear_batches();
-            self.cursor.invalidate_rows();
+            self.cursor.invalidate_items();
         }
         self.content_revision = configuration.content_revision;
         self.projection_revision = configuration.projection_revision;
@@ -271,32 +310,49 @@ impl CollectionEngine {
                     // that suffix is stale. Batches entirely before `start` survive.
                     let batch = self.batch_size.max(1) as u32;
                     self.invalidate_batches_from((start as u32 / batch) * batch);
-                    self.state.splice(start..start + removed, inserted);
+                    if self.orientation == ListOrientation::Horizontal {
+                        // Inserted widths start at the estimate; unaffected widths are kept.
+                        self.horizontal.splice(start, removed, inserted);
+                    } else {
+                        self.state.splice(start..start + removed, inserted);
+                        inserted_unmeasured_items |= inserted > 0;
+                    }
                     self.cursor.splice(start, removed, inserted);
-                    inserted_unmeasured_items |= inserted > 0;
                     current_count = current_count - removed + inserted;
                 }
                 ListChange::Reset(count) => {
                     current_count = count;
                     self.cursor.reset(count);
-                    self.state
-                        .reset_with_uniform_height(count, self.estimated_item_height);
                     inserted_unmeasured_items = false;
+                    if self.orientation == ListOrientation::Horizontal {
+                        self.horizontal.reset(
+                            count,
+                            self.estimated_item_extent,
+                            self.alignment == ListAlignment::Bottom,
+                        );
+                    } else {
+                        self.state
+                            .reset_with_uniform_height(count, self.estimated_item_extent);
+                    }
                     self.clear_batches();
                 }
                 ListChange::Refresh { start, count } => {
                     self.invalidate_batches_intersecting(start, count);
-                    self.state.remeasure_items(start..start + count);
+                    if self.orientation == ListOrientation::Horizontal {
+                        self.horizontal.refresh(start, count);
+                    } else {
+                        self.state.remeasure_items(start..start + count);
+                    }
                 }
             }
         }
         if inserted_unmeasured_items {
             // GPUI's splice API does not accept a size hint for inserted items. Reapplying the
-            // uniform hint fills those gaps while retaining each unaffected row's previous
+            // uniform hint fills those gaps while retaining each unaffected item's previous
             // measured height as its new hint, so the full scrollbar range remains available.
             self.state
                 .clone()
-                .with_uniform_item_height(self.estimated_item_height);
+                .with_uniform_item_height(self.estimated_item_extent);
         }
         self.item_count = declared_item_count;
         self.pending_commands.clear();
@@ -328,7 +384,12 @@ impl CollectionEngine {
     fn reset_native_state(&mut self, declared_item_count: usize) {
         self.cursor.reset(declared_item_count);
         self.state
-            .reset_with_uniform_height(declared_item_count, self.estimated_item_height);
+            .reset_with_uniform_height(declared_item_count, self.estimated_item_extent);
+        self.horizontal.reset(
+            declared_item_count,
+            self.estimated_item_extent,
+            self.alignment == ListAlignment::Bottom,
+        );
         self.item_count = declared_item_count;
         self.pending_commands.clear();
         self.clear_batches();
@@ -362,8 +423,14 @@ impl CollectionEngine {
 
     pub(crate) fn scroll_to_item(&mut self, index: usize) {
         self.interaction.remaining.set(Point::default());
+        if self.orientation == ListOrientation::Horizontal {
+            // Reveal the item with the minimum horizontal movement, keeping distant jumps
+            // virtualized without requiring preceding variable-width items to be measured.
+            self.horizontal.reveal(index);
+            return;
+        }
         // Use GPUI's logical list offset directly. Unlike reveal-by-pixel operations, this does
-        // not require preceding variable-height rows to be measured and keeps distant jumps
+        // not require preceding variable-height items to be measured and keeps distant jumps
         // virtualized.
         self.state.scroll_to(ListOffset {
             item_ix: index,
@@ -378,8 +445,23 @@ impl CollectionEngine {
         self.frame_start = self.use_clock;
     }
 
+    /// Overdraw extends along the scroll axis in either orientation.
+    pub(crate) fn horizontal_overdraw(&self) -> Pixels {
+        self.overdraw
+    }
+
+    /// Horizontal counterpart to [`Self::maintain_height_hints`]. Item widths are measured
+    /// against the viewport height, so a height change marks every width for remeasurement
+    /// (keeping current values as hints) before the scrollbar reads the range.
+    pub(crate) fn maintain_width_hints(&mut self) {
+        // All viewport and overdraw items have been requested by horizontal prepaint.
+        self.trim_batches();
+        self.horizontal
+            .note_viewport_height(self.horizontal.viewport.height);
+    }
+
     pub(crate) fn maintain_height_hints(&mut self) {
-        // All viewport and overdraw rows have been requested by list prepaint.
+        // All viewport and overdraw items have been requested by list prepaint.
         self.trim_batches();
         let width = self.state.viewport_bounds().size.width;
         if width <= px(0.) || self.hinted_viewport_width == Some(width) {
@@ -388,7 +470,7 @@ impl CollectionEngine {
 
         self.state
             .clone()
-            .with_uniform_item_height(self.estimated_item_height);
+            .with_uniform_item_height(self.estimated_item_extent);
         self.hinted_viewport_width = Some(width);
     }
 
@@ -408,7 +490,7 @@ impl CollectionEngine {
         let start = (index / batch_size) * batch_size;
         let start_u32 = start as u32;
         self.use_clock = self.use_clock.wrapping_add(1).max(1);
-        self.telemetry.rendered_rows += 1;
+        self.telemetry.rendered_items += 1;
         if self.last_batch != Some(start_u32) {
             self.telemetry.batch_crossings += 1;
             self.last_batch = Some(start_u32);
@@ -460,14 +542,14 @@ impl CollectionEngine {
         )
     }
 
-    pub(crate) fn cached_row_events(&self, index: usize) -> Option<ListRowEvents> {
+    pub(crate) fn cached_item_events(&self, index: usize) -> Option<ListItemEvents> {
         if (self.activation_token == 0 && self.selection_token == 0) || index >= self.item_count {
             return None;
         }
-        self.cached_row_identity(index)
+        self.cached_item_identity(index)
     }
 
-    pub(crate) fn cached_identified_row(&self, index: usize) -> Option<(u64, ListRowEvents)> {
+    pub(crate) fn cached_identified_item(&self, index: usize) -> Option<(u64, ListItemEvents)> {
         let start = (index / self.batch_size) * self.batch_size;
         let artifact = self
             .batches
@@ -475,12 +557,12 @@ impl CollectionEngine {
             .lease
             .as_ref()?
             .artifact_id;
-        let events = self.cached_row_identity(index)?;
+        let events = self.cached_item_identity(index)?;
         events.item_id?;
         Some((artifact, events))
     }
 
-    fn cached_row_identity(&self, index: usize) -> Option<ListRowEvents> {
+    fn cached_item_identity(&self, index: usize) -> Option<ListItemEvents> {
         if index >= self.item_count {
             return None;
         }
@@ -496,7 +578,7 @@ impl CollectionEngine {
             .find(|op| op.code == OP_LIST_ITEM_ID)
             .map(|op| op.a)
             .filter(|id| *id != 0);
-        Some(ListRowEvents {
+        Some(ListItemEvents {
             session_id: self.session_id,
             callbacks: self.callbacks,
             activation_token: self.activation_token,
@@ -507,18 +589,18 @@ impl CollectionEngine {
         })
     }
 
-    pub(crate) fn event_enabled(&self, kind: ListRowEventKind) -> bool {
+    pub(crate) fn event_enabled(&self, kind: ListItemEventKind) -> bool {
         match kind {
-            ListRowEventKind::Activation => self.activation_token != 0,
-            ListRowEventKind::Selection => self.selection_token != 0,
+            ListItemEventKind::Activation => self.activation_token != 0,
+            ListItemEventKind::Selection => self.selection_token != 0,
         }
     }
 
-    pub(crate) fn prepare_row_event(
+    pub(crate) fn prepare_item_event(
         &mut self,
         index: usize,
-        kind: ListRowEventKind,
-    ) -> Result<Option<ListRowEvents>, (u64, i32)> {
+        kind: ListItemEventKind,
+    ) -> Result<Option<ListItemEvents>, (u64, i32)> {
         if !self.event_enabled(kind) || index >= self.item_count {
             return Ok(None);
         }
@@ -532,7 +614,7 @@ impl CollectionEngine {
             .get_mut(&start)
             .expect("batch loaded")
             .last_used = self.use_clock;
-        Ok(self.cached_row_events(index))
+        Ok(self.cached_item_events(index))
     }
 
     pub(crate) fn load_batch(&mut self, start: u32) -> Result<(), i32> {
@@ -617,8 +699,8 @@ impl CollectionEngine {
         self.telemetry
     }
 
-    /// Discards every cached row batch. Used when a table's column table changes, which
-    /// changes the layout of all rows at once.
+    /// Discards every cached item batch. Used when a table's column table changes, which
+    /// changes the layout of all items at once.
     pub(crate) fn invalidate_all_batches(&mut self) {
         self.clear_batches();
     }
@@ -644,8 +726,12 @@ impl CollectionEngine {
                 let count = self
                     .batch_size
                     .min(self.item_count.saturating_sub(*start as usize));
-                self.state
-                    .remeasure_items(*start as usize..*start as usize + count);
+                if self.orientation == ListOrientation::Horizontal {
+                    self.horizontal.refresh(*start as usize, count);
+                } else {
+                    self.state
+                        .remeasure_items(*start as usize..*start as usize + count);
+                }
             }
             !remove
         });

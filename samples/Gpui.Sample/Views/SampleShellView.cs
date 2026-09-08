@@ -127,7 +127,7 @@ internal sealed partial class SampleShellView : View
                 SamplePage.Analysis =>
                     "document subscriptions, local queries, cached matches, and background analysis",
                 SamplePage.Activity =>
-                    "20,000 variable-height rows; managed rendering is range-batched",
+                    "20,000 variable-height items; managed rendering is range-batched",
                 SamplePage.Tables =>
                     "declared columns drive the native header and row cell reconciliation",
                 SamplePage.Dock =>

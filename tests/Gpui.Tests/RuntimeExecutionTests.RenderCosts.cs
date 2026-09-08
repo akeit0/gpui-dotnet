@@ -16,7 +16,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         fixture.Render();
         for (var index = 0; index < batches; index++)
             fixture.Range((uint)index * 48, count: 48);
-        var rowToken = root.RowToken;
+        var itemToken = root.ItemToken;
         var samples = new double[5];
         var allocations = new long[5];
         const int iterations = 8;
@@ -49,7 +49,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         );
         if (batches != 0)
         {
-            Assert.Equal(0, fixture.Click(rowToken));
+            Assert.Equal(0, fixture.Click(itemToken));
             Assert.Equal(1, root.SecondClickCount);
         }
     }
@@ -59,15 +59,15 @@ public sealed unsafe partial class RuntimeExecutionTests
     [InlineData(0)]
     [InlineData(64)]
     [InlineData(512)]
-    public void RowArtifactChurnCost(int cached)
+    public void ItemArtifactChurnCost(int cached)
     {
-        using var fixture = new SessionFixture(new AllocationRowView("shared-click"));
+        using var fixture = new SessionFixture(new AllocationItemView("shared-click"));
         fixture.Render();
         for (var index = 0; index < cached; index++)
             fixture.Range((uint)index * 48, count: 48);
         var status = 0;
         MeasureRenderCost(
-            $"row-churn-with-{cached}-cached-batches",
+            $"item-churn-with-{cached}-cached-batches",
             32,
             () =>
             {
@@ -160,7 +160,7 @@ public sealed unsafe partial class RuntimeExecutionTests
     [InlineData(0)]
     [InlineData(64)]
     [InlineData(512)]
-    public void RootRenderWithCachedRowsCost(int batches)
+    public void RootRenderWithCachedItemsCost(int batches)
     {
         using var fixture = new SessionFixture(new ProbeView());
         fixture.Render();

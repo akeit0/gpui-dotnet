@@ -3,7 +3,7 @@ using Gpui.Interop.Internal;
 
 namespace Gpui;
 
-/// <summary>A replacement-based value tracked by accepted View and row rendering.</summary>
+/// <summary>A replacement-based value tracked by accepted View and item rendering.</summary>
 public sealed class Signal<T>(T initialValue, IEqualityComparer<T>? comparer = null)
     : IReadOnlySignal<T>,
         ISignal
@@ -92,7 +92,7 @@ public sealed class Signal<T>(T initialValue, IEqualityComparer<T>? comparer = n
             }
             catch (Exception exception)
             {
-                // Drain queued row work without replacing an earlier notification failure.
+                // Drain queued item work without replacing an earlier notification failure.
                 failure ??= exception;
             }
         }

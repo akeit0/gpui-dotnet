@@ -24,8 +24,9 @@ use crate::{
     abi::{ManagedCallbacks, NativeClickEvent, NativeControlEvent},
     app_host::ManagedView,
     collections::{
-        CollectionCursor, CollectionEngine, ListRowEventKind, ListRowEvents, TableSpec,
-        list_configuration, table_configuration,
+        CollectionCursor, CollectionEngine, HorizontalList, ListConfiguration, ListItemEventKind,
+        ListItemEvents, ListOrientation, TableSpec, handle_horizontal_key_down,
+        horizontal_list_overlay, horizontal_scrollbar_id, list_configuration, table_configuration,
     },
     components,
     context_menu::{ContextMenuConfiguration, context_menu},
@@ -38,7 +39,8 @@ use crate::{
     popover_menu::{PopoverMenuConfiguration, popover_menu},
     presentation,
     resources::{
-        ResourceStore, ScrollInteraction, input_configuration, resource_key, slider_configuration,
+        ResourceKey, ResourceStore, ScrollInteraction, input_configuration, resource_key,
+        slider_configuration,
     },
     scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics, list_overlay, scroll_overlay},
     semantic::{
@@ -61,19 +63,20 @@ use crate::{
         OP_ITEMS_CENTER, OP_ITEMS_END, OP_ITEMS_START, OP_ITEMS_STRETCH, OP_JUSTIFY_BETWEEN,
         OP_JUSTIFY_CENTER, OP_JUSTIFY_END, OP_JUSTIFY_START, OP_LEFT_PERCENT, OP_LEFT_PX,
         OP_LINE_CLAMP, OP_LINE_HEIGHT_PERCENT, OP_LINE_HEIGHT_PX, OP_LINE_THROUGH,
-        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_HEIGHT_PX,
-        OP_LIST_ITEM_COUNT, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER, OP_MARGIN_BOTTOM_PERCENT,
-        OP_MARGIN_BOTTOM_PX, OP_MARGIN_LEFT_PERCENT, OP_MARGIN_LEFT_PX, OP_MARGIN_PERCENT,
-        OP_MARGIN_PX, OP_MARGIN_RIGHT_PERCENT, OP_MARGIN_RIGHT_PX, OP_MARGIN_TOP_PERCENT,
-        OP_MARGIN_TOP_PX, OP_MARGIN_X_PERCENT, OP_MARGIN_X_PX, OP_MARGIN_Y_PERCENT, OP_MARGIN_Y_PX,
-        OP_MAX_HEIGHT_PERCENT, OP_MAX_HEIGHT_PX, OP_MAX_WIDTH_PERCENT, OP_MAX_WIDTH_PX,
-        OP_MIN_HEIGHT_PERCENT, OP_MIN_HEIGHT_PX, OP_MIN_WIDTH_PERCENT, OP_MIN_WIDTH_PX,
-        OP_ON_CLICK, OP_ON_FILE_DROP, OP_ON_HOVER, OP_ON_KEY_DOWN, OP_ON_KEY_UP,
-        OP_ON_MODIFIERS_CHANGED, OP_ON_MOUSE_DOWN, OP_ON_MOUSE_DOWN_OUT, OP_ON_MOUSE_MOVE,
-        OP_ON_MOUSE_UP, OP_ON_MOUSE_UP_OUT, OP_ON_SCROLL_WHEEL, OP_OPACITY, OP_OVERFLOW_HIDDEN,
-        OP_OVERFLOW_X_HIDDEN, OP_OVERFLOW_Y_HIDDEN, OP_OVERLAY_BACKDROP_RGBA,
-        OP_OVERLAY_DISMISS_ON_BACKDROP, OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX,
-        OP_OVERLAY_MODAL, OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY,
+        OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_ESTIMATED_ITEM_EXTENT_PX,
+        OP_LIST_ITEM_COUNT, OP_LIST_ORIENTATION, OP_LIST_OVERDRAW_PX, OP_LIST_RENDERER,
+        OP_MARGIN_BOTTOM_PERCENT, OP_MARGIN_BOTTOM_PX, OP_MARGIN_LEFT_PERCENT, OP_MARGIN_LEFT_PX,
+        OP_MARGIN_PERCENT, OP_MARGIN_PX, OP_MARGIN_RIGHT_PERCENT, OP_MARGIN_RIGHT_PX,
+        OP_MARGIN_TOP_PERCENT, OP_MARGIN_TOP_PX, OP_MARGIN_X_PERCENT, OP_MARGIN_X_PX,
+        OP_MARGIN_Y_PERCENT, OP_MARGIN_Y_PX, OP_MAX_HEIGHT_PERCENT, OP_MAX_HEIGHT_PX,
+        OP_MAX_WIDTH_PERCENT, OP_MAX_WIDTH_PX, OP_MIN_HEIGHT_PERCENT, OP_MIN_HEIGHT_PX,
+        OP_MIN_WIDTH_PERCENT, OP_MIN_WIDTH_PX, OP_ON_CLICK, OP_ON_FILE_DROP, OP_ON_HOVER,
+        OP_ON_KEY_DOWN, OP_ON_KEY_UP, OP_ON_MODIFIERS_CHANGED, OP_ON_MOUSE_DOWN,
+        OP_ON_MOUSE_DOWN_OUT, OP_ON_MOUSE_MOVE, OP_ON_MOUSE_UP, OP_ON_MOUSE_UP_OUT,
+        OP_ON_SCROLL_WHEEL, OP_OPACITY, OP_OVERFLOW_HIDDEN, OP_OVERFLOW_X_HIDDEN,
+        OP_OVERFLOW_Y_HIDDEN, OP_OVERLAY_BACKDROP_RGBA, OP_OVERLAY_DISMISS_ON_BACKDROP,
+        OP_OVERLAY_DISMISS_ON_ESCAPE, OP_OVERLAY_MARGIN_PX, OP_OVERLAY_MODAL,
+        OP_OVERLAY_ON_DISMISS, OP_OVERLAY_PLACEMENT, OP_OVERLAY_PRIORITY,
         OP_PADDING_BOTTOM_PERCENT, OP_PADDING_BOTTOM_PX, OP_PADDING_LEFT_PERCENT,
         OP_PADDING_LEFT_PX, OP_PADDING_PERCENT, OP_PADDING_PX, OP_PADDING_RIGHT_PERCENT,
         OP_PADDING_RIGHT_PX, OP_PADDING_TOP_PERCENT, OP_PADDING_TOP_PX, OP_PADDING_X_PERCENT,
@@ -260,7 +263,7 @@ impl ManagedView {
         if last_op(snapshot, node, OP_FLEX_GROW).is_some() {
             // A growing flex item must be allowed to shrink below its content's intrinsic
             // size; otherwise a descendant scroll viewport expands to its full content
-            // height, or a growing row item forces the row wider than its parent when a
+            // height, or a growing flex item forces its parent wider than its own bounds when a
             // long text child reports a wide max-content width.
             element = element.min_h_0().min_w_0();
         }
@@ -515,55 +518,51 @@ impl ManagedView {
                 .child("List resource is missing virtualization metadata.")
                 .into_any_element();
         };
+        if configuration.orientation == ListOrientation::Horizontal {
+            return self.materialize_horizontal_list(
+                node,
+                snapshot,
+                key,
+                &configuration,
+                window,
+                cx,
+            );
+        }
         let resource = self
             .resources
             .list_resource(&key, &configuration, self.snapshot_revision);
         resource.borrow_mut().begin_frame();
         let state = resource.borrow().state.clone();
-        let focus_state = window.use_keyed_state(
-            collection_focus_id("managed-list-focus", &key),
-            cx,
-            |_, cx| CollectionFocusState {
-                focus: cx.focus_handle().tab_stop(true),
-            },
-        );
-        let focus = focus_state.read(cx).focus.clone();
+        let focus = collection_focus(window, cx, "managed-list-focus", &key);
         let keyboard_cursor = resource.borrow().cursor.clone();
         let keyboard_epoch = keyboard_cursor.epoch();
         let keyboard_resource = resource.clone();
         let keyboard_focus = focus.clone();
-        let row_cursor = keyboard_cursor.clone();
-        let row_focus = focus.clone();
+        let item_cursor = keyboard_cursor.clone();
+        let item_focus = focus.clone();
         let keyboard_list = state.clone();
         let keyboard_interaction = resource.borrow().interaction.clone();
         let item_count = configuration.item_count;
         let resources = self.resources.clone();
-        let row_scope = key.clone();
-        let row_resource = resource.clone();
-        let menu_token = last_op(
-            snapshot,
-            node,
-            crate::semantic::OP_LIST_ON_CONTEXT_MENU_REQUESTED,
-        )
-        .map_or(0, |op| op.a);
+        let item_scope = key.clone();
+        let item_resource = resource.clone();
+        let (smooth, show_scrollbar, menu_token) = collection_scroll_flags(snapshot, node);
         let list_element = list(state, move |index, _window, _cx| {
-            let element = row_resource
+            let element = item_resource
                 .borrow_mut()
-                .render_item(index, &resources, &row_scope);
-            CollectionRow::new(element, row_cursor.clone(), row_focus.clone(), index)
-                .with_row_events(row_resource.borrow().cached_row_events(index))
+                .render_item(index, &resources, &item_scope);
+            CollectionItem::new(element, item_cursor.clone(), item_focus.clone(), index)
+                .with_item_events(item_resource.borrow().cached_item_events(index))
                 .with_context_menu(
                     menu_token,
-                    resources.row_menus.clone(),
-                    row_resource.clone(),
+                    resources.item_menus.clone(),
+                    item_resource.clone(),
                 )
                 .into_any_element()
         })
         .flex_grow(1.0)
         .min_h_0()
         .min_w_0();
-        let smooth = last_op(snapshot, node, OP_SMOOTH_SCROLL).is_none_or(|op| op.a != 0);
-        let show_scrollbar = last_op(snapshot, node, OP_SHOW_SCROLLBAR).is_none_or(|op| op.a != 0);
         let overlay = list_overlay(
             resource,
             smooth,
@@ -581,7 +580,7 @@ impl ManagedView {
                     if keyboard_cursor.epoch() != keyboard_epoch {
                         return;
                     }
-                    if handle_collection_row_event_key(
+                    if handle_collection_item_event_key(
                         event,
                         window,
                         cx,
@@ -601,7 +600,7 @@ impl ManagedView {
                     );
                 });
         if configuration.scrollbar.gutter > px(0.) {
-            // Reserve the bar's width: the virtualized content excludes the gutter, so rows
+            // Reserve the bar's width: the virtualized content excludes the gutter, so items
             // never extend under the scrollbar.
             host = host.child(
                 div()
@@ -619,8 +618,98 @@ impl ManagedView {
         host.child(overlay).into_any_element()
     }
 
+    /// A horizontal list lays items out left-to-right with per-item measured widths. Item
+    /// batches, the keyboard cursor, and selection/activation events are shared with the
+    /// vertical engine; only the viewport geometry, scrollbar axis, and navigation keys differ.
+    fn materialize_horizontal_list(
+        &self,
+        node: &SnapshotNode,
+        snapshot: &ValidatedSnapshot,
+        key: ResourceKey,
+        configuration: &ListConfiguration,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let resource = self
+            .resources
+            .list_resource(&key, configuration, self.snapshot_revision);
+        resource.borrow_mut().begin_frame();
+        let focus = collection_focus(window, cx, "managed-hlist-focus", &key);
+        let keyboard_cursor = resource.borrow().cursor.clone();
+        let keyboard_epoch = keyboard_cursor.epoch();
+        let keyboard_resource = resource.clone();
+        let keyboard_focus = focus.clone();
+        let item_count = configuration.item_count;
+        let (smooth, show_scrollbar, menu_token) = collection_scroll_flags(snapshot, node);
+        let list_element = HorizontalList::new(
+            resource.clone(),
+            self.resources.clone(),
+            key.clone(),
+            keyboard_cursor.clone(),
+            focus.clone(),
+            menu_token,
+        );
+        let overlay = horizontal_list_overlay(
+            resource,
+            smooth,
+            show_scrollbar,
+            configuration.scrollbar,
+            horizontal_scrollbar_id(&key),
+        );
+        let focus_color = self.theme.borrow().border_focused;
+        let mut element = apply_styles(div().relative().flex().flex_col(), node, snapshot);
+        element = element.min_h_0().min_w_0();
+        let mut host =
+            presentation::focus_ring(element.id(&focus).track_focus(&focus), focus_color)
+                .key_context("GpuiDotnetList")
+                .on_key_down(move |event, window, cx| {
+                    if keyboard_cursor.epoch() != keyboard_epoch {
+                        return;
+                    }
+                    if handle_collection_item_event_key(
+                        event,
+                        window,
+                        cx,
+                        &keyboard_focus,
+                        &keyboard_resource,
+                    ) {
+                        return;
+                    }
+                    handle_horizontal_key_down(
+                        event,
+                        window,
+                        cx,
+                        &keyboard_cursor,
+                        &keyboard_resource,
+                        item_count,
+                    );
+                });
+        if configuration.scrollbar.gutter > px(0.) {
+            // Reserve the bar's height: the strip excludes the gutter, so items never extend
+            // under the horizontal scrollbar.
+            host = host.child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .flex_grow(1.0)
+                    .min_h_0()
+                    .min_w_0()
+                    .child(list_element)
+                    .child(
+                        div()
+                            .flex_shrink_0()
+                            .h(configuration.scrollbar.gutter)
+                            .w_full(),
+                    ),
+            );
+        } else {
+            host = host.child(list_element);
+        }
+        host.child(overlay).into_any_element()
+    }
+
     /// A table is a virtualized list whose rows are reconciled against declared columns. The
-    /// row engine, its commands, and its batch cache are exactly the list machinery; columns
+    /// collection engine, its commands, and its batch cache are exactly the list machinery; columns
     /// are declarative IR that only changes how the header strip and row cells are laid out.
     fn materialize_table(
         &self,
@@ -646,50 +735,36 @@ impl ManagedView {
             .bind_table_spec(&key, spec.clone(), &resource);
         resource.borrow_mut().begin_frame();
         let state = resource.borrow().state.clone();
-        let focus_state = window.use_keyed_state(
-            collection_focus_id("managed-table-focus", &key),
-            cx,
-            |_, cx| CollectionFocusState {
-                focus: cx.focus_handle().tab_stop(true),
-            },
-        );
-        let focus = focus_state.read(cx).focus.clone();
+        let focus = collection_focus(window, cx, "managed-table-focus", &key);
         let keyboard_cursor = resource.borrow().cursor.clone();
         let keyboard_epoch = keyboard_cursor.epoch();
         let keyboard_resource = resource.clone();
         let keyboard_focus = focus.clone();
-        let row_cursor = keyboard_cursor.clone();
-        let row_focus = focus.clone();
+        let item_cursor = keyboard_cursor.clone();
+        let item_focus = focus.clone();
         let keyboard_list = state.clone();
         let keyboard_interaction = resource.borrow().interaction.clone();
         let item_count = configuration.item_count;
         let resources = self.resources.clone();
-        let row_scope = key.clone();
-        let row_resource = resource.clone();
-        let menu_token = last_op(
-            snapshot,
-            node,
-            crate::semantic::OP_LIST_ON_CONTEXT_MENU_REQUESTED,
-        )
-        .map_or(0, |op| op.a);
+        let item_scope = key.clone();
+        let item_resource = resource.clone();
+        let (smooth, show_scrollbar, menu_token) = collection_scroll_flags(snapshot, node);
         let list_element = list(state, move |index, _window, _cx| {
-            let element = row_resource
+            let element = item_resource
                 .borrow_mut()
-                .render_item(index, &resources, &row_scope);
-            CollectionRow::new(element, row_cursor.clone(), row_focus.clone(), index)
-                .with_row_events(row_resource.borrow().cached_row_events(index))
+                .render_item(index, &resources, &item_scope);
+            CollectionItem::new(element, item_cursor.clone(), item_focus.clone(), index)
+                .with_item_events(item_resource.borrow().cached_item_events(index))
                 .with_context_menu(
                     menu_token,
-                    resources.row_menus.clone(),
-                    row_resource.clone(),
+                    resources.item_menus.clone(),
+                    item_resource.clone(),
                 )
                 .into_any_element()
         })
         .flex_grow(1.0)
         .min_h_0()
         .min_w_0();
-        let smooth = last_op(snapshot, node, OP_SMOOTH_SCROLL).is_none_or(|op| op.a != 0);
-        let show_scrollbar = last_op(snapshot, node, OP_SHOW_SCROLLBAR).is_none_or(|op| op.a != 0);
         let overlay = list_overlay(
             resource,
             smooth,
@@ -709,7 +784,7 @@ impl ManagedView {
                     {
                         return;
                     }
-                    if handle_collection_row_event_key(
+                    if handle_collection_item_event_key(
                         event,
                         window,
                         cx,
@@ -982,9 +1057,9 @@ impl ManagedView {
         let children = snapshot.children(node);
         let trigger = self.materialize_node(children[0], snapshot, window, cx);
         let content = self.materialize_node(children[1], snapshot, window, cx);
-        if let Some(anchor) = last_op(snapshot, node, crate::semantic::OP_TOOLTIP_ROW_ANCHOR) {
-            return crate::row_tooltip::tooltip(
-                self.resources.row_tooltips.clone(),
+        if let Some(anchor) = last_op(snapshot, node, crate::semantic::OP_TOOLTIP_ITEM_ANCHOR) {
+            return crate::item_tooltip::tooltip(
+                self.resources.item_tooltips.clone(),
                 anchor.a,
                 key.owner_view,
                 content,
@@ -1038,8 +1113,8 @@ impl ManagedView {
             configuration,
             self.overlay_stack.clone(),
             overlay_token,
-            last_op(snapshot, node, crate::semantic::OP_CONTEXT_MENU_ROW_ANCHOR)
-                .map(|op| (self.resources.row_menus.clone(), op.a)),
+            last_op(snapshot, node, crate::semantic::OP_CONTEXT_MENU_ITEM_ANCHOR)
+                .map(|op| (self.resources.item_menus.clone(), op.a)),
             window,
             cx,
         )
@@ -1145,10 +1220,10 @@ fn restore_overlay_focus(
 }
 
 /// Materialization used by native list batch caches. It deliberately has no ManagedView Context,
-/// so row clicks dispatch directly and row trees cannot create another virtualized List recursively.
-/// `item_id` is the stable model identity declared on the row root via OP_LIST_ITEM_ID; it keeps
+/// so item clicks dispatch directly and item trees cannot create another virtualized List recursively.
+/// `item_id` is the stable model identity declared on the item root via OP_LIST_ITEM_ID; it keeps
 /// stateful element identity stable across splices and supplies the default event payload for
-/// rows that do not bake an explicit payload. A missing ID falls back to the positional index.
+/// items that do not bake an explicit payload. A missing ID falls back to the positional index.
 pub(crate) fn materialize_snapshot_node_detached(
     node_id: u32,
     snapshot: &ValidatedSnapshot,
@@ -1159,21 +1234,21 @@ pub(crate) fn materialize_snapshot_node_detached(
     item_index: usize,
     item_id: Option<u64>,
 ) -> AnyElement {
-    let child = materialize_row_node(
+    let child = materialize_item_node(
         node_id, snapshot, session_id, callbacks, resources, list_key, item_index, item_id,
     );
     let node = &snapshot.nodes[node_id as usize];
     if item_id.is_some()
-        && last_op(snapshot, node, crate::semantic::OP_ROW_TOOLTIP_TARGET)
+        && last_op(snapshot, node, crate::semantic::OP_ITEM_TOOLTIP_TARGET)
             .is_some_and(|op| op.a != 0)
     {
-        resources.row_tooltip_target(list_key, item_index, node_id, child)
+        resources.item_tooltip_target(list_key, item_index, node_id, child)
     } else {
         child
     }
 }
 
-fn materialize_row_node(
+fn materialize_item_node(
     node_id: u32,
     snapshot: &ValidatedSnapshot,
     session_id: u64,
@@ -1205,7 +1280,7 @@ fn materialize_row_node(
     ) {
         return div()
             .child(
-                "Retained resources, Dock declarations, and deferred layers inside a virtualized list row are not supported.",
+                "Retained resources, Dock declarations, and deferred layers inside a virtualized list item are not supported.",
             )
             .into_any_element();
     }
@@ -1216,7 +1291,7 @@ fn materialize_row_node(
         return materialize_drawing(node_id, snapshot);
     }
     // Observer key/mouse/modifier/hover/move/wheel/drop bindings need focus and bubbling
-    // through a mounted View; virtual rows are element-only snapshots without View lifetime.
+    // through a mounted View; virtual items are element-only snapshots without View lifetime.
     if last_op(snapshot, node, OP_ON_KEY_DOWN).is_some_and(|op| op.a != 0)
         || last_op(snapshot, node, crate::semantic::OP_FOCUS_TARGET).is_some()
         || last_op(snapshot, node, crate::semantic::OP_ON_SHORTCUT).is_some()
@@ -1234,7 +1309,7 @@ fn materialize_row_node(
         || last_op(snapshot, node, OP_ON_FILE_DROP).is_some_and(|op| op.a != 0)
     {
         return div()
-            .child("Focus targets, shortcuts, and key/mouse observer events inside a virtualized list row are not supported.")
+            .child("Focus targets, shortcuts, and key/mouse observer events inside a virtualized list item are not supported.")
             .into_any_element();
     }
 
@@ -1269,20 +1344,20 @@ fn materialize_row_node(
         let event_binding = last_op(snapshot, node, OP_ON_CLICK);
         let event_token = event_binding.map_or(0, |op| op.a);
         let event_payload = event_binding.map_or(0, |op| op.b);
-        // Rows without an explicit payload deliver the stable model ID so handlers survive
+        // Items without an explicit payload deliver the stable model ID so handlers survive
         // splices; payload 0 means "unset" in the ON_CLICK encoding.
         let event_payload = match (event_payload, item_id) {
             (0, Some(id)) => id,
             (payload, _) => payload,
         };
         if event_token != 0 {
-            // GPUI element ids are path-scoped state keys. Interactive row nodes use a
+            // GPUI element ids are path-scoped state keys. Interactive item nodes use a
             // structured NamedInteger id — a fixed namespace plus a deterministic hash of the
-            // list identity, row identity, and node identity — so the virtualized-row hot path
+            // list identity, item identity, and node identity — so the virtualized-item hot path
             // performs no string formatting or allocation. The stable model ID is preferred so
             // state survives splices; without one, the positional index keeps prior behavior.
-            let state_id = row_state_id(list_key, item_index, item_id, &node.data);
-            let element = element.id(("managed-list-row", state_id));
+            let state_id = item_state_id(list_key, item_index, item_id, &node.data);
+            let element = element.id(("managed-list-item", state_id));
             let element = if use_default_cursor(node, snapshot) {
                 element.cursor_pointer()
             } else {
@@ -1327,8 +1402,8 @@ fn materialize_detached_foundation_control(
             *child, snapshot, session_id, callbacks, resources, list_key, item_index, item_id,
         )
     });
-    let state_id = row_state_id(list_key, item_index, item_id, &node.data);
-    let element_id: ElementId = ("managed-list-row", state_id).into();
+    let state_id = item_state_id(list_key, item_index, item_id, &node.data);
+    let element_id: ElementId = ("managed-list-item", state_id).into();
     let presentation = ControlPresentation::new(node, snapshot, theme);
     let binding = click_binding(node, snapshot).map(|(token, payload)| {
         let payload = if payload == 0 {
@@ -1550,11 +1625,11 @@ fn managed_control_state_id(owner_view: u32, local_key: &str) -> u64 {
     stable_hash(&[&owner, local_key.as_bytes()])
 }
 
-/// Deterministic GPUI state id for an interactive node inside a virtualized row. Combines the
-/// list identity, the row identity (stable model ID when declared, positional index otherwise),
+/// Deterministic GPUI state id for an interactive node inside a virtualized item. Combines the
+/// list identity, the item identity (stable model ID when declared, positional index otherwise),
 /// and the node identity into one 64-bit value so `ElementId::NamedInteger` needs no per-frame
 /// allocation. Hash collisions across distinct identities are 64-bit improbable.
-fn row_state_id(
+fn item_state_id(
     list_key: &crate::resources::ResourceKey,
     item_index: usize,
     item_id: Option<u64>,
@@ -1985,22 +2060,22 @@ struct CollectionFocusState {
     focus: FocusHandle,
 }
 
-/// Adds native cursor hit testing without adding a layout box or changing row state IDs.
-pub(crate) struct CollectionRow {
+/// Adds native cursor hit testing without adding a layout box or changing item state IDs.
+pub(crate) struct CollectionItem {
     element: AnyElement,
     cursor: std::rc::Rc<CollectionCursor>,
     focus: FocusHandle,
     index: usize,
     epoch: u64,
-    row_events: Option<ListRowEvents>,
+    item_events: Option<ListItemEvents>,
     context_menu: Option<(
         u64,
-        std::rc::Rc<crate::row_menu::RowMenus>,
+        std::rc::Rc<crate::item_menu::ItemMenus>,
         std::rc::Rc<std::cell::RefCell<CollectionEngine>>,
     )>,
 }
 
-impl CollectionRow {
+impl CollectionItem {
     pub(crate) fn new(
         element: AnyElement,
         cursor: std::rc::Rc<CollectionCursor>,
@@ -2014,20 +2089,20 @@ impl CollectionRow {
             focus,
             index,
             epoch,
-            row_events: None,
+            item_events: None,
             context_menu: None,
         }
     }
 
-    fn with_row_events(mut self, row_events: Option<ListRowEvents>) -> Self {
-        self.row_events = row_events;
+    pub(crate) fn with_item_events(mut self, item_events: Option<ListItemEvents>) -> Self {
+        self.item_events = item_events;
         self
     }
 
     pub(crate) fn with_context_menu(
         mut self,
         token: u64,
-        menus: std::rc::Rc<crate::row_menu::RowMenus>,
+        menus: std::rc::Rc<crate::item_menu::ItemMenus>,
         resource: std::rc::Rc<std::cell::RefCell<CollectionEngine>>,
     ) -> Self {
         if token != 0 {
@@ -2037,14 +2112,14 @@ impl CollectionRow {
     }
 }
 
-impl IntoElement for CollectionRow {
+impl IntoElement for CollectionItem {
     type Element = Self;
     fn into_element(self) -> Self {
         self
     }
 }
 
-impl gpui::Element for CollectionRow {
+impl gpui::Element for CollectionItem {
     type RequestLayoutState = ();
     type PrepaintState = gpui::Hitbox;
 
@@ -2097,7 +2172,7 @@ impl gpui::Element for CollectionRow {
         let focus = self.focus.clone();
         let index = self.index;
         let epoch = self.epoch;
-        let row_events = self.row_events;
+        let item_events = self.item_events;
         let context_menu = self.context_menu.clone();
         // Capture precedes child handlers; children can still take focus or consume the event.
         window.on_mouse_event(move |event: &MouseDownEvent, phase, window, cx| {
@@ -2123,7 +2198,7 @@ impl gpui::Element for CollectionRow {
             if phase.capture()
                 && event.button == MouseButton::Left
                 && hitbox.is_hovered(window)
-                && cursor.set_from_row(index, epoch)
+                && cursor.set_from_item(index, epoch)
             {
                 focus.focus(window, cx);
                 window.refresh();
@@ -2133,15 +2208,15 @@ impl gpui::Element for CollectionRow {
                 && event.modifiers == gpui::Modifiers::none()
                 && hitbox.is_hovered(window)
                 && cursor.epoch() == epoch
-                && let Some(events) = row_events
+                && let Some(events) = item_events
             {
                 let kind = match event.click_count {
-                    1 if events.selection_token != 0 => Some(ListRowEventKind::Selection),
-                    2 if events.activation_token != 0 => Some(ListRowEventKind::Activation),
+                    1 if events.selection_token != 0 => Some(ListItemEventKind::Selection),
+                    2 if events.activation_token != 0 => Some(ListItemEventKind::Activation),
                     _ => None,
                 };
                 if let Some(kind) = kind {
-                    dispatch_list_row_event(Ok(Some(events)), kind, false);
+                    dispatch_list_item_event(Ok(Some(events)), kind, false);
                     cx.stop_propagation();
                 }
             }
@@ -2150,14 +2225,48 @@ impl gpui::Element for CollectionRow {
     }
 }
 
-fn collection_focus_id(name: &'static str, key: &crate::resources::ResourceKey) -> ElementId {
+pub(crate) fn collection_focus_id(
+    name: &'static str,
+    key: &crate::resources::ResourceKey,
+) -> ElementId {
     let owner = key.owner_view.to_le_bytes();
     ElementId::named_usize(name, stable_hash(&[&owner, key.key.as_bytes()]) as usize)
 }
 
-fn dispatch_list_row_event(
-    result: Result<Option<ListRowEvents>, (u64, i32)>,
-    kind: ListRowEventKind,
+/// Shared collection focus handle: one tab stop bound to the list or table itself.
+fn collection_focus(
+    window: &mut Window,
+    cx: &mut Context<ManagedView>,
+    name: &'static str,
+    key: &crate::resources::ResourceKey,
+) -> FocusHandle {
+    window
+        .use_keyed_state(collection_focus_id(name, key), cx, |_, cx| {
+            CollectionFocusState {
+                focus: cx.focus_handle().tab_stop(true),
+            }
+        })
+        .read(cx)
+        .focus
+        .clone()
+}
+
+/// Shared scrollbar/overlay flags plus the item context-menu token.
+fn collection_scroll_flags(snapshot: &ValidatedSnapshot, node: &SnapshotNode) -> (bool, bool, u64) {
+    let smooth = last_op(snapshot, node, OP_SMOOTH_SCROLL).is_none_or(|op| op.a != 0);
+    let show_scrollbar = last_op(snapshot, node, OP_SHOW_SCROLLBAR).is_none_or(|op| op.a != 0);
+    let menu_token = last_op(
+        snapshot,
+        node,
+        crate::semantic::OP_LIST_ON_CONTEXT_MENU_REQUESTED,
+    )
+    .map_or(0, |op| op.a);
+    (smooth, show_scrollbar, menu_token)
+}
+
+fn dispatch_list_item_event(
+    result: Result<Option<ListItemEvents>, (u64, i32)>,
+    kind: ListItemEventKind,
     keyboard: bool,
 ) {
     let (session, status) = match result {
@@ -2168,7 +2277,7 @@ fn dispatch_list_row_event(
     crate::app_host::after_detached_callback(session, status);
 }
 
-pub(crate) fn handle_collection_row_event_key(
+pub(crate) fn handle_collection_item_event_key(
     event: &KeyDownEvent,
     window: &mut Window,
     cx: &mut App,
@@ -2176,8 +2285,8 @@ pub(crate) fn handle_collection_row_event_key(
     resource: &std::rc::Rc<std::cell::RefCell<CollectionEngine>>,
 ) -> bool {
     let kind = match event.keystroke.key.as_str() {
-        "enter" => ListRowEventKind::Activation,
-        "space" => ListRowEventKind::Selection,
+        "enter" => ListItemEventKind::Activation,
+        "space" => ListItemEventKind::Selection,
         _ => return false,
     };
     if event.prefer_character_input
@@ -2194,24 +2303,27 @@ pub(crate) fn handle_collection_row_event_key(
             resource
                 .cursor
                 .active()
-                .map(|index| resource.prepare_row_event(index, kind))
+                .map(|index| resource.prepare_item_event(index, kind))
         };
         // Release the resource borrow before application handlers can issue commands.
         if let Some(result) = result {
-            dispatch_list_row_event(result, kind, true);
+            dispatch_list_item_event(result, kind, true);
         }
     }
     true
 }
 
-fn handle_collection_key_down(
+/// Shared collection keyboard skeleton: guards, cursor resolution, smoothing cancel, and
+/// cursor commit. The `advance` closure maps the pressed key to its target, performing any
+/// axis-specific reveal or paging as a side effect.
+pub(crate) fn handle_collection_navigation(
     event: &KeyDownEvent,
     window: &mut Window,
     cx: &mut App,
     cursor: &CollectionCursor,
-    list_state: &ListState,
     interaction: &ScrollInteraction,
     item_count: usize,
+    advance: impl FnOnce(usize, usize) -> Option<usize>,
 ) {
     if item_count == 0 {
         return;
@@ -2225,14 +2337,8 @@ fn handle_collection_key_down(
         return;
     };
     let current = current.min(item_count.saturating_sub(1));
-    let key = event.keystroke.key.as_str();
-    let next = match key {
-        "pageup" | "pagedown" => page_collection(list_state, key == "pagedown"),
-        _ => collection_key_target(key, current, item_count).inspect(|&next| {
-            list_state.scroll_to_reveal_item(next);
-        }),
-    };
-    let Some(next) = next else {
+    let last = item_count - 1;
+    let Some(next) = advance(current, last) else {
         return;
     };
 
@@ -2241,6 +2347,34 @@ fn handle_collection_key_down(
     cursor.set(next);
     window.refresh();
     cx.stop_propagation();
+}
+
+fn handle_collection_key_down(
+    event: &KeyDownEvent,
+    window: &mut Window,
+    cx: &mut App,
+    cursor: &CollectionCursor,
+    list_state: &ListState,
+    interaction: &ScrollInteraction,
+    item_count: usize,
+) {
+    handle_collection_navigation(
+        event,
+        window,
+        cx,
+        cursor,
+        interaction,
+        item_count,
+        |current, _last| {
+            let key = event.keystroke.key.as_str();
+            match key {
+                "pageup" | "pagedown" => page_collection(list_state, key == "pagedown"),
+                _ => collection_key_target(key, current, item_count).inspect(|&next| {
+                    list_state.scroll_to_reveal_item(next);
+                }),
+            }
+        },
+    )
 }
 
 fn page_collection(list_state: &ListState, down: bool) -> Option<usize> {
@@ -2256,11 +2390,11 @@ fn page_collection(list_state: &ListState, down: bool) -> Option<usize> {
         .min(maximum);
 
     // Map the absolute target through GPUI's measured/estimated height tree. A zero anchor also
-    // normalizes bottom-aligned end sentinels, which scroll_by alone treats as past the last row.
-    // Both mutations run synchronously; no render or managed row request occurs between them.
+    // normalizes bottom-aligned end sentinels, which scroll_by alone treats as past the last item.
+    // Both mutations run synchronously; no render or managed item request occurs between them.
     list_state.scroll_to(ListOffset::default());
     list_state.scroll_by(target);
-    // Keep the partial-row offset: revealing this item would undo the page movement for tall rows.
+    // Keep the partial-item offset: revealing this item would undo the page movement for tall items.
     Some(list_state.logical_scroll_top().item_ix.min(last))
 }
 
@@ -2911,7 +3045,7 @@ mod tests {
                 })
             }
         }
-        unsafe extern "C" fn unavailable_rows(
+        unsafe extern "C" fn unavailable_items(
             _: u64,
             _: u64,
             _: u64,
@@ -2945,8 +3079,8 @@ mod tests {
         let snapshot = arena.decode();
         let native = cx.new(|_| {
             let mut callbacks = inert_callbacks();
-            // Row data is irrelevant to focus routing; keep the real row engine with error rows.
-            callbacks.list_render_range = Some(unavailable_rows);
+            // Item data is irrelevant to focus routing; keep the real collection engine with error items.
+            callbacks.list_render_range = Some(unavailable_items);
             ManagedView::new(1, callbacks, Default::default(), Default::default())
         });
         let (view, cx) = cx.add_window_view(|_, _| HeaderView {
@@ -3113,14 +3247,14 @@ mod tests {
     }
 
     #[test]
-    fn row_state_ids_are_deterministic_for_identical_inputs() {
-        let a = row_state_id(&key(), 12, Some(7), "service-row");
-        let b = row_state_id(&key(), 12, Some(7), "service-row");
+    fn item_state_ids_are_deterministic_for_identical_inputs() {
+        let a = item_state_id(&key(), 12, Some(7), "service-row");
+        let b = item_state_id(&key(), 12, Some(7), "service-row");
         assert_eq!(a, b);
     }
 
     #[test]
-    fn keyed_row_identity_survives_rebatching_and_preceding_content_changes() {
+    fn keyed_item_identity_survives_rebatching_and_preceding_content_changes() {
         use crate::semantic::COMPONENT_DIV;
         fn decode(preceding_nodes: usize, label: &str) -> (ValidatedSnapshot, u32, u32) {
             let mut nodes = vec![NodeRecord {
@@ -3138,7 +3272,7 @@ mod tests {
                     ..Default::default()
                 });
             }
-            let row = nodes.len() as u32;
+            let node = nodes.len() as u32;
             nodes.push(NodeRecord {
                 component: COMPONENT_DIV,
                 ..Default::default()
@@ -3157,20 +3291,20 @@ mod tests {
             children.extend([
                 ChildRecord {
                     parent: 0,
-                    child: row,
+                    child: node,
                 },
                 ChildRecord {
-                    parent: row,
-                    child: row + 1,
+                    parent: node,
+                    child: node + 1,
                 },
                 ChildRecord {
-                    parent: row + 1,
-                    child: row + 2,
+                    parent: node + 1,
+                    child: node + 2,
                 },
             ]);
             let mut data = format!("key{label}").into_bytes();
             let mut ops = [OpRecord {
-                node: row,
+                node,
                 code: crate::semantic::OP_LIST_ITEM_ID,
                 value_kind: crate::semantic::ValueKind::U64 as u16,
                 a: 7,
@@ -3205,20 +3339,20 @@ mod tests {
                     &mut SnapshotScratch::default(),
                 )
                 .unwrap();
-            (snapshot, row, row + 1)
+            (snapshot, node, node + 1)
         }
-        let (before, row_before, control_before) = decode(1, "old label");
-        let (after, row_after, control_after) = decode(9, "new label");
+        let (before, node_before, control_before) = decode(1, "old label");
+        let (after, node_after, control_after) = decode(9, "new label");
         assert_ne!(control_before, control_after);
-        let identity = |snapshot: &ValidatedSnapshot, row, control: u32, position| {
+        let identity = |snapshot: &ValidatedSnapshot, node, control: u32, position| {
             let model = last_op(
                 snapshot,
-                &snapshot.nodes[row as usize],
+                &snapshot.nodes[node as usize],
                 crate::semantic::OP_LIST_ITEM_ID,
             )
             .unwrap()
             .a;
-            row_state_id(
+            item_state_id(
                 &key(),
                 position,
                 Some(model),
@@ -3226,28 +3360,28 @@ mod tests {
             )
         };
         assert_eq!(
-            identity(&before, row_before, control_before, 1),
-            identity(&after, row_after, control_after, 9)
+            identity(&before, node_before, control_before, 1),
+            identity(&after, node_after, control_after, 9)
         );
         assert_ne!(
-            row_state_id(&key(), 7, Some(7), "key"),
-            row_state_id(&key(), 7, None, "key")
+            item_state_id(&key(), 7, Some(7), "key"),
+            item_state_id(&key(), 7, None, "key")
         );
     }
 
     #[test]
-    fn row_state_ids_distinguish_identity_inputs() {
-        let base = row_state_id(&key(), 12, Some(7), "service-row");
-        // Different row identity (model ID vs positional fallback).
-        assert_ne!(base, row_state_id(&key(), 12, Some(8), "service-row"));
-        assert_ne!(base, row_state_id(&key(), 12, None, "service-row"));
-        // Different node within the row subtree.
-        assert_eq!(base, row_state_id(&key(), 12, Some(7), "service-row"));
-        assert_ne!(base, row_state_id(&key(), 12, Some(7), "chevron"));
+    fn item_state_ids_distinguish_identity_inputs() {
+        let base = item_state_id(&key(), 12, Some(7), "service-row");
+        // Different item identity (model ID vs positional fallback).
+        assert_ne!(base, item_state_id(&key(), 12, Some(8), "service-row"));
+        assert_ne!(base, item_state_id(&key(), 12, None, "service-row"));
+        // Different node within the item subtree.
+        assert_eq!(base, item_state_id(&key(), 12, Some(7), "service-row"));
+        assert_ne!(base, item_state_id(&key(), 12, Some(7), "chevron"));
         // Different list identity.
         assert_ne!(
             base,
-            row_state_id(
+            item_state_id(
                 &ResourceKey::new(5, "service-grid".into()),
                 12,
                 Some(7),
@@ -3256,7 +3390,7 @@ mod tests {
         );
         assert_ne!(
             base,
-            row_state_id(
+            item_state_id(
                 &ResourceKey::new(4, "other-grid".into()),
                 12,
                 Some(7),
@@ -3287,7 +3421,7 @@ mod tests {
         focus: FocusHandle,
         clicks: std::rc::Rc<std::cell::Cell<usize>>,
         child_cursor: std::rc::Rc<std::cell::Cell<Option<usize>>>,
-        row_events: Option<ListRowEvents>,
+        item_events: Option<ListItemEvents>,
     }
 
     impl gpui::Render for PointerCollectionView {
@@ -3298,7 +3432,7 @@ mod tests {
             let keyboard_state = self.state.clone();
             let clicks = self.clicks.clone();
             let child_cursor = self.child_cursor.clone();
-            let row_events = self.row_events;
+            let item_events = self.item_events;
             div()
                 .id("pointer-collection")
                 .track_focus(&focus)
@@ -3323,7 +3457,7 @@ mod tests {
                         let child_cursor = child_cursor.clone();
                         let observed_cursor = cursor.clone();
                         let content = div()
-                            .id(("row", index))
+                            .id(("item", index))
                             .w_full()
                             .h(px(40.))
                             .on_click(move |_, _, _| clicks.set(clicks.get() + 1))
@@ -3334,13 +3468,13 @@ mod tests {
                                     cx.stop_propagation();
                                 },
                             ));
-                        CollectionRow::new(
+                        CollectionItem::new(
                             content.into_any_element(),
                             cursor.clone(),
                             focus.clone(),
                             index,
                         )
-                        .with_row_events(row_events.map(|packet| ListRowEvents {
+                        .with_item_events(item_events.map(|packet| ListItemEvents {
                             index: index as u32,
                             item_id: Some(1000 + index as u64),
                             ..packet
@@ -3368,7 +3502,7 @@ mod tests {
             focus: cx.focus_handle().tab_stop(true),
             clicks: clicks.clone(),
             child_cursor: child_cursor.clone(),
-            row_events: None,
+            item_events: None,
         });
         cx.draw(
             point(px(0.), px(0.)),
@@ -3427,7 +3561,7 @@ mod tests {
             focus: cx.focus_handle().tab_stop(true),
             clicks: Default::default(),
             child_cursor: Default::default(),
-            row_events: Some(ListRowEvents {
+            item_events: Some(ListItemEvents {
                 session_id: 1,
                 callbacks: ManagedCallbacks {
                     control_event: Some(activate),
@@ -3520,7 +3654,7 @@ mod tests {
             focus: cx.focus_handle().tab_stop(true),
             clicks: clicks.clone(),
             child_cursor: Default::default(),
-            row_events: Some(ListRowEvents {
+            item_events: Some(ListItemEvents {
                 session_id: 1,
                 callbacks: ManagedCallbacks {
                     control_event: Some(receive),
@@ -3590,7 +3724,7 @@ mod tests {
         }
         cx.simulate_mouse_down(body, MouseButton::Right, gpui::Modifiers::none());
         REQUESTS.with_borrow(|events| assert_eq!(events.len(), 2));
-        cursor.invalidate_rows();
+        cursor.invalidate_items();
         cx.simulate_mouse_down(body, MouseButton::Left, gpui::Modifiers::none());
         REQUESTS.with_borrow(|events| assert_eq!(events.len(), 2));
     }

@@ -1096,7 +1096,7 @@ public sealed class SemanticRenderTests
         {
             using var arena = new RenderArenaOwner();
             var ui = arena.BeginRender(new NoopRenderer(), view);
-            var list = ui.List("rows", new ListDataSource(100, (1UL << 40) | 42), view.Row);
+            var list = ui.List("rows", new ListDataSource(100, (1UL << 40) | 42), view.Item);
 
             arena.Validate(list);
 
@@ -1136,13 +1136,13 @@ public sealed class SemanticRenderTests
                     ? ui.Table(
                         ref controller,
                         source,
-                        view.Row,
+                        view.Item,
                         new TableColumn("name", "Name", 120)
                     )
-                    : ui.Table("grid", source, view.Row, new TableColumn("name", "Name", 120))
+                    : ui.Table("grid", source, view.Item, new TableColumn("name", "Name", 120))
                 : bound
-                    ? ui.List(ref controller, source, view.Row)
-                    : ui.List("rows", source, view.Row);
+                    ? ui.List(ref controller, source, view.Item)
+                    : ui.List("rows", source, view.Item);
             arena.Validate(element);
             var ops = new ReadOnlySpan<OpRecord>(
                 arena.NativeArena->Ops,
@@ -1174,7 +1174,7 @@ public sealed class SemanticRenderTests
             Assert.False(controller.IsBound);
 
             var firstUi = arena.BeginRender(new NoopRenderer(), view);
-            var first = firstUi.List(ref controller, new ListDataSource(100, 1), view.Row);
+            var first = firstUi.List(ref controller, new ListDataSource(100, 1), view.Item);
             arena.Validate(first);
 
             Assert.True(controller.IsBound);
@@ -1182,7 +1182,7 @@ public sealed class SemanticRenderTests
             Assert.True(firstKey.AsSpan().SequenceEqual(ResourceKeys.EncodeAutoKey(1)));
 
             var secondUi = arena.BeginRender(new NoopRenderer(), view);
-            var second = secondUi.List(ref controller, new ListDataSource(100, 2), view.Row);
+            var second = secondUi.List(ref controller, new ListDataSource(100, 2), view.Item);
             arena.Validate(second);
 
             var secondKey = ReadNodeKey(arena);
@@ -1208,7 +1208,7 @@ public sealed class SemanticRenderTests
             var table = ui.Table(
                 ref controller,
                 new ListDataSource(10, 1),
-                view.Row,
+                view.Item,
                 new TableColumn("name", "Name", 120)
             );
 
@@ -1216,6 +1216,85 @@ public sealed class SemanticRenderTests
 
             var key = ReadNodeKey(arena);
             Assert.True(key.AsSpan().SequenceEqual(ResourceKeys.EncodeAutoKey(1)));
+        }
+        finally
+        {
+            view.Runtime.UnmountRuntime();
+        }
+    }
+
+    [Fact]
+    public void ListOptionsRejectInvalidOrientationArguments()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new ListOptions(orientation: (ListOrientation)7)
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ListOptions(estimatedItemExtent: 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new ListOptions(estimatedItemExtent: float.NaN)
+        );
+    }
+
+    [Fact]
+    public unsafe void VerticalListOmitsOrientationOps()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var list = ui.List(
+                "rows",
+                new ListDataSource(100, 1),
+                view.Item,
+                new ListOptions(orientation: ListOrientation.Vertical)
+            );
+            arena.Validate(list);
+
+            var ops = new ReadOnlySpan<OpRecord>(
+                arena.NativeArena->Ops,
+                arena.NativeArena->OpLength
+            ).ToArray();
+            Assert.DoesNotContain(ops, op => op.Code == (ushort)OpCode.ListOrientation);
+            Assert.DoesNotContain(ops, op => op.Code == (ushort)OpCode.ListEstimatedItemExtentPx);
+        }
+        finally
+        {
+            view.Runtime.UnmountRuntime();
+        }
+    }
+
+    [Fact]
+    public unsafe void HorizontalListEmitsOrientationAndExtentOps()
+    {
+        var view = new ProbeView();
+        Attach(view);
+        try
+        {
+            using var arena = new RenderArenaOwner();
+            var ui = arena.BeginRender(new NoopRenderer(), view);
+            var list = ui.List(
+                "rows",
+                new ListDataSource(100, 1),
+                view.Item,
+                new ListOptions(orientation: ListOrientation.Horizontal, estimatedItemExtent: 200)
+            );
+            arena.Validate(list);
+
+            var ops = new ReadOnlySpan<OpRecord>(
+                arena.NativeArena->Ops,
+                arena.NativeArena->OpLength
+            ).ToArray();
+            Assert.Equal(
+                (uint)ListOrientation.Horizontal,
+                Assert.Single(ops, op => op.Code == (ushort)OpCode.ListOrientation).A
+            );
+            var extent = Assert.Single(
+                ops,
+                op => op.Code == (ushort)OpCode.ListEstimatedItemExtentPx
+            );
+            Assert.Equal(200f, BitConverter.UInt32BitsToSingle((uint)extent.A));
         }
         finally
         {
@@ -1232,7 +1311,7 @@ public sealed class SemanticRenderTests
         {
             using var arena = new RenderArenaOwner();
             var ui = arena.BeginRender(new NoopRenderer(), view);
-            var button = ui.Button("row", "label")
+            var button = ui.Button("item", "label")
                 .ItemId((1UL << 40) | 7)
                 .OnClick(view, (owner, _) => owner.RecordClick());
 
@@ -1259,7 +1338,7 @@ public sealed class SemanticRenderTests
             {
                 using var arena = new RenderArenaOwner();
                 var ui = arena.BeginRender(new NoopRenderer(), view);
-                ui.Button("row", "label").ItemId(0);
+                ui.Button("item", "label").ItemId(0);
             });
         }
         finally
@@ -1357,11 +1436,11 @@ public sealed class SemanticRenderTests
                 ? ui.Table(
                         "grid",
                         new ListDataSource(100, 7),
-                        view.Row,
+                        view.Item,
                         new TableColumn("name", "Name", 120)
                     )
                     .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value))
-                : ui.List("rows", new ListDataSource(100, 7), view.Row)
+                : ui.List("rows", new ListDataSource(100, 7), view.Item)
                     .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value));
             arena.Validate(root);
             var eventId = ReadCallbackEventId(arena, OpCode.ListOnActivated);
@@ -1390,7 +1469,7 @@ public sealed class SemanticRenderTests
                 ? ui.Table(
                         "grid",
                         new ListDataSource(100, 7),
-                        view.Row,
+                        view.Item,
                         new TableColumn("name", "Name", 120)
                     )
                     .OnSelectionRequested(
@@ -1398,7 +1477,7 @@ public sealed class SemanticRenderTests
                         static (owner, value) => owner.ListSelections.Add(value)
                     )
                     .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value))
-                : ui.List("rows", new ListDataSource(100, 7), view.Row)
+                : ui.List("rows", new ListDataSource(100, 7), view.Item)
                     .OnSelectionRequested(
                         view,
                         static (owner, value) => owner.ListSelections.Add(value)
@@ -1429,7 +1508,7 @@ public sealed class SemanticRenderTests
             var table = ui.Table(
                 "grid",
                 new ListDataSource(100, 7),
-                view.Row,
+                view.Item,
                 new TableOptions(batchSize: 48, overdraw: 240),
                 new TableColumn("name", "Name", 120),
                 new TableColumn(
@@ -1470,7 +1549,7 @@ public sealed class SemanticRenderTests
             var table = ui.Table(
                 "grid",
                 new ListDataSource(10, 1),
-                view.Row,
+                view.Item,
                 new TableColumn("name", "Name", 120),
                 new TableColumn("size", "Size", 80)
             );
@@ -1504,7 +1583,7 @@ public sealed class SemanticRenderTests
             var table = ui.Table(
                     "grid",
                     new ListDataSource(10, 1),
-                    view.Row,
+                    view.Item,
                     new TableColumn("name", "Name", 120)
                 )
                 .HeaderBackground(Hex("#112233"))
@@ -1559,7 +1638,7 @@ public sealed class SemanticRenderTests
             var table = ui.Table(
                 "grid",
                 new ListDataSource(10, 0),
-                view.Row,
+                view.Item,
                 new TableColumn("n", "Name", 120)
             );
 
@@ -1593,7 +1672,7 @@ public sealed class SemanticRenderTests
                 ui.Table(
                     "grid",
                     new ListDataSource(10, 0),
-                    view.Row,
+                    view.Item,
                     new TableColumn("", "Name", 120)
                 );
             });
@@ -1604,7 +1683,7 @@ public sealed class SemanticRenderTests
                 ui.Table(
                     "grid",
                     new ListDataSource(10, 0),
-                    view.Row,
+                    view.Item,
                     new TableColumn("n", "Name", 1.4f, TableColumnWidth.Fraction)
                 );
             });
@@ -1629,7 +1708,7 @@ public sealed class SemanticRenderTests
                 ui.Table(
                     "grid",
                     new ListDataSource(10, 0),
-                    view.Row,
+                    view.Item,
                     new TableColumn("n", "Name", 120),
                     new TableColumn("n", "Name2", 120)
                 );
@@ -1641,7 +1720,7 @@ public sealed class SemanticRenderTests
                 ui.Table(
                     "grid",
                     new ListDataSource(10, 0),
-                    view.Row,
+                    view.Item,
                     new TableColumn(
                         "n",
                         "Name",
@@ -2540,7 +2619,7 @@ public sealed class SemanticRenderTests
         internal List<ListActivationEvent> ListActivations = new();
         internal List<ListSelectionEvent> ListSelections = new();
 
-        internal ListItemRenderer Row => BindListRenderer(1);
+        internal ListItemRenderer Item => BindListRenderer(1);
 
         internal void RecordClick() { }
 

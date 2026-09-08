@@ -10,44 +10,44 @@ Deferred layers paint relative to the window rather than the local layout tree:
 - `Dialog`: centered modal Overlay composition
 - `Sheet`: edge-aligned Overlay composition
 - `Tooltip`: delayed trigger-relative content with side flipping and viewport clamping
-- `RowTooltip`: window-owned content requested by delayed hover on a marked List/Table item element
+- `ItemTooltip`: window-owned content requested by delayed hover on a marked List/Table item element
 - `ContextMenu`: pointer-anchored right-click content
-- `RowContextMenu`: window-owned content responding to a List/Table row request
+- `ItemContextMenu`: window-owned content responding to a List/Table item request
 - `PopoverMenu`: trigger-attached left-click content with menu switching
 
 Rust owns geometry, input interception, deterministic stacking, focus entry/restoration, and
 dismissal. Managed code owns visuals and actions. Deferred layers can contain normal child views and
-retained controls, but cannot appear inside virtualized rows.
+retained controls, but cannot appear inside virtualized items.
 
-For virtual-row actions, declare `.ItemId(nonzeroId)` on each row root and bind
+For virtual-item actions, declare `.ItemId(nonzeroId)` on each item root and bind
 `.OnContextMenuRequested(this, static (view, request) => ...)` on the List or Table. Store the
 `ListContextMenuEvent`, invalidate the View, and declare
-`ui.RowContextMenu("row-menu", request, content)` in that same View's ordinary render. The Table
+`ui.ItemContextMenu("item-menu", request, content)` in that same View's ordinary render. The Table
 gallery demonstrates this pattern. Use `request.ItemId` for actions; `Index` describes the
 displayed position at the time of the request. Right-click does not change application selection.
 Use `ListDataSource` with a stable ContentRevision when opening the menu. Count-only declarations
-invalidate row batches on every managed render, which also expires the anchor.
+invalidate item batches on every managed render, which also expires the anchor.
 
-The native window holds at most one row-menu request. It keeps the pointer position, a weak
-collection reference, and the displayed row's artifact identity. Deferred prepaint checks that
-the original row is still painted at the same bounds and clip. Scrolling, movement, clipping,
+The native window holds at most one item-menu request. It keeps the pointer position, a weak
+collection reference, and the displayed item's artifact identity. Deferred prepaint checks that
+the original item is still painted at the same bounds and clip. Scrolling, movement, clipping,
 cache eviction, content/theme changes, projection replacement, and removal expire the request.
 Escape, outside click, menu selection, a wheel gesture, or omitting the menu declaration also
 dismiss it. The dismissal wheel gesture is consumed; subsequent gestures scroll normally.
 Rendering an expired request never reopens it; another right-click supplies a fresh request.
-Rows without a stable ItemId do not request a menu. No row View, deferred row child, per-row
+Items without a stable ItemId do not request a menu. No item View, deferred item child, per-item
 managed closure, or pointer-position callback is needed. Keyboard menu requests are not exposed.
 
-For virtual-item hover details, mark the target element with `.RowTooltipTarget()` and bind
-`.OnTooltipRequested(this, static (view, request) => ...)` on the List or Table. The row root must
+For virtual-item hover details, mark the target element with `.ItemTooltipTarget()` and bind
+`.OnTooltipRequested(this, static (view, request) => ...)` on the List or Table. The item root must
 declare a nonzero `ItemId`. Store the `ListTooltipEvent`, invalidate the owning View, and declare
-`ui.RowTooltip("item-tooltip", request, content)` outside the row renderer. TaskBoard demonstrates
+`ui.ItemTooltip("item-tooltip", request, content)` outside the item renderer. TaskBoard demonstrates
 this on task cells, with explicit right-side placement to keep neighboring titles clear, a 700 ms
-show delay, and a 150 ms hide delay. As with row menus, keep `ListDataSource.ContentRevision` stable while opening.
-The marker adds no retained resource or deferred child to a row; outside a virtual row it has no effect.
+show delay, and a 150 ms hide delay. As with item menus, keep `ListDataSource.ContentRevision` stable while opening.
+The marker adds no retained resource or deferred child to an item; outside a virtual item it has no effect.
 
 `OnTooltipRequested` accepts the same `TooltipOptions` as ordinary tooltips: show and hide delays,
-placement, alignment, gap, and viewport margin. Declare them once on the collection; `RowTooltip`
+placement, alignment, gap, and viewport margin. Declare them once on the collection; `ItemTooltip`
 supplies only content. For example:
 
 ```csharp

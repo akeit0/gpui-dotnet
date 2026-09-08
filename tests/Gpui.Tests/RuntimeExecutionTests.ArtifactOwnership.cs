@@ -10,14 +10,14 @@ public sealed unsafe partial class RuntimeExecutionTests
     )
     {
         var signal = new Signal<int>(0);
-        var parent = new ParentView { DuringRow = _ => _ = signal.Value };
+        var parent = new ParentView { DuringItem = _ => _ = signal.Value };
         using var fixture = new SessionFixture(parent);
         fixture.Render();
         var child = fixture.Child;
-        child.DuringRow = _ => _ = signal.Value;
-        child.RowsWithoutEvents = withoutEvents;
+        child.DuringItem = _ => _ = signal.Value;
+        child.ItemsWithoutEvents = withoutEvents;
         var parentArtifact = fixture.Range(0, source: 10);
-        var parentToken = parent.RowToken;
+        var parentToken = parent.ItemToken;
         var childArtifacts = new ulong[32];
         for (var index = 0; index < childArtifacts.Length; index++)
             childArtifacts[index] = fixture.Range(0, source: 20, owner: child);
@@ -26,7 +26,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         for (var index = 0; index < 30; index++)
             Assert.Equal(0, fixture.Release(20, childArtifacts[index * 7 % 32]));
         var replacement = fixture.Range(0, source: 20, owner: child);
-        var childToken = child.RowToken;
+        var childToken = child.ItemToken;
         var pending = fixture.Range(0, source: 21, accept: false, owner: child);
         var retained = fixture.State(child);
         Assert.Equal(4, retained.DemandArtifacts!.Count);

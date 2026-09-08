@@ -41,7 +41,7 @@ public readonly struct TableOptions
     public TableOptions(
         int batchSize = 48,
         float overdraw = 240,
-        float estimatedItemHeight = 40,
+        float? estimatedItemExtent = null,
         bool showHeader = true,
         bool smoothScrolling = true,
         bool showScrollbar = true,
@@ -57,15 +57,15 @@ public readonly struct TableOptions
         {
             throw new ArgumentOutOfRangeException(nameof(overdraw));
         }
-        if (!float.IsFinite(estimatedItemHeight) || estimatedItemHeight <= 0)
+        if (estimatedItemExtent is { } extent && (!float.IsFinite(extent) || extent <= 0))
         {
-            throw new ArgumentOutOfRangeException(nameof(estimatedItemHeight));
+            throw new ArgumentOutOfRangeException(nameof(estimatedItemExtent));
         }
         ScrollOptions.ValidateScrollbarWidth(scrollbarWidth);
 
         BatchSize = batchSize;
         Overdraw = overdraw;
-        EstimatedItemHeight = estimatedItemHeight;
+        EstimatedItemExtent = estimatedItemExtent;
         ShowHeader = showHeader;
         SmoothScrolling = smoothScrolling;
         ShowScrollbar = showScrollbar;
@@ -76,7 +76,12 @@ public readonly struct TableOptions
 
     public int BatchSize { get; }
     public float Overdraw { get; }
-    public float EstimatedItemHeight { get; }
+
+    /// <summary>
+    /// The height hint for unmeasured table rows. Replaced by actual measurements as rows
+    /// render. Null omits the hint; native defaults to 40 px.
+    /// </summary>
+    public float? EstimatedItemExtent { get; }
     public bool ShowHeader { get; }
     public bool SmoothScrolling { get; }
     public bool ShowScrollbar { get; }
@@ -85,7 +90,7 @@ public readonly struct TableOptions
 
     internal int EffectiveBatchSize => _initialized ? BatchSize : 48;
     internal float EffectiveOverdraw => _initialized ? Overdraw : 240;
-    internal float EffectiveEstimatedItemHeight => _initialized ? EstimatedItemHeight : 40;
+    internal float? EffectiveEstimatedItemExtent => _initialized ? EstimatedItemExtent : null;
     internal bool EffectiveShowHeader => !_initialized || ShowHeader;
     internal bool EffectiveSmoothScrolling => !_initialized || SmoothScrolling;
     internal bool EffectiveShowScrollbar => !_initialized || ShowScrollbar;

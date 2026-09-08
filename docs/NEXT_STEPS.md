@@ -54,7 +54,7 @@ bounds, step, and orientation. Preserve these integrations as presentation becom
 Remaining work is focused coverage, authoring, and platform verification:
 
 - accessible label/help/error relationships between fields and supporting elements;
-- List/Table viewport, row, header, cell, and selection semantics;
+- List/Table viewport, items/rows, header, cell, and selection semantics;
 - Dock tabs, custom title-bar controls, and deferred-layer semantics;
 - platform verification of focus, roles, values, and announcements, with backend limits documented.
 
@@ -116,7 +116,7 @@ Keep stacking and dismissal window-owned in Rust while product visuals remain ma
 
 ## List and table
 
-- improve demand-driven rendering separately from View Signal work, preserving targeted row-cache
+- improve demand-driven rendering separately from View Signal work, preserving targeted item-cache
   invalidation and measurement refresh for changed items, including items outside cached batches;
 - optional public cache/overscan diagnostics when benchmarks justify an ABI query;
 - column visibility/reordering;
@@ -128,8 +128,8 @@ Keep stacking and dismissal window-owned in Rust while product visuals remain ma
 A Tree should remain a managed flattened List unless hierarchy is required by accessibility or
 proven large-dataset behavior.
 
-Cached rows remain element snapshots. Supporting an active editor later requires bounded native
-interaction ownership separate from row-batch eviction; do not introduce mounted Views per row.
+Cached items remain element snapshots. Supporting an active editor later requires bounded native
+interaction ownership separate from item-batch eviction; do not introduce mounted Views per item.
 
 ## Control presentation and commands
 

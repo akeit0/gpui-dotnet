@@ -27,14 +27,14 @@ struct Request {
     state: Option<Entity<PopoverState>>,
 }
 
-/// One window-owned request, independent of row element and managed artifact lifetimes.
+/// One window-owned request, independent of item element and managed artifact lifetimes.
 /// The anchor keeps scalar identities and a weak source reference, plus window-owned focus state.
 #[derive(Default)]
-pub(crate) struct RowMenus {
+pub(crate) struct ItemMenus {
     request: RefCell<Option<Request>>,
 }
 
-impl RowMenus {
+impl ItemMenus {
     pub(crate) fn begin_frame(&self, window: &mut Window, cx: &mut App) {
         let closed = self.request.borrow().as_ref().is_some_and(|r| {
             r.state
@@ -83,14 +83,14 @@ impl RowMenus {
         window: &mut Window,
         cx: &mut App,
     ) -> bool {
-        let Some((artifact, events)) = source.borrow().cached_identified_row(index) else {
+        let Some((artifact, events)) = source.borrow().cached_identified_item(index) else {
             return false;
         };
         self.dismiss(window, cx);
         static NEXT: AtomicU64 = AtomicU64::new(1);
         let id = NEXT
             .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
-            .expect("row menu identity exhausted");
+            .expect("item menu identity exhausted");
         *self.request.borrow_mut() = Some(Request {
             id,
             owner: (token >> 32) as u32,
@@ -155,7 +155,7 @@ impl RowMenus {
         };
         let source = source.borrow();
         source
-            .cached_identified_row(request.index)
+            .cached_identified_item(request.index)
             .is_some_and(|(artifact, events)| {
                 artifact == request.artifact && events.item_id == Some(request.item_id)
             })
@@ -169,11 +169,11 @@ impl RowMenus {
     }
 }
 
-/// Deferred prepaint runs after normal rows. Reject the entire layer, including its hitboxes
+/// Deferred prepaint runs after normal items. Reject the entire layer, including its hitboxes
 /// and callbacks, when the current frame did not paint the original anchor in the same place.
 pub(crate) struct Guard {
     pub(crate) child: AnyElement,
-    pub(crate) menus: Rc<RowMenus>,
+    pub(crate) menus: Rc<ItemMenus>,
     pub(crate) id: u64,
     pub(crate) stack: Rc<crate::overlay::OverlayStack>,
     pub(crate) token: crate::overlay::OverlayToken,

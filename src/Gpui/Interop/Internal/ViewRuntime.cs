@@ -419,7 +419,7 @@ internal sealed class ViewRuntime
 
         var attachment = RequireUiAttachment(
             "Generated list renderers can only be materialized while the view is mounted. "
-                + "Use Rows.<renderer> from Render(), not from a constructor or field initializer."
+                + "Use Items.<renderer> from Render(), not from a constructor or field initializer."
         );
 
         return new ListItemRenderer(((ulong)attachment.ViewHandle << 32) | rendererId);

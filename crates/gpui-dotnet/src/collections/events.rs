@@ -4,13 +4,13 @@ use crate::{
 };
 
 #[derive(Clone, Copy)]
-pub(crate) enum ListRowEventKind {
+pub(crate) enum ListItemEventKind {
     Activation,
     Selection,
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct ListRowEvents {
+pub(crate) struct ListItemEvents {
     pub(crate) session_id: u64,
     pub(crate) callbacks: ManagedCallbacks,
     pub(crate) activation_token: u64,
@@ -20,11 +20,11 @@ pub(crate) struct ListRowEvents {
     pub(crate) content_revision: Option<u64>,
 }
 
-impl ListRowEvents {
-    pub(crate) fn emit(self, kind: ListRowEventKind, keyboard: bool) -> i32 {
+impl ListItemEvents {
+    pub(crate) fn emit(self, kind: ListItemEventKind, keyboard: bool) -> i32 {
         let (kind, token) = match kind {
-            ListRowEventKind::Activation => (EVENT_LIST_ACTIVATED, self.activation_token),
-            ListRowEventKind::Selection => (EVENT_LIST_SELECTION_REQUESTED, self.selection_token),
+            ListItemEventKind::Activation => (EVENT_LIST_ACTIVATED, self.activation_token),
+            ListItemEventKind::Selection => (EVENT_LIST_SELECTION_REQUESTED, self.selection_token),
         };
         if token == 0 {
             return 0;

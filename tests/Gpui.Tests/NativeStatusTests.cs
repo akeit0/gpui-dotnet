@@ -39,7 +39,7 @@ public sealed class NativeStatusTests
     public void AmbiguousSnapshotStatusesDoNotInventAPreciseCause()
     {
         Assert.Contains(
-            "EmptyOperationDataOrWrongRowCount",
+            "EmptyOperationDataOrWrongItemCount",
             NativeStatus.Describe(NativeStatusDomain.Snapshot, -63)
         );
         Assert.Contains(

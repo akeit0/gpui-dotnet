@@ -42,16 +42,16 @@ public sealed unsafe partial class RuntimeExecutionTests
         var originalFirst = view.First;
         var originalSecond = view.Second;
         var artifact = fixture.Range(0);
-        var rowToken = view.RowToken;
+        var itemToken = view.ItemToken;
         view.IncludeFirst = false;
         fixture.Render();
         Assert.Equal(originalSecond, view.Second);
         Assert.Equal(0, fixture.Click(originalFirst));
         Assert.Equal(0, view.FirstClicks);
 
-        // A row can reuse the vacated root slot. Later root compaction must not release it.
+        // An item can reuse the vacated root slot. Later root compaction must not release it.
         var replacementArtifact = fixture.Range(1);
-        var replacementRowToken = view.RowToken;
+        var replacementItemToken = view.ItemToken;
         view.IncludeFirst = true;
         fixture.Render();
         Assert.NotEqual(originalFirst, view.First);
@@ -60,8 +60,8 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Equal(1, view.FirstClicks);
         Assert.Equal(0, fixture.Click(view.Second));
         Assert.Equal(1, view.SecondClicks);
-        Assert.Equal(0, fixture.Click(rowToken));
-        Assert.Equal(0, fixture.Click(replacementRowToken));
+        Assert.Equal(0, fixture.Click(itemToken));
+        Assert.Equal(0, fixture.Click(replacementItemToken));
         Assert.Equal(1, view.ClickCount);
         Assert.Equal(1, view.SecondClickCount);
         Assert.Equal(0, fixture.Release(1, artifact));
@@ -287,14 +287,14 @@ public sealed unsafe partial class RuntimeExecutionTests
         using var fixture = new SessionFixture(new ProbeView());
         fixture.Render();
         var retired = fixture.Range(0);
-        var retiredToken = fixture.View.RowToken;
+        var retiredToken = fixture.View.ItemToken;
         fixture.Range(1);
-        var unrelatedToken = fixture.View.RowToken;
+        var unrelatedToken = fixture.View.ItemToken;
         Assert.Equal(0, fixture.Release(1, retired));
 
         fixture.Range(0);
-        var replacementToken = fixture.View.RowToken;
-        // ProbeView binds the same callback twice in each row. Reuse the released slot
+        var replacementToken = fixture.View.ItemToken;
+        // ProbeView binds the same callback twice in each item. Reuse the released slot
         // once, while leaving the root and unrelated artifact live.
         Assert.Equal(3, fixture.View.Runtime.Events.EntryCount);
         Assert.NotEqual(retiredToken, replacementToken);

@@ -90,7 +90,7 @@ public readonly unsafe ref partial struct RenderContext
         ArgumentNullException.ThrowIfNull(effect);
         if (_views is null || _owner is null)
             throw new InvalidOperationException(
-                "Effects belong to retained View rendering, not virtual rows."
+                "Effects belong to retained View rendering, not virtual items."
             );
         effect.Declare(_owner, input);
     }

@@ -27,7 +27,7 @@ pub(crate) fn context_menu(
     configuration: ContextMenuConfiguration,
     overlay_stack: Rc<OverlayStack>,
     overlay_token: OverlayToken,
-    row_anchor: Option<(Rc<crate::row_menu::RowMenus>, u64)>,
+    item_anchor: Option<(Rc<crate::item_menu::ItemMenus>, u64)>,
     window: &mut Window,
     cx: &mut App,
 ) -> AnyElement {
@@ -36,7 +36,7 @@ pub(crate) fn context_menu(
         key.owner_view, key.key
     ))
     .into();
-    let row_binding = if let Some((menus, id)) = &row_anchor {
+    let item_binding = if let Some((menus, id)) = &item_anchor {
         let Some(binding) = menus.bind(*id, key.owner_view, window, cx) else {
             return div().into_any_element();
         };
@@ -44,7 +44,7 @@ pub(crate) fn context_menu(
     } else {
         None
     };
-    let state = row_binding
+    let state = item_binding
         .as_ref()
         .map(|(state, _)| state.clone())
         .unwrap_or_else(|| {
@@ -57,13 +57,13 @@ pub(crate) fn context_menu(
 
     let open_state = state.clone();
     let open_position = position.clone();
-    let host = if row_anchor.is_some() {
+    let host = if item_anchor.is_some() {
         host.absolute()
     } else {
         host
     };
     let host = host.id((menu_id.clone(), "trigger"));
-    let mut host = if row_anchor.is_some() {
+    let mut host = if item_anchor.is_some() {
         host
     } else {
         host.on_mouse_down(
@@ -87,7 +87,7 @@ pub(crate) fn context_menu(
     }
 
     let focus = state.read(cx).focus_handle(cx);
-    let position = row_binding.map_or_else(|| *position.read(cx), |(_, position)| position);
+    let position = item_binding.map_or_else(|| *position.read(cx), |(_, position)| position);
     overlay_stack.set_captures_input(&overlay_token, true);
 
     let selected_state = state.clone();
@@ -125,7 +125,7 @@ pub(crate) fn context_menu(
             close_context_menu(&right_pressed_state, window, cx);
         })
         .child(content);
-    let content = if row_anchor.is_some() {
+    let content = if item_anchor.is_some() {
         content.on_scroll_wheel(scroll_dismiss.clone())
     } else {
         content
@@ -163,7 +163,7 @@ pub(crate) fn context_menu(
             close_context_menu(&right_backdrop_state, window, cx);
         });
 
-    let backdrop = if row_anchor.is_some() {
+    let backdrop = if item_anchor.is_some() {
         backdrop.on_scroll_wheel(scroll_dismiss)
     } else {
         backdrop
@@ -191,8 +191,8 @@ pub(crate) fn context_menu(
         .child(backdrop)
         .child(menu);
     let layer = anchored().position(point(px(0.), px(0.))).child(layer);
-    let layer = if let Some((menus, id)) = row_anchor {
-        crate::row_menu::Guard {
+    let layer = if let Some((menus, id)) = item_anchor {
+        crate::item_menu::Guard {
             child: layer.into_any_element(),
             menus,
             id,

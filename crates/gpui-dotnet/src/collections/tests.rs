@@ -1,6 +1,7 @@
 use crate::abi::{ManagedCallbacks, NativeControlEvent};
 use crate::collections::{
-    CollectionEngine, ListConfiguration, ListRowEventKind, TableColumnSpec, TableSpec,
+    CollectionEngine, ListConfiguration, ListItemEventKind, ListOrientation, TableColumnSpec,
+    TableSpec,
     configuration::{pack_table_column, parse_table_spec, shared, unpack_table_column},
     engine::CachedBatch,
 };
@@ -18,8 +19,9 @@ use gpui::{
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::rc::Rc;
+mod horizontal;
+mod item_tooltips;
 mod measurements;
-mod row_tooltips;
 
 #[derive(Default)]
 struct ArtifactCapture {
@@ -64,7 +66,7 @@ unsafe extern "C" fn publish_test_range(
         if capture.failure_mode == 3 {
             return -106;
         }
-        let rows = if capture.failure_mode == 2 { 0 } else { count };
+        let items = if capture.failure_mode == 2 { 0 } else { count };
         capture.nodes.clear();
         let component = if capture.failure_mode == 1 {
             u16::MAX
@@ -76,7 +78,7 @@ unsafe extern "C" fn publish_test_range(
             ..Default::default()
         });
         capture.children.clear();
-        for index in 0..rows {
+        for index in 0..items {
             capture.nodes.push(NodeRecord {
                 component: COMPONENT_TEXT,
                 ..Default::default()
@@ -91,7 +93,7 @@ unsafe extern "C" fn publish_test_range(
         capture.ops.clear();
         if capture.clickable {
             use crate::semantic::{OP_HEIGHT_PX, OP_ON_CLICK, OP_WIDTH_PX, ValueKind};
-            for index in 0..rows {
+            for index in 0..items {
                 capture.nodes[index as usize + 1].component = crate::semantic::COMPONENT_BUTTON;
                 capture.nodes[index as usize + 1].data_length = 3;
                 capture.ops.extend([
@@ -120,10 +122,10 @@ unsafe extern "C" fn publish_test_range(
             }
         }
         if capture.tooltip_targets {
-            for index in 0..rows {
+            for index in 0..items {
                 for (code, value_kind, a) in [
                     (
-                        crate::semantic::OP_ROW_TOOLTIP_TARGET,
+                        crate::semantic::OP_ITEM_TOOLTIP_TARGET,
                         crate::semantic::ValueKind::U32,
                         1,
                     ),
@@ -149,7 +151,7 @@ unsafe extern "C" fn publish_test_range(
             }
         }
         if capture.item_ids {
-            for index in 0..rows {
+            for index in 0..items {
                 capture.ops.push(crate::abi::OpRecord {
                     node: index + 1,
                     code: OP_LIST_ITEM_ID,
@@ -234,17 +236,17 @@ unsafe extern "C" fn capture_activation(
 fn list_activation_resolves_uncached_identity_in_one_batch_and_ignores_repeat_and_modifiers(
     cx: &mut gpui::TestAppContext,
 ) {
-    check_collection_key_event(cx, ListRowEventKind::Activation);
+    check_collection_key_event(cx, ListItemEventKind::Activation);
 }
 
 #[gpui::test]
 fn list_selection_resolves_uncached_identity_without_selecting_on_navigation_or_repeat(
     cx: &mut gpui::TestAppContext,
 ) {
-    check_collection_key_event(cx, ListRowEventKind::Selection);
+    check_collection_key_event(cx, ListItemEventKind::Selection);
 }
 
-fn check_collection_key_event(cx: &mut gpui::TestAppContext, kind: ListRowEventKind) {
+fn check_collection_key_event(cx: &mut gpui::TestAppContext, kind: ListItemEventKind) {
     ARTIFACTS.with(|capture| {
         *capture.borrow_mut() = ArtifactCapture {
             item_ids: true,
@@ -253,11 +255,11 @@ fn check_collection_key_event(cx: &mut gpui::TestAppContext, kind: ListRowEventK
     });
     let mut config = configuration(Some(0));
     let (key, token) = match kind {
-        ListRowEventKind::Activation => {
+        ListItemEventKind::Activation => {
             config.activation_token = 42;
             ("enter", 42)
         }
-        ListRowEventKind::Selection => {
+        ListItemEventKind::Selection => {
             config.selection_token = 43;
             ("space", 43)
         }
@@ -281,37 +283,37 @@ fn check_collection_key_event(cx: &mut gpui::TestAppContext, kind: ListRowEventK
             is_held: false,
             prefer_character_input: false,
         };
-        assert!(!crate::materializer::handle_collection_row_event_key(
+        assert!(!crate::materializer::handle_collection_item_event_key(
             &event, window, cx, &focus, &resource
         ));
         event.keystroke =
             gpui::Keystroke::parse(if key == "enter" { "space" } else { "enter" }).unwrap();
-        assert!(!crate::materializer::handle_collection_row_event_key(
+        assert!(!crate::materializer::handle_collection_item_event_key(
             &event, window, cx, &focus, &resource
         ));
         ARTIFACTS.with_borrow(|capture| assert!(capture.ranges.is_empty()));
         event.keystroke = gpui::Keystroke::parse(key).unwrap();
-        assert!(crate::materializer::handle_collection_row_event_key(
+        assert!(crate::materializer::handle_collection_item_event_key(
             &event, window, cx, &focus, &resource
         ));
         event.is_held = true;
-        assert!(crate::materializer::handle_collection_row_event_key(
+        assert!(crate::materializer::handle_collection_item_event_key(
             &event, window, cx, &focus, &resource
         ));
         event.is_held = false;
         event.keystroke.modifiers.shift = true;
-        assert!(!crate::materializer::handle_collection_row_event_key(
+        assert!(!crate::materializer::handle_collection_item_event_key(
             &event, window, cx, &focus, &resource
         ));
         event.keystroke.modifiers.shift = false;
         event.prefer_character_input = true;
-        assert!(!crate::materializer::handle_collection_row_event_key(
+        assert!(!crate::materializer::handle_collection_item_event_key(
             &event, window, cx, &focus, &resource
         ));
         event.prefer_character_input = false;
         let child_focus = cx.focus_handle();
         child_focus.focus(window, cx);
-        assert!(!crate::materializer::handle_collection_row_event_key(
+        assert!(!crate::materializer::handle_collection_item_event_key(
             &event, window, cx, &focus, &resource
         ));
     });
@@ -328,7 +330,7 @@ fn check_collection_key_event(cx: &mut gpui::TestAppContext, kind: ListRowEventK
     });
     let event = resource
         .borrow_mut()
-        .prepare_row_event(51, kind)
+        .prepare_item_event(51, kind)
         .unwrap()
         .unwrap();
     assert_eq!(event.emit(kind, false), 0);
@@ -346,7 +348,7 @@ fn list_activation_is_opt_in_and_rejects_failed_or_out_of_range_rows() {
     let mut resource = CollectionEngine::new(1, artifact_callbacks(), &config, 1);
     assert!(
         resource
-            .prepare_row_event(50, ListRowEventKind::Activation)
+            .prepare_item_event(50, ListItemEventKind::Activation)
             .unwrap()
             .is_none()
     );
@@ -357,12 +359,12 @@ fn list_activation_is_opt_in_and_rejects_failed_or_out_of_range_rows() {
     assert_ne!(resource.cursor.epoch(), epoch);
     assert!(
         resource
-            .prepare_row_event(100, ListRowEventKind::Activation)
+            .prepare_item_event(100, ListItemEventKind::Activation)
             .unwrap()
             .is_none()
     );
     let event = resource
-        .prepare_row_event(0, ListRowEventKind::Activation)
+        .prepare_item_event(0, ListItemEventKind::Activation)
         .unwrap()
         .unwrap();
     assert_eq!(event.item_id, None);
@@ -370,10 +372,10 @@ fn list_activation_is_opt_in_and_rejects_failed_or_out_of_range_rows() {
     resource.clear_batches();
     ARTIFACTS.with(|capture| capture.borrow_mut().failure_mode = 3);
     assert!(matches!(
-        resource.prepare_row_event(51, ListRowEventKind::Activation),
+        resource.prepare_item_event(51, ListItemEventKind::Activation),
         Err((1, -106))
     ));
-    assert!(resource.cached_row_events(51).is_none());
+    assert!(resource.cached_item_events(51).is_none());
 }
 
 #[test]
@@ -385,7 +387,7 @@ fn list_selection_binding_changes_revoke_old_rows_without_loading_or_resetting_c
     resource.cursor.set(51);
     assert!(
         resource
-            .prepare_row_event(51, ListRowEventKind::Selection)
+            .prepare_item_event(51, ListItemEventKind::Selection)
             .unwrap()
             .is_none()
     );
@@ -395,7 +397,7 @@ fn list_selection_binding_changes_revoke_old_rows_without_loading_or_resetting_c
     resource.configure(&config, 2);
     assert_ne!(resource.cursor.epoch(), epoch);
     let packet = resource
-        .prepare_row_event(51, ListRowEventKind::Selection)
+        .prepare_item_event(51, ListItemEventKind::Selection)
         .unwrap()
         .unwrap();
     assert_eq!(packet.selection_token, 43);
@@ -404,15 +406,15 @@ fn list_selection_binding_changes_revoke_old_rows_without_loading_or_resetting_c
     let epoch = resource.cursor.epoch();
     config.selection_token = 0;
     resource.configure(&config, 3);
-    assert!(!resource.cursor.set_from_row(12, epoch));
+    assert!(!resource.cursor.set_from_item(12, epoch));
     assert_eq!(resource.cursor.active(), Some(51));
     assert!(
         resource
-            .prepare_row_event(51, ListRowEventKind::Selection)
+            .prepare_item_event(51, ListItemEventKind::Selection)
             .unwrap()
             .is_none()
     );
-    assert_eq!(resource.cached_row_events(51).unwrap().selection_token, 0);
+    assert_eq!(resource.cached_item_events(51).unwrap().selection_token, 0);
     ARTIFACTS.with_borrow(|capture| assert_eq!(capture.ranges, vec![(48, 48)]));
     config.selection_token = 43;
     config.item_count = 0;
@@ -420,7 +422,7 @@ fn list_selection_binding_changes_revoke_old_rows_without_loading_or_resetting_c
     assert!(resource.cursor.active().is_none());
     assert!(
         resource
-            .prepare_row_event(0, ListRowEventKind::Selection)
+            .prepare_item_event(0, ListItemEventKind::Selection)
             .unwrap()
             .is_none()
     );
@@ -456,45 +458,49 @@ unsafe extern "C" fn click_test_row(
     })
 }
 
-struct RowMenuView {
+struct ItemMenuView {
     store: Rc<ResourceStore>,
     resource: Rc<RefCell<CollectionEngine>>,
     focus: gpui::FocusHandle,
     paints: Rc<Cell<usize>>,
-    show_rows: bool,
+    show_items: bool,
     show_menu: bool,
 }
 
-impl gpui::Render for RowMenuView {
+impl gpui::Render for ItemMenuView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         use gpui::Styled;
         self.paints.set(0);
-        self.store.row_menus.begin_frame(window, cx);
+        self.store.item_menus.begin_frame(window, cx);
         self.resource.borrow_mut().begin_frame();
         let resource = self.resource.clone();
         let store = self.store.clone();
         let cursor = resource.borrow().cursor.clone();
         let focus = self.focus.clone();
         let mut root = div().flex().flex_col().w(px(300.)).h(px(240.));
-        if self.show_rows {
+        if self.show_items {
             let state = resource.borrow().state.clone();
-            let rows = gpui::list(state, move |index, _, _| {
-                let row = resource.borrow_mut().render_item(
+            let items = gpui::list(state, move |index, _, _| {
+                let item = resource.borrow_mut().render_item(
                     index,
                     &store,
                     &ResourceKey::new(1, "rows".into()),
                 );
-                crate::materializer::CollectionRow::new(
-                    div().h(px(40.)).w_full().child(row).into_any_element(),
+                crate::materializer::CollectionItem::new(
+                    div().h(px(40.)).w_full().child(item).into_any_element(),
                     cursor.clone(),
                     focus.clone(),
                     index,
                 )
-                .with_context_menu((1u64 << 32) | 44, store.row_menus.clone(), resource.clone())
+                .with_context_menu(
+                    (1u64 << 32) | 44,
+                    store.item_menus.clone(),
+                    resource.clone(),
+                )
                 .into_any_element()
             })
             .size_full();
-            root = root.child(rows);
+            root = root.child(items);
         }
         let request = ARTIFACTS.with(|capture| {
             capture
@@ -530,17 +536,21 @@ impl gpui::Render for RowMenuView {
                 },
                 stack,
                 token,
-                Some((self.store.row_menus.clone(), id)),
+                Some((self.store.item_menus.clone(), id)),
                 window,
                 cx,
             ));
         }
-        self.store.row_menus.finish_declarations(window, cx);
+        self.store.item_menus.finish_declarations(window, cx);
         root
     }
 }
 
-unsafe extern "C" fn capture_row_menu(_: u64, token: u64, event: *const NativeControlEvent) -> i32 {
+unsafe extern "C" fn capture_item_menu(
+    _: u64,
+    token: u64,
+    event: *const NativeControlEvent,
+) -> i32 {
     let event = unsafe { &*event };
     let bytes = unsafe { std::slice::from_raw_parts(event.data, event.data_length as usize) };
     ARTIFACTS.with(|capture| {
@@ -553,7 +563,7 @@ unsafe extern "C" fn capture_row_menu(_: u64, token: u64, event: *const NativeCo
 }
 
 #[gpui::test]
-fn row_context_menu_uses_stable_identity_and_expires_with_its_displayed_anchor(
+fn item_context_menu_uses_stable_identity_and_expires_with_its_displayed_anchor(
     cx: &mut gpui::TestAppContext,
 ) {
     cx.update(gpui_base::init);
@@ -565,7 +575,7 @@ fn row_context_menu_uses_stable_identity_and_expires_with_its_displayed_anchor(
             }
         });
         let callbacks = ManagedCallbacks {
-            control_event: Some(capture_row_menu),
+            control_event: Some(capture_item_menu),
             ..artifact_callbacks()
         };
         let store = Rc::new(ResourceStore::new(1, callbacks, theme()));
@@ -575,12 +585,12 @@ fn row_context_menu_uses_stable_identity_and_expires_with_its_displayed_anchor(
             1, callbacks, &config, 1,
         )));
         let paints = Rc::new(Cell::new(0));
-        let (view, cx) = cx.add_window_view(|_, cx| RowMenuView {
+        let (view, cx) = cx.add_window_view(|_, cx| ItemMenuView {
             store,
             resource: resource.clone(),
             focus: cx.focus_handle(),
             paints: paints.clone(),
-            show_rows: true,
+            show_items: true,
             show_menu: true,
         });
         let draw = |cx: &mut gpui::VisualTestContext| {
@@ -597,10 +607,10 @@ fn row_context_menu_uses_stable_identity_and_expires_with_its_displayed_anchor(
         );
         draw(cx);
         assert_eq!(paints.get(), 1, "menu was not painted");
-        // Ordinary root renders replace callback tokens without replacing row identity.
-        resource.borrow().cursor.invalidate_rows();
+        // Ordinary root renders replace callback tokens without replacing item identity.
+        resource.borrow().cursor.invalidate_items();
         draw(cx);
-        assert_eq!(paints.get(), 1, "rebinding row events dismissed the menu");
+        assert_eq!(paints.get(), 1, "rebinding item events dismissed the menu");
         ARTIFACTS.with(|capture| {
             let capture = capture.borrow();
             let (token, flags, revision, bytes) = capture.activations.last().unwrap();
@@ -615,7 +625,7 @@ fn row_context_menu_uses_stable_identity_and_expires_with_its_displayed_anchor(
                 config.projection_revision = Some(2);
                 resource.borrow_mut().configure(&config, 2);
             }
-            3 => view.update(cx, |view, _| view.show_rows = false),
+            3 => view.update(cx, |view, _| view.show_items = false),
             4 => view.update(cx, |view, _| view.show_menu = false),
             5 => cx.simulate_keystrokes("escape"),
             6 => cx.simulate_click(point(px(290.), px(220.)), Default::default()),
@@ -634,7 +644,7 @@ fn row_context_menu_uses_stable_identity_and_expires_with_its_displayed_anchor(
         draw(cx);
         assert_eq!(paints.get(), 0, "menu survived change {change}");
         view.update(cx, |view, _| {
-            view.show_rows = true;
+            view.show_items = true;
             view.show_menu = true;
         });
         draw(cx);
@@ -646,27 +656,27 @@ fn row_context_menu_uses_stable_identity_and_expires_with_its_displayed_anchor(
     }
 }
 
-struct VisibleRows {
+struct VisibleItems {
     store: Rc<ResourceStore>,
     resource: Rc<RefCell<CollectionEngine>>,
 }
 
-impl gpui::Render for VisibleRows {
+impl gpui::Render for VisibleItems {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         use gpui::Styled;
         self.resource.borrow_mut().begin_frame();
         let key = ResourceKey::new(1, "rows".into());
         let state = self.resource.borrow().state.clone();
-        let rows_resource = self.resource.clone();
+        let items_resource = self.resource.clone();
         let store = self.store.clone();
-        let rows = div().flex().flex_col().w(px(200.)).h(px(240.)).child(
+        let items = div().flex().flex_col().w(px(200.)).h(px(240.)).child(
             gpui::list(state, move |index, _, _| {
-                rows_resource.borrow_mut().render_item(index, &store, &key)
+                items_resource.borrow_mut().render_item(index, &store, &key)
             })
             .size_full(),
         );
         let resource = self.resource.clone();
-        rows.child(gpui::canvas(
+        items.child(gpui::canvas(
             move |_, _, _| resource.borrow_mut().trim_batches(),
             |_, _, _, _| {},
         ))
@@ -687,14 +697,14 @@ fn displayed_rows_keep_artifacts_after_prepaint(cx: &mut gpui::TestAppContext) {
     config.item_count = 8;
     config.batch_size = 1;
     config.overdraw = px(0.);
-    config.estimated_item_height = px(30.);
+    config.estimated_item_extent = px(30.);
     let resource = Rc::new(RefCell::new(CollectionEngine::new(
         1,
         artifact_callbacks(),
         &config,
         1,
     )));
-    let (_, cx) = cx.add_window_view(|_, _| VisibleRows {
+    let (_, cx) = cx.add_window_view(|_, _| VisibleItems {
         store,
         resource: resource.clone(),
     });
@@ -1057,7 +1067,8 @@ fn configuration(content_revision: Option<u64>) -> ListConfiguration {
         batch_size: 48,
         overdraw: px(240.),
         alignment: ListAlignment::Top,
-        estimated_item_height: px(40.),
+        estimated_item_extent: px(40.),
+        orientation: ListOrientation::Vertical,
         content_revision,
         scrollbar: ScrollbarMetrics::new(DEFAULT_SCROLLBAR_WIDTH, false),
         projection_revision: None,
@@ -1190,10 +1201,10 @@ fn trimming_keeps_every_displayed_batch_and_the_four_newest_idle_batches() {
 }
 
 #[test]
-fn changing_estimated_height_rebuilds_native_height_hints() {
+fn changing_estimated_extent_rebuilds_native_height_hints() {
     let mut resource = CollectionEngine::new(1, callbacks(), &configuration(Some(1)), 1);
     let mut changed = configuration(Some(1));
-    changed.estimated_item_height = px(52.);
+    changed.estimated_item_extent = px(52.);
 
     resource.configure(&changed, 2);
 
@@ -1232,7 +1243,7 @@ fn projection_changes_reset_same_count_rows_and_override_queued_hints() {
         resource.configure(&config, 2);
 
         assert_eq!(resource.cursor.active(), Some(0));
-        assert!(!resource.cursor.set_from_row(50, old_epoch));
+        assert!(!resource.cursor.set_from_item(50, old_epoch));
         assert_eq!(resource.state.scroll_px_offset_for_scrollbar().y, px(0.));
         assert!(resource.batches.is_empty());
         assert!(resource.pending_commands.is_empty());
@@ -1317,14 +1328,14 @@ fn collection_cursor_tracks_surviving_items_through_committed_splices() {
     resource.apply_command(&command(COMMAND_LIST_SPLICE, 10, 5, ""));
     resource.apply_command(&command(COMMAND_LIST_SPLICE, 20, 3_u64 << 32, ""));
     assert_eq!(cursor.active(), Some(70)); // Hints have not been accepted yet.
-    assert!(cursor.set_from_row(70, old_epoch));
+    assert!(cursor.set_from_item(70, old_epoch));
     resource.commit_pending_commands(102);
     assert_eq!(cursor.active(), Some(72));
-    assert!(!cursor.set_from_row(70, old_epoch));
+    assert!(!cursor.set_from_item(70, old_epoch));
     assert_eq!(cursor.active(), Some(72));
-    assert!(cursor.set_from_row(80, cursor.epoch()));
+    assert!(cursor.set_from_item(80, cursor.epoch()));
 
-    // Insertion exactly at the active position moves the existing item after the new rows.
+    // Insertion exactly at the active position moves the existing item after the new items.
     resource.apply_command(&command(COMMAND_LIST_SPLICE, 80, 2, ""));
     resource.commit_pending_commands(104);
     assert_eq!(cursor.active(), Some(82));
@@ -1382,7 +1393,7 @@ fn collection_cursor_resets_when_structural_identity_is_unknown() {
             }
         }
         assert_eq!(resource.cursor.active(), Some(0), "{reset_kind}");
-        assert!(!resource.cursor.set_from_row(70, old_epoch));
+        assert!(!resource.cursor.set_from_item(70, old_epoch));
     }
 }
 
@@ -1397,7 +1408,7 @@ fn collection_cursor_survives_content_and_layout_changes_including_simultaneous_
     assert_eq!(cursor.active(), Some(70));
     resource.apply_command(&command(COMMAND_LIST_SPLICE, 5, 3, ""));
     config.item_count = 103;
-    config.estimated_item_height = px(60.);
+    config.estimated_item_extent = px(60.);
     resource.configure(&config, 3);
     assert_eq!(cursor.active(), Some(73));
     assert!(Rc::ptr_eq(&cursor, &resource.cursor));
@@ -1632,7 +1643,7 @@ fn binding_a_changed_table_spec_invalidates_row_batches() {
     assert!(Rc::ptr_eq(&engine, &retained));
     assert_eq!(batch_keys(&engine.borrow()), vec![0]);
 
-    // Column changes still invalidate rows preserved by targeted refresh/splice hints.
+    // Column changes still invalidate items preserved by targeted refresh/splice hints.
     let changed = TableSpec {
         columns: vec![
             spec.columns[0].clone(),
@@ -1677,7 +1688,7 @@ fn ambient_render_change_invalidates_retained_list_and_table_rows() {
     list.borrow_mut().batches.insert(0, CachedBatch::new());
     table.borrow_mut().batches.insert(0, CachedBatch::new());
 
-    store.invalidate_managed_rendered_rows();
+    store.invalidate_managed_rendered_items();
 
     assert!(list.borrow().batches.is_empty());
     assert!(table.borrow().batches.is_empty());
@@ -1693,7 +1704,7 @@ fn click_refresh_flow_preserves_scroll_across_configure_and_rebind() {
     config.item_count = 5_000;
     config.batch_size = 64;
 
-    // First materialization: the table declares columns and the row engine is created.
+    // First materialization: the table declares columns and the collection engine is created.
     let engine = store.list_resource(&key, &config, 1);
     let spec = TableSpec {
         columns: vec![TableColumnSpec {
@@ -1735,7 +1746,7 @@ fn click_refresh_flow_preserves_scroll_across_configure_and_rebind() {
     assert_eq!(engine.borrow().state.logical_scroll_top().item_ix, 1000);
 }
 
-/// Regression test: a managed re-render must not drop a table's row engine. Table nodes
+/// Regression test: a managed re-render must not drop a table's collection engine. Table nodes
 /// were skipped by the retain adapter guard, so the first snapshot commit after a table
 /// appeared evicted the engine (fresh ListState = scroll jumped to the top).
 #[test]

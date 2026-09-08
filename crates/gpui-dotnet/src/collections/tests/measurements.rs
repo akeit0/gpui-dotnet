@@ -36,41 +36,41 @@ fn measure(label: &str, mut operation: impl FnMut()) {
 #[test]
 #[ignore = "native timing probe; run explicitly in Release with --nocapture"]
 fn native_workload_measurements() {
-    for rows in [48, 512] {
+    for items in [48, 512] {
         prepare_capture();
         // A zero descriptor is a valid empty output slot for the managed callback.
         let mut arena: crate::abi::RenderArena = unsafe { std::mem::zeroed() };
         let mut root = 0;
         let mut artifact = 0;
         assert_eq!(
-            unsafe { publish_test_range(1, 1, 1, 0, rows, &mut arena, &mut root, &mut artifact) },
+            unsafe { publish_test_range(1, 1, 1, 0, items, &mut arena, &mut root, &mut artifact) },
             0
         );
         let mut snapshot = ValidatedSnapshot::default();
         let mut strings = RetainedStrings::default();
         let mut scratch = SnapshotScratch::default();
-        measure(&format!("decode-{rows}-rows-warm"), || {
+        measure(&format!("decode-{items}-items-warm"), || {
             snapshot
                 .decode_into(black_box(&arena), root, &mut strings, &mut scratch)
                 .unwrap();
             black_box(&snapshot);
         });
         println!(
-            "decode-{rows}-rows: retained-buffer-capacity={} bytes",
+            "decode-{items}-items: retained-buffer-capacity={} bytes",
             snapshot.buffer_capacity_bytes() + scratch.buffer_capacity_bytes()
         );
 
         prepare_capture();
         let mut config = configuration(Some(1));
-        config.batch_size = rows as usize;
-        config.item_count = rows as usize;
+        config.batch_size = items as usize;
+        config.item_count = items as usize;
         let mut resource = CollectionEngine::new(1, artifact_callbacks(), &config, 1);
-        measure(&format!("load-release-{rows}-rows"), || {
+        measure(&format!("load-release-{items}-items"), || {
             resource.load_batch(0).unwrap();
             resource.clear_batches();
         });
         println!(
-            "load-release-{rows}-rows: empty-cache-scratch-capacity={} bytes",
+            "load-release-{items}-items: empty-cache-scratch-capacity={} bytes",
             resource.scratch.buffer_capacity_bytes()
         );
         ARTIFACTS.with(|capture| {

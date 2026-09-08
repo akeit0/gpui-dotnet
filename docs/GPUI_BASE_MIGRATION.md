@@ -42,13 +42,13 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 |---|---|---|---|
 | 0. Forked native baseline | Complete | The fork is pinned to an exact SHA, the compatible GPUI revision is locked, CI/builds use `--locked`, and the graph guard resolves one GPUI package. | The dependency tuple is deterministic and documented. |
 | 1. Initialization and theme bridge | Complete | `gpui-base` initialization runs before queued window creation. The version 2 native theme payload carries explicit appearance, and startup plus every theme update project managed semantic roles into the foundation theme. | Existing and foundation-backed controls use the same managed-authoritative theme source. |
-| 2. Button, Checkbox, and Radio probe | Complete | Root and virtual-row adapters use foundation primitives with stable identity, derived accessible names, controlled checked state, disabled behavior, native focus traversal, and existing click dispatch. | The family is foundation-backed with pointer, keyboard, focus, accessibility, disabled, and controlled-state parity. |
+| 2. Button, Checkbox, and Radio probe | Complete | Root and virtual-item adapters use foundation primitives with stable identity, derived accessible names, controlled checked state, disabled behavior, native focus traversal, and existing click dispatch. | The family is foundation-backed with pointer, keyboard, focus, accessibility, disabled, and controlled-state parity. |
 | 3. Protocol checkpoint | Complete | The snapshot and click protocols remain; the schema adds a narrow `disableable` capability and Boolean `Disabled` operation. | Findings from the first control family produce an explicit keep/change decision with tests and updated ABI documentation. |
 | 4. Deferred layers | Complete | Tooltip and PopoverMenu use foundation Popup/Positioner, ContextMenu uses Positioner, and PopoverMenu plus ContextMenu use PopoverState. Modal Overlay uses foundation FocusTrapElement, which also covers the managed Dialog and Sheet compositions. GPUI.NET retains its distinct timing, placement, backdrop, priority, topmost, and managed callback semantics. | Foundation behavior replaces duplicated placement, focus, and dismissal infrastructure where semantics match. |
 | 5. Slider | Complete | GPUI.NET retains its native Slider engine because the foundation state cannot reconcile configuration and lacks keyboard/focus plus released-event parity. The retained root now exposes foundation-equivalent slider accessibility metadata. | Foundation behavior reaches pointer/keyboard/controller/event parity, or the custom implementation is retained with rationale. |
 | 6. Input | Complete | GPUI.NET retains its single-line editing engine because it preserves the revisioned contiguous UTF-8 event path without per-event native value materialization. The retained root now exposes the foundation-equivalent text-input role. | IME, Unicode, selection, clipboard, focus, commands, revisions, and events reach parity before old behavior is removed. |
-| 7. Scrolling and scrollbar | Complete | Scroll, List, and Table use foundation Scrollbar interaction and paint. GPUI.NET retains wheel smoothing, controller commands, and gutter geometry while seeding GPUI's native ListState with estimated heights for unmeasured rows. | Foundation scrollbar behavior is adopted selectively without additional managed/native traffic. |
-| 8. List and Table evaluation | Complete | GPUI.NET retains GPUI `ListState`, managed aligned range batches, stable row identity, structural commands, and table column reconciliation. Foundation scrollbar behavior remains shared. | Migration to foundation `VirtualList` is rejected because its integration cost and ownership tradeoffs do not provide a corresponding API or performance benefit. |
+| 7. Scrolling and scrollbar | Complete | Scroll, List, and Table use foundation Scrollbar interaction and paint. GPUI.NET retains wheel smoothing, controller commands, and gutter geometry while seeding GPUI's native ListState with estimated heights for unmeasured items. | Foundation scrollbar behavior is adopted selectively without additional managed/native traffic. |
+| 8. List and Table evaluation | Complete | GPUI.NET retains GPUI `ListState`, managed aligned range batches, stable item identity, structural commands, and table column reconciliation. Foundation scrollbar behavior remains shared. | Migration to foundation `VirtualList` is rejected because its integration cost and ownership tradeoffs do not provide a corresponding API or performance benefit. |
 | 9. Advanced retained components | Complete | DockArea retains a foundation Dock wearing a small in-repo skin (`crates/gpui-dotnet/src/dock_skin.rs`) with stable string panel IDs, declarative center tabs/splits and left/bottom/right regions, ordinary element or child-View content, tab activation, close/zoom controls, collapse affordances, resize handles, and native drag/drop interaction; the default host links `gpui-base` only (14,988,800-byte Windows x64 Release host, no `gpui-component` skin crate or asset provider); the optional Editor probe proves one-shot bootstrap, revisioned UTF-8 deltas, typed commands, and stale-command rejection from its custom host through the extension lifecycle seam; Dock exposes coarse close/layout events, controller close/region/import/export operations, and serialized layout export/import with a documented reconciliation policy. | Advanced components prove stable managed identity, coarse events, native high-frequency interaction, lifecycle, theme integration, optional packaging where appropriate, and no unrelated component families in the default native host. |
 | 10. Cleanup and protocol freeze candidate | Planned | Migration work is complete; the stability review is not yet performed. See [Protocol freeze review](#protocol-freeze-review). | Superseded behavior and protocol paths are removed and the new contract is deliberately reviewed for stability. |
 
@@ -82,8 +82,8 @@ family, and `OnClick` remains the callback surface.
 
 The native adapter derives accessible names from descendant Text nodes, translates foundation
 change requests into the existing click callback packet, and keeps the next managed snapshot
-authoritative. The same adapter behavior is used inside detached virtual-row batches, with identity
-derived from the list, model or row position, and semantic node.
+authoritative. The same adapter behavior is used inside detached virtual-item batches, with identity
+derived from the list, model or item position, and semantic node.
 
 The sample exposes a focused control row for pointer, keyboard, disabled, controlled-state,
 accessibility, and theme-transition verification.
@@ -176,15 +176,15 @@ axis. `ScrollController` commands continue to mutate the retained `ScrollHandle`
 scroll callbacks. A small handle adapter preserves the declared two-pixel edge margin and gutter
 placement while keeping the same maximum offset.
 
-GPUI.NET seeds every native `ListState` row with the declared estimated item height. As visible rows
+GPUI.NET seeds every native `ListState` item with the declared estimated item extent. As visible items
 are rendered, GPUI replaces their hints with actual measurements and its sum tree updates the pixel
 range. Foundation's direct list-handle mapping can therefore reach the full unmeasured range while
-converging toward real content geometry, without rendering intermediate rows or crossing into
-managed code. Reset and splice operations restore hints for new rows, while refresh operations
-preserve the previous measured height as the remeasurement hint.
+converging toward real content geometry, without rendering intermediate items or crossing into
+managed code. Reset and splice operations restore hints for new items, while refresh operations
+preserve the previous measured extent as the remeasurement hint.
 
 GPUI clears list measurements and hints when the viewport width changes because wrapping may alter
-row height. A zero-paint native maintenance layer runs after list prepaint and restores uniform
+item height. A zero-paint native maintenance layer runs after list prepaint and restores uniform
 hints before the sibling scrollbar reads the range. The remaining adapter only adjusts edge/gutter
 geometry and cancels queued wheel easing on direct scrollbar input; it delegates offsets, maximum
 range, track clicks, and drag lifecycle to `ListState`. No ABI, schema, or fork change is required.

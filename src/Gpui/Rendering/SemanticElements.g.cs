@@ -281,13 +281,13 @@ namespace Gpui
 
     public enum ListEventKind : ushort
     {
-        /// <summary>Opt-in row activation. Data is 16 little-endian bytes: u32 index, zero u32 reserved, u64 ItemId (zero when absent). Flags bit 0 selects keyboard instead of pointer, bit 1 indicates a datasource content revision in revision; all other bits are zero. Without bit 1, revision is zero.</summary>
+        /// <summary>Opt-in item activation. Data is 16 little-endian bytes: u32 index, zero u32 reserved, u64 ItemId (zero when absent). Flags bit 0 selects keyboard instead of pointer, bit 1 indicates a datasource content revision in revision; all other bits are zero. Without bit 1, revision is zero.</summary>
         Activated = 300,
-        /// <summary>Right-click on a row with a stable ItemId. Carries the 16-byte row identity packet followed by a nonzero U64 native anchor. Only flag 1 (content revision present) is allowed.</summary>
+        /// <summary>Right-click on an item with a stable ItemId. Carries the 16-byte item identity packet followed by a nonzero U64 native anchor. Only flag 1 (content revision present) is allowed.</summary>
         ContextMenuRequested = 301,
-        /// <summary>Opt-in single-row selection request. Uses the List Activated payload and flag layout; selection and presentation remain application-owned.</summary>
+        /// <summary>Opt-in single-item selection request. Uses the List Activated payload and flag layout; selection and presentation remain application-owned.</summary>
         SelectionRequested = 302,
-        /// <summary>Delayed hover on a marked row element with stable ItemId. Uses the Row ContextMenu 24-byte identity/anchor packet and revision flag. No pointer motion crosses the ABI.</summary>
+        /// <summary>Delayed hover on a marked item element with stable ItemId. Uses the Item ContextMenu 24-byte identity/anchor packet and revision flag. No pointer motion crosses the ABI.</summary>
         TooltipRequested = 303,
     }
 
@@ -1509,7 +1509,7 @@ namespace Gpui
             return element;
         }
 
-        /// <summary>Declares the stable model identity of a virtualized list row. IDs must be unique within one list; payload 0 is reserved.</summary>
+        /// <summary>Declares the stable model identity of a virtualized list item. IDs must be unique within one list; payload 0 is reserved.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Element<TTag> ItemId<TTag>(this Element<TTag> element, ulong itemId)
             where TTag : unmanaged, IStyledElementTag

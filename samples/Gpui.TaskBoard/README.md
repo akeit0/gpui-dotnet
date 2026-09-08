@@ -29,7 +29,7 @@ dotnet run --project samples/Gpui.TaskBoard -- --dark
   radios, a retained estimate `Slider`, file-drop attachments, a `WorkScope`
   estimate suggestion, and open-in-window.
 - **Activity region** — second virtual `List` (bottom Dock region) fed by the same
-  store revision, proving two row engines coexist on one View.
+  store revision, proving two collection engines coexist on one View.
 - **Dialogs** — modal new-task and delete-confirmation `Dialog` overlays with
   validation, all dismissed natively via backdrop/Escape plus `OnDismiss`.
 - **Hot keys** — root `OnKeyDown` observer: Ctrl+N, Ctrl+F, Ctrl+S, Ctrl+D.

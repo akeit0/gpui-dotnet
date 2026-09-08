@@ -271,7 +271,8 @@ pub(super) fn apply_styles<T: Styled>(
             | OP_LIST_BATCH_SIZE
             | OP_LIST_OVERDRAW_PX
             | OP_LIST_ALIGNMENT
-            | OP_LIST_ESTIMATED_ITEM_HEIGHT_PX
+            | OP_LIST_ESTIMATED_ITEM_EXTENT_PX
+            | OP_LIST_ORIENTATION
             | OP_IMAGE_OBJECT_FIT
             | OP_IMAGE_GRAYSCALE
             | OP_OVERLAY_PLACEMENT

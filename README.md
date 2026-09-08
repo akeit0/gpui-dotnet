@@ -41,7 +41,7 @@ schema, and the native ABI may change before a stable release.
 ### Hot Reload
 
 Standard .NET Hot Reload updates compatible application-side managed code in the existing process.
-Changes to `Render()`, list/table row renderers, event handlers, and style helpers rerender the
+Changes to `Render()`, list/table item renderers, event handlers, and style helpers rerender the
 existing View tree while preserving View state, controllers, focus, scrolling, selection, and
 retained resources. Rust, native code, the schema, the ABI, NativeAOT, and file assets still
 require a rebuild or restart.
@@ -173,7 +173,7 @@ Rust validation and retained snapshot
 
 Clean native repaints do not call managed `Render()`. High-frequency state such as scrolling,
 selection, pointer interaction, IME composition, and slider movement stays in Rust. Managed code
-is called for dirty renders, bound events, and coarse virtual-row batches.
+is called for dirty renders, bound events, and coarse virtual-item batches.
 Rust acknowledges each accepted root snapshot before managed Views mount. The first render declares
 the UI; accepted effects then run with committed inputs and can command accepted resources. Commands
 queued before a resource's removal cannot reach a later resource using the same key.
@@ -243,7 +243,7 @@ var card = ui.VStack(content)
     .BorderColor(ui.Theme.Colors.BorderVariant);
 ```
 
-Theme changes update managed views, virtual rows, and native control defaults. Theme tokens cover
+Theme changes update managed views, virtual items, and native control defaults. Theme tokens cover
 semantic colors and typography. Product-specific names such as `Primary`, `Danger`, or
 `Navigation` remain application-owned: implement `IGpuiElementStyle<TTag>` and apply the value
 with `.Style(...)`. Use `.Surface(new(background, foreground))` for a matching base pair and
@@ -286,8 +286,8 @@ manually.
 The following components keep interaction state in Rust across managed renders:
 
 - `Scroll`: offset, wheel/trackpad motion, and overlay scrollbar
-- `List`: viewport, measurements, keyboard navigation, and batched row cache
-- `Table`: the list row engine plus declarative native column/header layout
+- `List`: viewport, measurements, keyboard navigation, and batched item cache
+- `Table`: the list collection engine plus declarative native column/header layout
 - `Input`: value, selection, focus, clipboard, IME, caret, and horizontal reveal
 - `Slider`: value/range, pointer drag, keyboard interaction, and release events
 - `Dock`: tab groups, nested splits, panel focus, drag/drop, and splitter geometry
@@ -302,24 +302,24 @@ resetting native tab moves, splitter sizes, or side-region state. Dock supports 
 native collapse and resizing. Controllers support close, region visibility, and layout import/export;
 layout and close events report native changes. See [Retained Dock](docs/CONTROLS.md#retained-dock).
 
-Virtual rows are generated in aligned batches:
+Virtual items are generated in aligned batches:
 
 ```csharp
 [GpuiListItem]
-private Element Row(int index, ref RenderContext ui) =>
-    ui.Button("row", $"Row {index:N0}")
-        .OnClick(this, (view, e) => view.OpenRow(e), checked((ulong)index));
+private Element Item(int index, ref RenderContext ui) =>
+    ui.Button("item", $"Item {index:N0}")
+        .OnClick(this, (view, e) => view.OpenItem(e), checked((ulong)index));
 
 protected override Element Render(ref RenderContext ui) =>
     ui.List(
             ref _list,
             new ListDataSource(_items.Count, _contentRevision),
-            Rows.Row
+            Items.Item
         )
         .Grow();
 ```
 
-Increment `contentRevision` whenever cached row output can change. Rows are element-only snapshots,
+Increment `contentRevision` whenever cached item output can change. Items are element-only snapshots,
 not mounted child views, and cannot contain nested retained resources or deferred layers.
 
 ## Images, vector drawings, and overlays
@@ -382,12 +382,12 @@ Run the standard .NET watcher for an application project:
 dotnet watch --project path/to/App.csproj
 ```
 
-The metadata-update handler invalidates managed View fragments and native List/Table row snapshots,
+The metadata-update handler invalidates managed View fragments and native List/Table item snapshots,
 then requests a new frame. Compatible method-body edits are applied to existing View instances:
 
 | Edit | Result |
 | --- | --- |
-| `Render()`, row renderers, event handlers, or style helpers | Existing UI rerenders without recreating the application. |
+| `Render()`, item renderers, event handlers, or style helpers | Existing UI rerenders without recreating the application. |
 | Text, colors, spacing, layout, or compatible event bindings | Updated output or behavior with state preserved. |
 | Rust, native bindings, schema, ABI, NativeAOT, JSON, or file assets | Rebuild or restart required. |
 
@@ -403,7 +403,7 @@ src/Gpui/                 managed public API and runtime sources
 src/Gpui.Core/            platform-neutral package project
 src/Gpui.Editor/          optional editor schema assembly
 src/Gpui.Native/          RID-specific native package projects
-src/Gpui.Generators/      Roslyn generators for views and list rows
+src/Gpui.Generators/      Roslyn generators for views and list items
 samples/Gpui.Sample/      interactive component gallery
 tests/Gpui.Tests/         managed contract and generator tests
 tools/                    base/extension binding generator and UI driver

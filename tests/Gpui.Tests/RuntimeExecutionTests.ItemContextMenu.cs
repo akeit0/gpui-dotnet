@@ -8,7 +8,7 @@ public sealed unsafe partial class RuntimeExecutionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void TableSampleRowContextMenuActionsUseItemIdentity(bool select)
+    public void TableSampleItemContextMenuActionsUseItemIdentity(bool select)
     {
         var application = new GpuiApplication();
         var spec = TableView.Spec();
@@ -33,7 +33,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             fixture.Control(
                 token,
                 (ushort)ListEventKind.ContextMenuRequested,
-                RowMenuPayload(4994, 6, 99),
+                ItemMenuPayload(4994, 6, 99),
                 2,
                 1
             )
@@ -50,7 +50,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Equal(0, fixture.NativePublish(out revision, out arena));
         Assert.DoesNotContain(
             new ReadOnlySpan<OpRecord>(arena.Ops, arena.OpLength).ToArray(),
-            op => op.Code == (ushort)OpCode.ContextMenuRowAnchor
+            op => op.Code == (ushort)OpCode.ContextMenuItemAnchor
         );
         var text = System.Text.Encoding.UTF8.GetString(
             new ReadOnlySpan<byte>(arena.Utf8, arena.Utf8Length)
@@ -61,12 +61,12 @@ public sealed unsafe partial class RuntimeExecutionTests
     }
 
     [Fact]
-    public void RowContextMenuRequestDecodesIdentityAndRendersOutsideTheRow()
+    public void ItemContextMenuRequestDecodesIdentityAndRendersOutsideTheItem()
     {
-        var view = new RowContextMenuProbe();
+        var view = new ItemContextMenuProbe();
         using var fixture = new SessionFixture(view);
         fixture.Render();
-        var bytes = RowMenuPayload(51, 1051, 99);
+        var bytes = ItemMenuPayload(51, 1051, 99);
         Assert.Equal(
             0,
             fixture.Control(view.Token, (ushort)ListEventKind.ContextMenuRequested, bytes, 2, 7)
@@ -77,35 +77,35 @@ public sealed unsafe partial class RuntimeExecutionTests
         var ops = new ReadOnlySpan<OpRecord>(arena.Ops, arena.OpLength).ToArray();
         Assert.Equal(
             99UL,
-            Assert.Single(ops, op => op.Code == (ushort)OpCode.ContextMenuRowAnchor).A
+            Assert.Single(ops, op => op.Code == (ushort)OpCode.ContextMenuItemAnchor).A
         );
         Assert.Equal(0, fixture.Complete(revision));
         Assert.Null(fixture.Session.Failure);
     }
 
     [Fact]
-    public void RowContextMenuRejectsMalformedAnchorsAndPreservesOptionalRevision()
+    public void ItemContextMenuRejectsMalformedAnchorsAndPreservesOptionalRevision()
     {
-        var view = new RowContextMenuProbe();
+        var view = new ItemContextMenuProbe();
         using var fixture = new SessionFixture(view);
         fixture.Render();
         var kind = (ushort)ListEventKind.ContextMenuRequested;
-        Assert.Equal(0, fixture.Control(view.Token, kind, RowMenuPayload(0, 1, 1)));
+        Assert.Equal(0, fixture.Control(view.Token, kind, ItemMenuPayload(0, 1, 1)));
         Assert.Null(view.Received!.Value.ContentRevision);
-        Assert.Equal(0, fixture.Control(view.Token, kind, RowMenuPayload(0, 1, 1), 2));
+        Assert.Equal(0, fixture.Control(view.Token, kind, ItemMenuPayload(0, 1, 1), 2));
         Assert.Equal(0UL, view.Received!.Value.ContentRevision);
-        Assert.Equal(-112, fixture.Control(view.Token, kind, RowMenuPayload(0, 0, 1)));
-        Assert.Equal(-112, fixture.Control(view.Token, kind, RowMenuPayload(0, 1, 0)));
-        Assert.Equal(-112, fixture.Control(view.Token, kind, RowMenuPayload(uint.MaxValue, 1, 1)));
-        Assert.Equal(-112, fixture.Control(view.Token, kind, RowMenuPayload(0, 1, 1), 1));
-        Assert.Equal(-112, fixture.Control(view.Token, kind, RowMenuPayload(0, 1, 1), 0, 1));
+        Assert.Equal(-112, fixture.Control(view.Token, kind, ItemMenuPayload(0, 0, 1)));
+        Assert.Equal(-112, fixture.Control(view.Token, kind, ItemMenuPayload(0, 1, 0)));
+        Assert.Equal(-112, fixture.Control(view.Token, kind, ItemMenuPayload(uint.MaxValue, 1, 1)));
+        Assert.Equal(-112, fixture.Control(view.Token, kind, ItemMenuPayload(0, 1, 1), 1));
+        Assert.Equal(-112, fixture.Control(view.Token, kind, ItemMenuPayload(0, 1, 1), 0, 1));
         Assert.Equal(-112, fixture.Control(view.Token, kind, new byte[16]));
-        var reserved = RowMenuPayload(0, 1, 1);
+        var reserved = ItemMenuPayload(0, 1, 1);
         reserved[4] = 1;
         Assert.Equal(-112, fixture.Control(view.Token, kind, reserved));
     }
 
-    private static byte[] RowMenuPayload(uint index, ulong itemId, ulong anchor)
+    private static byte[] ItemMenuPayload(uint index, ulong itemId, ulong anchor)
     {
         var bytes = new byte[24];
         BinaryPrimitives.WriteUInt32LittleEndian(bytes, index);
@@ -114,14 +114,14 @@ public sealed unsafe partial class RuntimeExecutionTests
         return bytes;
     }
 
-    private sealed class RowContextMenuProbe : ProbeView
+    private sealed class ItemContextMenuProbe : ProbeView
     {
         internal ulong Token;
         internal ListContextMenuEvent? Received;
 
         protected override Element Render(ref RenderContext ui)
         {
-            Token = Runtime.Events.BindListContextMenu<RowContextMenuProbe>(
+            Token = Runtime.Events.BindListContextMenu<ItemContextMenuProbe>(
                 static (view, value) =>
                 {
                     view.Received = value;
@@ -129,7 +129,7 @@ public sealed unsafe partial class RuntimeExecutionTests
                 }
             );
             return Received is { } request
-                ? ui.RowContextMenu("row-menu", request, ui.Text($"Service {request.ItemId}"))
+                ? ui.ItemContextMenu("item-menu", request, ui.Text($"Service {request.ItemId}"))
                 : ui.Div();
         }
     }

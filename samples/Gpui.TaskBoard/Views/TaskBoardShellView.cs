@@ -54,7 +54,7 @@ internal sealed partial class TaskBoardShellView : View
     private static readonly TableOptions TasksTableOptions = new(
         batchSize: 48,
         overdraw: 320,
-        estimatedItemHeight: 44,
+        estimatedItemExtent: 44,
         scrollbarGutter: true
     );
 
@@ -70,7 +70,7 @@ internal sealed partial class TaskBoardShellView : View
     private static readonly ListOptions ActivityListOptions = new(
         batchSize: 32,
         overdraw: 200,
-        estimatedItemHeight: 28
+        estimatedItemExtent: 28
     );
 
     private static readonly ScrollOptions SidebarScrollOptions = new(
@@ -653,7 +653,7 @@ internal sealed partial class TaskBoardShellView : View
                             )
                             .PaddingX(Px(8))
                             // Keep the popup beside the column, independent of title length.
-                            .RowTooltipTarget(),
+                            .ItemTooltipTarget(),
                         ui.TableCell(
                                 2,
                                 ui.Text(task.Assignee)
@@ -690,7 +690,7 @@ internal sealed partial class TaskBoardShellView : View
     }
 
     [GpuiListItem]
-    private Element ActivityRow(int index, ref RenderContext ui)
+    private Element ActivityItem(int index, ref RenderContext ui)
     {
         var theme = ui.Theme;
         return ui.Div(
@@ -781,7 +781,7 @@ internal sealed partial class TaskBoardShellView : View
         )
         {
             content = content.Child(
-                ui.RowTooltip(
+                ui.ItemTooltip(
                     "task-tooltip",
                     tooltipRequest,
                     ui.VStack(
@@ -1092,7 +1092,7 @@ internal sealed partial class TaskBoardShellView : View
     )
     {
         var theme = ui.Theme;
-        return ui.RowContextMenu(
+        return ui.ItemContextMenu(
             "tasks-context",
             request,
             ui.VStack(
@@ -1150,7 +1150,7 @@ internal sealed partial class TaskBoardShellView : View
         var table = ui.Table(
                 ref _tasks,
                 new ListDataSource(_rows.Count, _tableRevision, _projectionRevision),
-                Rows.TaskRow,
+                Items.TaskRow,
                 TasksTableOptions,
                 TaskColumns
             )
@@ -1200,7 +1200,7 @@ internal sealed partial class TaskBoardShellView : View
         var activityList = ui.List(
                 ref _activity,
                 new ListDataSource(_store.Activity.Count, _store.Revision),
-                Rows.ActivityRow,
+                Items.ActivityItem,
                 ActivityListOptions
             )
             .Grow()

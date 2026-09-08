@@ -45,15 +45,15 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
         "Invalid GPUI list-item renderer",
         "List renderer '{0}' must be an instance, non-generic synchronous method with signature {1}"
     );
-    private static readonly DiagnosticDescriptor ReservedRowsMember = Error(
+    private static readonly DiagnosticDescriptor ReservedItemsMember = Error(
         "GPUI013",
-        "Rows member is reserved",
-        "'{0}' declares a member named 'Rows'; [GpuiView] reserves that name for generated list renderer bindings"
+        "Items member is reserved",
+        "'{0}' declares a member named 'Items'; [GpuiView] reserves that name for generated list renderer bindings"
     );
     private static readonly DiagnosticDescriptor DuplicateListRendererName = Error(
         "GPUI014",
         "GPUI list renderer names must be unique",
-        "'{0}' has multiple [GpuiListItem] methods named '{1}'; generated Rows accessors require unique method names"
+        "'{0}' has multiple [GpuiListItem] methods named '{1}'; generated Items accessors require unique method names"
     );
     private static readonly DiagnosticDescriptor ListRendererCollision = Error(
         "GPUI015",
@@ -158,9 +158,9 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
             }
         }
 
-        if (listRenderers.Count != 0 && view.GetMembers("Rows").Length != 0)
+        if (listRenderers.Count != 0 && view.GetMembers("Items").Length != 0)
         {
-            context.ReportDiagnostic(Diagnostic.Create(ReservedRowsMember, location, view.Name));
+            context.ReportDiagnostic(Diagnostic.Create(ReservedItemsMember, location, view.Name));
             return;
         }
         if (
@@ -415,14 +415,14 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
     )
     {
         builder.AppendLine();
-        builder.AppendLine("    private GeneratedGpuiRows Rows => new(this);");
+        builder.AppendLine("    private GeneratedGpuiItems Items => new(this);");
         builder.AppendLine();
-        builder.AppendLine("    private readonly struct GeneratedGpuiRows");
+        builder.AppendLine("    private readonly struct GeneratedGpuiItems");
         builder.AppendLine("    {");
         builder.Append("        private readonly ").Append(viewIdentifier).AppendLine(" _owner;");
         builder.AppendLine();
         builder
-            .Append("        internal GeneratedGpuiRows(")
+            .Append("        internal GeneratedGpuiItems(")
             .Append(viewIdentifier)
             .AppendLine(" owner) => _owner = owner;");
         if (renderers.Count != 0)

@@ -149,6 +149,35 @@ public readonly struct ScrollController
             )
         );
 
+    /// <summary>Scrolls to the start (left edge) of a horizontal scroll container.</summary>
+    public void ScrollToLeft() =>
+        Owner.Runtime.DispatchResourceCommand(
+            new ResourceCommand(
+                ResourceKind.Scroll,
+                ResourceCommandKind.ScrollToLeft,
+                null,
+                0,
+                0,
+                Utf8Key: Utf8KeyArray
+            )
+        );
+
+    /// <summary>
+    /// Scrolls to the right edge of a horizontal scroll container, preserving the vertical
+    /// offset. The native side clamps to the measured content width.
+    /// </summary>
+    public void ScrollToRight() =>
+        Owner.Runtime.DispatchResourceCommand(
+            new ResourceCommand(
+                ResourceKind.Scroll,
+                ResourceCommandKind.ScrollToRight,
+                null,
+                0,
+                0,
+                Utf8Key: Utf8KeyArray
+            )
+        );
+
     private ViewBase Owner =>
         _owner ?? throw new InvalidOperationException("Default ScrollController cannot be used.");
     private byte[] Utf8KeyArray =>

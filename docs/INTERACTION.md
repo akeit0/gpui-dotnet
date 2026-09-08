@@ -32,7 +32,7 @@ theme focus ring without changing layout or application borders. Scoped shortcut
 are reachable when it or its descendants hold focus, subject to native control key handling.
 
 Use this declaration for custom containers. Existing native controls retain their own focus
-ownership. Focus targets are unavailable in virtual row snapshots. Focus groups, roving selection,
+ownership. Focus targets are unavailable in virtual item snapshots. Focus groups, roving selection,
 and custom restoration policies are not exposed by this API. The sample's Keyboard focus page
 demonstrates direct focus, Tab participation, scoped preview navigation, and returning to an Input.
 
@@ -96,7 +96,7 @@ notifications and diagnostics, after native controls have handled the event.
 which reports the current modifiers. Mouse movement and wheel events cross the ABI only when their
 observer bindings are declared. These bindings are render-pass declarations like `OnClick`
 (pure `Render`, state changes in the handler plus `Invalidate()`), and they are invalid inside
-virtualized List/Table row snapshots, which have no mounted View lifetime.
+virtualized List/Table item snapshots, which have no mounted View lifetime.
 
 ## Accessible names and descriptions
 
@@ -112,7 +112,7 @@ ui.Input("account", new InputOptions())
 ```
 
 Explicit names override Button/Checkbox/Radio descendant-text inference, including in virtual
-rows. Input and Slider do not infer names from placeholders or values. Declarations must be nonempty,
+items. Input and Slider do not infer names from placeholders or values. Declarations must be nonempty,
 and the last declaration wins. Omit a declaration in a later snapshot to remove it (restoring text
 inference where applicable). Updating retained control metadata preserves native values, selection,
 composition, focus, and interaction state. Descriptions are resolved text, not references to other

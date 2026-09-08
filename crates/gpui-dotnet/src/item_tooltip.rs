@@ -44,22 +44,22 @@ impl Request {
                 source.tooltip_token != 0
                     && source.tooltip == self.configuration
                     && source
-                        .cached_identified_row(self.index)
-                        .is_some_and(|(artifact, row)| {
-                            artifact == self.artifact && row.item_id == Some(self.item_id)
+                        .cached_identified_item(self.index)
+                        .is_some_and(|(artifact, item)| {
+                            artifact == self.artifact && item.item_id == Some(self.item_id)
                         })
             })
     }
 }
 
 /// A single delayed hover request per window. Timers retain only a weak coordinator reference;
-/// the request retains scalar row identity and a weak collection reference, never a row batch.
+/// the request retains scalar item identity and a weak collection reference, never an item batch.
 #[derive(Default)]
-pub(crate) struct RowTooltips {
+pub(crate) struct ItemTooltips {
     request: RefCell<Option<Request>>,
 }
 
-impl RowTooltips {
+impl ItemTooltips {
     pub(crate) fn begin_frame(&self) {
         if let Some(request) = self.request.borrow_mut().as_mut() {
             request.seen = false;
@@ -131,28 +131,28 @@ impl RowTooltips {
             self.change_hover(false, true, window, cx);
             return;
         }
-        let (artifact, row, configuration, token) = {
+        let (artifact, item, configuration, token) = {
             let source = source.borrow();
             if source.tooltip_token == 0 {
                 return;
             }
-            let Some((artifact, row)) = source.cached_identified_row(index) else {
+            let Some((artifact, item)) = source.cached_identified_item(index) else {
                 return;
             };
-            (artifact, row, source.tooltip, source.tooltip_token)
+            (artifact, item, source.tooltip, source.tooltip_token)
         };
         self.dismiss(window);
         static NEXT: AtomicU64 = AtomicU64::new(1);
         let id = NEXT
             .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
-            .expect("row tooltip identity exhausted");
+            .expect("item tooltip identity exhausted");
         *self.request.borrow_mut() = Some(Request {
             id,
             source: Rc::downgrade(source),
             index,
             target,
             artifact,
-            item_id: row.item_id.unwrap(),
+            item_id: item.item_id.unwrap(),
             owner: (token >> 32) as u32,
             hitbox: hitbox.clone(),
             seen: true,
@@ -191,29 +191,29 @@ impl RowTooltips {
             }
             let source = request.source.upgrade().unwrap();
             let source = source.borrow();
-            let (_, row) = source.cached_identified_row(request.index).unwrap();
+            let (_, item) = source.cached_identified_item(request.index).unwrap();
             let token = source.tooltip_token;
             request.owner = (token >> 32) as u32;
             request.requested = true;
-            (row, token)
+            (item, token)
         };
-        let (row, token) = packet;
+        let (item, token) = packet;
         let mut data = [0u8; 24];
-        data[..4].copy_from_slice(&row.index.to_le_bytes());
-        data[8..16].copy_from_slice(&row.item_id.unwrap().to_le_bytes());
+        data[..4].copy_from_slice(&item.index.to_le_bytes());
+        data[8..16].copy_from_slice(&item.item_id.unwrap().to_le_bytes());
         data[16..].copy_from_slice(&id.to_le_bytes());
         let event = NativeControlEvent {
             kind: crate::semantic::EVENT_LIST_TOOLTIP_REQUESTED,
-            flags: u16::from(row.content_revision.is_some()) << 1,
-            revision: row.content_revision.unwrap_or(0),
+            flags: u16::from(item.content_revision.is_some()) << 1,
+            revision: item.content_revision.unwrap_or(0),
             data: data.as_ptr(),
             data_length: 24,
             reserved: 0,
             reserved2: 0,
         };
-        let callback = row.callbacks.control_event.expect("validated callbacks");
-        let status = unsafe { callback(row.session_id, token, &event) };
-        crate::app_host::after_detached_callback(row.session_id, status);
+        let callback = item.callbacks.control_event.expect("validated callbacks");
+        let status = unsafe { callback(item.session_id, token, &event) };
+        crate::app_host::after_detached_callback(item.session_id, status);
         window.refresh();
     }
 
@@ -304,8 +304,8 @@ impl RowTooltips {
     }
 }
 
-/// Completes anchor observation after all normal rows, and dismisses without consuming input.
-pub(crate) fn frame_end(tooltips: Rc<RowTooltips>) -> AnyElement {
+/// Completes anchor observation after all normal items, and dismisses without consuming input.
+pub(crate) fn frame_end(tooltips: Rc<ItemTooltips>) -> AnyElement {
     let paint_tooltips = tooltips.clone();
     canvas(
         move |_, window, _| {
@@ -341,7 +341,7 @@ pub(crate) struct Target {
     pub(crate) source: Rc<RefCell<CollectionEngine>>,
     pub(crate) index: usize,
     pub(crate) target: u32,
-    pub(crate) tooltips: Rc<RowTooltips>,
+    pub(crate) tooltips: Rc<ItemTooltips>,
 }
 
 impl IntoElement for Target {
@@ -417,7 +417,7 @@ impl Element for Target {
 }
 
 pub(crate) fn tooltip(
-    tooltips: Rc<RowTooltips>,
+    tooltips: Rc<ItemTooltips>,
     id: u64,
     owner: u32,
     content: AnyElement,
@@ -429,7 +429,7 @@ pub(crate) fn tooltip(
     };
     let hover = tooltips.clone();
     let content = div()
-        .id(("row-tooltip-content", id))
+        .id(("item-tooltip-content", id))
         .occlude()
         .on_hover(move |hovered, window, cx| hover.content_hover(id, *hovered, window, cx))
         .child(content);
@@ -462,7 +462,7 @@ pub(crate) fn tooltip(
 
 struct Layer {
     child: AnyElement,
-    tooltips: Rc<RowTooltips>,
+    tooltips: Rc<ItemTooltips>,
     id: u64,
 }
 impl IntoElement for Layer {

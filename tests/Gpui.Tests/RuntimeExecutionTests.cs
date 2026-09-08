@@ -21,12 +21,12 @@ public sealed unsafe partial class RuntimeExecutionTests
     }
 
     [Fact]
-    public void RowSignalsInvalidateOnlyTheirAcceptedArtifactsAndBatchAtCallbackExit()
+    public void ItemSignalsInvalidateOnlyTheirAcceptedArtifactsAndBatchAtCallbackExit()
     {
         var first = new Signal<int>(0);
         var second = new Signal<int>(0);
         using var fixture = new SessionFixture(
-            new ProbeView { DuringRow = index => _ = index == 0 ? first.Value : second.Value }
+            new ProbeView { DuringItem = index => _ = index == 0 ? first.Value : second.Value }
         );
         fixture.Render();
         var a = fixture.Range(0);
@@ -54,10 +54,12 @@ public sealed unsafe partial class RuntimeExecutionTests
     }
 
     [Fact]
-    public void AnUnacceptedRowObservationDoesNotSubscribeAndClosesTheRevisionGap()
+    public void AnUnacceptedItemObservationDoesNotSubscribeAndClosesTheRevisionGap()
     {
         var signal = new Signal<int>(0);
-        using var fixture = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value });
+        using var fixture = new SessionFixture(
+            new ProbeView { DuringItem = _ => _ = signal.Value }
+        );
         fixture.Render();
         var artifact = fixture.Range(0, accept: false);
         signal.Value++;
@@ -71,7 +73,9 @@ public sealed unsafe partial class RuntimeExecutionTests
     public void SourcesSharingARendererHaveIndependentSignalSubscriptions()
     {
         var signal = new Signal<int>(0);
-        using var fixture = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value });
+        using var fixture = new SessionFixture(
+            new ProbeView { DuringItem = _ => _ = signal.Value }
+        );
         fixture.Render();
         var a = fixture.Range(0, source: 10);
         var b = fixture.Range(0, source: 20);
@@ -86,7 +90,9 @@ public sealed unsafe partial class RuntimeExecutionTests
     public void RejectedDemandObservationNeverSubscribes()
     {
         var signal = new Signal<int>(0);
-        using var fixture = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value });
+        using var fixture = new SessionFixture(
+            new ProbeView { DuringItem = _ => _ = signal.Value }
+        );
         fixture.Render();
         var artifact = fixture.Range(0, accept: false);
         Assert.Equal(-109, fixture.Release(1, artifact, -40));
@@ -160,61 +166,61 @@ public sealed unsafe partial class RuntimeExecutionTests
     }
 
     [Fact]
-    public void SignalNotificationFailureStillFlushesLaterRowSubscribersAndPreservesFirstError()
+    public void SignalNotificationFailureStillFlushesLaterItemSubscribersAndPreservesFirstError()
     {
         var signal = new Signal<int>(0);
         var application = new GpuiApplication();
-        using var healthyRows = new SessionFixture(
-            new ProbeView { DuringRow = _ => _ = signal.Value },
+        using var healthyItems = new SessionFixture(
+            new ProbeView { DuringItem = _ => _ = signal.Value },
             application
         );
-        using var failedRows = new SessionFixture(
-            new ProbeView { DuringRow = _ => _ = signal.Value },
+        using var failedItems = new SessionFixture(
+            new ProbeView { DuringItem = _ => _ = signal.Value },
             application
         );
         using var failedView = new SessionFixture(
             new ProbeView { DuringRender = () => _ = signal.Value },
             application
         );
-        healthyRows.Render();
-        var healthyArtifact = healthyRows.Range(0);
-        failedRows.Render();
-        failedRows.Range(0);
+        healthyItems.Render();
+        var healthyArtifact = healthyItems.Range(0);
+        failedItems.Render();
+        failedItems.Range(0);
         failedView.Render();
         failedView.NotifyStatus = -32;
-        failedRows.ArtifactStatus = -33;
+        failedItems.ArtifactStatus = -33;
 
         var error = Assert.Throws<InvalidOperationException>(() => signal.Set(1));
         Assert.Same(failedView.Session.Failure, error);
-        Assert.NotNull(failedRows.Session.Failure);
-        Assert.Null(healthyRows.Session.Failure);
+        Assert.NotNull(failedItems.Session.Failure);
+        Assert.Null(healthyItems.Session.Failure);
         Assert.Equal(
             healthyArtifact,
-            Assert.Single(Assert.Single(healthyRows.ArtifactBatches)).artifact
+            Assert.Single(Assert.Single(healthyItems.ArtifactBatches)).artifact
         );
-        Assert.Single(failedRows.ArtifactBatches);
-        Assert.False(healthyRows.State(healthyRows.View).Dirty);
+        Assert.Single(failedItems.ArtifactBatches);
+        Assert.False(healthyItems.State(healthyItems.View).Dirty);
         Assert.Null(ApplicationExecution.Current);
         Assert.False(signal.Set(1));
         // Flush failure must also clear application scratch state and permit another delivery.
-        Assert.Equal(0, healthyRows.Release(1, healthyArtifact));
-        var replacement = healthyRows.Range(0);
+        Assert.Equal(0, healthyItems.Release(1, healthyArtifact));
+        var replacement = healthyItems.Range(0);
         Assert.True(signal.Set(2));
-        Assert.Equal(replacement, Assert.Single(healthyRows.ArtifactBatches[1]).artifact);
-        Assert.Single(failedRows.ArtifactBatches);
+        Assert.Equal(replacement, Assert.Single(healthyItems.ArtifactBatches[1]).artifact);
+        Assert.Single(failedItems.ArtifactBatches);
     }
 
     [Fact]
-    public void SignalRowFlushFailureStillDeliversOtherWindows()
+    public void SignalItemFlushFailureStillDeliversOtherWindows()
     {
         var signal = new Signal<int>(0);
         var application = new GpuiApplication();
         using var healthy = new SessionFixture(
-            new ProbeView { DuringRow = _ => _ = signal.Value },
+            new ProbeView { DuringItem = _ => _ = signal.Value },
             application
         );
         using var failing = new SessionFixture(
-            new ProbeView { DuringRow = _ => _ = signal.Value },
+            new ProbeView { DuringItem = _ => _ = signal.Value },
             application
         );
         healthy.Render();
@@ -234,16 +240,16 @@ public sealed unsafe partial class RuntimeExecutionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void SignalFailureInAnEventStillFlushesHealthyRows(bool failRowFlush)
+    public void SignalFailureInAnEventStillFlushesHealthyItems(bool failItemFlush)
     {
         var signal = new Signal<int>(0);
         var application = new GpuiApplication();
-        using var healthyRows = new SessionFixture(
-            new ProbeView { DuringRow = _ => _ = signal.Value },
+        using var healthyItems = new SessionFixture(
+            new ProbeView { DuringItem = _ => _ = signal.Value },
             application
         );
-        using var otherRows = new SessionFixture(
-            new ProbeView { DuringRow = _ => _ = signal.Value },
+        using var otherItems = new SessionFixture(
+            new ProbeView { DuringItem = _ => _ = signal.Value },
             application
         );
         using var failedView = new SessionFixture(
@@ -254,21 +260,21 @@ public sealed unsafe partial class RuntimeExecutionTests
             new ProbeView { OnClick = () => signal.Set(1) },
             application
         );
-        healthyRows.Render();
-        var artifact = healthyRows.Range(0);
-        otherRows.Render();
-        otherRows.Range(0);
+        healthyItems.Render();
+        var artifact = healthyItems.Range(0);
+        otherItems.Render();
+        otherItems.Range(0);
         failedView.Render();
         writer.Render();
         failedView.NotifyStatus = -32;
-        otherRows.ArtifactStatus = failRowFlush ? -33 : 0;
+        otherItems.ArtifactStatus = failItemFlush ? -33 : 0;
 
         Assert.Equal(-111, writer.Click());
         Assert.Same(failedView.Session.Failure, writer.Session.Failure);
-        Assert.Equal(failRowFlush, otherRows.Session.Failure is not null);
-        Assert.Equal(artifact, Assert.Single(Assert.Single(healthyRows.ArtifactBatches)).artifact);
-        Assert.Single(otherRows.ArtifactBatches);
-        Assert.Null(healthyRows.Session.Failure);
+        Assert.Equal(failItemFlush, otherItems.Session.Failure is not null);
+        Assert.Equal(artifact, Assert.Single(Assert.Single(healthyItems.ArtifactBatches)).artifact);
+        Assert.Single(otherItems.ArtifactBatches);
+        Assert.Null(healthyItems.Session.Failure);
         Assert.Equal(1, signal.Value);
         Assert.Null(ApplicationExecution.Current);
     }
@@ -323,7 +329,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             new ProbeView
             {
                 DuringRender = () => _ = signal.Value,
-                DuringRow = index => _ = signal.Value,
+                DuringItem = index => _ = signal.Value,
             },
             application
         );
@@ -1019,9 +1025,9 @@ public sealed unsafe partial class RuntimeExecutionTests
         using var fixture = new SessionFixture(new ProbeView());
         fixture.Render();
         fixture.Range(0);
-        var first = fixture.View.RowToken;
+        var first = fixture.View.ItemToken;
         fixture.Range(1);
-        var second = fixture.View.RowToken;
+        var second = fixture.View.ItemToken;
         Assert.Equal(0, fixture.Click(first));
         Assert.Equal(1, fixture.View.ClickCount);
         Assert.Equal(0, fixture.Click(second));
@@ -1046,9 +1052,9 @@ public sealed unsafe partial class RuntimeExecutionTests
         using var fixture = new SessionFixture(new ProbeView());
         fixture.Render();
         var first = fixture.Range(0, source: 11);
-        var firstToken = fixture.View.RowToken;
+        var firstToken = fixture.View.ItemToken;
         var second = fixture.Range(0, source: 12);
-        var secondToken = fixture.View.RowToken;
+        var secondToken = fixture.View.ItemToken;
         Assert.NotEqual(firstToken, secondToken);
         Assert.Equal(0, fixture.Release(11, first));
         Assert.Equal(0, fixture.Release(11, first));
@@ -1065,9 +1071,9 @@ public sealed unsafe partial class RuntimeExecutionTests
         using var fixture = new SessionFixture(new ProbeView());
         fixture.Render();
         var first = fixture.Range(0);
-        var firstToken = fixture.View.RowToken;
+        var firstToken = fixture.View.ItemToken;
         fixture.Range(1);
-        var secondToken = fixture.View.RowToken;
+        var secondToken = fixture.View.ItemToken;
         fixture.Render();
         Assert.Equal(0, fixture.Release(1, first));
         Assert.Equal(0, fixture.Click(firstToken));
@@ -1131,9 +1137,9 @@ public sealed unsafe partial class RuntimeExecutionTests
     private static (WeakReference, ulong) BindCapturedRow(SessionFixture fixture)
     {
         var captured = new object();
-        fixture.View.RowCapture = captured;
+        fixture.View.ItemCapture = captured;
         var artifact = fixture.Range(0);
-        fixture.View.RowCapture = null;
+        fixture.View.ItemCapture = null;
         return (new WeakReference(captured), artifact);
     }
 
@@ -1146,7 +1152,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         for (var index = 0; index < 100; index++)
         {
             var artifact = fixture.Range(0);
-            Assert.True(tokens.Add(fixture.View.RowToken));
+            Assert.True(tokens.Add(fixture.View.ItemToken));
             Assert.Equal(0, fixture.Release(1, artifact));
         }
         foreach (var token in tokens)
@@ -1439,13 +1445,13 @@ public sealed unsafe partial class RuntimeExecutionTests
         internal int MountCount;
         internal int ClickCount;
         internal int SecondClickCount;
-        internal ulong RowToken;
-        internal object? RowCapture;
-        internal bool RowsWithoutEvents;
+        internal ulong ItemToken;
+        internal object? ItemCapture;
+        internal bool ItemsWithoutEvents;
         internal int UnmountCount;
         internal ulong ClickToken;
         internal Action? DuringRender;
-        internal Action<int>? DuringRow;
+        internal Action<int>? DuringItem;
         internal Action? DuringMount;
         internal Action? OnClick;
         internal bool ThrowDuringUnmount;
@@ -1482,14 +1488,14 @@ public sealed unsafe partial class RuntimeExecutionTests
 
         protected override Element RenderListItem(uint rendererId, int index, ref RenderContext ui)
         {
-            DuringRow?.Invoke(index);
-            if (RowsWithoutEvents)
-                return ui.Text("row");
+            DuringItem?.Invoke(index);
+            if (ItemsWithoutEvents)
+                return ui.Text("item");
             Action<ProbeView, ClickEvent> callback =
                 index == 0
                     ? static (view, _) => view.ClickCount++
                     : static (view, _) => view.SecondClickCount++;
-            if (RowCapture is { } captured)
+            if (ItemCapture is { } captured)
             {
                 callback = (view, _) =>
                 {
@@ -1497,8 +1503,8 @@ public sealed unsafe partial class RuntimeExecutionTests
                     view.ClickCount++;
                 };
             }
-            RowToken = Runtime.Events.BindClick(callback);
-            return ui.Button("row", "row").OnClick(this, callback);
+            ItemToken = Runtime.Events.BindClick(callback);
+            return ui.Button("item", "item").OnClick(this, callback);
         }
     }
 

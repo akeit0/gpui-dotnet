@@ -27,7 +27,7 @@ After arena warmup:
 Do not replace this model with per-element or per-style P/Invoke calls.
 
 Child fragments check root identity, generation, and index before copying. Full managed semantic
-validation runs once per assembled root or row batch, preserving diagnostics without rescanning
+validation runs once per assembled root or item batch, preserving diagnostics without rescanning
 descendants at every fragment boundary. Native validation remains authoritative at acceptance.
 Managed structural validation indexes parent links, child counts, and final Dock operation values once.
 An iterative ancestor walk rejects disconnected cycles and resolves nearest Dock areas. Panel IDs
@@ -40,7 +40,7 @@ Native validation reuses vectors for graph and resource indexes. Its graph trave
 the nearest Dock area from parent to child; final active-index and region-side operations are
 indexed once. Resource keys and Dock panel IDs use sorted UTF-8 offset records, adding
 O(keys log keys) byte comparisons without allocating key strings. Dock snapshots lazily allocate
-eight scratch bytes per node and retain that capacity for reuse; ordinary row snapshots allocate
+eight scratch bytes per node and retain that capacity for reuse; ordinary item snapshots allocate
 no Dock buffer. Scratch retains no borrowed arena pointers.
 
 Acceptance traverses rendered Views and their immediate child declarations, stopping at reused
@@ -142,7 +142,7 @@ formatting from contaminating the render measurements. Zero allocation does not 
 execution time: writes still traverse subscribers, and rendering still visits affected Views.
 
 Native artifact invalidation sorts the ingress-owned key buffer in place by `(source, artifact)`.
-Each row engine locates its source range once and tests cached leases with binary search.
+Each collection engine locates its source range once and tests cached leases with binary search.
 Unrelated engines skip their batch maps. For K keys, E engines, and B cached batches belonging
 to addressed sources, matching takes O(K log K + E log K + B log K) comparisons, replacing a
 scan of all keys per cached batch. No second key buffer or persistent artifact index is allocated.
@@ -152,7 +152,7 @@ batch identity. Duplicate and late keys remain harmless.
 All creation, tracking, and integration measurements use `GC.GetAllocatedBytesForCurrentThread`,
 four warmup batches, and three measured batches of 128 operations. All three measured batches
 produced the values above. Test setup, assertions, and output are excluded. The integration fixture
-uses a native notification stub; native decoding, layout, painting, and virtual-row cache costs
+uses a native notification stub; native decoding, layout, painting, and virtual-item cache costs
 are not measured. These are allocated bytes, not retained memory or GC pause measurements.
 
 Reproduce the View/Signal measurements with:
@@ -319,7 +319,7 @@ The render arena stores text and keys as UTF-8. Prefer UTF-8 APIs on hot paths:
 - `InputEvent.Utf8Value` owns copied bytes for async safety;
 - `InputEvent.Value` decodes lazily.
 
-Do not introduce unconditional UTF-16 round trips for keys, row data, or native control events.
+Do not introduce unconditional UTF-16 round trips for keys, item data, or native control events.
 
 ## Virtual list crossing budget
 
@@ -332,11 +332,11 @@ native cache miss:   batch 4176..4223
 managed crossings:  1
 ```
 
-Each List/Table row engine retains its active frame batches and up to four idle batches. Scrolling inside retained batches
+Each List/Table collection engine retains its active frame batches and up to four idle batches. Scrolling inside retained batches
 requires no managed call. A missing batch requires one `list_render_range` call containing all
-rows in that batch and one `accept_artifact` call after validation.
+items in that batch and one `accept_artifact` call after validation.
 
-Validation/grouping scratch belongs to the row engine and is reused across serial decodes;
+Validation/grouping scratch belongs to the collection engine and is reused across serial decodes;
 cached batches retain no scratch or string-interner tables. Snapshot strings remain independently
 owned after the temporary batch interner is dropped. A snapshot without data-valued operations
 does not allocate an operation-string table. Numeric operations and callback tokens need no such
@@ -347,15 +347,15 @@ plus at most four idle batches; the viewport and overdraw demand determine the l
 Source removal and explicit invalidation still release affected batches immediately.
 
 Each batch retains its own managed event lease. Eviction or invalidation adds one artifact-release
-callback per retired batch, never per row. Cache hits require no managed call. Binding storage is
-reused after release, while external event IDs never alias a later binding. Two row engines using
+callback per retired batch, never per item. Cache hits require no managed call. Binding storage is
+reused after release, while external event IDs never alias a later binding. Two collection engines using
 the same generated renderer have independent source IDs and leases.
 Each View with demand artifacts keeps a dense lease index. Eviction removes an entry by moving
 the last lease into its slot; View retirement visits only that owner's leases, including pending
-publications and rows without events. The index adds one optional reference per retained View,
-one slot number per session artifact entry, and a lazily allocated list of artifact IDs per row
+publications and items without events. The index adds one optional reference per retained View,
+one slot number per session artifact entry, and a lazily allocated list of artifact IDs per item
 owner. Empty lists retain their capacity for reuse until the View retires.
-Equivalent row bindings search only their current artifact's live slots. Each artifact stores a
+Equivalent item bindings search only their current artifact's live slots. Each artifact stores a
 head index; event entries link to the next slot, so binding and release need no per-artifact list.
 Release walks the chain before clearing and recycling its slots. External tokens remain unique
 even when a different artifact reuses the same storage. Root bindings have a
@@ -365,19 +365,19 @@ This adds a lazy list per event registry containing root bindings; small linear 
 within each scope rather than introducing a global callback dictionary.
 
 `ListDataSource(count, contentRevision)` lets batches survive unrelated root renders. Increment the
-revision only when row output can change. Theme changes and table column changes invalidate row
+revision only when item output can change. Theme changes and table column changes invalidate item
 snapshots while preserving viewport and measurement state.
 
-## Row rendering
+## Item rendering
 
-The generated row dispatcher invokes the `[GpuiListItem]` method once per requested row, but all
-rows are written into one arena and returned through one callback.
+The generated item dispatcher invokes the `[GpuiListItem]` method once per requested item, but all
+items are written into one arena and returned through one callback.
 
 Avoid:
 
-- managed View objects per datasource row;
-- one closure allocation per row;
-- string-formatted native element IDs in the row hot path;
+- managed View objects per datasource item;
+- one closure allocation per item;
+- string-formatted native element IDs in the item hot path;
 - nested retained resources;
 - side effects that would run twice after arena growth.
 
@@ -408,8 +408,8 @@ load per span and reports only when enabled.
 
 ### Validation and retained-render workloads
 
-`SemanticValidationCost`, `DeepRetainedTreeCost`, and `RootRenderWithCachedRowsCost` exercise full
-managed validation, retained View rendering/acceptance, and root event binding with accepted row
+`SemanticValidationCost`, `DeepRetainedTreeCost`, and `RootRenderWithCachedItemsCost` exercise full
+managed validation, retained View rendering/acceptance, and root event binding with accepted item
 artifacts. Windows x64 / .NET 10.0.11 Release measurements with tiering disabled compare the
 implementation at `b6275b0` against indexed validation and root-event slots:
 
@@ -428,13 +428,13 @@ implementation at `b6275b0` against indexed validation and root-event slots:
 | Invalidate leaf and render, depth 64 | 26.68 | 28.00 |
 
 Each result is the median of five measured batches after four warmup batches. Validation uses 16
-iterations per batch, tree workloads 32, and cached-row workloads 128. All five measured batches
-allocated zero managed bytes per operation. Input construction, initial subscription, row loading,
+iterations per batch, tree workloads 32, and cached-item workloads 128. All five measured batches
+allocated zero managed bytes per operation. Input construction, initial subscription, item loading,
 assertions, and reporting are outside the measured intervals. The validation probe builds an arena
 once; the retained-tree probes include rendering and acceptance on every operation.
 
-Each cached batch contains 48 element-only rows with shared callbacks and its own event lease.
-The 512-batch case stresses registry scaling with 24,576 rows; it is not a claim about a typical
+Each cached batch contains 48 element-only items with shared callbacks and its own event lease.
+The 512-batch case stresses registry scaling with 24,576 items; it is not a claim about a typical
 viewport's native cache size. Fixtures use the real managed root/range/acceptance paths with a native
 notification stub. They do not measure native decoding, layout, painting, or end-to-end frame time.
 Those validation changes alone did not speed up the simple deep trees; indexed graph validation
@@ -473,7 +473,7 @@ control is applied; small timing differences are inconclusive.
 ### Artifact ownership workloads
 
 `RetirementWithUnrelatedArtifactsCost` measures acceptance removing 64 child Views while the root
-retains unrelated 48-row batches. Windows x64 / .NET 10.0.11 Release with tiering disabled:
+retains unrelated 48-item batches. Windows x64 / .NET 10.0.11 Release with tiering disabled:
 
 | Unrelated batches | Session scan µs/op (`705e8aa`) | Owner index µs/op |
 | --- | ---: | ---: |
@@ -482,29 +482,29 @@ retains unrelated 48-row batches. Windows x64 / .NET 10.0.11 Release with tierin
 | 4,096 | 782.88 | 16.20 |
 
 Each value is the median of five measured batches of eight operations after four warmup batches.
-All measured batches allocated zero managed bytes per operation. Child creation, row loading,
+All measured batches allocated zero managed bytes per operation. Child creation, item loading,
 root publication, assertions, and reporting are outside the interval; acceptance and teardown are
 inside it. The large cache is a scaling stress case, not a typical viewport.
 
-`RowArtifactChurnCost` loads, accepts, and releases one 48-row batch per operation with 0, 64, or
+`ItemArtifactChurnCost` loads, accepts, and releases one 48-item batch per operation with 0, 64, or
 512 unrelated batches retained. It uses shared static callbacks and keeps assertions outside the
-measured interval. `RowBatchAllocationPatterns` separates text, shared callbacks, captured
+measured interval. `ItemBatchAllocationPatterns` separates text, shared callbacks, captured
 callbacks, and Signal reads through the native callback entry points. Windows x64 / .NET 10.0.11
 Release with tiering disabled, five measured batches of 32 operations after four warmup batches:
 
-| Row pattern | List of event slots B/batch (`d9274a8`) | Linked event slots B/batch |
+| Item pattern | List of event slots B/batch (`d9274a8`) | Linked event slots B/batch |
 | --- | ---: | ---: |
-| Constant Text, 1 / 48 / 512 rows | 88 | 88 |
-| Shared click handler, 1 / 48 / 512 rows | 160 | 88 |
-| Shared click handler and one shared Signal, 48 rows | 288 | 216 |
-| Fresh callback capturing each row index, 48 rows | 4,960 | 4,312 |
+| Constant Text, 1 / 48 / 512 items | 88 | 88 |
+| Shared click handler, 1 / 48 / 512 items | 160 | 88 |
+| Shared click handler and one shared Signal, 48 items | 288 | 216 |
+| Fresh callback capturing each item index, 48 items | 4,960 | 4,312 |
 
 The remaining 88 bytes are the artifact's reactive consumer. One observed Signal adds 128 bytes
-for dependency storage. Capturing each row index adds 88 bytes per row in application code; prefer
+for dependency storage. Capturing each item index adds 88 bytes per item in application code; prefer
 a shared callback with the native event payload when that expresses the same behavior. These
 measurements include managed rendering, validation, acceptance, and release, with warmed arena,
 registry, and dictionary capacity. They exclude native decoding, frame work, and assertions.
-The allocation contracts cover both 1-row and 512-row batches; timing is exploratory.
+The allocation contracts cover both 1-item and 512-item batches; timing is exploratory.
 
 The earlier 2,800-byte churn result included 1,152 bytes of fixture closure allocation and 1,488
 bytes of assertion overhead. The comparable framework-only baseline is 160 bytes, not 2,800.
@@ -520,14 +520,14 @@ Run the opt-in native probes separately from correctness tests:
 The script runs ignored tests matching `native_workload_measurements` in Release on one test thread and
 restores the working directory. Windows x64 measurements use five measured batches after four
 warmups. Decode and load/release use 64 operations per batch; trimming measures one fully prepared
-cache per batch. Each row has a keyed Button with width, height, and a shared click token.
+cache per batch. Each item has a keyed Button with width, height, and a shared click token.
 
 | Workload | Baseline µs/op (`95c6d02`) | Current µs/op |
 | --- | ---: | ---: |
-| Decode 48 rows into reused storage | 3.81 | 3.70 |
-| Decode 512 rows into reused storage | 41.39 | 38.09 |
-| Load, accept, and release a new 48-row batch | 5.72 | 4.76 |
-| Load, accept, and release a new 512-row batch | 45.77 | 41.56 |
+| Decode 48 items into reused storage | 3.81 | 3.70 |
+| Decode 512 items into reused storage | 41.39 | 38.09 |
+| Load, accept, and release a new 48-item batch | 5.72 | 4.76 |
+| Load, accept, and release a new 512-item batch | 45.77 | 41.56 |
 
 Warm decode reuses the snapshot, string interner, and validation scratch against an unchanged
 borrowed arena. Load/release reuses engine scratch while creating and destroying a native cached batch through the production
@@ -541,7 +541,7 @@ without another heap buffer. Compared with per-batch scratch/interner retention 
 operation-string tables at `95c6d02`, shared scratch and leaner snapshots reduce both retained
 buffers and destruction work:
 
-| Idle 48-row batches | Baseline trim µs/op | Current trim µs/op | Baseline buffer bytes before trim | Current buffer bytes before trim |
+| Idle 48-item batches | Baseline trim µs/op | Current trim µs/op | Baseline buffer bytes before trim | Current buffer bytes before trim |
 | --- | ---: | ---: | ---: | ---: |
 | 16 | 5.00 | 2.40 | 211,792 | 99,781 |
 | 128 | 28.90 | 7.20 | 1,694,336 | 771,781 |
@@ -554,12 +554,12 @@ After trimming to four idle batches, these cases retain 27,781 buffer bytes, com
 validation/grouping vectors, counting shared engine scratch only once.
 It excludes string allocations, hash-table storage, allocator overhead, ListState, GPUI elements,
 and GPU memory, so it is a retained-buffer measure rather than total heap usage. These probes
-use no data-valued operations. One 512-row snapshot plus scratch uses 103,045 buffer bytes,
-compared with 9,781 for 48 rows. Dropping batch interner tables saves additional storage that is
+use no data-valued operations. One 512-item snapshot plus scratch uses 103,045 buffer bytes,
+compared with 9,781 for 48 items. Dropping batch interner tables saves additional storage that is
 outside this counter.
 
 The tradeoff is engine-owned high-water scratch capacity: emptying the cache retains 3,781 bytes
-after 48-row batches or 39,509 after 512-row batches in these probes, until the engine is dropped.
+after 48-item batches or 39,509 after 512-item batches in these probes, until the engine is dropped.
 These numeric buffers retain no snapshot strings, event callbacks, or borrowed arena pointers.
 Separate runs have no CPU affinity or clock control; small differences are inconclusive.
 
@@ -578,10 +578,10 @@ adds 128 ancestor splits. These are validation timings, excluding decoding and r
 
 Resource scratch capacity is unchanged at 6,837 and 54,325 bytes respectively. Dock scratch
 capacity grows from 19,430 to 22,518 bytes for 128 panels and from 77,414 to 89,718 bytes for 512.
-Ordinary row decode timings remain comparable in the same probe run (3.58 µs for 48 rows,
-36.75 µs for 512); these small differences do not establish a row throughput improvement.
+Ordinary item decode timings remain comparable in the same probe run (3.58 µs for 48 items,
+36.75 µs for 512); these small differences do not establish an item throughput improvement.
 
-The native invalidation probe prepares real cached one-row batches outside the timed interval,
+The native invalidation probe prepares real cached one-item batches outside the timed interval,
 shuffles the input keys, and measures message indexing, matching, eviction, release callbacks,
 and measurement refresh together. It uses four warmups and five measured messages per case.
 The Rust callback fixture excludes managed Signal propagation and the native ingress copy.
@@ -833,7 +833,7 @@ Track at least:
 - dirty root render time and managed allocations;
 - clean repaint managed callback count (must be zero);
 - scroll-delta managed callback count (must be zero);
-- virtual row crossings, cache hits, evictions, and invalidations;
+- virtual item crossings, cache hits, evictions, and invalidations;
 - cache retention across unrelated renders;
 - arena high-water capacities, growth counts, and bytes relocated (capacity rerenders must be zero);
 - Input UTF-8 allocation and decode-on-demand behavior;

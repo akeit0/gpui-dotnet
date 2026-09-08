@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-/// Foreground-only keyboard position, independent of row-batch cache lifetime and selection.
+/// Foreground-only keyboard position, independent of item-batch cache lifetime and selection.
 pub(crate) struct CollectionCursor {
     index: Cell<usize>,
     count: Cell<usize>,
@@ -32,11 +32,11 @@ impl CollectionCursor {
         self.epoch.get()
     }
 
-    pub(crate) fn set_from_row(&self, index: usize, epoch: u64) -> bool {
+    pub(crate) fn set_from_item(&self, index: usize, epoch: u64) -> bool {
         self.epoch.get() == epoch && self.set(index)
     }
 
-    pub(crate) fn invalidate_rows(&self) {
+    pub(crate) fn invalidate_items(&self) {
         self.epoch.set(
             self.epoch
                 .get()
@@ -48,7 +48,7 @@ impl CollectionCursor {
     pub(crate) fn reset(&self, count: usize) {
         self.index.set(0);
         self.count.set(count);
-        self.invalidate_rows();
+        self.invalidate_items();
     }
 
     pub(crate) fn splice(&self, start: usize, removed: usize, inserted: usize) {
@@ -61,13 +61,13 @@ impl CollectionCursor {
         } else if index >= start + removed {
             index - removed + inserted
         } else {
-            // The active item was removed: choose its replacement/successor, or the final row.
+            // The active item was removed: choose its replacement/successor, or the final item.
             start
         };
         self.index.set(next.min(count.saturating_sub(1)));
         self.count.set(count);
         if removed != 0 || inserted != 0 {
-            self.invalidate_rows();
+            self.invalidate_items();
         }
     }
 }

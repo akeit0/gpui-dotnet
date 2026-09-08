@@ -144,10 +144,37 @@ public sealed unsafe partial class RuntimeExecutionTests
         {
             Assert.Equal(0, fixture.NativePublish(out var revision, out var arena));
             var ops = new ReadOnlySpan<OpRecord>(arena.Ops, arena.OpLength).ToArray();
+            // The stories rail is a second virtualized list; scope feed assertions to the
+            // list node that carries a projection revision.
+            var feedNodes = new ReadOnlySpan<NodeRecord>(arena.Nodes, arena.NodeLength)
+                .ToArray()
+                .Select((node, index) => (node, index))
+                .Where(pair => pair.node.Component == (ushort)ComponentId.List)
+                .Select(pair => (uint)pair.index)
+                .ToArray();
+            var feed = Assert.Single(
+                feedNodes,
+                node =>
+                    ops.Any(op =>
+                        op.Node == node && op.Code == (ushort)OpCode.ListProjectionRevision
+                    )
+            );
             var result = (
-                Assert.Single(ops, op => op.Code == (ushort)OpCode.ListProjectionRevision).A,
-                Assert.Single(ops, op => op.Code == (ushort)OpCode.ListContentRevision).A,
-                Assert.Single(ops, op => op.Code == (ushort)OpCode.ListItemCount).A
+                Assert
+                    .Single(
+                        ops,
+                        op => op.Node == feed && op.Code == (ushort)OpCode.ListProjectionRevision
+                    )
+                    .A,
+                Assert
+                    .Single(
+                        ops,
+                        op => op.Node == feed && op.Code == (ushort)OpCode.ListContentRevision
+                    )
+                    .A,
+                Assert
+                    .Single(ops, op => op.Node == feed && op.Code == (ushort)OpCode.ListItemCount)
+                    .A
             );
             var click = clickKey is null
                 ? 0

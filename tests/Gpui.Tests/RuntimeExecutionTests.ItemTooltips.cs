@@ -8,12 +8,12 @@ namespace Gpui.Tests;
 public sealed unsafe partial class RuntimeExecutionTests
 {
     [Fact]
-    public void RowTooltipRequestDecodesIdentityAndPlacementOutsideTheRow()
+    public void ItemTooltipRequestDecodesIdentityAndPlacementOutsideTheItem()
     {
-        var view = new RowTooltipProbe();
+        var view = new ItemTooltipProbe();
         using var fixture = new SessionFixture(view);
         PublishTooltipProbe(fixture, view);
-        var bytes = RowMenuPayload(51, 1051, 99);
+        var bytes = ItemMenuPayload(51, 1051, 99);
         Assert.Equal(
             0,
             fixture.Control(view.Token, (ushort)ListEventKind.TooltipRequested, bytes, 2, 7)
@@ -22,7 +22,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Equal(new ListTooltipEvent(51, 1051, 7, 99), view.Received);
         Assert.Equal(0, fixture.NativePublish(out var revision, out var arena));
         var ops = new ReadOnlySpan<OpRecord>(arena.Ops, arena.OpLength).ToArray();
-        Assert.Equal(99UL, Assert.Single(ops, op => op.Code == (ushort)OpCode.TooltipRowAnchor).A);
+        Assert.Equal(99UL, Assert.Single(ops, op => op.Code == (ushort)OpCode.TooltipItemAnchor).A);
         Assert.Equal(
             (ulong)TooltipPlacement.Right,
             Assert.Single(ops, op => op.Code == (ushort)OpCode.TooltipPlacement).A
@@ -67,23 +67,23 @@ public sealed unsafe partial class RuntimeExecutionTests
     }
 
     [Fact]
-    public void RowTooltipValidatesPacketAndPreservesOptionalRevision()
+    public void ItemTooltipValidatesPacketAndPreservesOptionalRevision()
     {
-        var view = new RowTooltipProbe();
+        var view = new ItemTooltipProbe();
         using var fixture = new SessionFixture(view);
         PublishTooltipProbe(fixture, view);
         var kind = (ushort)ListEventKind.TooltipRequested;
-        Assert.Equal(0, fixture.Control(view.Token, kind, RowMenuPayload(0, 1, 1)));
+        Assert.Equal(0, fixture.Control(view.Token, kind, ItemMenuPayload(0, 1, 1)));
         Assert.Null(view.Received!.Value.ContentRevision);
-        Assert.Equal(0, fixture.Control(view.Token, kind, RowMenuPayload(0, 1, 1), 2));
+        Assert.Equal(0, fixture.Control(view.Token, kind, ItemMenuPayload(0, 1, 1), 2));
         Assert.Equal(0UL, view.Received!.Value.ContentRevision);
-        Assert.Equal(-112, fixture.Control(view.Token, kind, RowMenuPayload(0, 0, 1)));
-        Assert.Equal(-112, fixture.Control(view.Token, kind, RowMenuPayload(0, 1, 0)));
-        Assert.Equal(-112, fixture.Control(view.Token, kind, RowMenuPayload(uint.MaxValue, 1, 1)));
-        Assert.Equal(-112, fixture.Control(view.Token, kind, RowMenuPayload(0, 1, 1), 1));
-        Assert.Equal(-112, fixture.Control(view.Token, kind, RowMenuPayload(0, 1, 1), 0, 1));
+        Assert.Equal(-112, fixture.Control(view.Token, kind, ItemMenuPayload(0, 0, 1)));
+        Assert.Equal(-112, fixture.Control(view.Token, kind, ItemMenuPayload(0, 1, 0)));
+        Assert.Equal(-112, fixture.Control(view.Token, kind, ItemMenuPayload(uint.MaxValue, 1, 1)));
+        Assert.Equal(-112, fixture.Control(view.Token, kind, ItemMenuPayload(0, 1, 1), 1));
+        Assert.Equal(-112, fixture.Control(view.Token, kind, ItemMenuPayload(0, 1, 1), 0, 1));
         Assert.Equal(-112, fixture.Control(view.Token, kind, new byte[16]));
-        var reserved = RowMenuPayload(0, 1, 1);
+        var reserved = ItemMenuPayload(0, 1, 1);
         reserved[4] = 1;
         Assert.Equal(-112, fixture.Control(view.Token, kind, reserved));
     }
@@ -117,7 +117,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             fixture.Control(
                 token,
                 (ushort)ListEventKind.TooltipRequested,
-                RowMenuPayload(0, (ulong)target.Id, 99),
+                ItemMenuPayload(0, (ulong)target.Id, 99),
                 2,
                 1
             )
@@ -128,7 +128,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             Assert
                 .Single(
                     new ReadOnlySpan<OpRecord>(arena.Ops, arena.OpLength).ToArray(),
-                    op => op.Code == (ushort)OpCode.TooltipRowAnchor
+                    op => op.Code == (ushort)OpCode.TooltipItemAnchor
                 )
                 .A
         );
@@ -139,7 +139,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Null(fixture.Session.Failure);
     }
 
-    private static void PublishTooltipProbe(SessionFixture fixture, RowTooltipProbe view)
+    private static void PublishTooltipProbe(SessionFixture fixture, ItemTooltipProbe view)
     {
         Assert.Equal(0, fixture.NativePublish(out var revision, out var arena));
         view.Token = Assert
@@ -151,7 +151,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Equal(0, fixture.Complete(revision));
     }
 
-    private sealed class RowTooltipProbe : ProbeView
+    private sealed class ItemTooltipProbe : ProbeView
     {
         internal ulong Token;
         internal ListTooltipEvent? Received;
@@ -179,7 +179,7 @@ public sealed unsafe partial class RuntimeExecutionTests
             return Received is { } request
                 ? ui.VStack(
                     list,
-                    ui.RowTooltip("item-tooltip", request, ui.Text($"Item {request.ItemId}"))
+                    ui.ItemTooltip("item-tooltip", request, ui.Text($"Item {request.ItemId}"))
                 )
                 : list;
         }

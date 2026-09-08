@@ -6,11 +6,11 @@ namespace Gpui;
 public readonly unsafe ref partial struct RenderContext
 {
     /// <summary>
-    /// Declares window-owned content for a delayed List/Table tooltip request, outside row renderers.
+    /// Declares window-owned content for a delayed List/Table tooltip request, outside item renderers.
     /// Timing and placement come from the collection's OnTooltipRequested options.
     /// Movement, eviction, dismissal, or declaration removal expires the native anchor.
     /// </summary>
-    public Element<TooltipTag> RowTooltip(
+    public Element<TooltipTag> ItemTooltip(
         ReadOnlySpan<char> key,
         ListTooltipEvent request,
         Element content
@@ -18,14 +18,14 @@ public readonly unsafe ref partial struct RenderContext
     {
         if (request.AnchorId == 0)
             throw new ArgumentException(
-                "A native row tooltip request is required.",
+                "A native item tooltip request is required.",
                 nameof(request)
             );
         if (key.IsEmpty)
             throw new ArgumentException("A tooltip key cannot be empty.", nameof(key));
         var element = ArenaWriter.AddNode<TooltipTag>(_arena, ComponentId.Tooltip, key);
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
-        ArenaWriter.AddU64(element.Inner, OpCode.TooltipRowAnchor, request.AnchorId);
+        ArenaWriter.AddU64(element.Inner, OpCode.TooltipItemAnchor, request.AnchorId);
         ArenaWriter.AddChild(element.Inner, Div());
         ArenaWriter.AddChild(element.Inner, content);
         return element;

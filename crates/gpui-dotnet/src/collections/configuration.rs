@@ -7,13 +7,22 @@ use crate::{
     scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics},
     semantic::{
         OP_LIST_ALIGNMENT, OP_LIST_BATCH_SIZE, OP_LIST_CONTENT_REVISION,
-        OP_LIST_ESTIMATED_ITEM_HEIGHT_PX, OP_LIST_ITEM_COUNT, OP_LIST_ON_ACTIVATED,
-        OP_LIST_ON_SELECTION_REQUESTED, OP_LIST_OVERDRAW_PX, OP_LIST_PROJECTION_REVISION,
-        OP_LIST_RENDERER, OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER, OP_SCROLLBAR_WIDTH,
-        OP_TABLE_COLUMN,
+        OP_LIST_ESTIMATED_ITEM_EXTENT_PX, OP_LIST_ITEM_COUNT, OP_LIST_ON_ACTIVATED,
+        OP_LIST_ON_SELECTION_REQUESTED, OP_LIST_ORIENTATION, OP_LIST_OVERDRAW_PX,
+        OP_LIST_PROJECTION_REVISION, OP_LIST_RENDERER, OP_RESOURCE_OWNER, OP_SCROLLBAR_GUTTER,
+        OP_SCROLLBAR_WIDTH, OP_TABLE_COLUMN,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot},
 };
+
+/// Virtualized scroll axis. Vertical lists stack items top-to-bottom with measured heights;
+/// horizontal lists lay items out left-to-right with measured widths.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ListOrientation {
+    #[default]
+    Vertical,
+    Horizontal,
+}
 
 pub(crate) struct ListConfiguration {
     pub(crate) tooltip_token: u64,
@@ -25,7 +34,9 @@ pub(crate) struct ListConfiguration {
     pub(crate) batch_size: usize,
     pub(crate) overdraw: Pixels,
     pub(crate) alignment: ListAlignment,
-    pub(crate) estimated_item_height: Pixels,
+    /// Estimated item extent along the scroll axis: heights vertically, widths horizontally.
+    pub(crate) estimated_item_extent: Pixels,
+    pub(crate) orientation: ListOrientation,
     pub(crate) content_revision: Option<u64>,
     pub(crate) scrollbar: ScrollbarMetrics,
     pub(crate) projection_revision: Option<u64>,
@@ -42,8 +53,8 @@ pub(crate) struct TableColumnSpec {
     pub(crate) alignment: u32,
 }
 
-/// Column metadata for one table resource. A change between snapshots means row layout
-/// changed, which invalidates every cached row batch.
+/// Column metadata for one table resource. A change between snapshots means cell layout
+/// changed, which invalidates every cached item batch.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TableSpec {
     pub(crate) columns: Vec<TableColumnSpec>,
@@ -73,7 +84,7 @@ pub(crate) fn unpack_table_column(record: u64) -> Option<(f32, bool, u32)> {
     Some((width, unit == 1, alignment))
 }
 
-/// Table node data is the row-engine key followed by one NUL-separated key/header string pair
+/// Table node data is the collection-engine key followed by one NUL-separated key/header string pair
 /// per column; the numeric width/unit/alignment records arrive as one OP_TABLE_COLUMN op per
 /// column in the same order. Malformed combinations return `None`; the materializer falls back
 /// to an error element.
@@ -159,12 +170,25 @@ pub(crate) fn list_configuration(
         1 => ListAlignment::Bottom,
         _ => ListAlignment::Top,
     };
-    let estimated_item_height = snapshot
+    let orientation = match last_u32(snapshot, node, OP_LIST_ORIENTATION).unwrap_or(0) {
+        1 => ListOrientation::Horizontal,
+        _ => ListOrientation::Vertical,
+    };
+    // One axis-relative hint. Absence falls back to the per-orientation default, matching
+    // the managed `estimatedItemExtent` contract.
+    let estimated_item_extent = snapshot
         .ops(node)
         .iter()
         .rev()
-        .find(|op| op.code == OP_LIST_ESTIMATED_ITEM_HEIGHT_PX)
-        .map_or(px(40.), |op| px(f32::from_bits(op.a as u32)));
+        .find(|op| op.code == OP_LIST_ESTIMATED_ITEM_EXTENT_PX)
+        .map_or(
+            if orientation == ListOrientation::Horizontal {
+                px(160.)
+            } else {
+                px(40.)
+            },
+            |op| px(f32::from_bits(op.a as u32)),
+        );
     let content_revision = snapshot
         .ops(node)
         .iter()
@@ -200,7 +224,8 @@ pub(crate) fn list_configuration(
         batch_size,
         overdraw,
         alignment,
-        estimated_item_height,
+        estimated_item_extent,
+        orientation,
         content_revision,
         scrollbar,
         projection_revision: snapshot
