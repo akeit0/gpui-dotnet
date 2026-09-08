@@ -201,6 +201,16 @@ public sealed class ApplicationModelTests
         Assert.Equal((1024UL, 8UL), application.ImageCacheBudgetSnapshot());
     }
 
+    [Fact]
+    public void EvictImageValidatesPathWithoutAHost()
+    {
+        var application = new GpuiApplication();
+
+        application.EvictImage("C:/pictures/photo.png");
+
+        Assert.Throws<ArgumentException>(() => application.EvictImage(" "));
+    }
+
     private sealed class ProbeView : View, IGeneratedViewFactory<ProbeView>
     {
         internal static int Constructions;

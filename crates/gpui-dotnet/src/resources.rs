@@ -177,6 +177,18 @@ impl ResourceStore {
         self.images.borrow().clone()
     }
 
+    /// Drops one image path from the view's cache, if present. Unknown paths are a no-op.
+    /// Used by explicit managed eviction (changed files); the next paint reloads from disk.
+    pub(crate) fn evict_image(&self, path: &str, window: &mut Window, cx: &mut App) {
+        let Some(cache) = self.existing_image_cache() else {
+            return;
+        };
+        let source = crate::images::image_resource(path);
+        cache.update(cx, |cache, cx| {
+            cache.evict_path(&source, window, cx);
+        });
+    }
+
     /// Forces the next render to reconcile image retention even when the snapshot revision
     /// is unchanged. Used after a budget change so a shrunken tier trims promptly.
     pub(crate) fn note_image_budget_changed(&self) {

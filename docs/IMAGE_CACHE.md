@@ -61,6 +61,15 @@ and all windows reconcile on their next render so a shrunken budget trims prompt
 intentionally no per-image retain option: anything the snapshot declares is pinned, so an app
 that wants an image kept simply keeps its node mounted.
 
+## Changed files
+
+The cache keys by filesystem path and never revalidates content: call
+`GpuiApplication.EvictImage(path)` after overwriting a mounted file. Eviction broadcasts to
+every view, drops the path's decoded bytes and GPU texture (unknown paths are a no-op), and
+re-renders so the next paint reloads from disk. The path must match the value passed to the
+image element exactly. No framework polls file timestamps: like Flutter (`evict()`), Glide
+(`signature()`), and WPF (`IgnoreImageCache`), invalidation is explicit and app-driven.
+
 ## Comparison with other frameworks
 
 | Framework | Live (pinned) | Bounded spill | Second chance | Notes |

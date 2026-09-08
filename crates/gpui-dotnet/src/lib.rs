@@ -407,7 +407,9 @@ unsafe fn dispatch_application_command_inner(
     let is_theme = command.command == 8;
     let is_managed_code_update = command.command == 9;
     let is_image_budget = command.command == crate::abi::IMAGE_CACHE_BUDGET_COMMAND;
-    let is_application_scoped = is_theme || is_managed_code_update || is_image_budget;
+    let is_evict_image = command.command == crate::abi::IMAGE_EVICT_COMMAND;
+    let is_application_scoped =
+        is_theme || is_managed_code_update || is_image_budget || is_evict_image;
     if application_id == 0
         || (!is_application_scoped && command.window_id == 0)
         || command.reserved != 0
@@ -483,6 +485,7 @@ unsafe fn dispatch_application_command_inner(
         2 | 3 | 6 | 7 => command.flags == 0 && no_title && no_position && no_size,
         4 => command.flags == 0 && !no_title && no_position && no_size,
         5 => command.flags == 0 && no_title && no_position && size_valid,
+        11 => command.flags == 0 && command.window_id == 0 && !no_title && no_position && no_size,
         _ => false,
     };
     if !payload_valid {
@@ -527,6 +530,9 @@ unsafe fn dispatch_application_command_inner(
             window_id: command.window_id,
             width: command.width,
             height: command.height,
+        },
+        11 => app_host::ApplicationCommand::EvictImage {
+            path: title.expect("validated evict path"),
         },
         _ => unreachable!("command kind was validated"),
     };

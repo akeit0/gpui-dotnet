@@ -230,6 +230,31 @@ public sealed class GpuiApplication
         host?.SetImageCacheBudget(maxBytes, maxEntries);
     }
 
+    /// <summary>
+    /// Drops one image path from every view's native image cache, releasing its decoded bytes
+    /// and GPU texture. The next paint reloads the file from disk. Unknown paths are a silent
+    /// no-op. Use this after overwriting a file whose path stays mounted; the cache keys by
+    /// path and never revalidates content on its own. The path must match the value passed to
+    /// the image element exactly.
+    /// </summary>
+    public void EvictImage(string path)
+    {
+        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        IGpuiApplicationHost? host;
+        lock (_gate)
+        {
+            if (_state == ApplicationState.Stopped)
+            {
+                throw new InvalidOperationException("The GPUI application has already stopped.");
+            }
+
+            host = _host;
+        }
+
+        host?.EvictImage(path);
+    }
+
     internal (ulong MaxBytes, ulong MaxEntries)? ImageCacheBudgetSnapshot()
     {
         lock (_gate)
@@ -648,6 +673,7 @@ internal interface IGpuiApplicationHost
     void SetMenuBar(IReadOnlyList<GpuiMenu> menus);
     void SetTheme(GpuiTheme theme);
     void SetImageCacheBudget(ulong maxBytes, ulong maxEntries);
+    void EvictImage(string path);
     void OpenWindow(GpuiWindow window, GpuiWindowSnapshot snapshot);
     void CloseWindow(ulong windowId);
     void ActivateWindow(ulong windowId);

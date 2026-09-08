@@ -350,6 +350,8 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     public void SetWindowTitle(ulong windowId, string title) => Dispatch(4, windowId, title);
 
+    public void EvictImage(string path) => Dispatch(11, 0, path);
+
     public void ResizeWindow(ulong windowId, float width, float height) =>
         Dispatch(5, windowId, width: width, height: height);
 

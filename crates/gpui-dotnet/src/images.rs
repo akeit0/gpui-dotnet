@@ -259,6 +259,27 @@ impl ManagedImageCache {
             .copied()
     }
 
+    /// Drops one path immediately, releasing decoded bytes and its GPU texture. Unknown
+    /// paths are a silent no-op. Returns whether an entry was present.
+    pub(crate) fn evict_path(
+        &mut self,
+        source: &Resource,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> bool {
+        let key = hash(source);
+        let Some(mut item) = self.entries.remove(&key) else {
+            return false;
+        };
+        if let Some(position) = self.order.iter().position(|candidate| *candidate == key) {
+            self.order.remove(position);
+        }
+        if let Some(Ok(image)) = item.get() {
+            cx.drop_image(image, Some(window));
+        }
+        true
+    }
+
     #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.entries.len()
@@ -657,6 +678,56 @@ mod tests {
                 "spilled image texture must leave the sprite atlas",
             );
         });
+    }
+
+    #[gpui::test]
+    fn evict_path_releases_bytes_texture_and_reloads(cx: &mut gpui::TestAppContext) {
+        let _serial = serial();
+        let dir = image_dir("evict-path");
+        write_bmp(&dir.join("a.bmp"), 64, 64, 41);
+        let source = image_resource(dir.join("a.bmp").to_string_lossy().as_ref());
+
+        let cache = cx.update(ManagedImageCache::new);
+        let (_view, window) = cx.add_window_view(|_, _| ImageProbe {
+            cache: Some(cache.clone()),
+            sources: vec![source.clone()],
+        });
+        assert!(pump_until_loaded(
+            window,
+            &cache,
+            std::slice::from_ref(&source)
+        ));
+        let image = loaded_image(window, &cache, &source).expect("image decoded");
+        window.update(|window, _| {
+            assert!(window.has_image_atlas_entry(&image));
+        });
+
+        // Unknown paths are a silent no-op.
+        let missing = image_resource(dir.join("missing.bmp").to_string_lossy().as_ref());
+        window.update(|window, cx| {
+            assert!(
+                !cache.update(cx, |cache, cx| cache.evict_path(&missing, window, cx)),
+                "unknown path must evict nothing"
+            );
+        });
+        window.update(|_, cx| assert_eq!(cache.read(cx).len(), 1));
+
+        // Explicit eviction drops decoded bytes and the GPU texture ...
+        window.update(|window, cx| {
+            assert!(cache.update(cx, |cache, cx| cache.evict_path(&source, window, cx)));
+        });
+        window.update(|window, cx| {
+            assert_eq!(cache.read(cx).len(), 0);
+            assert!(!window.has_image_atlas_entry(&image));
+        });
+
+        // ... and the next paint reloads the file from disk.
+        assert!(pump_until_loaded(
+            window,
+            &cache,
+            std::slice::from_ref(&source)
+        ));
+        window.update(|_, cx| assert_eq!(cache.read(cx).len(), 1));
     }
 
     #[gpui::test]

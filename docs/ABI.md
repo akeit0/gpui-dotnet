@@ -307,6 +307,7 @@ Current commands are:
 | Resize | positive finite width and height |
 | SetTheme | versioned appearance and resolved semantic palette, application-scoped |
 | SetImageCacheBudget | versioned spill budget (bytes, entries), application-scoped |
+| EvictImage | non-empty UTF-8 path, application-scoped broadcast |
 | ManagedCodeUpdated | empty application-scoped Hot Reload invalidation |
 
 Open flags encode optional position, activation, and `System`, `Custom`, or `Hidden` title-bar
@@ -320,6 +321,11 @@ rejects unsupported versions or appearance values. Resolved roles feed GPUI.NET 
 the global `gpui-base` theme; application style variants and Rust foundation types do not cross the
 ABI. The managed-code update command clears native List/Table item snapshots and dirties each managed
 window without resetting retained control or Dock identity and interaction state.
+
+The evict command (id 11) carries a non-empty UTF-8 filesystem path in the command record's
+byte range, validated like window titles. It broadcasts to every view, which drops the path
+from its image cache (decoded bytes plus GPU texture) and re-renders; unknown paths are a
+silent no-op and the next paint reloads from disk.
 
 The budget command (id 10) uses the byte pointer as a private fixed-size payload. Payload
 version 1 is sequential little-endian `u32` version, `u32` reserved (zero), `u64` maximum spill

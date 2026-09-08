@@ -169,6 +169,7 @@ pub struct NativeImageCacheBudget {
 
 pub const IMAGE_CACHE_BUDGET_VERSION: u32 = 1;
 pub const IMAGE_CACHE_BUDGET_COMMAND: u16 = 10;
+pub const IMAGE_EVICT_COMMAND: u16 = 11;
 
 /// Validates an image-cache budget command record and copies out the budget. Pure so the
 /// contract is unit-testable without a running application; the entry point only enqueues.
