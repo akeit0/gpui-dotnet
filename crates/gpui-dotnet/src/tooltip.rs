@@ -10,7 +10,7 @@ use crate::{app_host::ManagedView, resources::ResourceKey};
 
 const TOOLTIP_PRIORITY: usize = 200;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub(crate) struct TooltipConfiguration {
     pub(crate) placement: u32,
     pub(crate) alignment: u32,
@@ -18,6 +18,46 @@ pub(crate) struct TooltipConfiguration {
     pub(crate) hide_delay_ms: u64,
     pub(crate) gap: f32,
     pub(crate) margin: f32,
+}
+
+impl Default for TooltipConfiguration {
+    fn default() -> Self {
+        Self {
+            placement: 0,
+            alignment: 1,
+            show_delay_ms: 500,
+            hide_delay_ms: 300,
+            gap: 8.,
+            margin: 8.,
+        }
+    }
+}
+
+impl TooltipConfiguration {
+    pub(crate) fn from_snapshot(
+        snapshot: &crate::snapshot::ValidatedSnapshot,
+        node: &crate::snapshot::SnapshotNode,
+    ) -> Self {
+        use crate::semantic::*;
+        let value = |code| {
+            snapshot
+                .ops(node)
+                .iter()
+                .rev()
+                .find(|op| op.code == code)
+                .map(|op| op.a)
+        };
+        let defaults = Self::default();
+        Self {
+            placement: value(OP_TOOLTIP_PLACEMENT).map_or(defaults.placement, |a| a as u32),
+            alignment: value(OP_TOOLTIP_ALIGNMENT).map_or(defaults.alignment, |a| a as u32),
+            show_delay_ms: value(OP_TOOLTIP_SHOW_DELAY_MS).unwrap_or(defaults.show_delay_ms),
+            hide_delay_ms: value(OP_TOOLTIP_HIDE_DELAY_MS).unwrap_or(defaults.hide_delay_ms),
+            gap: value(OP_TOOLTIP_GAP_PX).map_or(defaults.gap, |a| f32::from_bits(a as u32)),
+            margin: value(OP_TOOLTIP_MARGIN_PX)
+                .map_or(defaults.margin, |a| f32::from_bits(a as u32)),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -210,7 +250,7 @@ fn hide_immediately(state: &gpui::Entity<TooltipState>, window: &mut Window, cx:
     }
 }
 
-fn foundation_placement(placement: u32) -> Placement {
+pub(crate) fn foundation_placement(placement: u32) -> Placement {
     match placement {
         1 => Placement::Top,
         2 => Placement::Right,
@@ -219,7 +259,7 @@ fn foundation_placement(placement: u32) -> Placement {
     }
 }
 
-fn foundation_alignment(alignment: u32) -> Align {
+pub(crate) fn foundation_alignment(alignment: u32) -> Align {
     match alignment {
         0 => Align::Start,
         2 => Align::End,

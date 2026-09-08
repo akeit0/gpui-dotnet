@@ -24,6 +24,7 @@ mod presence;
 mod presentation;
 mod resources;
 mod row_menu;
+mod row_tooltip;
 mod scrolling;
 #[path = "semantic.g.rs"]
 mod semantic;

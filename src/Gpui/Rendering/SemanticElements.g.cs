@@ -34,6 +34,7 @@ namespace Gpui
     public interface IExtensionElementTag { }
     public interface IKeyMouseElementTag { }
     public interface IAccessibleElementTag { }
+    public interface ITooltipOptionsElementTag { }
 
     public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag, IKeyMouseElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
@@ -44,14 +45,14 @@ namespace Gpui
     public readonly struct DividerTag : IStyledElementTag { }
     public readonly struct SpacerTag : IStyledElementTag { }
     public readonly struct ScrollTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IScrollableElementTag { }
-    public readonly struct ListTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag { }
+    public readonly struct ListTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag, ITooltipOptionsElementTag { }
     public readonly struct ImageTag : IStyledElementTag, IImageElementTag { }
     public readonly struct InputTag : IAccessibleElementTag, IStyledElementTag, INativeStateElementTag, IInputElementTag { }
     public readonly struct OverlayTag : IParentElementTag, INativeStateElementTag, IOverlayElementTag { }
-    public readonly struct TooltipTag : IParentElementTag, INativeStateElementTag, ITooltipElementTag { }
+    public readonly struct TooltipTag : IParentElementTag, INativeStateElementTag, ITooltipElementTag, ITooltipOptionsElementTag { }
     public readonly struct ContextMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IContextMenuElementTag { }
     public readonly struct PopoverMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IPopoverMenuElementTag { }
-    public readonly struct TableTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IVirtualizedElementTag, ITableElementTag { }
+    public readonly struct TableTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IVirtualizedElementTag, ITableElementTag, ITooltipOptionsElementTag { }
     public readonly struct SliderTag : IAccessibleElementTag, IStyledElementTag, INativeStateElementTag, ISliderElementTag { }
     public readonly struct DrawingTag : IStyledElementTag, IParentElementTag, IDrawingElementTag { }
     public readonly struct PathTag : IPathElementTag { }
@@ -170,20 +171,22 @@ namespace Gpui
         Italic = 1,
     }
 
-    public enum InputWriteEventKind : ushort
-    {
-        /// <summary>Opt-in conditional write result. Payload: u64 request ID (1..2^62-1), u32 input_write_outcome, zero u32 reserved, all little-endian. Revision is the nonzero native revision at decision time; flags are zero. Delivered after native borrows are released, while the event binding remains live.</summary>
-        Completed = 22,
-    }
-
     public enum ListEventKind : ushort
     {
+        /// <summary>Delayed hover on a marked row element with stable ItemId. Uses the Row ContextMenu 24-byte identity/anchor packet and revision flag. No pointer motion crosses the ABI.</summary>
+        TooltipRequested = 24,
         /// <summary>Opt-in single-row selection request. Uses the List Activated payload and flag layout; selection and presentation remain application-owned.</summary>
         SelectionRequested = 21,
         /// <summary>Right-click on a row with a stable ItemId. Carries the 16-byte row identity packet followed by a nonzero U64 native anchor. Only flag 1 (content revision present) is allowed.</summary>
         ContextMenuRequested = 23,
         /// <summary>Opt-in row activation. Data is 16 little-endian bytes: u32 index, zero u32 reserved, u64 ItemId (zero when absent). Flags bit 0 selects keyboard instead of pointer, bit 1 indicates a datasource content revision in revision; all other bits are zero. Without bit 1, revision is zero.</summary>
         Activated = 20,
+    }
+
+    public enum InputWriteEventKind : ushort
+    {
+        /// <summary>Opt-in conditional write result. Payload: u64 request ID (1..2^62-1), u32 input_write_outcome, zero u32 reserved, all little-endian. Revision is the nonzero native revision at decision time; flags are zero. Delivered after native borrows are released, while the event binding remains live.</summary>
+        Completed = 22,
     }
 
     public enum InputEventKind : ushort

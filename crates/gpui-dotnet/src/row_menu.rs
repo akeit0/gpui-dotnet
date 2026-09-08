@@ -83,7 +83,7 @@ impl RowMenus {
         window: &mut Window,
         cx: &mut App,
     ) -> bool {
-        let Some((artifact, events)) = source.borrow().row_menu_identity(index) else {
+        let Some((artifact, events)) = source.borrow().cached_identified_row(index) else {
             return false;
         };
         self.dismiss(window, cx);
@@ -155,7 +155,7 @@ impl RowMenus {
         };
         let source = source.borrow();
         source
-            .row_menu_identity(request.index)
+            .cached_identified_row(request.index)
             .is_some_and(|(artifact, events)| {
                 artifact == request.artifact && events.item_id == Some(request.item_id)
             })

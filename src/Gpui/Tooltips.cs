@@ -1,3 +1,5 @@
+using Gpui.Interop;
+
 namespace Gpui;
 
 /// <summary>Preferred side of a tooltip relative to its trigger.</summary>
@@ -97,4 +99,14 @@ public readonly struct TooltipOptions
         !_initialized ? DefaultHideDelayMilliseconds : checked((uint)HideDelay.TotalMilliseconds);
     internal float EffectiveGap => _initialized ? Gap : DefaultGap;
     internal float EffectiveMargin => _initialized ? Margin : DefaultMargin;
+
+    internal void WriteTo(Element element)
+    {
+        ArenaWriter.AddU32(element, OpCode.TooltipPlacement, (uint)EffectivePlacement);
+        ArenaWriter.AddU32(element, OpCode.TooltipAlignment, (uint)EffectiveAlignment);
+        ArenaWriter.AddU32(element, OpCode.TooltipShowDelayMs, EffectiveShowDelayMilliseconds);
+        ArenaWriter.AddU32(element, OpCode.TooltipHideDelayMs, EffectiveHideDelayMilliseconds);
+        ArenaWriter.AddF32(element, OpCode.TooltipGapPx, EffectiveGap);
+        ArenaWriter.AddF32(element, OpCode.TooltipMarginPx, EffectiveMargin);
+    }
 }

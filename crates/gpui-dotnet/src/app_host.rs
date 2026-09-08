@@ -515,6 +515,7 @@ impl Render for ManagedView {
         self.refresh_if_dirty();
         self.overlay_stack.begin_frame();
         self.resources.row_menus.begin_frame(window, cx);
+        self.resources.row_tooltips.begin_frame();
         let theme = *self.theme.borrow();
         let dynamic_owners = if self.error.is_none() && self.has_snapshot {
             active_dynamic_owners(&self.snapshot)
@@ -540,15 +541,18 @@ impl Render for ManagedView {
         };
 
         self.resources.row_menus.finish_declarations(window, cx);
+        self.resources.row_tooltips.finish_declarations(window);
 
         if trace::enabled() {
             trace::end_frame(&self.list_telemetry_sums());
         }
         self.schedule_dynamic_frame(dynamic_owners, window, cx);
 
+        let row_tooltips = self.resources.row_tooltips.clone();
         div()
             .tab_group()
-            .on_key_down(|event, window, cx| {
+            .on_key_down(move |event, window, cx| {
+                row_tooltips.dismiss(window);
                 let modifiers = event.keystroke.modifiers;
                 if event.keystroke.key != "tab"
                     || modifiers.control
@@ -569,6 +573,9 @@ impl Render for ManagedView {
             .bg(rgba(theme.background))
             .text_color(rgba(theme.text))
             .child(content)
+            .child(crate::row_tooltip::frame_end(
+                self.resources.row_tooltips.clone(),
+            ))
     }
 }
 
@@ -1521,6 +1528,8 @@ mod tests {
             .unwrap()
             .accept(&list_presence, &HashSet::new(), 6);
         let config = crate::resources::ListConfiguration {
+            tooltip_token: 0,
+            tooltip: Default::default(),
             item_count: 100,
             renderer_token: 1,
             activation_token: 0,

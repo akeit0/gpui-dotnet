@@ -80,6 +80,7 @@ impl ResourceCommand {
 
 pub(crate) struct ResourceStore {
     pub(crate) row_menus: Rc<crate::row_menu::RowMenus>,
+    pub(crate) row_tooltips: Rc<crate::row_tooltip::RowTooltips>,
     session_id: u64,
     callbacks: ManagedCallbacks,
     theme: SharedTheme,
@@ -144,6 +145,7 @@ impl ResourceStore {
     pub(crate) fn new(session_id: u64, callbacks: ManagedCallbacks, theme: SharedTheme) -> Self {
         Self {
             row_menus: Rc::new(crate::row_menu::RowMenus::default()),
+            row_tooltips: Rc::new(crate::row_tooltip::RowTooltips::default()),
             session_id,
             callbacks,
             theme,
@@ -159,6 +161,26 @@ impl ResourceStore {
             active_scratch: RefCell::new(HashSet::new()),
             extension_active_scratch: RefCell::new(HashSet::new()),
         }
+    }
+
+    pub(crate) fn row_tooltip_target(
+        &self,
+        key: &ResourceKey,
+        index: usize,
+        target: u32,
+        child: AnyElement,
+    ) -> AnyElement {
+        let Some(source) = self.lists.borrow().get(key).cloned() else {
+            return child;
+        };
+        crate::row_tooltip::Target {
+            child,
+            source,
+            index,
+            target,
+            tooltips: self.row_tooltips.clone(),
+        }
+        .into_any_element()
     }
 
     pub(crate) fn theme(&self) -> NativeTheme {
@@ -600,6 +622,8 @@ pub(crate) struct SliderConfiguration {
 }
 
 pub(crate) struct ListConfiguration {
+    pub(crate) tooltip_token: u64,
+    pub(crate) tooltip: crate::tooltip::TooltipConfiguration,
     pub(crate) item_count: usize,
     pub(crate) renderer_token: u64,
     pub(crate) activation_token: u64,
@@ -801,6 +825,8 @@ impl ListRowEvents {
 }
 
 pub(crate) struct ManagedListResource {
+    pub(crate) tooltip_token: u64,
+    pub(crate) tooltip: crate::tooltip::TooltipConfiguration,
     source_id: u64,
     session_id: u64,
     callbacks: ManagedCallbacks,
@@ -838,6 +864,8 @@ impl ManagedListResource {
     ) -> Self {
         Self {
             source_id: next_source_id(),
+            tooltip_token: configuration.tooltip_token,
+            tooltip: configuration.tooltip,
             session_id,
             callbacks,
             state: ListState::new(
@@ -871,6 +899,8 @@ impl ManagedListResource {
     }
 
     fn configure(&mut self, configuration: &ListConfiguration, snapshot_revision: u64) {
+        self.tooltip_token = configuration.tooltip_token;
+        self.tooltip = configuration.tooltip;
         if self.activation_token != configuration.activation_token
             || self.selection_token != configuration.selection_token
         {
@@ -1207,7 +1237,7 @@ impl ManagedListResource {
         self.cached_row_identity(index)
     }
 
-    pub(crate) fn row_menu_identity(&self, index: usize) -> Option<(u64, ListRowEvents)> {
+    pub(crate) fn cached_identified_row(&self, index: usize) -> Option<(u64, ListRowEvents)> {
         let start = (index / self.batch_size) * self.batch_size;
         let artifact = self
             .batches
@@ -1644,6 +1674,13 @@ pub(crate) fn list_configuration(
         .unwrap_or(DEFAULT_SCROLLBAR_WIDTH.into());
     let scrollbar = ScrollbarMetrics::new(px(scrollbar_width), scrollbar_gutter);
     Some(ListConfiguration {
+        tooltip_token: snapshot
+            .ops(node)
+            .iter()
+            .rev()
+            .find(|op| op.code == crate::semantic::OP_LIST_ON_TOOLTIP_REQUESTED)
+            .map_or(0, |op| op.a),
+        tooltip: crate::tooltip::TooltipConfiguration::from_snapshot(snapshot, node),
         item_count,
         renderer_token: renderer,
         activation_token: snapshot
@@ -1721,6 +1758,7 @@ fn shared(value: &str) -> SharedString {
 mod tests {
     use crate::snapshot::RetainedStrings;
     mod measurements;
+    mod row_tooltips;
     use super::*;
 
     #[derive(Default)]
@@ -1730,6 +1768,7 @@ mod tests {
         ops: Vec<crate::abi::OpRecord>,
         clickable: bool,
         item_ids: bool,
+        tooltip_targets: bool,
         ranges: Vec<(u32, u32)>,
         activations: Vec<(u64, u16, u64, Vec<u8>)>,
         activation_resource: Option<std::rc::Weak<RefCell<ManagedListResource>>>,
@@ -1818,6 +1857,35 @@ mod tests {
                             b: 0,
                         },
                     ]);
+                }
+            }
+            if capture.tooltip_targets {
+                for index in 0..rows {
+                    for (code, value_kind, a) in [
+                        (
+                            crate::semantic::OP_ROW_TOOLTIP_TARGET,
+                            crate::semantic::ValueKind::U32,
+                            1,
+                        ),
+                        (
+                            crate::semantic::OP_WIDTH_PX,
+                            crate::semantic::ValueKind::F32,
+                            200f32.to_bits() as u64,
+                        ),
+                        (
+                            crate::semantic::OP_HEIGHT_PX,
+                            crate::semantic::ValueKind::F32,
+                            40f32.to_bits() as u64,
+                        ),
+                    ] {
+                        capture.ops.push(crate::abi::OpRecord {
+                            node: index + 1,
+                            code,
+                            value_kind: value_kind as u16,
+                            a,
+                            b: 0,
+                        });
+                    }
                 }
             }
             if capture.item_ids {
@@ -2736,6 +2804,8 @@ mod tests {
 
     fn configuration(content_revision: Option<u64>) -> ListConfiguration {
         ListConfiguration {
+            tooltip_token: 0,
+            tooltip: Default::default(),
             item_count: 100,
             renderer_token: 1,
             activation_token: 0,

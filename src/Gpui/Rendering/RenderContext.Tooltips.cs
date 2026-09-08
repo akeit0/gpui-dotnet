@@ -6,6 +6,26 @@ namespace Gpui;
 public readonly unsafe ref partial struct RenderContext
 {
     /// <summary>
+    /// Declares window-owned content for a delayed List/Table tooltip request, outside row renderers.
+    /// Timing and placement come from the collection's OnTooltipRequested options.
+    /// Movement, eviction, dismissal, or declaration removal expires the native anchor.
+    /// </summary>
+    public Element<TooltipTag> RowTooltip(
+        ReadOnlySpan<char> key, ListTooltipEvent request, Element content)
+    {
+        if (request.AnchorId == 0)
+            throw new ArgumentException("A native row tooltip request is required.", nameof(request));
+        if (key.IsEmpty)
+            throw new ArgumentException("A tooltip key cannot be empty.", nameof(key));
+        var element = ArenaWriter.AddNode<TooltipTag>(_arena, ComponentId.Tooltip, key);
+        ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
+        ArenaWriter.AddU64(element.Inner, OpCode.TooltipRowAnchor, request.AnchorId);
+        ArenaWriter.AddChild(element.Inner, Div());
+        ArenaWriter.AddChild(element.Inner, content);
+        return element;
+    }
+
+    /// <summary>
     /// Declares native hover behavior around a trigger and paints the content in a deferred,
     /// viewport-aware layer. Tooltip content can be any semantic element.
     /// </summary>
@@ -55,28 +75,7 @@ public readonly unsafe ref partial struct RenderContext
     )
     {
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.TooltipPlacement,
-            (uint)options.EffectivePlacement
-        );
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.TooltipAlignment,
-            (uint)options.EffectiveAlignment
-        );
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.TooltipShowDelayMs,
-            options.EffectiveShowDelayMilliseconds
-        );
-        ArenaWriter.AddU32(
-            element.Inner,
-            OpCode.TooltipHideDelayMs,
-            options.EffectiveHideDelayMilliseconds
-        );
-        ArenaWriter.AddF32(element.Inner, OpCode.TooltipGapPx, options.EffectiveGap);
-        ArenaWriter.AddF32(element.Inner, OpCode.TooltipMarginPx, options.EffectiveMargin);
+        options.WriteTo(element.Inner);
         ArenaWriter.AddChild(element.Inner, trigger);
         ArenaWriter.AddChild(element.Inner, content);
     }

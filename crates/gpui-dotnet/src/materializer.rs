@@ -83,11 +83,9 @@ use crate::{
         OP_TABLE_HEADER_BACKGROUND_RGBA, OP_TABLE_HEADER_BORDER_RGBA, OP_TABLE_HEADER_TEXT_RGBA,
         OP_TABLE_SHOW_HEADER, OP_TEXT_ALIGN, OP_TEXT_BACKGROUND, OP_TEXT_DECORATION_COLOR,
         OP_TEXT_DECORATION_NONE, OP_TEXT_DECORATION_SOLID, OP_TEXT_DECORATION_WAVY,
-        OP_TEXT_ELLIPSIS, OP_TEXT_RGBA, OP_TEXT_TRUNCATE, OP_TOOLTIP_ALIGNMENT, OP_TOOLTIP_GAP_PX,
-        OP_TOOLTIP_HIDE_DELAY_MS, OP_TOOLTIP_MARGIN_PX, OP_TOOLTIP_PLACEMENT,
-        OP_TOOLTIP_SHOW_DELAY_MS, OP_TOP_PERCENT, OP_TOP_PX, OP_UNDERLINE, OP_V_STACK,
-        OP_VISIBILITY, OP_WHITE_SPACE, OP_WIDTH_PERCENT, OP_WIDTH_PX, OP_WINDOW_CONTROL_AREA,
-        component_metadata,
+        OP_TEXT_ELLIPSIS, OP_TEXT_RGBA, OP_TEXT_TRUNCATE, OP_TOP_PERCENT, OP_TOP_PX, OP_UNDERLINE,
+        OP_V_STACK, OP_VISIBILITY, OP_WHITE_SPACE, OP_WIDTH_PERCENT, OP_WIDTH_PX,
+        OP_WINDOW_CONTROL_AREA, component_metadata,
     },
     snapshot::{SnapshotNode, ValidatedSnapshot, parse_font_fallbacks, parse_font_features},
     theme::NativeTheme,
@@ -1027,17 +1025,24 @@ impl ManagedView {
         let children = snapshot.children(node);
         let trigger = self.materialize_node(children[0], snapshot, window, cx);
         let content = self.materialize_node(children[1], snapshot, window, cx);
-        let configuration = TooltipConfiguration {
-            placement: last_op(snapshot, node, OP_TOOLTIP_PLACEMENT).map_or(0, |op| op.a as u32),
-            alignment: last_op(snapshot, node, OP_TOOLTIP_ALIGNMENT).map_or(1, |op| op.a as u32),
-            show_delay_ms: last_op(snapshot, node, OP_TOOLTIP_SHOW_DELAY_MS).map_or(500, |op| op.a),
-            hide_delay_ms: last_op(snapshot, node, OP_TOOLTIP_HIDE_DELAY_MS).map_or(300, |op| op.a),
-            gap: last_op(snapshot, node, OP_TOOLTIP_GAP_PX)
-                .map_or(8.0, |op| f32::from_bits(op.a as u32)),
-            margin: last_op(snapshot, node, OP_TOOLTIP_MARGIN_PX)
-                .map_or(8.0, |op| f32::from_bits(op.a as u32)),
-        };
-        tooltip(key, trigger, content, configuration, window, cx)
+        if let Some(anchor) = last_op(snapshot, node, crate::semantic::OP_TOOLTIP_ROW_ANCHOR) {
+            return crate::row_tooltip::tooltip(
+                self.resources.row_tooltips.clone(),
+                anchor.a,
+                key.owner_view,
+                content,
+                window,
+                cx,
+            );
+        }
+        tooltip(
+            key,
+            trigger,
+            content,
+            TooltipConfiguration::from_snapshot(snapshot, node),
+            window,
+            cx,
+        )
     }
 
     fn materialize_context_menu(
@@ -1188,6 +1193,30 @@ fn restore_overlay_focus(
 /// stateful element identity stable across splices and supplies the default event payload for
 /// rows that do not bake an explicit payload. A missing ID falls back to the positional index.
 pub(crate) fn materialize_snapshot_node_detached(
+    node_id: u32,
+    snapshot: &ValidatedSnapshot,
+    session_id: u64,
+    callbacks: ManagedCallbacks,
+    resources: &ResourceStore,
+    list_key: &crate::resources::ResourceKey,
+    item_index: usize,
+    item_id: Option<u64>,
+) -> AnyElement {
+    let child = materialize_row_node(
+        node_id, snapshot, session_id, callbacks, resources, list_key, item_index, item_id,
+    );
+    let node = &snapshot.nodes[node_id as usize];
+    if item_id.is_some()
+        && last_op(snapshot, node, crate::semantic::OP_ROW_TOOLTIP_TARGET)
+            .is_some_and(|op| op.a != 0)
+    {
+        resources.row_tooltip_target(list_key, item_index, node_id, child)
+    } else {
+        child
+    }
+}
+
+fn materialize_row_node(
     node_id: u32,
     snapshot: &ValidatedSnapshot,
     session_id: u64,

@@ -37,6 +37,16 @@ window-local in scope, owned by the callback's View, single-use, and invalid aft
 loss. Invalid/expired anchors produce no menu. This changes the semantic hash only; ABI 7 layouts
 and entry points are unchanged.
 
+List/Table operation 380 (`ListOnTooltipRequested`) binds delayed hover requests. The shared
+`tooltip_options` capability allows Tooltip, List, and Table to use operations 610–615 for placement,
+alignment, show/hide delays, gap, and viewport margin. Styled operation 382 (`RowTooltipTarget`) is a Boolean marker on
+an element inside a virtual item. Control event 24 uses the same validated 24-byte identity/anchor
+packet and optional revision flag as event 23. No pointer-motion events cross the ABI.
+Tooltip operation 616 (`TooltipRowAnchor`) binds the requested content to the marked element's
+native bounds; it uses the existing two-child Tooltip shape with an empty trigger and takes timing
+and placement from the collection request. Anchors are window-scoped, owned by the callback's View,
+and expire on dismissal or anchor loss. These operations change the schema hash only, preserving ABI 7.
+
 ```c
 const gpui_dotnet_api_v3* gpui_dotnet_get_api(uint32_t requested_version);
 ```

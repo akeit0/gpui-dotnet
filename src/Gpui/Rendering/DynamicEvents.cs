@@ -11,6 +11,33 @@ namespace Gpui;
 public static partial class ElementExtensions
 {
     /// <summary>
+    /// Requests tooltip content after hovering a marked row element (500 ms by default).
+    /// Options configure the complete native tooltip behavior; RowTooltip supplies only its content.
+    /// Use RowTooltipTarget in rows and keep ListDataSource.ContentRevision stable while opening.
+    /// </summary>
+    public static Element<TTag> OnTooltipRequested<TTag, TView>(
+        this Element<TTag> element, TView view, Action<TView, ListTooltipEvent> callback,
+        TooltipOptions options = default
+    )
+        where TTag : unmanaged, IVirtualizedElementTag
+        where TView : ViewBase
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(callback);
+        ArenaWriter.AddCallback(element.Inner, OpCode.ListOnTooltipRequested, view.Runtime.Events.BindListTooltip(callback));
+        options.WriteTo(element.Inner);
+        return element;
+    }
+
+    /// <summary>Marks an element inside a virtual row as the hover target for its collection's tooltip.</summary>
+    public static Element<TTag> RowTooltipTarget<TTag>(this Element<TTag> element, bool enabled = true)
+        where TTag : unmanaged, IStyledElementTag
+    {
+        ArenaWriter.AddU32(element.Inner, OpCode.RowTooltipTarget, enabled ? 1u : 0u);
+        return element;
+    }
+
+    /// <summary>
     /// Requests a window-owned context menu on right-click of a row with ItemId.
     /// Keep ListDataSource.ContentRevision stable while rendering the requested menu.
     /// </summary>
