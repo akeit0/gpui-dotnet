@@ -274,7 +274,7 @@ internal static unsafe class ManagedValidator
                 throw new InvalidOperationException($"Operation {i} uses reserved event token 0.");
             }
 
-            var payloadError = SemanticRegistry.PayloadError(code, operation.A);
+            var payloadError = SemanticRegistry.PayloadError(code, operation.A, operation.B);
             if (payloadError != 0)
             {
                 throw new InvalidOperationException(

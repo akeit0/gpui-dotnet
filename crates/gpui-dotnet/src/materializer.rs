@@ -994,7 +994,9 @@ impl ManagedView {
             }));
         }
 
-        host = host.child(content);
+        let mut bindings = key_mouse_bindings(node, snapshot);
+        bindings.isolate_shortcuts |= modal;
+        host = attach_key_mouse(host, &bindings, cx).child(content);
         let host = if modal {
             host.focus_trap((overlay_id, "focus-trap"), &focus)
                 .into_any_element()
@@ -1261,6 +1263,9 @@ fn materialize_row_node(
     // Observer key/mouse/modifier/hover/move/wheel/drop bindings need focus and bubbling
     // through a mounted View; virtual rows are element-only snapshots without View lifetime.
     if last_op(snapshot, node, OP_ON_KEY_DOWN).is_some_and(|op| op.a != 0)
+        || last_op(snapshot, node, crate::semantic::OP_ON_SHORTCUT).is_some()
+        || last_op(snapshot, node, crate::semantic::OP_ISOLATE_SHORTCUTS)
+            .is_some_and(|op| op.a != 0)
         || last_op(snapshot, node, OP_ON_KEY_UP).is_some_and(|op| op.a != 0)
         || last_op(snapshot, node, OP_ON_MOUSE_DOWN).is_some_and(|op| op.a != 0)
         || last_op(snapshot, node, OP_ON_MOUSE_UP).is_some_and(|op| op.a != 0)
@@ -1273,7 +1278,7 @@ fn materialize_row_node(
         || last_op(snapshot, node, OP_ON_FILE_DROP).is_some_and(|op| op.a != 0)
     {
         return div()
-            .child("Key and mouse observer events inside a virtualized list row are not supported.")
+            .child("Shortcuts and key/mouse observer events inside a virtualized list row are not supported.")
             .into_any_element();
     }
 
@@ -1558,10 +1563,12 @@ fn invoke_native_click(
     }
 }
 
-/// Observer key/mouse bindings declared on one semantic node. Tokens are render-bound
-/// event entries; zero means unbound. Payload word B is always zero for these ops.
-#[derive(Clone, Copy, Default)]
+/// Key/mouse observers and shortcut declarations on one semantic node. Tokens are render-bound;
+/// shortcut descriptors use payload word B, while observer payload words remain zero.
+#[derive(Clone, Default)]
 struct KeyMouseBindings {
+    shortcuts: Vec<crate::shortcuts::Binding>,
+    isolate_shortcuts: bool,
     key_down: u64,
     key_up: u64,
     mouse_down: u64,
@@ -1577,6 +1584,17 @@ struct KeyMouseBindings {
 
 fn key_mouse_bindings(node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> KeyMouseBindings {
     KeyMouseBindings {
+        shortcuts: snapshot
+            .ops(node)
+            .iter()
+            .filter(|op| op.code == crate::semantic::OP_ON_SHORTCUT)
+            .map(|op| crate::shortcuts::Binding {
+                token: op.a,
+                descriptor: op.b,
+            })
+            .collect(),
+        isolate_shortcuts: last_op(snapshot, node, crate::semantic::OP_ISOLATE_SHORTCUTS)
+            .is_some_and(|op| op.a != 0),
         key_down: last_op(snapshot, node, OP_ON_KEY_DOWN).map_or(0, |op| op.a),
         key_up: last_op(snapshot, node, OP_ON_KEY_UP).map_or(0, |op| op.a),
         mouse_down: last_op(snapshot, node, OP_ON_MOUSE_DOWN).map_or(0, |op| op.a),
@@ -1806,9 +1824,8 @@ fn invoke_file_drop_control_event(
     unsafe { callback(session_id, event_token, &event) }
 }
 
-/// Attaches observer key/mouse listeners without consuming the events. Handlers never
-/// call `stop_propagation`, so focused Input/Slider/List/Overlay behavior wins and the
-/// bound element only sees events that bubble to it.
+/// Shortcuts apply their native consumption policy; observer listeners remain non-consuming.
+/// Both operate on the focus ancestry after descendant controls have handled the event.
 fn attach_key_mouse<T>(
     mut element: T,
     bindings: &KeyMouseBindings,
@@ -1817,6 +1834,38 @@ fn attach_key_mouse<T>(
 where
     T: InteractiveElement,
 {
+    if !bindings.shortcuts.is_empty() || bindings.isolate_shortcuts {
+        let shortcuts = bindings.shortcuts.clone();
+        let isolated = bindings.isolate_shortcuts;
+        element = element.on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
+            let matched = this
+                .resources
+                .shortcuts
+                .resolve(&shortcuts, isolated, event);
+            if matched.consume {
+                cx.stop_propagation();
+            }
+            if let Some(token) = matched.token {
+                let event = NativeControlEvent {
+                    kind: crate::semantic::EVENT_SHORTCUT_INVOKED,
+                    flags: 0,
+                    revision: 0,
+                    data: std::ptr::null(),
+                    data_length: 0,
+                    reserved: 0,
+                    reserved2: 0,
+                };
+                let status = unsafe {
+                    this.callbacks.control_event.expect("validated callbacks")(
+                        this.view_id,
+                        token,
+                        &event,
+                    )
+                };
+                this.after_click(status, cx);
+            }
+        }));
+    }
     if bindings.key_down != 0 {
         let token = bindings.key_down;
         element = element.on_key_down(cx.listener(move |this, event: &KeyDownEvent, _, cx| {
@@ -3270,6 +3319,7 @@ fn last_op<'a>(
 
 #[cfg(test)]
 mod tests {
+    mod shortcuts;
     use super::*;
     use crate::{
         abi::{ChildRecord, NodeRecord, OpRecord, RenderArena},

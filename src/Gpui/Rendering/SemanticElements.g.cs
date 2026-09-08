@@ -35,8 +35,9 @@ namespace Gpui
     public interface IKeyMouseElementTag { }
     public interface IAccessibleElementTag { }
     public interface ITooltipOptionsElementTag { }
+    public interface IShortcutScopeElementTag { }
 
-    public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag, IKeyMouseElementTag { }
+    public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag, IKeyMouseElementTag, IShortcutScopeElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
     public readonly struct ButtonTag : IAccessibleElementTag, IStyledElementTag, IParentElementTag, IInteractiveElementTag, IDisableableElementTag, IWindowControlElementTag, IKeyMouseElementTag { }
     public readonly struct CheckboxTag : IAccessibleElementTag, IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag, IDisableableElementTag, IKeyMouseElementTag { }
@@ -48,7 +49,7 @@ namespace Gpui
     public readonly struct ListTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag, ITooltipOptionsElementTag { }
     public readonly struct ImageTag : IStyledElementTag, IImageElementTag { }
     public readonly struct InputTag : IAccessibleElementTag, IStyledElementTag, INativeStateElementTag, IInputElementTag { }
-    public readonly struct OverlayTag : IParentElementTag, INativeStateElementTag, IOverlayElementTag { }
+    public readonly struct OverlayTag : IParentElementTag, INativeStateElementTag, IOverlayElementTag, IShortcutScopeElementTag { }
     public readonly struct TooltipTag : IParentElementTag, INativeStateElementTag, ITooltipElementTag, ITooltipOptionsElementTag { }
     public readonly struct ContextMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IContextMenuElementTag { }
     public readonly struct PopoverMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IPopoverMenuElementTag { }
@@ -63,6 +64,96 @@ namespace Gpui
     public readonly struct DockPanelTag : IParentElementTag, IDockPanelElementTag { }
     public readonly struct DockRegionTag : IParentElementTag, IDockContainerElementTag, IDockRegionElementTag { }
     public readonly struct NativeExtensionTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IExtensionElementTag { }
+
+    public enum ShortcutKey : uint
+    {
+        A = 1,
+        B = 2,
+        C = 3,
+        D = 4,
+        E = 5,
+        F = 6,
+        G = 7,
+        H = 8,
+        I = 9,
+        J = 10,
+        K = 11,
+        L = 12,
+        M = 13,
+        N = 14,
+        O = 15,
+        P = 16,
+        Q = 17,
+        R = 18,
+        S = 19,
+        T = 20,
+        U = 21,
+        V = 22,
+        W = 23,
+        X = 24,
+        Y = 25,
+        Z = 26,
+        D0 = 27,
+        D1 = 28,
+        D2 = 29,
+        D3 = 30,
+        D4 = 31,
+        D5 = 32,
+        D6 = 33,
+        D7 = 34,
+        D8 = 35,
+        D9 = 36,
+        Escape = 37,
+        Enter = 38,
+        Tab = 39,
+        Backspace = 40,
+        Delete = 41,
+        Space = 42,
+        Left = 43,
+        Right = 44,
+        Up = 45,
+        Down = 46,
+        Home = 47,
+        End = 48,
+        PageUp = 49,
+        PageDown = 50,
+        Insert = 51,
+        F1 = 52,
+        F2 = 53,
+        F3 = 54,
+        F4 = 55,
+        F5 = 56,
+        F6 = 57,
+        F7 = 58,
+        F8 = 59,
+        F9 = 60,
+        F10 = 61,
+        F11 = 62,
+        F12 = 63,
+        F13 = 64,
+        F14 = 65,
+        F15 = 66,
+        F16 = 67,
+        F17 = 68,
+        F18 = 69,
+        F19 = 70,
+        F20 = 71,
+        F21 = 72,
+        F22 = 73,
+        F23 = 74,
+        F24 = 75,
+        Minus = 76,
+        Equals = 77,
+        LeftBracket = 78,
+        RightBracket = 79,
+        Backslash = 80,
+        Semicolon = 81,
+        Quote = 82,
+        Comma = 83,
+        Period = 84,
+        Slash = 85,
+        Backtick = 86,
+    }
 
     public enum InputWriteOutcome : uint
     {
@@ -169,6 +260,12 @@ namespace Gpui
     {
         Normal = 0,
         Italic = 1,
+    }
+
+    public enum ShortcutEventKind : ushort
+    {
+        /// <summary>Matched native shortcut. Empty payload, flags and revision zero; callback owns command behavior.</summary>
+        Invoked = 25,
     }
 
     public enum ListEventKind : ushort
@@ -474,6 +571,14 @@ namespace Gpui
         {
             ArenaWriter.AddChildren(parent.Inner, children);
             return parent;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> IsolateShortcuts<TTag>(this Element<TTag> element, bool value)
+            where TTag : unmanaged, IShortcutScopeElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.IsolateShortcuts, value ? 1u : 0u);
+            return element;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

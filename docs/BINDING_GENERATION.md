@@ -35,6 +35,7 @@ The schema defines:
 - capabilities such as styled, interactive, or checked;
 - operation IDs, value kinds, managed API types, compatibility requirements, and scalar/payload
   constraints;
+- packed shortcut validation of callback payload word B, alongside ordinary value-word A validation;
 - `uint` style enums (C# names plus explicit wire values, e.g. `FlexWrap`, `MouseCursor`);
 - per-operation `managedMethod` fluent APIs (`f32`/`f32x2`/`u32`/`u64`/`color` scalars with optional
   defaults and fail-fast guards, enum-typed parameters, `string` UTF-8 data payloads, or `strings`/

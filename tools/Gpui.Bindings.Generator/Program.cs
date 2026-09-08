@@ -651,6 +651,7 @@ internal static class BindingGenerator
                 or "f32Min"
                 or "f32Range"
                 or "packedTableColumn"
+                or "packedCommandShortcut"
             )
         )
         {
@@ -680,6 +681,8 @@ internal static class BindingGenerator
                 $"Operation {operation.Name} uses packedTableColumn validation but is not u64."
             );
         }
+        if (validation.Kind == "packedCommandShortcut" && (operation.Value != "callback" || operation.Payload != "event"))
+            throw new InvalidOperationException("packedCommandShortcut requires a callback with an event payload.");
         if (validation.MinExclusive && validation.Kind != "f32Min")
         {
             throw new InvalidOperationException(
@@ -1203,7 +1206,7 @@ internal static class BindingGenerator
         builder.AppendLine("        };");
         builder.AppendLine();
         builder.AppendLine(
-            "        internal static int PayloadError(OpCode operation, ulong a) => operation switch"
+            "        internal static int PayloadError(OpCode operation, ulong a, ulong b) => operation switch"
         );
         builder.AppendLine("        {");
         foreach (
@@ -1957,11 +1960,11 @@ internal static class BindingGenerator
             .Select(operation => $"OP_{UpperSnake(operation.Name)}")
             .ToArray();
         builder.AppendLine("pub fn allows_payload(operation: u16) -> bool {");
-        builder.AppendLine(
-            payloadOperations.Length == 0
-                ? "    false"
-                : $"    matches!(operation, {string.Join(" | ", payloadOperations)})"
-        );
+        builder.AppendLine("    match operation {");
+        foreach (var operation in payloadOperations)
+            builder.AppendLine($"        {operation} => true,");
+        builder.AppendLine("        _ => false,");
+        builder.AppendLine("    }");
         builder.AppendLine("}");
         builder.AppendLine();
         builder.AppendLine("fn f32_payload_in_range(a: u64, min: f32, max: f32) -> bool {");
@@ -1978,7 +1981,17 @@ internal static class BindingGenerator
         builder.AppendLine("        && ((a >> 32) & 0b11 != 1 || f32::from_bits(a as u32) <= 1.0)");
         builder.AppendLine("}");
         builder.AppendLine();
-        builder.AppendLine("pub fn payload_error(operation: u16, a: u64) -> i32 {");
+        builder.AppendLine("fn valid_packed_shortcut(b: u64) -> bool {");
+        builder.AppendLine("    (b >> 27) == 0");
+        builder.AppendLine("        && (b & 0xffff) >= 1");
+        builder.AppendLine("        && (b & 0xffff) <= 86");
+        builder.AppendLine("        && ((b >> 16) & 0xff) <= 63");
+        builder.AppendLine("        && (((b & 0xffff) > 36 && (b & 0xffff) < 76 && (b & 0xffff) != 42)");
+        builder.AppendLine("            || (b & (41u64 << 16)) != 0)");
+        builder.AppendLine("        && ((b & (32u64 << 16)) == 0 || (b & (9u64 << 16)) == 0)");
+        builder.AppendLine("}");
+        builder.AppendLine();
+        builder.AppendLine("pub fn payload_error(operation: u16, a: u64, b: u64) -> i32 {");
         builder.AppendLine("    match operation {");
         foreach (
             var operation in schema.Operations.Where(operation => operation.Validation is not null)
@@ -2125,6 +2138,7 @@ internal static class BindingGenerator
     private static string CSharpValidationExpression(Validation validation) =>
         validation.Kind switch
         {
+            "packedCommandShortcut" => "(b >> 27) == 0 && (b & 0xffff) >= 1 && (b & 0xffff) <= 86 && ((b >> 16) & 0xff) <= 63 && (((b & 0xffff) > 36 && (b & 0xffff) < 76 && (b & 0xffff) != 42) || (b & (41UL << 16)) != 0) && ((b & (32UL << 16)) == 0 || (b & (9UL << 16)) == 0)",
             "bool" => "a <= 1UL",
             "u32Min" => $"a >= {CSharpUnsignedLiteral(validation.Min!.Value)}",
             "u32Max" => $"a <= {CSharpUnsignedLiteral(validation.Max!.Value)}",
@@ -2144,6 +2158,7 @@ internal static class BindingGenerator
     private static string RustValidationExpression(Validation validation) =>
         validation.Kind switch
         {
+            "packedCommandShortcut" => "valid_packed_shortcut(b)",
             "bool" => "a <= 1",
             "u32Min" => $"a >= {RustUnsignedLiteral(validation.Min!.Value)}",
             "u32Max" => $"a <= {RustUnsignedLiteral(validation.Max!.Value)}",

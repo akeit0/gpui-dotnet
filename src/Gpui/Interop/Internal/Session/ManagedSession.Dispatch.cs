@@ -179,6 +179,9 @@ internal sealed unsafe partial class ManagedSession
     internal void DispatchListTooltip(ulong eventToken, ListTooltipEvent value) =>
         DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchListTooltipCore(id, data));
 
+    internal void DispatchShortcut(ulong eventToken) =>
+        DispatchEvent(eventToken, 0, static (owner, id, _) => owner.Runtime.Events.DispatchShortcutCore(id));
+
     internal void DispatchListSelection(ulong eventToken, ListSelectionEvent value) =>
         DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchListSelectionCore(id, data));
 

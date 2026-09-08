@@ -170,6 +170,7 @@ internal static class NativeStatus
                 -56 => "InvalidResourceIdentityOrBorderStyle",
                 -63 => "EmptyOperationDataOrWrongRowCount",
                 -64 => "InvalidFontDataOrMissingArtifact",
+                -66 => "InvalidShortcutBinding",
                 _ => null,
             },
             _ => null,

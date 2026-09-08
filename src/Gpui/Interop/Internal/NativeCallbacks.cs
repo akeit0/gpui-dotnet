@@ -311,6 +311,12 @@ internal static unsafe class NativeCallbacks
                     session.DispatchInputWrite(eventToken,
                         new InputWriteResult(requestId, (InputWriteOutcome)outcome, nativeEvent->revision));
                 }
+                else if (nativeEvent->kind == (ushort)ShortcutEventKind.Invoked)
+                {
+                    if (nativeEvent->flags != 0 || nativeEvent->revision != 0 || nativeEvent->data_length != 0)
+                        return -112;
+                    session.DispatchShortcut(eventToken);
+                }
                 else if (nativeEvent->kind is (ushort)ListEventKind.ContextMenuRequested or (ushort)ListEventKind.TooltipRequested)
                 {
                     if ((nativeEvent->flags & ~2u) != 0 || nativeEvent->data_length != 24
