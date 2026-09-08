@@ -4,6 +4,7 @@ mod accessibility;
 mod allocation_tracking;
 mod app_host;
 mod arena;
+mod collections;
 mod components;
 mod context_menu;
 mod demand;

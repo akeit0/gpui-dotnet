@@ -1530,7 +1530,7 @@ mod tests {
             .lock()
             .unwrap()
             .accept(&list_presence, &HashSet::new(), 6);
-        let config = crate::resources::ListConfiguration {
+        let config = crate::collections::ListConfiguration {
             tooltip_token: 0,
             tooltip: Default::default(),
             item_count: 100,
