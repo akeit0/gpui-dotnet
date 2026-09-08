@@ -29,8 +29,6 @@ GPUI applications need it; do not maintain a GPUI fork or expose unsupported rol
 
 ## Structural refactors
 
-- Separate event-token and binding lifetime management from typed managed event dispatch. Reduce
-  repetitive binders while preserving NativeAOT support and avoiding boxed event payloads.
 - Move managed implementation sources into `src/Gpui.Core`, matching the project that compiles
   them, and organize them by subsystem. Keep `src/Gpui` focused on the application package facade.
 

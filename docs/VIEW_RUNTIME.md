@@ -14,6 +14,22 @@ ownership, native attachment storage, and optional facilities have separate resp
 | EffectScope | One accepted relationship's cleanup, callbacks, cancellation, and work | One effect generation |
 | ManagedSession | Composition, publication, acceptance, faults, and subtree teardown | One native window |
 
+## Event binding lifetime and typed dispatch
+
+`ViewEventRegistry` owns binding lifetime only: slot reuse with never-reused identities,
+token issuance, render/artifact scopes, and release/reset. Typed invocation needs no
+per-binding state: each built-in payload dispatches through a static per-`TEvent` invoker
+that reinterprets the stored callback with its bound target, passing struct payloads by value
+without boxing. Shortcuts (`Action<TView>`, no payload) use the same static shape. Only the
+open universe of native extension event types keeps a registry, mapping each entry to its
+`TEvent.Decode` routing. Adding an ordinary payload needs only a one-line `Bind*` and a
+one-line `Dispatch*Core`; no universal payload struct or per-family binder class. No
+reflection, `DynamicInvoke`, or runtime code generation is involved, keeping the path
+NativeAOT-compatible. Correct pairing is the caller's contract: entries always store each
+callback with its bound target, tokens route by native kind to the matching dispatch core,
+stale tokens are tolerated while malformed or future ids remain errors, and only extension
+entries carry a fallible dispatch-contract lookup.
+
 ## Construction and publication
 
 Generated Spec methods produce typed values; a declaration does not execute user construction.
