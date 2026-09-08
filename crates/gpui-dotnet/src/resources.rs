@@ -6,9 +6,9 @@ use std::{
 };
 
 use gpui::{
-    AnyElement, AppContext, Context, Entity, IntoElement, ListAlignment, ListOffset, ListState,
-    ParentElement, Pixels, Point, ScrollHandle, SharedString, Subscription, WeakEntity, Window,
-    div, point, px,
+    AnyElement, AppContext, Context, Entity, FocusHandle, IntoElement, ListAlignment, ListOffset,
+    ListState, ParentElement, Pixels, Point, ScrollHandle, SharedString, Subscription, WeakEntity,
+    Window, div, point, px,
 };
 
 use crate::{
@@ -35,8 +35,8 @@ use crate::{
         OP_SLIDER_MIN, OP_SLIDER_ON_CHANGED, OP_SLIDER_ON_RELEASED, OP_SLIDER_RANGE_END,
         OP_SLIDER_RANGE_START, OP_SLIDER_SCALE, OP_SLIDER_STEP, OP_SLIDER_THUMB_BORDER_RGBA,
         OP_SLIDER_THUMB_RGBA, OP_SLIDER_TRACK_RGBA, OP_SLIDER_VALUE, OP_TABLE_COLUMN,
-        RESOURCE_DOCK, RESOURCE_INPUT, RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER,
-        component_metadata,
+        RESOURCE_DOCK, RESOURCE_FOCUS, RESOURCE_INPUT, RESOURCE_LIST, RESOURCE_SCROLL,
+        RESOURCE_SLIDER, component_metadata,
     },
     slider::{ManagedSlider, SliderPresentation, SliderValue},
     snapshot::{SnapshotScratch, ValidatedSnapshot},
@@ -89,6 +89,7 @@ pub(crate) struct ResourceStore {
     lists: RefCell<HashMap<ResourceKey, Rc<RefCell<ManagedListResource>>>>,
     tables: RefCell<HashMap<ResourceKey, Rc<TableSpec>>>,
     inputs: RefCell<HashMap<ResourceKey, Entity<ManagedInput>>>,
+    focus_targets: RefCell<HashMap<ResourceKey, FocusHandle>>,
     sliders: RefCell<HashMap<ResourceKey, Entity<ManagedSlider>>>,
     docks: RefCell<HashMap<ResourceKey, Rc<RefCell<ManagedDockResource>>>>,
     dock_subscriptions: RefCell<HashMap<ResourceKey, Subscription>>,
@@ -155,6 +156,7 @@ impl ResourceStore {
             lists: RefCell::new(HashMap::new()),
             tables: RefCell::new(HashMap::new()),
             inputs: RefCell::new(HashMap::new()),
+            focus_targets: RefCell::new(HashMap::new()),
             sliders: RefCell::new(HashMap::new()),
             docks: RefCell::new(HashMap::new()),
             dock_subscriptions: RefCell::new(HashMap::new()),
@@ -187,6 +189,38 @@ impl ResourceStore {
 
     pub(crate) fn theme(&self) -> NativeTheme {
         *self.theme.borrow()
+    }
+
+    pub(crate) fn focus_target(
+        &self,
+        key: &ResourceKey,
+        tab_stop: bool,
+        window: &mut Window,
+        cx: &mut Context<ManagedView>,
+    ) -> FocusHandle {
+        let focus = self
+            .focus_targets
+            .borrow_mut()
+            .entry(key.clone())
+            .or_insert_with(|| cx.focus_handle())
+            .clone()
+            .tab_stop(tab_stop);
+        // Keep the current handle metadata as well as its stable identity.
+        self.focus_targets
+            .borrow_mut()
+            .insert(key.clone(), focus.clone());
+        let pending = self
+            .pending
+            .borrow_mut()
+            .remove(&(RESOURCE_FOCUS, key.clone()));
+        for command in pending.into_iter().flatten() {
+            match command.command {
+                crate::semantic::COMMAND_FOCUS_FOCUS => focus.focus(window, cx),
+                crate::semantic::COMMAND_FOCUS_BLUR if focus.is_focused(window) => window.blur(cx),
+                _ => {}
+            }
+        }
+        focus
     }
 
     pub(crate) fn extensions(&self) -> &NativeExtensionStore {
@@ -439,7 +473,7 @@ impl ResourceStore {
         let applied = match command.resource_kind {
             RESOURCE_SCROLL => self.apply_scroll_command(&command),
             RESOURCE_LIST => self.apply_list_command(&command),
-            RESOURCE_INPUT | RESOURCE_SLIDER | RESOURCE_DOCK => false,
+            RESOURCE_INPUT | RESOURCE_SLIDER | RESOURCE_DOCK | RESOURCE_FOCUS => false,
             _ => true,
         };
         if !applied {
@@ -505,6 +539,9 @@ impl ResourceStore {
         let mut extension_active = self.extension_active_scratch.borrow_mut();
         extension_active.clear();
         for node in &snapshot.nodes {
+            if let Some(key) = focus_target_key(snapshot, node) {
+                active.insert((RESOURCE_FOCUS, key));
+            }
             let Some(metadata) = component_metadata(node.component) else {
                 continue;
             };
@@ -568,6 +605,9 @@ impl ResourceStore {
         self.inputs
             .borrow_mut()
             .retain(|key, _| active.contains(&(RESOURCE_INPUT, key.clone())));
+        self.focus_targets
+            .borrow_mut()
+            .retain(|key, _| active.contains(&(RESOURCE_FOCUS, key.clone())));
         self.sliders
             .borrow_mut()
             .retain(|key, _| active.contains(&(RESOURCE_SLIDER, key.clone())));
@@ -1450,6 +1490,17 @@ pub(crate) fn resource_key(
         return None;
     }
     Some(ResourceKey::new(owner, node.data.clone()))
+}
+
+pub(crate) fn focus_target_key(
+    snapshot: &ValidatedSnapshot,
+    node: &crate::snapshot::SnapshotNode,
+) -> Option<ResourceKey> {
+    let key = snapshot.last_data_op(node, crate::semantic::OP_FOCUS_TARGET)?;
+    Some(ResourceKey::new(
+        last_u32(snapshot, node, OP_RESOURCE_OWNER)?,
+        key,
+    ))
 }
 
 /// Packs one column's numeric record into an OP_TABLE_COLUMN payload: width f32 bits in the

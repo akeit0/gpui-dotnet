@@ -164,7 +164,7 @@ policies remain in the row engine. Non-range snapshot tests exercise the same li
 custom demand-renderer registration and a general request ABI are not exposed yet; the existing
 `list_render_range` callback remains this adapter's wire entry point.
 
-Scroll, List, Table, Input, Slider, and Dock are declarations plus stable resource identities.
+Scroll, List, Table, Input, Slider, Dock, and custom focus targets are declarations plus stable resource identities.
 Identity is `(window session, owner View handle, UTF-8 key)`. Rust stores the mutable resource object and
 reconfigures it from later snapshots instead of recreating it.
 
@@ -243,6 +243,12 @@ that marker at the start of each key dispatch; callbacks retain ordinary managed
 Modal overlays isolate page shortcuts. Text-producing shortcuts require a command modifier, and
 the router yields to platform character-input events, without per-control protection hooks.
 No focus handles or per-key matching decisions cross the ABI.
+
+Custom Div focus targets reuse the retained resource lifecycle. An opt-in key operation binds one
+native FocusHandle to the container itself; no wrapper or managed focus-state mirror is created.
+The accepted snapshot controls presence and Tab participation, and queued Focus/Blur commands apply
+during materialization. Removal retires the handle and pending commands. GPUI owns pointer focus,
+Tab traversal, descendant precedence, and keyboard focus paint.
 
 One `GpuiApplication` maps to one native `gpui::Application`. Every `GpuiWindow` maps to an
 independent managed session and native root view. Window IDs are stable 64-bit values and also serve

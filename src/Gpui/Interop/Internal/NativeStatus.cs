@@ -171,6 +171,7 @@ internal static class NativeStatus
                 -63 => "EmptyOperationDataOrWrongRowCount",
                 -64 => "InvalidFontDataOrMissingArtifact",
                 -66 => "InvalidShortcutBinding",
+                -67 => "InvalidFocusTarget",
                 _ => null,
             },
             _ => null,

@@ -35,6 +35,8 @@ namespace Gpui.Interop
 
     internal enum OpCode : ushort
     {
+        FocusTarget = 912,
+        FocusTabStop = 913,
         OnShortcut = 910,
         IsolateShortcuts = 911,
         AccessibleName = 900,
@@ -326,6 +328,7 @@ namespace Gpui.Interop
 
     internal enum ResourceKind : ushort
     {
+        Focus = 7,
         Scroll = 1,
         List = 2,
         Input = 3,
@@ -335,6 +338,10 @@ namespace Gpui.Interop
 
     internal enum ResourceCommandKind : ushort
     {
+        /// <summary>Moves native keyboard focus to the declared container.</summary>
+        FocusTargetFocus = 50,
+        /// <summary>Releases focus only when this target itself is focused.</summary>
+        FocusTargetBlur = 51,
         /// <summary>Scrolls to a content-space offset.</summary>
         ScrollToOffset = 1,
         /// <summary>Scrolls to the top.</summary>
@@ -376,7 +383,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0x7ADFD734987DA90DUL;
+        internal const ulong SchemaHash = 0x461F67DF3C8B9F9FUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -433,6 +440,8 @@ namespace Gpui.Interop
 
         internal static ValueKind? ExpectedValueKind(OpCode operation) => operation switch
         {
+            OpCode.FocusTarget => ValueKind.Data,
+            OpCode.FocusTabStop => ValueKind.U32,
             OpCode.OnShortcut => ValueKind.Callback,
             OpCode.IsolateShortcuts => ValueKind.U32,
             OpCode.AccessibleName => ValueKind.Data,
@@ -714,7 +723,7 @@ namespace Gpui.Interop
 
         private static ulong Capabilities(ComponentId component) => component switch
         {
-            ComponentId.Div => 0x0000000090002007UL,
+            ComponentId.Div => 0x0000000190002047UL,
             ComponentId.Text => 0x0000000000000001UL,
             ComponentId.Button => 0x000000003000202BUL,
             ComponentId.Checkbox => 0x000000003000003BUL,
@@ -746,6 +755,8 @@ namespace Gpui.Interop
 
         private static ulong RequiredCapability(OpCode operation) => operation switch
         {
+            OpCode.FocusTarget => 0x0000000100000000UL,
+            OpCode.FocusTabStop => 0x0000000100000000UL,
             OpCode.OnShortcut => 0x0000000080000000UL,
             OpCode.IsolateShortcuts => 0x0000000080000000UL,
             OpCode.AccessibleName => 0x0000000020000000UL,
@@ -1041,6 +1052,7 @@ namespace Gpui.Interop
 
         internal static int PayloadError(OpCode operation, ulong a, ulong b) => operation switch
         {
+            OpCode.FocusTabStop when !(a <= 1UL) => -21,
             OpCode.OnShortcut when !((b >> 27) == 0 && (b & 0xffff) >= 1 && (b & 0xffff) <= 86 && ((b >> 16) & 0xff) <= 63 && (((b & 0xffff) > 36 && (b & 0xffff) < 76 && (b & 0xffff) != 42) || (b & (41UL << 16)) != 0) && ((b & (32UL << 16)) == 0 || (b & (9UL << 16)) == 0)) => -66,
             OpCode.IsolateShortcuts when !(a <= 1UL) => -21,
             OpCode.FlexGrow when !(BitConverter.UInt32BitsToSingle((uint)a) >= 0f) => -46,

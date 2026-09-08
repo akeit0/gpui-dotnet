@@ -44,12 +44,13 @@ use abi::{
 };
 use semantic::{
     COMMAND_DOCK_CLOSE_PANEL, COMMAND_DOCK_EXPORT_LAYOUT, COMMAND_DOCK_IMPORT_LAYOUT,
-    COMMAND_DOCK_SET_REGION_OPEN, COMMAND_INPUT_BLUR, COMMAND_INPUT_FOCUS,
-    COMMAND_INPUT_SELECT_ALL, COMMAND_INPUT_SET_VALUE, COMMAND_INPUT_SET_VALUE_IF_CURRENT,
-    COMMAND_INPUT_SET_VALUE_IF_CURRENT_WITH_RESULT, COMMAND_LIST_REFRESH, COMMAND_LIST_RESET,
-    COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_LIST_SPLICE, COMMAND_SCROLL_TO_BOTTOM,
-    COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP, COMMAND_SLIDER_SET_VALUE, RESOURCE_DOCK,
-    RESOURCE_INPUT, RESOURCE_LIST, RESOURCE_SCROLL, RESOURCE_SLIDER, SCHEMA_HASH,
+    COMMAND_DOCK_SET_REGION_OPEN, COMMAND_FOCUS_BLUR, COMMAND_FOCUS_FOCUS, COMMAND_INPUT_BLUR,
+    COMMAND_INPUT_FOCUS, COMMAND_INPUT_SELECT_ALL, COMMAND_INPUT_SET_VALUE,
+    COMMAND_INPUT_SET_VALUE_IF_CURRENT, COMMAND_INPUT_SET_VALUE_IF_CURRENT_WITH_RESULT,
+    COMMAND_LIST_REFRESH, COMMAND_LIST_RESET, COMMAND_LIST_SCROLL_TO_ITEM, COMMAND_LIST_SPLICE,
+    COMMAND_SCROLL_TO_BOTTOM, COMMAND_SCROLL_TO_OFFSET, COMMAND_SCROLL_TO_TOP,
+    COMMAND_SLIDER_SET_VALUE, RESOURCE_DOCK, RESOURCE_FOCUS, RESOURCE_INPUT, RESOURCE_LIST,
+    RESOURCE_SCROLL, RESOURCE_SLIDER, SCHEMA_HASH,
 };
 
 static API_V3: GpuiDotnetApiV3 = GpuiDotnetApiV3 {
@@ -252,6 +253,7 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         return -51;
     }
     let valid_command = match command.resource_kind {
+        RESOURCE_FOCUS => matches!(command.command, COMMAND_FOCUS_FOCUS | COMMAND_FOCUS_BLUR),
         RESOURCE_SCROLL => matches!(
             command.command,
             COMMAND_SCROLL_TO_OFFSET..=COMMAND_SCROLL_TO_BOTTOM
@@ -278,6 +280,9 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         return -53;
     }
     let payload_valid = match (command.resource_kind, command.command) {
+        (RESOURCE_FOCUS, COMMAND_FOCUS_FOCUS | COMMAND_FOCUS_BLUR) => {
+            command.data_length == 0 && command.a == 0 && command.b == 0
+        }
         (RESOURCE_SCROLL, COMMAND_SCROLL_TO_OFFSET) if command.data_length == 0 => {
             if command.a >> 32 != 0 || command.b >> 32 != 0 {
                 false
@@ -733,6 +738,21 @@ mod tests {
             reserved: 0,
             a,
             b,
+        }
+    }
+
+    #[test]
+    fn focus_commands_validate_empty_payload_before_routing() {
+        for kind in [COMMAND_FOCUS_FOCUS, COMMAND_FOCUS_BLUR] {
+            let valid = dock_command(RESOURCE_FOCUS, kind, 0, 0, &[]);
+            assert_eq!(unsafe { dispatch_command_inner(u64::MAX - 1, &valid) }, -30);
+            for (a, b, data) in [(1, 0, &[][..]), (0, 1, &[][..]), (0, 0, &b"x"[..])] {
+                let invalid = dock_command(RESOURCE_FOCUS, kind, a, b, data);
+                assert_eq!(
+                    unsafe { dispatch_command_inner(u64::MAX - 1, &invalid) },
+                    -54
+                );
+            }
         }
     }
 
