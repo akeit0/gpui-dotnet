@@ -155,6 +155,51 @@ pub struct NativeThemePayload {
     pub scrollbar_track_background: u32,
 }
 
+/// Application-scoped image-cache spill budget, carried in the application command's byte
+/// pointer like the theme payload. `max_bytes == 0` disables the spill tier (pure live-set);
+/// `max_entries == 0` leaves the entry count uncapped (bytes rule alone).
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct NativeImageCacheBudget {
+    pub version: u32,
+    pub reserved: u32,
+    pub max_bytes: u64,
+    pub max_entries: u64,
+}
+
+pub const IMAGE_CACHE_BUDGET_VERSION: u32 = 1;
+pub const IMAGE_CACHE_BUDGET_COMMAND: u16 = 10;
+pub const IMAGE_EVICT_COMMAND: u16 = 11;
+
+/// Validates an image-cache budget command record and copies out the budget. Pure so the
+/// contract is unit-testable without a running application; the entry point only enqueues.
+pub fn parse_image_cache_budget(command: &NativeApplicationCommand) -> Result<(u64, u64), i32> {
+    let payload_valid = command.window_id == 0
+        && command.command == IMAGE_CACHE_BUDGET_COMMAND
+        && command.flags == 0
+        && command.reserved == 0
+        && command.reserved2 == 0
+        && command.left == 0.0
+        && command.top == 0.0
+        && command.width == 0.0
+        && command.height == 0.0
+        && command.title_length == size_of::<NativeImageCacheBudget>() as i32
+        && !command.title.is_null();
+    if !payload_valid {
+        return Err(-62);
+    }
+    let payload = unsafe {
+        command
+            .title
+            .cast::<NativeImageCacheBudget>()
+            .read_unaligned()
+    };
+    if payload.version != IMAGE_CACHE_BUDGET_VERSION || payload.reserved != 0 {
+        return Err(-62);
+    }
+    Ok((payload.max_bytes, payload.max_entries))
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct NativeMenuCommand {
@@ -233,6 +278,94 @@ mod tests {
             16 + 8 * pointer_size
         );
         assert_eq!(ABI_VERSION, 7);
+    }
+
+    #[test]
+    fn image_cache_budget_layout_matches_managed_contract() {
+        assert_eq!(std::mem::size_of::<NativeImageCacheBudget>(), 24);
+        assert_eq!(std::mem::offset_of!(NativeImageCacheBudget, version), 0);
+        assert_eq!(std::mem::offset_of!(NativeImageCacheBudget, reserved), 4);
+        assert_eq!(std::mem::offset_of!(NativeImageCacheBudget, max_bytes), 8);
+        assert_eq!(
+            std::mem::offset_of!(NativeImageCacheBudget, max_entries),
+            16
+        );
+        assert_eq!(IMAGE_CACHE_BUDGET_VERSION, 1);
+        assert_eq!(IMAGE_CACHE_BUDGET_COMMAND, 10);
+    }
+
+    fn budget_command(payload: &NativeImageCacheBudget) -> NativeApplicationCommand {
+        NativeApplicationCommand {
+            window_id: 0,
+            command: IMAGE_CACHE_BUDGET_COMMAND,
+            flags: 0,
+            reserved: 0,
+            title: (payload as *const NativeImageCacheBudget).cast::<u8>(),
+            title_length: size_of::<NativeImageCacheBudget>() as i32,
+            reserved2: 0,
+            left: 0.0,
+            top: 0.0,
+            width: 0.0,
+            height: 0.0,
+        }
+    }
+
+    #[test]
+    fn image_cache_budget_accepts_any_u64_pair() {
+        for (max_bytes, max_entries) in [(0, 0), (100 << 20, 64), (u64::MAX, u64::MAX)] {
+            let payload = NativeImageCacheBudget {
+                version: IMAGE_CACHE_BUDGET_VERSION,
+                reserved: 0,
+                max_bytes,
+                max_entries,
+            };
+            assert_eq!(
+                parse_image_cache_budget(&budget_command(&payload)),
+                Ok((max_bytes, max_entries))
+            );
+        }
+    }
+
+    #[test]
+    fn image_cache_budget_rejects_malformed_records() {
+        let payload = NativeImageCacheBudget {
+            version: IMAGE_CACHE_BUDGET_VERSION,
+            reserved: 0,
+            max_bytes: 1,
+            max_entries: 1,
+        };
+        let command = budget_command(&payload);
+        // Wrong command id, scoped window, flags, reserved words, geometry, size, version.
+        let mutators: [fn(&mut NativeApplicationCommand); 7] = [
+            |command: &mut NativeApplicationCommand| command.command = 8,
+            |command: &mut NativeApplicationCommand| command.window_id = 7,
+            |command: &mut NativeApplicationCommand| command.flags = 1,
+            |command: &mut NativeApplicationCommand| command.reserved = 1,
+            |command: &mut NativeApplicationCommand| command.reserved2 = 1,
+            |command: &mut NativeApplicationCommand| command.width = 1.0,
+            |command: &mut NativeApplicationCommand| command.title_length -= 1,
+        ];
+        for (index, mutate) in mutators.into_iter().enumerate() {
+            let mut probe = command;
+            mutate(&mut probe);
+            assert_eq!(
+                parse_image_cache_budget(&probe),
+                Err(-62),
+                "mutator {index}"
+            );
+        }
+        let mut bad_version = payload;
+        bad_version.version += 1;
+        assert_eq!(
+            parse_image_cache_budget(&budget_command(&bad_version)),
+            Err(-62)
+        );
+        let mut bad_reserved = payload;
+        bad_reserved.reserved = 1;
+        assert_eq!(
+            parse_image_cache_budget(&budget_command(&bad_reserved)),
+            Err(-62)
+        );
     }
 }
 

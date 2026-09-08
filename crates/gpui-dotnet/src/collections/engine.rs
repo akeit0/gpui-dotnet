@@ -705,6 +705,15 @@ impl CollectionEngine {
         self.clear_batches();
     }
 
+    /// Unions image hashes declared by every cached item batch into `live`. Batches hold the
+    /// authoritative snapshots for virtual items, so images they declare must survive image
+    /// cache reconciliation while the batch is cached.
+    pub(crate) fn cached_image_hashes(&self, live: &mut std::collections::HashSet<u64>) {
+        for batch in self.batches.values() {
+            live.extend(crate::images::live_image_hashes(&batch.snapshot));
+        }
+    }
+
     pub(crate) fn invalidate_sorted_artifacts(
         &mut self,
         keys: &[crate::abi::NativeArtifactKey],

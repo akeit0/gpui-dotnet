@@ -93,6 +93,13 @@ impl Drop for ViewRegistration {
 pub(crate) enum ApplicationCommand {
     SetMenuBar(Vec<ManagedMenu>),
     SetTheme(NativeTheme),
+    SetImageCacheBudget {
+        max_bytes: u64,
+        max_entries: u64,
+    },
+    EvictImage {
+        path: String,
+    },
     ManagedCodeUpdated,
     Open {
         window_id: u64,
@@ -527,6 +534,9 @@ impl Render for ManagedView {
 
         let content = {
             let _stage = trace::span(trace::Stage::Materialize);
+            // Ensure the scoped image cache exists before materialization so every `img`
+            // resolves through it instead of GPUI's never-evicted global asset map.
+            let _image_cache = self.resources.image_cache(cx);
             if let Some(error) = &self.error {
                 div()
                     .p(px(20.0))
@@ -544,6 +554,14 @@ impl Render for ManagedView {
 
         self.resources.item_menus.finish_declarations(window, cx);
         self.resources.item_tooltips.finish_declarations(window);
+
+        if self.error.is_none() && self.has_snapshot {
+            // The snapshot is authoritative: release decoded images (and their GPU textures)
+            // that neither mounted nodes nor cached virtual-item batches declare anymore.
+            // Revision gating keeps re-renders of an unchanged tree allocation-free.
+            self.resources
+                .retain_live_images(&self.snapshot, self.snapshot_revision, window, cx);
+        }
 
         if trace::enabled() {
             trace::end_frame(&self.list_telemetry_sums());
@@ -826,6 +844,37 @@ fn apply_application_command(
                 };
                 let _ = handle.update(cx, |view, window, cx| {
                     view.resources.invalidate_managed_rendered_items();
+                    view.invalidate(cx);
+                    window.refresh();
+                });
+            }
+        }
+        ApplicationCommand::EvictImage { path } => {
+            // Unknown paths are a silent no-op: eviction is idempotent by design.
+            for entry in windows.borrow().values() {
+                let Some(handle) = entry.handle.downcast::<ManagedView>() else {
+                    continue;
+                };
+                let _ = handle.update(cx, |view, window, cx| {
+                    view.resources.evict_image(&path, window, cx);
+                    view.invalidate(cx);
+                    window.refresh();
+                });
+            }
+        }
+        ApplicationCommand::SetImageCacheBudget {
+            max_bytes,
+            max_entries,
+        } => {
+            crate::images::set_global_budget(max_bytes, max_entries);
+            // The new budget applies lazily to every view's cache; force the next render to
+            // reconcile so a shrunken budget trims promptly instead of waiting for a snapshot.
+            for entry in windows.borrow().values() {
+                let Some(handle) = entry.handle.downcast::<ManagedView>() else {
+                    continue;
+                };
+                let _ = handle.update(cx, |view, window, cx| {
+                    view.resources.note_image_budget_changed();
                     view.invalidate(cx);
                     window.refresh();
                 });

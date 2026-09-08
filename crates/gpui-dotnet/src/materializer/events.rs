@@ -1,4 +1,5 @@
 use super::*;
+use std::path::PathBuf;
 
 /// Key/mouse observers and shortcut declarations on one semantic node. Tokens are render-bound;
 /// shortcut descriptors use payload word B, while observer payload words remain zero.

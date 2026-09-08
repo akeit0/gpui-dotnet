@@ -68,6 +68,21 @@ internal struct NativeThemePayload
     }
 }
 
+/// <summary>
+/// Private application-command payload for the image-cache spill budget. A zero byte budget
+/// disables the spill tier (pure live-set); a zero entry count leaves the count uncapped.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativeImageCacheBudget
+{
+    internal const uint CurrentVersion = 1;
+
+    internal uint Version;
+    internal uint Reserved;
+    internal ulong MaxBytes;
+    internal ulong MaxEntries;
+}
+
 // Pascal-cased managed conveniences over the csbindgen-owned ABI fields.
 internal unsafe partial struct RenderArena
 {
