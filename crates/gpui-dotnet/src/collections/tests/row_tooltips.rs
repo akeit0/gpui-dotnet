@@ -4,7 +4,7 @@ use std::time::Duration;
 
 struct TooltipRows {
     store: Rc<ResourceStore>,
-    resource: Rc<RefCell<ManagedListResource>>,
+    resource: Rc<RefCell<CollectionEngine>>,
     paints: Rc<Cell<usize>>,
     show_rows: bool,
     show_tooltip: bool,
@@ -84,7 +84,7 @@ fn fixture(
 ) -> (
     Entity<TooltipRows>,
     &mut gpui::VisualTestContext,
-    Rc<RefCell<ManagedListResource>>,
+    Rc<RefCell<CollectionEngine>>,
     Rc<Cell<usize>>,
 ) {
     cx.update(gpui_base::init);

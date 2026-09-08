@@ -29,8 +29,6 @@ GPUI applications need it; do not maintain a GPUI fork or expose unsupported rol
 
 ## Structural refactors
 
-- Separate collection caching, cursor navigation, and table configuration from `ResourceStore`;
-  keep the store focused on lookup, reconciliation, retirement, and command routing.
 - Separate event-token and binding lifetime management from typed managed event dispatch. Reduce
   repetitive binders while preserving NativeAOT support and avoiding boxed event payloads.
 - Move managed implementation sources into `src/Gpui.Core`, matching the project that compiles

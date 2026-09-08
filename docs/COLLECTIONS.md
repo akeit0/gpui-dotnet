@@ -3,6 +3,16 @@
 Scroll, List, and Table retain viewport state natively. Virtual rows are batched element snapshots,
 not mounted child Views. See [Components](COMPONENTS.md) for the authoring model.
 
+Native ownership is split between two modules. `crates/gpui-dotnet/src/collections/` owns
+collection behavior: `engine.rs` retains `ListState`, row batches, measurements, and revision
+reconciliation; `cursor.rs` owns the active index and epoch rules; `configuration.rs` decodes
+List/Table declarations and table columns; `events.rs` delivers activation/selection requests;
+`registry.rs` owns which List/Table engines exist, their pre-declaration command queue, and
+artifact-sorting for invalidation. `ResourceStore` (`resources.rs`) coordinates retained
+resources: lookup by identity, creation with accepted configuration, command routing, theme and
+artifact invalidation, presence publication, and retirement. List and Table share one collection
+engine; only their column metadata differs.
+
 ## Retained Scroll
 
 `ui.Scroll` declares content, axis, smooth-scrolling behavior, and scrollbar options. Rust retains

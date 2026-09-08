@@ -64,7 +64,7 @@ fn native_workload_measurements() {
         let mut config = configuration(Some(1));
         config.batch_size = rows as usize;
         config.item_count = rows as usize;
-        let mut resource = ManagedListResource::new(1, artifact_callbacks(), &config, 1);
+        let mut resource = CollectionEngine::new(1, artifact_callbacks(), &config, 1);
         measure(&format!("load-release-{rows}-rows"), || {
             resource.load_batch(0).unwrap();
             resource.clear_batches();
@@ -88,12 +88,12 @@ fn native_workload_measurements() {
             prepare_capture();
             let mut config = configuration(Some(1));
             config.item_count = count * 48;
-            let mut resource = ManagedListResource::new(1, artifact_callbacks(), &config, 1);
+            let mut resource = CollectionEngine::new(1, artifact_callbacks(), &config, 1);
             for batch in 0..count {
                 resource.use_clock += 1;
                 resource.load_batch((batch * 48) as u32).unwrap();
             }
-            let buffers = |resource: &ManagedListResource| {
+            let buffers = |resource: &CollectionEngine| {
                 resource
                     .batches
                     .values()

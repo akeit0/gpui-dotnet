@@ -23,6 +23,10 @@ use gpui_base::FocusTrapElement as _;
 use crate::{
     abi::{ManagedCallbacks, NativeClickEvent, NativeControlEvent},
     app_host::ManagedView,
+    collections::{
+        CollectionCursor, CollectionEngine, ListRowEventKind, ListRowEvents, TableSpec,
+        list_configuration, table_configuration,
+    },
     components,
     context_menu::{ContextMenuConfiguration, context_menu},
     dock::dock_configuration,
@@ -34,9 +38,7 @@ use crate::{
     popover_menu::{PopoverMenuConfiguration, popover_menu},
     presentation,
     resources::{
-        CollectionCursor, ListRowEventKind, ListRowEvents, ManagedListResource, ResourceStore,
-        ScrollInteraction, TableSpec, input_configuration, list_configuration, resource_key,
-        slider_configuration, table_configuration,
+        ResourceStore, ScrollInteraction, input_configuration, resource_key, slider_configuration,
     },
     scrolling::{DEFAULT_SCROLLBAR_WIDTH, ScrollbarMetrics, list_overlay, scroll_overlay},
     semantic::{
@@ -1486,7 +1488,7 @@ fn apply_table_cell_layout(
 
 fn apply_column_layout(
     mut element: gpui::Div,
-    column: &crate::resources::TableColumnSpec,
+    column: &crate::collections::TableColumnSpec,
 ) -> gpui::Div {
     element = element.flex().overflow_hidden();
     element = if column.width_is_fraction {
@@ -1994,7 +1996,7 @@ pub(crate) struct CollectionRow {
     context_menu: Option<(
         u64,
         std::rc::Rc<crate::row_menu::RowMenus>,
-        std::rc::Rc<std::cell::RefCell<ManagedListResource>>,
+        std::rc::Rc<std::cell::RefCell<CollectionEngine>>,
     )>,
 }
 
@@ -2026,7 +2028,7 @@ impl CollectionRow {
         mut self,
         token: u64,
         menus: std::rc::Rc<crate::row_menu::RowMenus>,
-        resource: std::rc::Rc<std::cell::RefCell<ManagedListResource>>,
+        resource: std::rc::Rc<std::cell::RefCell<CollectionEngine>>,
     ) -> Self {
         if token != 0 {
             self.context_menu = Some((token, menus, resource));
@@ -2171,7 +2173,7 @@ pub(crate) fn handle_collection_row_event_key(
     window: &mut Window,
     cx: &mut App,
     focus: &FocusHandle,
-    resource: &std::rc::Rc<std::cell::RefCell<ManagedListResource>>,
+    resource: &std::rc::Rc<std::cell::RefCell<CollectionEngine>>,
 ) -> bool {
     let kind = match event.keystroke.key.as_str() {
         "enter" => ListRowEventKind::Activation,
@@ -2833,7 +2835,7 @@ mod tests {
     ) {
         use std::{cell::RefCell, rc::Rc};
         let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
-        let (_, columns) = crate::resources::parse_table_spec(
+        let (_, columns) = crate::collections::configuration::parse_table_spec(
             "grid\0a\0A\0b\0B\0c\0C",
             &[
                 0.5f32.to_bits() as u64 | (1 << 32),

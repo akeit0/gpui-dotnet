@@ -12,11 +12,11 @@ use gpui::{
 };
 use gpui_base::Positioner;
 
-use crate::{abi::NativeControlEvent, resources::ManagedListResource};
+use crate::{abi::NativeControlEvent, collections::CollectionEngine};
 
 struct Request {
     id: u64,
-    source: Weak<RefCell<ManagedListResource>>,
+    source: Weak<RefCell<CollectionEngine>>,
     index: usize,
     target: u32,
     artifact: u64,
@@ -33,12 +33,7 @@ struct Request {
 }
 
 impl Request {
-    fn matches(
-        &self,
-        source: &Rc<RefCell<ManagedListResource>>,
-        index: usize,
-        target: u32,
-    ) -> bool {
+    fn matches(&self, source: &Rc<RefCell<CollectionEngine>>, index: usize, target: u32) -> bool {
         self.source.ptr_eq(&Rc::downgrade(source)) && self.index == index && self.target == target
     }
 
@@ -96,7 +91,7 @@ impl RowTooltips {
 
     fn observe(
         &self,
-        source: &Rc<RefCell<ManagedListResource>>,
+        source: &Rc<RefCell<CollectionEngine>>,
         index: usize,
         target: u32,
         hitbox: &Hitbox,
@@ -113,7 +108,7 @@ impl RowTooltips {
 
     fn hover(
         self: &Rc<Self>,
-        source: &Rc<RefCell<ManagedListResource>>,
+        source: &Rc<RefCell<CollectionEngine>>,
         index: usize,
         target: u32,
         hitbox: &Hitbox,
@@ -343,7 +338,7 @@ pub(crate) fn frame_end(tooltips: Rc<RowTooltips>) -> AnyElement {
 
 pub(crate) struct Target {
     pub(crate) child: AnyElement,
-    pub(crate) source: Rc<RefCell<ManagedListResource>>,
+    pub(crate) source: Rc<RefCell<CollectionEngine>>,
     pub(crate) index: usize,
     pub(crate) target: u32,
     pub(crate) tooltips: Rc<RowTooltips>,
