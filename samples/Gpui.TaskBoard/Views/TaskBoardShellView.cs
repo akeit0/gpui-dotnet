@@ -112,6 +112,7 @@ internal sealed partial class TaskBoardShellView : View
     private bool _ascending = true;
     private long _selectedId = -1;
     private ListContextMenuEvent? _taskMenu;
+    private ListTooltipEvent? _taskTooltip;
     private ulong _tableRevision = 1;
     private ulong _projectionRevision = 1;
     private GpuiMenu[] _menuBar = [];
@@ -491,6 +492,15 @@ internal sealed partial class TaskBoardShellView : View
         if (request.ItemId > long.MaxValue || _store.Find((long)request.ItemId) is null)
             return;
         _taskMenu = request;
+        _taskTooltip = null;
+        Invalidate();
+    }
+
+    private void RequestTaskTooltip(ListTooltipEvent request)
+    {
+        if (request.ItemId > long.MaxValue || _store.Find((long)request.ItemId) is null)
+            return;
+        _taskTooltip = request;
         Invalidate();
     }
 
@@ -585,7 +595,7 @@ internal sealed partial class TaskBoardShellView : View
                             .PaddingX(Px(8)),
                         ui.TableCell(
                                 1,
-                                ui.Text(task.Title).FontSize(Px(theme.Typography.BodySmall))
+                                ui.Text(task.Title).FontSize(Px(theme.Typography.BodySmall)).RowTooltipTarget()
                             )
                             .PaddingX(Px(8)),
                         ui.TableCell(
@@ -685,6 +695,20 @@ internal sealed partial class TaskBoardShellView : View
             .Background(theme.Colors.Background)
             .TextColor(theme.Colors.Text)
             .OnKeyDown(this, static (view, key) => view.OnHotKey(key));
+
+        if (_dialog == BoardDialog.None && _taskTooltip is { } tooltipRequest
+            && _store.Find((long)tooltipRequest.ItemId) is { } tooltipTask)
+        {
+            content = content.Child(ui.RowTooltip("task-tooltip", tooltipRequest,
+                ui.VStack(
+                        ui.Text(tooltipTask.Title).FontWeight(600),
+                        ui.Text($"Assignee: {tooltipTask.Assignee}"),
+                        ui.Text($"Status: {BoardStyles.StatusLabel(tooltipTask.Status)}"),
+                        ui.Text($"Estimate: {tooltipTask.EstimateHours:0.#}h")
+                    ).Gap(Px(5)).Padding(Px(12)).Width(Px(300))
+                    .Surface(new(theme.Colors.ElevatedSurfaceBackground, theme.Colors.Text))
+                    .BorderColor(theme.Colors.Border).BorderWidth(Px(1)).Radius(Px(8))));
+        }
 
         if (_dialog == BoardDialog.None && _taskMenu is { } request
             && _store.Find((long)request.ItemId) is { } menuTask)
@@ -1013,6 +1037,7 @@ internal sealed partial class TaskBoardShellView : View
             .OnSelectionRequested(this, static (view, e) => view.SelectTask(e))
             .OnActivated(this, static (view, e) => view.ActivateTask(e))
             .OnContextMenuRequested(this, static (view, e) => view.RequestTaskMenu(e))
+            .OnTooltipRequested(this, static (view, e) => view.RequestTaskTooltip(e))
             .Grow()
             .Width(Percent(100))
             .Style(BoardStyles.Table(theme));

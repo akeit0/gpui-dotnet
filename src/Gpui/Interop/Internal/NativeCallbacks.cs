@@ -311,7 +311,7 @@ internal static unsafe class NativeCallbacks
                     session.DispatchInputWrite(eventToken,
                         new InputWriteResult(requestId, (InputWriteOutcome)outcome, nativeEvent->revision));
                 }
-                else if (nativeEvent->kind == (ushort)ListEventKind.ContextMenuRequested)
+                else if (nativeEvent->kind is (ushort)ListEventKind.ContextMenuRequested or (ushort)ListEventKind.TooltipRequested)
                 {
                     if ((nativeEvent->flags & ~2u) != 0 || nativeEvent->data_length != 24
                         || ((nativeEvent->flags & 2) == 0 && nativeEvent->revision != 0))
@@ -323,8 +323,12 @@ internal static unsafe class NativeCallbacks
                     if (index > int.MaxValue || BinaryPrimitives.ReadUInt32LittleEndian(data[4..]) != 0
                         || itemId == 0 || anchorId == 0)
                         return -112;
-                    session.DispatchListContextMenu(eventToken, new ListContextMenuEvent(
-                        (int)index, itemId, (nativeEvent->flags & 2) == 0 ? null : nativeEvent->revision, anchorId));
+                    if (nativeEvent->kind == (ushort)ListEventKind.TooltipRequested)
+                        session.DispatchListTooltip(eventToken, new ListTooltipEvent(
+                            (int)index, itemId, (nativeEvent->flags & 2) == 0 ? null : nativeEvent->revision, anchorId));
+                    else
+                        session.DispatchListContextMenu(eventToken, new ListContextMenuEvent(
+                            (int)index, itemId, (nativeEvent->flags & 2) == 0 ? null : nativeEvent->revision, anchorId));
                 }
                 else if (nativeEvent->kind is (ushort)ListEventKind.Activated or (ushort)ListEventKind.SelectionRequested)
                 {

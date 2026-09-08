@@ -3,6 +3,23 @@ using Gpui.Interop;
 
 namespace Gpui;
 
+/// <summary>A delayed hover request for a stable List/Table item. Declare RowTooltip in the owning View.</summary>
+public readonly record struct ListTooltipEvent
+{
+    internal ListTooltipEvent(int index, ulong itemId, ulong? contentRevision, ulong anchorId)
+    {
+        Index = index;
+        ItemId = itemId;
+        ContentRevision = contentRevision;
+        AnchorId = anchorId;
+    }
+
+    public int Index { get; }
+    public ulong ItemId { get; }
+    public ulong? ContentRevision { get; }
+    internal ulong AnchorId { get; }
+}
+
 /// <summary>
 /// A right-click request for a stable List/Table item. Pass this value to RowContextMenu in
 /// the owning View's render. Native positioning expires on dismissal or anchor loss.

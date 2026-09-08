@@ -224,10 +224,12 @@ Dynamic event tokens identify a never-reused ID under a one-shot View handle. Li
 recyclable slots. Root rendering retires only root bindings; each artifact releases only its own
 bindings. Stale tokens are harmless and released slots no longer retain targets or delegates.
 
-Virtual-row context menus use collection-level requests with stable item IDs. The owning managed
-View declares the menu body in its root/fragment snapshot, outside the row batch. A window-owned
-native anchor records the pointer position and row artifact identity without retaining the batch.
-Deferred prepaint checks the current row geometry and cache identity before exposing menu content
+Virtual-row context menus and tooltips use collection-level requests with stable item IDs. The owning
+managed View declares the content in its root/fragment snapshot, outside the row batch. A window-owned
+native anchor records the pointer position or marked element bounds and artifact identity without
+retaining the batch. Tooltip targets are scalar row markers; the collection declares the complete
+tooltip options and native timing requests managed content only after sustained hover. Deferred
+prepaint checks current geometry and cache identity before exposing content
 or hitboxes. Anchor loss expires the request; a stale managed declaration cannot reopen it.
 See [Deferred layers](COMPONENTS.md#deferred-layers).
 

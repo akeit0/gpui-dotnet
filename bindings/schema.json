@@ -30,7 +30,8 @@
     "dock_region",
     "extension",
     "key_mouse",
-    "accessible"
+    "accessible",
+    "tooltip_options"
   ],
   "enums": [
     {
@@ -323,7 +324,8 @@
       "capabilities": [
         "styled",
         "native_state",
-        "virtualized"
+        "virtualized",
+        "tooltip_options"
       ],
       "nativeAdapter": "list"
     },
@@ -383,7 +385,8 @@
       "capabilities": [
         "parent",
         "native_state",
-        "tooltip"
+        "tooltip",
+        "tooltip_options"
       ],
       "nativeAdapter": "tooltip"
     },
@@ -432,7 +435,8 @@
         "parent",
         "native_state",
         "virtualized",
-        "table"
+        "table",
+        "tooltip_options"
       ],
       "nativeAdapter": "table"
     },
@@ -1463,6 +1467,23 @@
       "managedApi": null
     },
     {
+      "id": 380,
+      "name": "list_on_tooltip_requested",
+      "csharp": "OnTooltipRequested",
+      "value": "callback",
+      "requires": "virtualized",
+      "managedApi": null
+    },
+    {
+      "id": 382,
+      "name": "row_tooltip_target",
+      "csharp": "RowTooltipTarget",
+      "value": "u32",
+      "requires": "styled",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
+    {
       "id": 400,
       "name": "image_object_fit",
       "csharp": "Fit",
@@ -1641,7 +1662,7 @@
       "name": "tooltip_placement",
       "csharp": "TooltipPlacement",
       "value": "u32",
-      "requires": "tooltip",
+      "requires": "tooltip_options",
       "managedApi": null,
       "validation": { "kind": "u32Max", "max": 4, "status": -35 }
     },
@@ -1650,7 +1671,7 @@
       "name": "tooltip_alignment",
       "csharp": "TooltipAlignment",
       "value": "u32",
-      "requires": "tooltip",
+      "requires": "tooltip_options",
       "managedApi": null,
       "validation": { "kind": "u32Max", "max": 2, "status": -36 }
     },
@@ -1659,7 +1680,7 @@
       "name": "tooltip_show_delay_ms",
       "csharp": "TooltipShowDelayMs",
       "value": "u32",
-      "requires": "tooltip",
+      "requires": "tooltip_options",
       "managedApi": null
     },
     {
@@ -1667,7 +1688,7 @@
       "name": "tooltip_hide_delay_ms",
       "csharp": "TooltipHideDelayMs",
       "value": "u32",
-      "requires": "tooltip",
+      "requires": "tooltip_options",
       "managedApi": null
     },
     {
@@ -1675,7 +1696,7 @@
       "name": "tooltip_gap_px",
       "csharp": "TooltipGapPx",
       "value": "f32",
-      "requires": "tooltip",
+      "requires": "tooltip_options",
       "managedApi": null,
       "validation": { "kind": "f32Min", "min": 0, "status": -37 }
     },
@@ -1684,9 +1705,17 @@
       "name": "tooltip_margin_px",
       "csharp": "TooltipMarginPx",
       "value": "f32",
-      "requires": "tooltip",
+      "requires": "tooltip_options",
       "managedApi": null,
       "validation": { "kind": "f32Min", "min": 0, "status": -37 }
+    },
+    {
+      "id": 616,
+      "name": "tooltip_row_anchor",
+      "csharp": "TooltipRowAnchor",
+      "value": "u64",
+      "requires": "tooltip",
+      "managedApi": null
     },
     {
       "id": 620,
@@ -3123,6 +3152,7 @@
     }
   ],
   "controlEvents": [
+    { "id": 24, "name": "list_tooltip_requested", "csharp": "TooltipRequested", "group": "list", "doc": "Delayed hover on a marked row element with stable ItemId. Uses the Row ContextMenu 24-byte identity/anchor packet and revision flag. No pointer motion crosses the ABI." },
     { "id": 22, "name": "input_write_completed", "csharp": "Completed", "group": "input_write", "doc": "Opt-in conditional write result. Payload: u64 request ID (1..2^62-1), u32 input_write_outcome, zero u32 reserved, all little-endian. Revision is the nonzero native revision at decision time; flags are zero. Delivered after native borrows are released, while the event binding remains live." },
     { "id": 21, "name": "list_selection_requested", "csharp": "SelectionRequested", "group": "list", "doc": "Opt-in single-row selection request. Uses the List Activated payload and flag layout; selection and presentation remain application-owned." },
     { "id": 23, "name": "list_context_menu_requested", "csharp": "ContextMenuRequested", "group": "list", "doc": "Right-click on a row with a stable ItemId. Carries the 16-byte row identity packet followed by a nonzero U64 native anchor. Only flag 1 (content revision present) is allowed." },
