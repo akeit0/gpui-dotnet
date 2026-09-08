@@ -16,7 +16,9 @@ public static partial class ElementExtensions
     /// Use RowTooltipTarget in rows and keep ListDataSource.ContentRevision stable while opening.
     /// </summary>
     public static Element<TTag> OnTooltipRequested<TTag, TView>(
-        this Element<TTag> element, TView view, Action<TView, ListTooltipEvent> callback,
+        this Element<TTag> element,
+        TView view,
+        Action<TView, ListTooltipEvent> callback,
         TooltipOptions options = default
     )
         where TTag : unmanaged, IVirtualizedElementTag
@@ -24,13 +26,20 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.ListOnTooltipRequested, view.Runtime.Events.BindListTooltip(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.ListOnTooltipRequested,
+            view.Runtime.Events.BindListTooltip(callback)
+        );
         options.WriteTo(element.Inner);
         return element;
     }
 
     /// <summary>Marks an element inside a virtual row as the hover target for its collection's tooltip.</summary>
-    public static Element<TTag> RowTooltipTarget<TTag>(this Element<TTag> element, bool enabled = true)
+    public static Element<TTag> RowTooltipTarget<TTag>(
+        this Element<TTag> element,
+        bool enabled = true
+    )
         where TTag : unmanaged, IStyledElementTag
     {
         ArenaWriter.AddU32(element.Inner, OpCode.RowTooltipTarget, enabled ? 1u : 0u);
@@ -51,7 +60,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.ListOnContextMenuRequested, view.Runtime.Events.BindListContextMenu(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.ListOnContextMenuRequested,
+            view.Runtime.Events.BindListContextMenu(callback)
+        );
         return element;
     }
 
@@ -69,7 +82,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.ListOnSelectionRequested, view.Runtime.Events.BindListSelection(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.ListOnSelectionRequested,
+            view.Runtime.Events.BindListSelection(callback)
+        );
         return element;
     }
 
@@ -87,7 +104,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.ListOnActivated, view.Runtime.Events.BindListActivation(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.ListOnActivated,
+            view.Runtime.Events.BindListActivation(callback)
+        );
         return element;
     }
 
@@ -102,7 +123,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnClick, view.Runtime.Events.BindClick(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.OnClick,
+            view.Runtime.Events.BindClick(callback)
+        );
         return element;
     }
 
@@ -118,7 +143,12 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnClick, view.Runtime.Events.BindClick(callback), payload);
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.OnClick,
+            view.Runtime.Events.BindClick(callback),
+            payload
+        );
         return element;
     }
 
@@ -133,7 +163,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.InputOnChanged, view.Runtime.Events.BindInput(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.InputOnChanged,
+            view.Runtime.Events.BindInput(callback)
+        );
         return element;
     }
 
@@ -148,20 +182,30 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.InputOnSubmitted, view.Runtime.Events.BindInput(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.InputOnSubmitted,
+            view.Runtime.Events.BindInput(callback)
+        );
         return element;
     }
 
     /// <summary>Observes opt-in conditional-write decisions while this binding remains live.</summary>
     public static Element<TTag> OnWriteCompleted<TTag, TView>(
-        this Element<TTag> element, TView view, Action<TView, InputWriteResult> callback)
+        this Element<TTag> element,
+        TView view,
+        Action<TView, InputWriteResult> callback
+    )
         where TTag : unmanaged, IInputElementTag
         where TView : ViewBase
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.InputOnWriteCompleted,
-            view.Runtime.Events.BindInputWrite(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.InputOnWriteCompleted,
+            view.Runtime.Events.BindInputWrite(callback)
+        );
         return element;
     }
 
@@ -195,7 +239,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnChanged, view.Runtime.Events.BindSlider(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.SliderOnChanged,
+            view.Runtime.Events.BindSlider(callback)
+        );
         return element;
     }
 
@@ -210,7 +258,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.SliderOnReleased, view.Runtime.Events.BindSlider(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.SliderOnReleased,
+            view.Runtime.Events.BindSlider(callback)
+        );
         return element;
     }
 
@@ -229,7 +281,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnLayout, view.Runtime.Events.BindDock(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.DockOnLayout,
+            view.Runtime.Events.BindDock(callback)
+        );
         return element;
     }
 
@@ -250,7 +306,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.DockOnClosed, view.Runtime.Events.BindDock(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.DockOnClosed,
+            view.Runtime.Events.BindDock(callback)
+        );
         return element;
     }
 
@@ -264,7 +324,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OverlayOnDismiss, view.Runtime.Events.BindClick(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.OverlayOnDismiss,
+            view.Runtime.Events.BindClick(callback)
+        );
         return element;
     }
 
@@ -304,7 +368,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnKeyDown, view.Runtime.Events.BindKey(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.OnKeyDown,
+            view.Runtime.Events.BindKey(callback)
+        );
         return element;
     }
 
@@ -320,7 +388,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnKeyUp, view.Runtime.Events.BindKey(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.OnKeyUp,
+            view.Runtime.Events.BindKey(callback)
+        );
         return element;
     }
 
@@ -336,7 +408,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseDown, view.Runtime.Events.BindMouse(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.OnMouseDown,
+            view.Runtime.Events.BindMouse(callback)
+        );
         return element;
     }
 
@@ -352,7 +428,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseUp, view.Runtime.Events.BindMouse(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.OnMouseUp,
+            view.Runtime.Events.BindMouse(callback)
+        );
         return element;
     }
 
@@ -395,7 +475,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnHover, view.Runtime.Events.BindHover(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.OnHover,
+            view.Runtime.Events.BindHover(callback)
+        );
         return element;
     }
 
@@ -411,7 +495,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseDownOut, view.Runtime.Events.BindMouse(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.OnMouseDownOut,
+            view.Runtime.Events.BindMouse(callback)
+        );
         return element;
     }
 
@@ -427,7 +515,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseUpOut, view.Runtime.Events.BindMouse(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.OnMouseUpOut,
+            view.Runtime.Events.BindMouse(callback)
+        );
         return element;
     }
 
@@ -446,7 +538,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnMouseMove, view.Runtime.Events.BindMouseMove(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.OnMouseMove,
+            view.Runtime.Events.BindMouseMove(callback)
+        );
         return element;
     }
 
@@ -466,7 +562,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnScrollWheel, view.Runtime.Events.BindScrollWheel(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.OnScrollWheel,
+            view.Runtime.Events.BindScrollWheel(callback)
+        );
         return element;
     }
 
@@ -486,8 +586,11 @@ public static partial class ElementExtensions
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        ArenaWriter.AddCallback(element.Inner, OpCode.OnFileDrop, view.Runtime.Events.BindFileDrop(callback));
+        ArenaWriter.AddCallback(
+            element.Inner,
+            OpCode.OnFileDrop,
+            view.Runtime.Events.BindFileDrop(callback)
+        );
         return element;
     }
-
 }

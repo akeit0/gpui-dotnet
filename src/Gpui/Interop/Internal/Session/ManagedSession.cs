@@ -36,6 +36,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     internal ulong PendingRenderRevision => _pendingRenderRevision;
 
     private readonly record struct IngressWork(object? Target);
+
     private ApplicationExecution Execution => _application.Execution;
     private bool IsAcceptingWork => Volatile.Read(ref _stopped) == 0 && Failure is null;
     private const int MaxIngressPerRender = 1024;
@@ -63,8 +64,13 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         private set => _rootView = value;
     }
 
-    internal ManagedSession(NativeRuntime runtime, GpuiApplication application, ulong sessionId,
-        RootViewDeclaration declaration, GpuiWindow window)
+    internal ManagedSession(
+        NativeRuntime runtime,
+        GpuiApplication application,
+        ulong sessionId,
+        RootViewDeclaration declaration,
+        GpuiWindow window
+    )
     {
         _runtime = runtime;
         _application = application;
@@ -73,6 +79,7 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         _window = window;
         SynchronizationContext = new GpuiSynchronizationContext(this);
     }
+
     internal SynchronizationContext SynchronizationContext { get; }
     internal Exception? Failure => Volatile.Read(ref _failure)?.SourceException;
 
@@ -82,18 +89,34 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     {
         if (Volatile.Read(ref _failure) is null)
         {
-            Interlocked.CompareExchange(ref _failure, ExceptionDispatchInfo.Capture(exception), null);
+            Interlocked.CompareExchange(
+                ref _failure,
+                ExceptionDispatchInfo.Capture(exception),
+                null
+            );
         }
         DiscardIngress();
-        if (deferCleanup || (ReferenceEquals(ApplicationExecution.Current, Execution)
-            && Execution.Phase is ExecutionPhase.ArtifactRelease or ExecutionPhase.ArtifactAcceptance))
+        if (
+            deferCleanup
+            || (
+                ReferenceEquals(ApplicationExecution.Current, Execution)
+                && Execution.Phase
+                    is ExecutionPhase.ArtifactRelease
+                        or ExecutionPhase.ArtifactAcceptance
+            )
+        )
         {
             // Artifact callbacks cannot invoke application cleanup while native reconciles resources.
             if (Interlocked.Exchange(ref _failureWakePending, 1) == 0)
-                try { _runtime.NotifyView(_sessionId); } catch (Exception) { }
+                try
+                {
+                    _runtime.NotifyView(_sessionId);
+                }
+                catch (Exception) { }
             return;
         }
-        if (ReferenceEquals(ApplicationExecution.Current, Execution)) Execution.ScheduleFailure(this);
+        if (ReferenceEquals(ApplicationExecution.Current, Execution))
+            Execution.ScheduleFailure(this);
         else if (ApplicationExecution.Current is null && Execution.HasAccess)
         {
             using var cleanup = Execution.Enter(ExecutionPhase.Cleanup);
@@ -106,7 +129,12 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     private void ThrowIfUnavailable(bool retireFailure)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _stopped) != 0, this);
-        if (retireFailure && Failure is not null && ApplicationExecution.Current is null && Execution.HasAccess)
+        if (
+            retireFailure
+            && Failure is not null
+            && ApplicationExecution.Current is null
+            && Execution.HasAccess
+        )
         {
             using var cleanup = Execution.Enter(ExecutionPhase.Cleanup);
             Execution.ScheduleFailure(this);
@@ -118,7 +146,9 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
     {
         if (_pendingRenderRevision != 0)
         {
-            throw new InvalidOperationException("Published root output is awaiting native acceptance.");
+            throw new InvalidOperationException(
+                "Published root output is awaiting native acceptance."
+            );
         }
     }
 
@@ -310,7 +340,8 @@ internal sealed unsafe partial class ManagedSession : IViewRenderer
         ThrowIfUnavailable();
         Execution.SetPhase(ExecutionPhase.Render);
         if (Interlocked.Exchange(ref _codeUpdatePending, 0) != 0)
-            foreach (var view in _attachedViews) view.Ownership.ClearCaches();
+            foreach (var view in _attachedViews)
+                view.Ownership.ClearCaches();
     }
 
     private void EndRendering()

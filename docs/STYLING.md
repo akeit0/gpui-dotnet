@@ -4,6 +4,91 @@ GPUI.NET uses the pinned, unmodified GPUI text-inheritance and interaction machi
 application chooses matching colors; native GPUI selects hover and pressed presentation. Product
 variants remain application-owned implementations of `IGpuiElementStyle<TTag>`.
 
+## Native presentation
+
+Styled elements support the generated fluent operations declared by `bindings/schema.json`,
+including layout, dimensions, uniform and per-side/axis margins, padding, and gaps, min/max
+sizes, flex basis/shrink/wrap, container and self alignment, relative/absolute positioning with
+offsets, overflow clipping, opacity, cursor, text alignment and clamping, backgrounds, borders,
+text color, and typography. Interactive
+elements additionally support native hover and active paint operations. An explicit `Cursor`
+takes precedence over the pointing-hand default on interactive elements. Stacking stays with
+deferred layers and declaration order: GPUI exposes no z-index knob.
+
+The application theme supplies semantic tokens:
+
+```csharp
+var card = ui.VStack(content)
+    .Padding(Px(16))
+    .Surface(new(ui.Theme.Colors.SurfaceBackground, ui.Theme.Colors.Text))
+    .BorderColor(ui.Theme.Colors.BorderVariant);
+```
+
+Native controls receive a resolved subset of the same theme. Product variants remain in the
+application:
+
+```csharp
+internal readonly record struct PrimaryButtonStyle(GpuiTheme Theme)
+    : IGpuiElementStyle<ButtonTag>
+{
+    public Element<ButtonTag> Apply(Element<ButtonTag> button) =>
+        button
+            .Paint(new InteractionColors(
+                new(Theme.Colors.Accent, Theme.Colors.TextOnAccent),
+                new(Theme.Colors.AccentHover, Theme.Colors.TextOnAccent),
+                new(Theme.Colors.AccentActive, Theme.Colors.TextOnAccent)));
+}
+```
+
+`.Style(value)` invokes the typed recipe and returns the normal element builder. A later fluent call
+can override a value. Do not add application variant enums or style objects to the native ABI.
+
+`SurfaceColors` and `InteractionColors` pair backgrounds with inherited foregrounds. `Surface`
+and `Paint` write existing operations; no additional schema or native state is needed. `Paint`
+declares every state's foreground explicitly, so a subsequent `TextColor` overrides only the
+normal state. See [Styling](STYLING.md) for the full contract and current inheritance limits.
+
+Composite control recipes should resolve their backgrounds and content colors together. Let primary
+content inherit the control's text color. If a child needs secondary emphasis, expose a typed child
+style from the same resolved recipe, as TaskBoard's `BoardButtonStyle.SecondaryContent` does. A
+global `TextMuted` color is not necessarily readable on a selected or pressed background. Secondary
+content can share the primary foreground on accent surfaces; do not assume reduced opacity or a
+muted color is always appropriate. Verify both foregrounds against normal, hover, and active
+backgrounds in each supported application theme. These are application-owned style decisions;
+explicit child colors still override inheritance and are not automatically recolored by GPUI.
+
+Native component defaults are applied before explicit operations. Operations affecting the same
+property apply in declaration order, including pixel and percentage forms. For ordinary growing
+snapshot elements, `.Grow()` supplies zero minimum width and height so flex content can shrink;
+explicit `MinWidth` and `MinHeight` override those defaults regardless of where `.Grow()` appears.
+
+Interaction presentation follows a shared native contract:
+
+- Component defaults establish the base; application operations and style recipes override them
+  in declaration order. Product states such as selected or invalid are resolved by those recipes.
+- Hover paint overrides the base, and active paint overrides hover for the properties it declares.
+  With neither palette declared, the theme supplies hover/active backgrounds. An explicit hover
+  palette with no active palette retains its colors while pressed feedback multiplies authored
+  opacity by 0.72.
+- Button, Checkbox, Radio, List, Table, and Slider keyboard focus uses a two-pixel outer ring in
+  the theme's focused-border color. This paint layer preserves application borders, shadows,
+  dimensions, and padding. It follows ancestor clipping and does not change row measurement or
+  viewport geometry. Input retains its native caret/selection focus presentation.
+- Disabled Button, Checkbox, Radio, Input, and Slider multiply their authored opacity by 0.5.
+  An omitted opacity starts at 1; an explicit zero remains invisible. Disabled interactive controls
+  do not install hover/active feedback. Disabled behavior remains in the existing native control.
+
+These transitions remain native and require no managed render callback. Focus paint is independent
+of application border colors, so keyboard focus does not replace a recipe's validation border.
+
+Retained controls have separate internal presentation. Input text inherits typography and text color
+through its wrapper. `PlaceholderColor`, `CaretColor`, and `SelectionColor` override its native text
+parts and compose with `IGpuiElementStyle<InputTag>` recipes. Omitted parts use the current theme:
+placeholder text, accent caret, and accent selection at alpha 0x40. Explicit selection color preserves
+the supplied alpha. These declarations update presentation without replacing text, selection, IME
+composition, focus, or revision. Omitting a previous override on a later render restores its theme
+default. Other internal control parts require focused APIs rather than wrapper styling.
+
 ## Matched surfaces
 
 `SurfaceColors` contains a background and its matching foreground. `.Surface(...)` declares the

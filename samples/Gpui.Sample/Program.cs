@@ -9,11 +9,15 @@ var options = new GpuiWindowOptions
     Title = stressGrowth ? "GPUI.NET Arena Growth" : "GPUI.NET Components",
     Width = 1040,
     Height = 700,
-    TitleBarStyle = stressGrowth || OperatingSystem.IsMacOS()
-        ? WindowTitleBarStyle.System : WindowTitleBarStyle.Custom,
+    TitleBarStyle =
+        stressGrowth || OperatingSystem.IsMacOS()
+            ? WindowTitleBarStyle.System
+            : WindowTitleBarStyle.Custom,
 };
-if (stressGrowth) application.OpenWindow(ArenaGrowthView.Spec(), options);
-else application.OpenWindow(SampleShellView.Spec(), options);
+if (stressGrowth)
+    application.OpenWindow(ArenaGrowthView.Spec(), options);
+else
+    application.OpenWindow(SampleShellView.Spec(), options);
 if (multiWindow)
 {
     application.OpenWindow(

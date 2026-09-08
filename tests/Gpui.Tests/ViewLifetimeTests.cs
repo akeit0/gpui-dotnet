@@ -205,15 +205,23 @@ public sealed class ViewLifetimeTests
         view.Runtime.MountRuntime();
         try
         {
-            if (view is LifecycleView lifecycle) lifecycle.Activate();
+            if (view is LifecycleView lifecycle)
+                lifecycle.Activate();
         }
-        catch { view.Runtime.UnmountRuntime(); throw; }
+        catch
+        {
+            view.Runtime.UnmountRuntime();
+            throw;
+        }
     }
 
     private sealed class LifecycleView : View
     {
-        public LifecycleView() : this(TestViews.Construction()) { }
-        public LifecycleView(ViewConstruction construction) : base(construction) { }
+        public LifecycleView()
+            : this(TestViews.Construction()) { }
+
+        public LifecycleView(ViewConstruction construction)
+            : base(construction) { }
 
         internal bool ThrowDuringMount { get; init; }
         internal bool ThrowDuringUnmount { get; init; }
@@ -282,10 +290,16 @@ public sealed class ViewLifetimeTests
 
     private sealed class PropsLifecycleView : View<PropsPayload>
     {
-        public PropsLifecycleView() : this(TestViews.Construction()) { }
+        public PropsLifecycleView()
+            : this(TestViews.Construction()) { }
+
         private bool _committed;
-        public PropsLifecycleView(ViewConstruction construction) : base(construction) =>
-            construction.Own(new TestCleanup(() => UnmountedValue = _committed ? CommittedProps.Value : null));
+
+        public PropsLifecycleView(ViewConstruction construction)
+            : base(construction) =>
+            construction.Own(
+                new TestCleanup(() => UnmountedValue = _committed ? CommittedProps.Value : null)
+            );
 
         internal string? UnmountedValue { get; private set; }
 

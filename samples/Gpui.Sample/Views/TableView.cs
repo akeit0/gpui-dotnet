@@ -10,11 +10,13 @@ internal sealed partial class TableView : View
     private bool _descending;
     private ulong _revision = 1;
     private ListContextMenuEvent? _menuRequest;
-    private string _activation = "Click or press Space to select; double-click or press Enter to activate";
+    private string _activation =
+        "Click or press Space to select; double-click or press Enter to activate";
 
     private void ActivateRow(ListActivationEvent e)
     {
-        if (e.ItemId is not { } id || id is 0 or > ItemCount) return;
+        if (e.ItemId is not { } id || id is 0 or > ItemCount)
+            return;
         _activation = $"Activated svc-{id - 1:D4} via {e.Source} (ID {id})";
         Invalidate();
     }
@@ -29,10 +31,12 @@ internal sealed partial class TableView : View
 
     private void SelectRow(ListSelectionEvent e)
     {
-        if (e.ItemId is not { } id || id is 0 or > ItemCount) return;
+        if (e.ItemId is not { } id || id is 0 or > ItemCount)
+            return;
         var index = checked((int)id - 1);
         var previous = _selected;
-        if (previous == index) return;
+        if (previous == index)
+            return;
         _selected = index;
         if (previous >= 0)
         {
@@ -66,23 +70,25 @@ internal sealed partial class TableView : View
         return ui.Div(
                 ui.HStack(
                         ui.TableCell(
-                            0,
-                            ui.Text($"svc-{index:D4}")
-                                .FontSize(Px(theme.Typography.BodySmall))
-                        ).PaddingX(Px(10)),
+                                0,
+                                ui.Text($"svc-{index:D4}").FontSize(Px(theme.Typography.BodySmall))
+                            )
+                            .PaddingX(Px(10)),
                         ui.TableCell(
-                            1,
-                            ui.Text(Region(index))
-                                .FontSize(Px(theme.Typography.Detail))
-                                .TextColor(colors.TextMuted)
-                        ).PaddingX(Px(10)),
+                                1,
+                                ui.Text(Region(index))
+                                    .FontSize(Px(theme.Typography.Detail))
+                                    .TextColor(colors.TextMuted)
+                            )
+                            .PaddingX(Px(10)),
                         ui.TableCell(2, ui.Text(status).TextColor(statusColor)).PaddingX(Px(10)),
                         ui.TableCell(
-                            3,
-                            ui.Text(Throughput(index))
-                                .FontSize(Px(theme.Typography.Detail))
-                                .TextColor(colors.TextMuted)
-                        ).PaddingX(Px(10))
+                                3,
+                                ui.Text(Throughput(index))
+                                    .FontSize(Px(theme.Typography.Detail))
+                                    .TextColor(colors.TextMuted)
+                            )
+                            .PaddingX(Px(10))
                     )
                     .Width(Percent(100))
             )
@@ -124,39 +130,60 @@ internal sealed partial class TableView : View
                     .OnClick(this, static (view, _) => view.ToggleSort()),
                 ui.Text("Region"),
                 ui.HStack(ui.Text("●").TextColor(theme.Colors.Success), ui.Text("Status"))
-                    .Gap(Px(5)).ItemsCenter(),
+                    .Gap(Px(5))
+                    .ItemsCenter(),
                 ui.Text("Req/s")
             )
             .OnActivated(this, static (view, e) => view.ActivateRow(e))
             .OnSelectionRequested(this, static (view, e) => view.SelectRow(e))
-            .OnContextMenuRequested(this, static (view, e) =>
-            {
-                view._menuRequest = e;
-                view.Invalidate();
-            })
+            .OnContextMenuRequested(
+                this,
+                static (view, e) =>
+                {
+                    view._menuRequest = e;
+                    view.Invalidate();
+                }
+            )
             .Grow()
             .Width(Percent(100))
             .Style(SampleStyles.Table(theme));
 
-        var body = ui.VStack(header,
-            ui.Text(_activation).TextColor(theme.Colors.TextMuted),
-            ui.Text("Right-click a service for actions").TextColor(theme.Colors.TextMuted), grid)
-            .Gap(Px(10)).Grow();
+        var body = ui.VStack(
+                header,
+                ui.Text(_activation).TextColor(theme.Colors.TextMuted),
+                ui.Text("Right-click a service for actions").TextColor(theme.Colors.TextMuted),
+                grid
+            )
+            .Gap(Px(10))
+            .Grow();
         if (_menuRequest is { } request)
         {
             var service = checked((int)request.ItemId - 1);
             var content = ui.VStack(
-                ui.Text($"svc-{service:D4}").FontWeight(600),
-                ui.Text(Region(service)).TextColor(theme.Colors.TextMuted),
-                ui.Button("inspect-service", "Inspect service")
-                    .Style(SampleStyles.Button(theme))
-                    .OnClick(this, static (view, e) => view.InspectService(e.Payload), request.ItemId),
-                ui.Button("select-service", "Select service")
-                    .Style(SampleStyles.Button(theme))
-                    .OnClick(this, static (view, e) => view.SelectService(e.Payload), request.ItemId)
-            ).Gap(Px(6)).Padding(Px(12)).Width(Px(220))
+                    ui.Text($"svc-{service:D4}").FontWeight(600),
+                    ui.Text(Region(service)).TextColor(theme.Colors.TextMuted),
+                    ui.Button("inspect-service", "Inspect service")
+                        .Style(SampleStyles.Button(theme))
+                        .OnClick(
+                            this,
+                            static (view, e) => view.InspectService(e.Payload),
+                            request.ItemId
+                        ),
+                    ui.Button("select-service", "Select service")
+                        .Style(SampleStyles.Button(theme))
+                        .OnClick(
+                            this,
+                            static (view, e) => view.SelectService(e.Payload),
+                            request.ItemId
+                        )
+                )
+                .Gap(Px(6))
+                .Padding(Px(12))
+                .Width(Px(220))
                 .Surface(new(theme.Colors.ElevatedSurfaceBackground, theme.Colors.Text))
-                .BorderColor(theme.Colors.Border).BorderWidth(Px(1)).Radius(Px(8));
+                .BorderColor(theme.Colors.Border)
+                .BorderWidth(Px(1))
+                .Radius(Px(8));
             body = body.Child(ui.RowContextMenu("service-menu", request, content));
         }
         return body;
@@ -171,8 +198,14 @@ internal sealed partial class TableView : View
 
     private void SelectService(ulong id)
     {
-        SelectRow(new ListSelectionEvent(RowIndex(checked((int)id - 1)), id, _revision,
-            ListSelectionSource.Pointer));
+        SelectRow(
+            new ListSelectionEvent(
+                RowIndex(checked((int)id - 1)),
+                id,
+                _revision,
+                ListSelectionSource.Pointer
+            )
+        );
         _menuRequest = null;
         Invalidate();
     }

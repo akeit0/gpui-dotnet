@@ -24,7 +24,6 @@ internal sealed partial class StatsView : View<StatsProps>
         _animationStart = Stopwatch.GetTimestamp();
     }
 
-
     private static StatsData Summarize(TravelStore store)
     {
         var likes = 0;
@@ -80,10 +79,7 @@ internal sealed partial class StatsView : View<StatsProps>
                     )
                     .ItemsCenter(),
                 WeekBars(ref ui, stats),
-                ui.Dynamic(
-                    progress.Active,
-                    Chart(ref ui, stats, progress.Value)
-                ),
+                ui.Dynamic(progress.Active, Chart(ref ui, stats, progress.Value)),
                 GoalBar(ref ui, props.Store)
             )
             .Gap(Px(12))
@@ -118,7 +114,9 @@ internal sealed partial class StatsView : View<StatsProps>
             DayBar(ref ui, "S", stats.DoneDays * 79 % 100),
         ];
         return ui.VStack(
-                ui.Text($"Likes {stats.TotalLikes:N0} · days out {stats.DoneDays:N0} · avg ★ {stats.AvgRating:0.0}")
+                ui.Text(
+                        $"Likes {stats.TotalLikes:N0} · days out {stats.DoneDays:N0} · avg ★ {stats.AvgRating:0.0}"
+                    )
                     .FontSize(Px(theme.Typography.Detail))
                     .TextColor(theme.Colors.TextMuted),
                 ui.HStack(bars).Gap(Px(8)).Height(Px(110)).ItemsEnd()
@@ -158,13 +156,18 @@ internal sealed partial class StatsView : View<StatsProps>
         var mid = 100 - (20 + stats.Trips * 9) * progress;
         var area = ui.Path()
             .MoveTo(0, 100)
-            .LineTo(0, mid).LineTo(33, top).LineTo(66, mid).LineTo(100, 100 - 78 * progress)
+            .LineTo(0, mid)
+            .LineTo(33, top)
+            .LineTo(66, mid)
+            .LineTo(100, 100 - 78 * progress)
             .LineTo(100, 100)
             .Close()
             .Fill(theme.Colors.Accent.WithAlpha(52));
         var line = ui.Path()
             .MoveTo(0, mid)
-            .LineTo(33, top).LineTo(66, mid).LineTo(100, 100 - 78 * progress)
+            .LineTo(33, top)
+            .LineTo(66, mid)
+            .LineTo(100, 100 - 78 * progress)
             .Stroke(theme.Colors.Accent, Px(3));
         var dot = ui.Circle(100, 100 - 78 * progress, 2.5f)
             .Fill(theme.Colors.SurfaceBackground)
@@ -183,7 +186,8 @@ internal sealed partial class StatsView : View<StatsProps>
     private static Element GoalBar(ref RenderContext ui, TravelStore store)
     {
         var theme = ui.Theme;
-        var percent = store.GoalKm <= 0 ? 0 : Math.Clamp(store.WalkedKm / store.GoalKm * 100, 0, 100);
+        var percent =
+            store.GoalKm <= 0 ? 0 : Math.Clamp(store.WalkedKm / store.GoalKm * 100, 0, 100);
         return ui.VStack(
                 ui.HStack(
                         ui.Text("Season goal")

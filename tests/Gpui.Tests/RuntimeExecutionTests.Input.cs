@@ -9,15 +9,22 @@ public sealed unsafe partial class RuntimeExecutionTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void ConditionalInputReplacementPreservesPayloadAcrossAnyThreadRoute(bool utf8, bool explicitPolicies)
+    public void ConditionalInputReplacementPreservesPayloadAcrossAnyThreadRoute(
+        bool utf8,
+        bool explicitPolicies
+    )
     {
         using var fixture = new SessionFixture(new ProbeView());
         fixture.Render();
         var calls = fixture.CaptureResourceCommands();
         var controller = new InputController(fixture.View, "入力");
         const ulong revision = ulong.MaxValue - 3;
-        var selection = explicitPolicies ? InputSelectionPolicy.MoveToEnd : InputSelectionPolicy.Preserve;
-        var composition = explicitPolicies ? InputCompositionPolicy.CancelComposition : InputCompositionPolicy.RejectWhileComposing;
+        var selection = explicitPolicies
+            ? InputSelectionPolicy.MoveToEnd
+            : InputSelectionPolicy.Preserve;
+        var composition = explicitPolicies
+            ? InputCompositionPolicy.CancelComposition
+            : InputCompositionPolicy.RejectWhileComposing;
         void Replace()
         {
             if (utf8)
@@ -33,8 +40,17 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Null(failure);
         var (owner, command) = Assert.Single(calls);
         Assert.Equal(fixture.View.Runtime.RuntimeViewHandle, owner);
-        Assert.Equal(new ResourceCommand(ResourceKind.Input, ResourceCommandKind.InputSetValueIfCurrent,
-            "入力", revision, explicitPolicies ? 3UL : 0UL, "変換🙂"), command);
+        Assert.Equal(
+            new ResourceCommand(
+                ResourceKind.Input,
+                ResourceCommandKind.InputSetValueIfCurrent,
+                "入力",
+                revision,
+                explicitPolicies ? 3UL : 0UL,
+                "変換🙂"
+            ),
+            command
+        );
 
         fixture.Session.Stop();
         Assert.Throws<InvalidOperationException>(Replace);
@@ -50,7 +66,11 @@ public sealed unsafe partial class RuntimeExecutionTests
         fixture.Render();
         var calls = fixture.CaptureResourceCommands();
         var controller = new InputController(fixture.View, "input");
-        void Replace(ulong revision, InputSelectionPolicy selection, InputCompositionPolicy composition)
+        void Replace(
+            ulong revision,
+            InputSelectionPolicy selection,
+            InputCompositionPolicy composition
+        )
         {
             if (utf8)
                 controller.SetValueIfCurrent(""u8, revision, selection, composition);

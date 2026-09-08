@@ -22,8 +22,9 @@ public sealed class EffectScope
         get
         {
             lock (_gate)
-                return _lifetime.CanBeCanceled ? _lifetime : _lifetime = _runtime is null ? new(true)
-                    : (_cancellation = new()).Token;
+                return _lifetime.CanBeCanceled
+                    ? _lifetime
+                    : _lifetime = _runtime is null ? new(true) : (_cancellation = new()).Token;
         }
     }
 
@@ -36,7 +37,8 @@ public sealed class EffectScope
         }
     }
 
-    public T Own<T>(T resource) where T : IDisposable
+    public T Own<T>(T resource)
+        where T : IDisposable
     {
         AssertAccess();
         ArgumentNullException.ThrowIfNull(resource);
@@ -52,18 +54,29 @@ public sealed class EffectScope
         return Own(new Registration<TState>(this, state, callback)).Invoke;
     }
 
-    private sealed class Registration<TState>(EffectScope scope, TState state, Action<TState> callback) : IDisposable
+    private sealed class Registration<TState>(
+        EffectScope scope,
+        TState state,
+        Action<TState> callback
+    ) : IDisposable
     {
         private TState _state = state;
         private Action<TState>? _callback = callback;
+
         internal void Invoke()
         {
             lock (scope._gate)
-                if (_callback is { } action) scope.Post(_state, action);
+                if (_callback is { } action)
+                    scope.Post(_state, action);
         }
+
         public void Dispose()
         {
-            lock (scope._gate) { _state = default!; _callback = null; }
+            lock (scope._gate)
+            {
+                _state = default!;
+                _callback = null;
+            }
         }
     }
 
@@ -74,21 +87,33 @@ public sealed class EffectScope
         ApplicationExecution.AssertEffectsAllowed();
         lock (_gate)
         {
-            if (_runtime is null) return;
+            if (_runtime is null)
+                return;
             var work = new Callback<TState>(this, state, callback);
             (_callbacks ??= []).Add(work);
             try
             {
-                if (!_runtime.TryPostOwned(work)) { _callbacks?.Remove(work); work.Clear(); }
+                if (!_runtime.TryPostOwned(work))
+                {
+                    _callbacks?.Remove(work);
+                    work.Clear();
+                }
             }
-            catch { _callbacks?.Remove(work); work.Clear(); throw; }
+            catch
+            {
+                _callbacks?.Remove(work);
+                work.Clear();
+                throw;
+            }
         }
     }
 
     private void AssertAccess()
     {
         if (_thread != Environment.CurrentManagedThreadId)
-            throw new InvalidOperationException("Effect facilities require the application thread.");
+            throw new InvalidOperationException(
+                "Effect facilities require the application thread."
+            );
         ObjectDisposedException.ThrowIf(_runtime is null, this);
     }
 
@@ -96,10 +121,12 @@ public sealed class EffectScope
     {
         lock (_gate)
         {
-            if (_runtime is null) return;
+            if (_runtime is null)
+                return;
             _runtime = null;
             if (_callbacks is not null)
-                foreach (var callback in _callbacks) callback.Clear();
+                foreach (var callback in _callbacks)
+                    callback.Clear();
             _callbacks = null;
         }
         _work?.Revoke();
@@ -107,19 +134,42 @@ public sealed class EffectScope
 
     internal void Retire()
     {
-        if (_retired) return;
+        if (_retired)
+            return;
         _retired = true;
         Revoke();
         List<Exception>? failures = null;
-        try { _work?.Retire(); } catch (Exception e) { (failures ??= []).Add(e); }
+        try
+        {
+            _work?.Retire();
+        }
+        catch (Exception e)
+        {
+            (failures ??= []).Add(e);
+        }
         _work = null;
-        try { _cancellation?.Cancel(); } catch (Exception e) { (failures ??= []).Add(e); }
+        try
+        {
+            _cancellation?.Cancel();
+        }
+        catch (Exception e)
+        {
+            (failures ??= []).Add(e);
+        }
         if (_cleanup is not null)
             for (var i = _cleanup.Count - 1; i >= 0; i--)
-                try { _cleanup[i].Dispose(); } catch (Exception e) { (failures ??= []).Add(e); }
+                try
+                {
+                    _cleanup[i].Dispose();
+                }
+                catch (Exception e)
+                {
+                    (failures ??= []).Add(e);
+                }
         _cleanup = null;
         _cancellation?.Dispose();
-        if (failures is not null) throw new AggregateException(failures);
+        if (failures is not null)
+            throw new AggregateException(failures);
     }
 
     private abstract class Callback : IIngressWork
@@ -128,11 +178,18 @@ public sealed class EffectScope
         public abstract void Invoke();
     }
 
-    private sealed class Callback<TState>(EffectScope scope, TState state, Action<TState> callback) : Callback
+    private sealed class Callback<TState>(EffectScope scope, TState state, Action<TState> callback)
+        : Callback
     {
         private TState _state = state;
         private Action<TState>? _callback = callback;
-        internal override void Clear() { _state = default!; _callback = null; }
+
+        internal override void Clear()
+        {
+            _state = default!;
+            _callback = null;
+        }
+
         public override void Invoke()
         {
             Action<TState>? action;

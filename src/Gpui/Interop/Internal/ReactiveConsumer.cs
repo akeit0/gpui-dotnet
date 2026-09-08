@@ -21,10 +21,18 @@ internal sealed class DependencyEdge(ISignal signal, ReactiveConsumer consumer)
 }
 
 /// <summary>Reusable observations whose edges become live only at native acceptance.</summary>
-internal sealed class ReactiveConsumer(ManagedSession session, ViewBase owner, ulong source = 0, ulong artifact = 0)
+internal sealed class ReactiveConsumer(
+    ManagedSession session,
+    ViewBase owner,
+    ulong source = 0,
+    ulong artifact = 0
+)
 {
-    [ThreadStatic] internal static ReactiveConsumer? Current;
-    [ThreadStatic] internal static bool Comparing;
+    [ThreadStatic]
+    internal static ReactiveConsumer? Current;
+
+    [ThreadStatic]
+    internal static bool Comparing;
     internal readonly ViewBase Owner = owner;
     internal readonly ulong Source = source;
     internal readonly ulong Artifact = artifact;
@@ -32,10 +40,12 @@ internal sealed class ReactiveConsumer(ManagedSession session, ViewBase owner, u
     internal bool Accepted { get; private set; }
     private bool _invalidated;
     private ulong _pass;
+
     // One representation: a dense array for small sets, replaced by a dictionary on growth.
     private object? _edges;
     private int _edgeCount;
     private const int LinearLookupLimit = 64;
+
     // Detached storage belongs to this consumer and never retains an unused Signal.
     private DependencyEdge? _spareEdges;
     private int _spareCount;

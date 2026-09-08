@@ -4,7 +4,8 @@
             Condition="
                 '$(TargetPlatformIdentifier)' == 'Windows'
                 or $([MSBuild]::IsOSPlatform('Windows'))
-                or $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">true</_GpuiIsWindowsTarget>
+                or $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))"
+            >true</_GpuiIsWindowsTarget>
     </PropertyGroup>
 
     <PropertyGroup
@@ -12,7 +13,8 @@
             '$(_GpuiIsWindowsTarget)' == 'true'
             and ('$(OutputType)' == 'Exe' or '$(OutputType)' == 'WinExe')
             and '$(ApplicationManifest)' == ''
-            and '$(NoWin32Manifest)' != 'true'">
+            and '$(NoWin32Manifest)' != 'true'"
+    >
         <ApplicationManifest>$(MSBuildThisFileDirectory)GPUI.NET.Windows.manifest</ApplicationManifest>
     </PropertyGroup>
 </Project>

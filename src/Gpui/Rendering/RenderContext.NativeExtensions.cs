@@ -15,7 +15,9 @@ public readonly unsafe ref partial struct RenderContext
     {
         ArgumentNullException.ThrowIfNull(view);
         ArgumentNullException.ThrowIfNull(callback);
-        return new NativeExtensionEventBinding(view.Runtime.Events.BindNativeExtensionEvent(callback));
+        return new NativeExtensionEventBinding(
+            view.Runtime.Events.BindNativeExtensionEvent(callback)
+        );
     }
 
     /// <summary>
@@ -80,12 +82,7 @@ public readonly unsafe ref partial struct RenderContext
             );
         }
 
-        var element = ArenaWriter.AddNativeExtensionNode(
-            _arena,
-            component,
-            key,
-            configuration
-        );
+        var element = ArenaWriter.AddNativeExtensionNode(_arena, component, key, configuration);
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
         ArenaWriter.AddChildren(element.Inner, children);
         return element;
@@ -156,12 +153,7 @@ public readonly unsafe ref partial struct RenderContext
             );
         }
 
-        var element = ArenaWriter.AddNativeExtensionNode(
-            _arena,
-            component,
-            key,
-            utf8Configuration
-        );
+        var element = ArenaWriter.AddNativeExtensionNode(_arena, component, key, utf8Configuration);
         ArenaWriter.AddU32(element.Inner, OpCode.ResourceOwner, CurrentResourceOwner());
         ArenaWriter.AddChildren(element.Inner, children);
         return element;
@@ -188,7 +180,10 @@ public readonly unsafe ref partial struct RenderContext
         component.Validate(nameof(component));
         if (utf8Key.IsEmpty)
         {
-            throw new ArgumentException("An extension resource key cannot be empty.", nameof(utf8Key));
+            throw new ArgumentException(
+                "An extension resource key cannot be empty.",
+                nameof(utf8Key)
+            );
         }
         ResourceKeys.ValidateExplicitBytes(utf8Key, nameof(utf8Key));
         if (utf8Configuration.Contains((byte)0))

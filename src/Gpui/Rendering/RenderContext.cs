@@ -1,6 +1,6 @@
-using Gpui.Interop.Internal;
 using System.Runtime.CompilerServices;
 using Gpui.Interop;
+using Gpui.Interop.Internal;
 
 namespace Gpui;
 
@@ -13,9 +13,15 @@ public readonly unsafe ref partial struct RenderContext
     private readonly uint _generation;
     private RenderArenaOwner _arena
     {
-        get { _storage.GetArena(_generation); return _storage; }
+        get
+        {
+            _storage.GetArena(_generation);
+            return _storage;
+        }
     }
+
     internal RenderArenaOwner.AccessScope Access() => _storage.Access(_generation);
+
     internal RenderArenaOwner Storage => _arena;
     private readonly IViewRenderer? _views;
     private readonly ViewBase? _owner;
@@ -78,11 +84,14 @@ public readonly unsafe ref partial struct RenderContext
         where TView : View<TProps>, IGeneratedViewFactory<TView, TProps> =>
         RenderManagedChild<TView, TProps>(ChildSlot.Keyed(key), spec.Props);
 
-    public void Effect<TInput>(Effect<TInput> effect, TInput input) where TInput : IEquatable<TInput>
+    public void Effect<TInput>(Effect<TInput> effect, TInput input)
+        where TInput : IEquatable<TInput>
     {
         ArgumentNullException.ThrowIfNull(effect);
         if (_views is null || _owner is null)
-            throw new InvalidOperationException("Effects belong to retained View rendering, not virtual rows.");
+            throw new InvalidOperationException(
+                "Effects belong to retained View rendering, not virtual rows."
+            );
         effect.Declare(_owner, input);
     }
 
@@ -98,7 +107,12 @@ public readonly unsafe ref partial struct RenderContext
         where TView : View<TProps>, IGeneratedViewFactory<TView, TProps>
     {
         var renderer = _views ?? throw ChildRuntimeRequired();
-        return renderer.RenderChild<TView, TProps>(_owner ?? throw ChildOwnerRequired(), slot, in props, _arena);
+        return renderer.RenderChild<TView, TProps>(
+            _owner ?? throw ChildOwnerRequired(),
+            slot,
+            in props,
+            _arena
+        );
     }
 
     private static InvalidOperationException ChildRuntimeRequired() =>

@@ -27,16 +27,7 @@ GPUI's single inherited foreground. The [upstream proposal](proposals/GPUI_CONTE
 records the evidence, alternatives, and acceptance criteria. Pursue upstream discussion if other
 GPUI applications need it; do not maintain a GPUI fork or expose unsupported role semantics.
 
-## Default native host size
-
-The Dock skin no longer links the complete `gpui-component` facade: Dock wears a small in-repo
-renderer over `gpui-base`, and the default host resolves `gpui` plus `gpui-base` only. A
-Windows x64 Release build (`cargo build -p gpui-dotnet-default-host --release`) is 14,988,800
-bytes, against the 14,127,104-byte pre-Dock
-reference and 19,929,600 bytes with the styled integration. This project is in preview, so
-there is no per-RID size-report or link-map CI job: the boundary holds through the structural
-`cargo tree --invert gpui-component` guard plus manual re-measurement on dependency changes.
-What remains is hardening, not further isolation:
+## Native host packaging
 
 - keep editor providers, grammars, and other optional runtime families exclusive to their custom
   hosts;
@@ -146,8 +137,8 @@ retained descriptions rather than invoking managed callbacks during interaction.
 
 ## Runtime
 
-Runtime performance and platform verification are tracked in
-[RUNTIME_PLAN.md](RUNTIME_PLAN.md).
+The current runtime contracts are described in [Runtime design](RUNTIME_DESIGN.md).
+The remaining measurement and platform work is listed here.
 
 Measure large static trees with a changing leaf, dense drawings with stable geometry, variable-height
 collection churn, IME with async completion, and multi-window navigation. Include native allocations,

@@ -18,13 +18,19 @@ public sealed unsafe class RenderArenaOwner : IDisposable
 
     internal RenderArena* NativeArena
     {
-        get { AssertThread(); return _arena; }
+        get
+        {
+            AssertThread();
+            return _arena;
+        }
     }
 
     private void AssertThread()
     {
         if (_threadId != Environment.CurrentManagedThreadId)
-            throw new InvalidOperationException("Render arenas can only be used on their rendering thread.");
+            throw new InvalidOperationException(
+                "Render arenas can only be used on their rendering thread."
+            );
     }
 
     internal RenderArena* GetArena(uint generation)
@@ -32,7 +38,9 @@ public sealed unsafe class RenderArenaOwner : IDisposable
         AssertThread();
         ObjectDisposedException.ThrowIf(_arena == null, this);
         if (_arena->Generation != generation)
-            throw new InvalidOperationException("Element or context escaped its render generation.");
+            throw new InvalidOperationException(
+                "Element or context escaped its render generation."
+            );
         return _arena;
     }
 
@@ -40,7 +48,9 @@ public sealed unsafe class RenderArenaOwner : IDisposable
     {
         var arena = GetArena(generation);
         if (_formatting)
-            throw new InvalidOperationException("Render arena access cannot reenter an active formatter.");
+            throw new InvalidOperationException(
+                "Render arena access cannot reenter an active formatter."
+            );
         _accessCount++;
         return new AccessScope(this, arena);
     }
@@ -56,7 +66,9 @@ public sealed unsafe class RenderArenaOwner : IDisposable
     {
         AssertThread();
         if (_accessCount == 0 || _formatting)
-            throw new InvalidOperationException("Formatting requires an exclusive active arena write.");
+            throw new InvalidOperationException(
+                "Formatting requires an exclusive active arena write."
+            );
         _formatting = true;
         return new FormattingScope(this);
     }
@@ -71,6 +83,7 @@ public sealed unsafe class RenderArenaOwner : IDisposable
     internal readonly struct AccessScope(RenderArenaOwner owner, RenderArena* arena) : IDisposable
     {
         internal RenderArena* Arena => arena;
+
         public void Dispose()
         {
             owner._accessCount--;
@@ -87,10 +100,16 @@ public sealed unsafe class RenderArenaOwner : IDisposable
         using var access = Access();
         if (output == null || output == _arena)
         {
-            throw new ArgumentException("Output must be a separate writable descriptor.", nameof(output));
+            throw new ArgumentException(
+                "Output must be a separate writable descriptor.",
+                nameof(output)
+            );
         }
-        if (root.Arena != _arena || root.Generation != _arena->Generation
-            || root.Node >= (uint)_arena->NodeLength)
+        if (
+            root.Arena != _arena
+            || root.Generation != _arena->Generation
+            || root.Node >= (uint)_arena->NodeLength
+        )
         {
             throw new InvalidOperationException("Cannot publish a foreign or stale render root.");
         }
@@ -156,7 +175,9 @@ public sealed unsafe class RenderArenaOwner : IDisposable
         AssertThread();
         ObjectDisposedException.ThrowIf(_arena == null, this);
         if (_accessCount != 0)
-            throw new InvalidOperationException("Cannot reset an arena during an active write or validation.");
+            throw new InvalidOperationException(
+                "Cannot reset an arena during an active write or validation."
+            );
 
         // Never let a stale Element become current again through generation wraparound.
         var generation = checked(_arena->Generation + 1);
@@ -243,7 +264,9 @@ public sealed unsafe class RenderArenaOwner : IDisposable
     {
         AssertThread();
         if (_accessCount != 0)
-            throw new InvalidOperationException("Cannot dispose an arena during an active write or validation.");
+            throw new InvalidOperationException(
+                "Cannot dispose an arena during an active write or validation."
+            );
         Free();
         GC.SuppressFinalize(this);
     }

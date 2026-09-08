@@ -53,7 +53,10 @@ public sealed partial class RuntimeExecutionTests
             signals[0].Value++;
             Assert.Equal(2, fixture.Notifications);
         }
-        finally { consumer.Dispose(); }
+        finally
+        {
+            consumer.Dispose();
+        }
     }
 
     [Theory]
@@ -69,7 +72,10 @@ public sealed partial class RuntimeExecutionTests
     {
         using var fixture = new SessionFixture(new AllocationRenderRoot());
         fixture.Render();
-        var signals = Enumerable.Range(0, count).Select(static index => new Signal<int>(index)).ToArray();
+        var signals = Enumerable
+            .Range(0, count)
+            .Select(static index => new Signal<int>(index))
+            .ToArray();
         var consumer = new ReactiveConsumer(fixture.Session, fixture.View);
         const int passes = 4096;
         var samples = new double[5];
@@ -101,8 +107,12 @@ public sealed partial class RuntimeExecutionTests
             }
             Array.Sort(samples);
             TestContext.Current.TestOutputHelper!.WriteLine(
-                $"dependency-lookup-{count}: median={samples[2]:N1} ns/pass, min={samples[0]:N1}, max={samples[^1]:N1}");
+                $"dependency-lookup-{count}: median={samples[2]:N1} ns/pass, min={samples[0]:N1}, max={samples[^1]:N1}"
+            );
         }
-        finally { consumer.Dispose(); }
+        finally
+        {
+            consumer.Dispose();
+        }
     }
 }

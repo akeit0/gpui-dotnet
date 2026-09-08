@@ -14,7 +14,8 @@ public sealed unsafe partial class RuntimeExecutionTests
         var root = new RetirementRoot();
         using var fixture = new SessionFixture(root);
         fixture.Render();
-        for (var index = 0; index < batches; index++) fixture.Range((uint)index * 48, count: 48);
+        for (var index = 0; index < batches; index++)
+            fixture.Range((uint)index * 48, count: 48);
         var rowToken = root.RowToken;
         var samples = new double[5];
         var allocations = new long[5];
@@ -44,7 +45,8 @@ public sealed unsafe partial class RuntimeExecutionTests
         }
         Array.Sort(samples);
         TestContext.Current.TestOutputHelper!.WriteLine(
-            $"retire-64-views-with-{batches}-unrelated-batches: median={samples[2]:F1} ns/op; allocated={string.Join(",", allocations)} B/op");
+            $"retire-64-views-with-{batches}-unrelated-batches: median={samples[2]:F1} ns/op; allocated={string.Join(",", allocations)} B/op"
+        );
         if (batches != 0)
         {
             Assert.Equal(0, fixture.Click(rowToken));
@@ -61,25 +63,32 @@ public sealed unsafe partial class RuntimeExecutionTests
     {
         using var fixture = new SessionFixture(new AllocationRowView("shared-click"));
         fixture.Render();
-        for (var index = 0; index < cached; index++) fixture.Range((uint)index * 48, count: 48);
+        for (var index = 0; index < cached; index++)
+            fixture.Range((uint)index * 48, count: 48);
         var status = 0;
-        MeasureRenderCost($"row-churn-with-{cached}-cached-batches", 32, () =>
-        {
-            status |= fixture.NativeRange((uint)cached * 48, out var artifact, count: 48);
-            status |= fixture.Accept(1, artifact);
-            status |= fixture.Release(1, artifact);
-        });
+        MeasureRenderCost(
+            $"row-churn-with-{cached}-cached-batches",
+            32,
+            () =>
+            {
+                status |= fixture.NativeRange((uint)cached * 48, out var artifact, count: 48);
+                status |= fixture.Accept(1, artifact);
+                status |= fixture.Release(1, artifact);
+            }
+        );
         Assert.Equal(0, status);
     }
 
     private sealed class RetirementRoot : ProbeView
     {
         internal bool ShowChildren;
+
         protected override Element Render(ref RenderContext ui)
         {
             var root = ui.Div(base.Render(ref ui));
             if (ShowChildren)
-                for (var index = 0; index < 64; index++) root.Child(ui.Child(ChildView.Spec()));
+                for (var index = 0; index < 64; index++)
+                    root.Child(ui.Child(ChildView.Spec()));
             return root;
         }
     }
@@ -110,7 +119,11 @@ public sealed unsafe partial class RuntimeExecutionTests
             for (var index = 0; index < count; index++)
                 root = ui.Dynamic(false, root);
         }
-        MeasureRenderCost($"validate-{(dock ? "dock" : "wrappers")}-{count}", 16, () => arena.Validate(root));
+        MeasureRenderCost(
+            $"validate-{(dock ? "dock" : "wrappers")}-{count}",
+            16,
+            () => arena.Validate(root)
+        );
     }
 
     [Theory]
@@ -122,14 +135,23 @@ public sealed unsafe partial class RuntimeExecutionTests
     public void DeepRetainedTreeCost(int depth, bool dirtyLeaf)
     {
         var input = new DeepRenderInput(depth, new Signal<int>(0));
-        using var fixture = new SessionFixture(new DeclarationRoot((ref RenderContext ui) =>
-            ui.Child("tree", new ViewSpec<DeepRenderView, DeepRenderInput>(input))));
+        using var fixture = new SessionFixture(
+            new DeclarationRoot(
+                (ref RenderContext ui) =>
+                    ui.Child("tree", new ViewSpec<DeepRenderView, DeepRenderInput>(input))
+            )
+        );
         fixture.Render();
-        MeasureRenderCost($"tree-depth-{depth}-dirty-{dirtyLeaf}", 32, () =>
-        {
-            if (dirtyLeaf) input.Value.Value++;
-            fixture.Render();
-        });
+        MeasureRenderCost(
+            $"tree-depth-{depth}-dirty-{dirtyLeaf}",
+            32,
+            () =>
+            {
+                if (dirtyLeaf)
+                    input.Value.Value++;
+                fixture.Render();
+            }
+        );
         Assert.Null(fixture.Session.Failure);
     }
 
@@ -161,7 +183,8 @@ public sealed unsafe partial class RuntimeExecutionTests
         {
             var before = GC.GetAllocatedBytesForCurrentThread();
             var start = Stopwatch.GetTimestamp();
-            for (var iteration = 0; iteration < iterations; iteration++) operation();
+            for (var iteration = 0; iteration < iterations; iteration++)
+                operation();
             var elapsed = Stopwatch.GetTimestamp() - start;
             var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
             if (batch >= 4)
@@ -172,19 +195,35 @@ public sealed unsafe partial class RuntimeExecutionTests
         }
         Array.Sort(samples);
         TestContext.Current.TestOutputHelper!.WriteLine(
-            $"{label}: median={samples[2]:F1} ns/op; allocated={string.Join(",", allocations)} B/op");
+            $"{label}: median={samples[2]:F1} ns/op; allocated={string.Join(",", allocations)} B/op"
+        );
     }
 
     private readonly record struct DeepRenderInput(int Depth, Signal<int> Value);
 
     private sealed class DeepRenderView(ViewConstruction construction)
-        : View<DeepRenderInput>(construction), IGeneratedViewFactory<DeepRenderView, DeepRenderInput>
+        : View<DeepRenderInput>(construction),
+            IGeneratedViewFactory<DeepRenderView, DeepRenderInput>
     {
-        public static DeepRenderView CreateGpuiView(ViewConstruction construction, DeepRenderInput props) => new(construction);
+        public static DeepRenderView CreateGpuiView(
+            ViewConstruction construction,
+            DeepRenderInput props
+        ) => new(construction);
+
         protected override Element Render(in DeepRenderInput props, ref RenderContext ui)
         {
             if (props.Depth != 0)
-                return ui.VStack(ui.Child("next", new ViewSpec<DeepRenderView, DeepRenderInput>(props with { Depth = props.Depth - 1 })));
+                return ui.VStack(
+                    ui.Child(
+                        "next",
+                        new ViewSpec<DeepRenderView, DeepRenderInput>(
+                            props with
+                            {
+                                Depth = props.Depth - 1,
+                            }
+                        )
+                    )
+                );
             _ = props.Value.Value;
             return ui.Text("leaf");
         }

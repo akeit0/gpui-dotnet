@@ -15,11 +15,17 @@ public sealed class TaskBoardStyleTests
     {
         var theme = dark ? Board.TaskBoardThemes.Dark : Board.TaskBoardThemes.Light;
         var style = Board.BoardStyles.Button(theme, Board.BoardButtonVariant.Navigation, selected);
-        foreach (var surface in new[] { style.Colors.Normal, style.Colors.Hover, style.Colors.Pressed })
+        foreach (
+            var surface in new[] { style.Colors.Normal, style.Colors.Hover, style.Colors.Pressed }
+        )
         {
             foreach (var foreground in new[] { surface.Foreground, style.SecondaryText })
             {
-                ContrastAssert.OpaqueText(foreground, surface.Background, $"{theme.Name}, selected={selected}");
+                ContrastAssert.OpaqueText(
+                    foreground,
+                    surface.Background,
+                    $"{theme.Name}, selected={selected}"
+                );
             }
         }
     }

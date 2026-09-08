@@ -28,6 +28,7 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
     private static readonly SliderOptions EstimateSliderOptions = new(min: 0, max: 120, step: 1);
 
     private readonly record struct StoreInput(TaskStore Store);
+
     private readonly record struct DetailInput(TaskStore Store, long TaskId, TaskItem? Task);
 
     private readonly Effect<StoreInput> _watch;
@@ -58,7 +59,8 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
     private void SyncInputs(EffectScope scope, DetailInput input)
     {
         var previous = _syncedTask;
-        var targetChanged = !ReferenceEquals(_syncedStore, input.Store) || previous?.Id != input.TaskId;
+        var targetChanged =
+            !ReferenceEquals(_syncedStore, input.Store) || previous?.Id != input.TaskId;
         var task = input.Task;
         _syncedStore = input.Store;
         _syncedTask = task;
@@ -96,13 +98,19 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
             static async (request, lifetime) =>
             {
                 await Task.Delay(350, lifetime).ConfigureAwait(false);
-                return (request.TaskId, request.Revision, Hours: Math.Clamp(1 + request.Title.Length / 8, 1, 16));
+                return (
+                    request.TaskId,
+                    request.Revision,
+                    Hours: Math.Clamp(1 + request.Title.Length / 8, 1, 16)
+                );
             },
             static (state, result) =>
             {
                 var view = state.View;
-                if (!ReferenceEquals(view.CommittedProps.Store, state.Store)
-                    || view.CommittedProps.TaskId != result.TaskId)
+                if (
+                    !ReferenceEquals(view.CommittedProps.Store, state.Store)
+                    || view.CommittedProps.TaskId != result.TaskId
+                )
                     return;
                 if (!state.Store.TrySetEstimate(result.TaskId, result.Revision, result.Hours))
                 {
@@ -110,14 +118,17 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
                     view.Invalidate();
                     return;
                 }
-                view._suggestion = $"Suggested {result.Hours}h for “{state.Source.Title}”. Applied.";
+                view._suggestion =
+                    $"Suggested {result.Hours}h for “{state.Source.Title}”. Applied.";
                 view.Invalidate();
             },
             static (state, failure) =>
             {
                 var view = state.View;
-                if (!ReferenceEquals(view.CommittedProps.Store, state.Store)
-                    || view.CommittedProps.TaskId != state.Source.Id)
+                if (
+                    !ReferenceEquals(view.CommittedProps.Store, state.Store)
+                    || view.CommittedProps.TaskId != state.Source.Id
+                )
                     return;
                 view._suggestion = $"Estimate failed: {failure.Message}";
                 view.Invalidate();
@@ -188,7 +199,9 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
         ui.Button(
                 StatusId(status),
                 ui.Text(BoardStyles.StatusLabel(status))
-                    .TextColor(task.Status == status ? theme.Colors.TextOnAccent : theme.Colors.Text)
+                    .TextColor(
+                        task.Status == status ? theme.Colors.TextOnAccent : theme.Colors.Text
+                    )
             )
             .OnClick(view, static (v, e) => v.SetStatus(e.Payload), (ulong)status)
             .Style(
@@ -297,12 +310,23 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
                     .ItemsCenter(),
                 ui.Input(ref _title, new Utf8InputOptions(placeholder: "Task title"u8))
                     .Style(BoardStyles.Field(theme))
-                    .OnSubmitted(this, static (view, e) => view.CommittedProps.Store.RenameTask(view.CommittedProps.TaskId, e.Value))
+                    .OnSubmitted(
+                        this,
+                        static (view, e) =>
+                            view.CommittedProps.Store.RenameTask(
+                                view.CommittedProps.TaskId,
+                                e.Value
+                            )
+                    )
                     .Width(Percent(100)),
                 ui.HStack(statuses).Gap(Px(6)).Wrap(FlexWrap.Wrap),
                 ui.Checkbox("detail-completed", "Completed")
                     .Checked(task.Completed)
-                    .OnClick(this, static (view, _) => view.CommittedProps.Store.ToggleCompleted(view.CommittedProps.TaskId))
+                    .OnClick(
+                        this,
+                        static (view, _) =>
+                            view.CommittedProps.Store.ToggleCompleted(view.CommittedProps.TaskId)
+                    )
                     .Padding(Px(6)),
                 ui.HStack(priorities).Gap(Px(4)).ItemsCenter(),
                 ui.VStack(
@@ -311,7 +335,14 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
                             .TextColor(theme.Colors.TextMuted),
                         ui.Slider(ref _estimate, EstimateSliderOptions)
                             .Style(BoardStyles.Estimate(theme))
-                            .OnChanged(this, static (view, e) => view.CommittedProps.Store.SetEstimate(view.CommittedProps.TaskId, e.End))
+                            .OnChanged(
+                                this,
+                                static (view, e) =>
+                                    view.CommittedProps.Store.SetEstimate(
+                                        view.CommittedProps.TaskId,
+                                        e.End
+                                    )
+                            )
                             .Width(Percent(100)),
                         ui.Text(_suggestion)
                             .FontSize(Px(theme.Typography.Detail))
@@ -320,7 +351,14 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
                     .Gap(Px(6)),
                 ui.Input(ref _assignee, new Utf8InputOptions(placeholder: "Assignee"u8))
                     .Style(BoardStyles.Field(theme))
-                    .OnSubmitted(this, static (view, e) => view.CommittedProps.Store.SetAssignee(view.CommittedProps.TaskId, e.Value))
+                    .OnSubmitted(
+                        this,
+                        static (view, e) =>
+                            view.CommittedProps.Store.SetAssignee(
+                                view.CommittedProps.TaskId,
+                                e.Value
+                            )
+                    )
                     .Width(Percent(100)),
                 attachmentList
                     .Padding(Px(10))
@@ -334,7 +372,10 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
                             var dropProps = view.CommittedProps;
                             foreach (var path in drop.Paths)
                             {
-                                dropProps.Store.AddAttachment(dropProps.TaskId, Path.GetFileName(path));
+                                dropProps.Store.AddAttachment(
+                                    dropProps.TaskId,
+                                    Path.GetFileName(path)
+                                );
                             }
                         }
                     ),
@@ -346,7 +387,13 @@ internal sealed partial class TaskDetailView : View<TaskDetailProps>
                             .OnClick(this, static (view, _) => view.OpenInWindow())
                             .Style(BoardStyles.Button(theme)),
                         ui.Button("detail-duplicate", "Duplicate")
-                            .OnClick(this, static (view, e) => view.CommittedProps.Store.DuplicateTask(view.CommittedProps.TaskId))
+                            .OnClick(
+                                this,
+                                static (view, e) =>
+                                    view.CommittedProps.Store.DuplicateTask(
+                                        view.CommittedProps.TaskId
+                                    )
+                            )
                             .Style(BoardStyles.Button(theme, BoardButtonVariant.Danger))
                     )
                     .Gap(Px(8))

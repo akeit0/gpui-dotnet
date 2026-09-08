@@ -3,7 +3,8 @@ using Gpui.Interop.Internal;
 namespace Gpui;
 
 /// <summary>A typed declaration. Creating or copying it does not construct a View.</summary>
-public readonly struct ViewSpec<TView> where TView : View, IGeneratedViewFactory<TView>
+public readonly struct ViewSpec<TView>
+    where TView : View, IGeneratedViewFactory<TView>
 {
     internal TView Create(GpuiWindow? window = null) => ViewFactory.Create<TView>(window);
 }
@@ -14,7 +15,9 @@ public readonly struct ViewSpec<TView, TProps>(TProps props)
     where TView : View<TProps>, IGeneratedViewFactory<TView, TProps>
 {
     internal TProps Props { get; } = props;
-    internal TView Create(GpuiWindow? window = null) => ViewFactory.Create<TView, TProps>(Props, window);
+
+    internal TView Create(GpuiWindow? window = null) =>
+        ViewFactory.Create<TView, TProps>(Props, window);
 }
 
 internal abstract class RootViewDeclaration
@@ -28,7 +31,8 @@ internal sealed class RootViewDeclaration<TView>(ViewSpec<TView> spec) : RootVie
     internal override ViewBase Create(GpuiWindow window) => spec.Create(window);
 }
 
-internal sealed class RootViewDeclaration<TView, TProps>(ViewSpec<TView, TProps> spec) : RootViewDeclaration
+internal sealed class RootViewDeclaration<TView, TProps>(ViewSpec<TView, TProps> spec)
+    : RootViewDeclaration
     where TProps : IEquatable<TProps>
     where TView : View<TProps>, IGeneratedViewFactory<TView, TProps>
 {
@@ -37,21 +41,34 @@ internal sealed class RootViewDeclaration<TView, TProps>(ViewSpec<TView, TProps>
 
 internal static class ViewFactory
 {
-    internal static TView Create<TView>(GpuiWindow? window = null) where TView : View, IGeneratedViewFactory<TView> =>
-        Construct<TView, NoProps>(default, static (context, _) => TView.CreateGpuiView(context), window);
+    internal static TView Create<TView>(GpuiWindow? window = null)
+        where TView : View, IGeneratedViewFactory<TView> =>
+        Construct<TView, NoProps>(
+            default,
+            static (context, _) => TView.CreateGpuiView(context),
+            window
+        );
 
     internal static TView Create<TView, TProps>(TProps props, GpuiWindow? window = null)
         where TProps : IEquatable<TProps>
         where TView : View<TProps>, IGeneratedViewFactory<TView, TProps>
     {
-        var view = Construct<TView, TProps>(props, static (context, input) => TView.CreateGpuiView(context, input), window);
+        var view = Construct<TView, TProps>(
+            props,
+            static (context, input) => TView.CreateGpuiView(context, input),
+            window
+        );
         view.StageProps(props);
         return view;
     }
 
     internal delegate TView Constructor<TView, TInput>(ViewConstruction context, TInput input);
 
-    internal static TView Construct<TView, TInput>(TInput input, Constructor<TView, TInput> create, GpuiWindow? window = null)
+    internal static TView Construct<TView, TInput>(
+        TInput input,
+        Constructor<TView, TInput> create,
+        GpuiWindow? window = null
+    )
         where TView : ViewBase
     {
         var owner = new ViewOwnership { Window = window };
@@ -63,7 +80,9 @@ internal static class ViewFactory
         {
             var view = create(new ViewConstruction(owner), input);
             if (view is null || !ReferenceEquals(owner.View, view))
-                throw new InvalidOperationException("The factory must return the View bound to its construction context.");
+                throw new InvalidOperationException(
+                    "The factory must return the View bound to its construction context."
+                );
             owner.ConstructionComplete = true;
             return view;
         }
@@ -71,10 +90,15 @@ internal static class ViewFactory
         {
             try
             {
-                if (owner.View is { } view) view.Runtime.UnmountRuntime();
-                else owner.Retire();
+                if (owner.View is { } view)
+                    view.Runtime.UnmountRuntime();
+                else
+                    owner.Retire();
             }
-            catch (Exception cleanup) { throw new AggregateException(failure, cleanup); }
+            catch (Exception cleanup)
+            {
+                throw new AggregateException(failure, cleanup);
+            }
             throw;
         }
         finally

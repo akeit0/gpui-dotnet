@@ -527,7 +527,10 @@ impl ResourceStore {
             // Structural commands only preserve measurements. If the resource does not exist yet,
             // there are no measurements to preserve and the next managed snapshot will construct
             // ListState directly at the authoritative item count. Keep only imperative scrolling.
-            return matches!(command.command, COMMAND_LIST_SPLICE..=COMMAND_LIST_REFRESH);
+            return matches!(
+                command.command,
+                COMMAND_LIST_SPLICE | COMMAND_LIST_RESET | COMMAND_LIST_REFRESH
+            );
         };
         resource.borrow_mut().apply_command(command);
         true
@@ -1016,7 +1019,10 @@ impl ManagedListResource {
                     self.scroll_to_item(index);
                 }
             }
-            COMMAND_LIST_SCROLL_TO_ITEM..=COMMAND_LIST_REFRESH => {
+            COMMAND_LIST_SCROLL_TO_ITEM
+            | COMMAND_LIST_SPLICE
+            | COMMAND_LIST_RESET
+            | COMMAND_LIST_REFRESH => {
                 // Structural list commands are measurement-preservation hints. Applying them
                 // immediately can race a frame that still materializes the previous managed
                 // snapshot. Queue them until snapshot_revision advances, then commit the whole

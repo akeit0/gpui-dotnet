@@ -16,7 +16,8 @@ internal enum ExecutionPhase
 /// <summary>Shared callback-thread identity and external reentrancy guard for one application.</summary>
 internal sealed class ApplicationExecution
 {
-    [ThreadStatic] internal static ApplicationExecution? Current;
+    [ThreadStatic]
+    internal static ApplicationExecution? Current;
     private int _threadId;
     private HashSet<Session.ManagedSession>? _reactiveSessions;
     private HashSet<Session.ManagedSession>? _failedSessions;
@@ -25,9 +26,14 @@ internal sealed class ApplicationExecution
     internal static void AssertEffectsAllowed()
     {
         // Current is thread-local: worker ingress remains valid while the UI thread renders.
-        if (Current?.Phase is ExecutionPhase.Render or ExecutionPhase.DemandRender
-            || ViewOwnership.Constructing || ReactiveConsumer.Comparing)
-            throw new InvalidOperationException("Framework effects are not allowed during rendering.");
+        if (
+            Current?.Phase is ExecutionPhase.Render or ExecutionPhase.DemandRender
+            || ViewOwnership.Constructing
+            || ReactiveConsumer.Comparing
+        )
+            throw new InvalidOperationException(
+                "Framework effects are not allowed during rendering."
+            );
     }
 
     internal void BindThread()
@@ -76,7 +82,8 @@ internal sealed class ApplicationExecution
 
     private void RetireFailures()
     {
-        if (_failedSessions is null || _failedSessions.Count == 0) return;
+        if (_failedSessions is null || _failedSessions.Count == 0)
+            return;
         Phase = ExecutionPhase.Cleanup;
         while (_failedSessions.Count != 0)
         {
@@ -92,8 +99,15 @@ internal sealed class ApplicationExecution
             return;
         foreach (var session in _reactiveSessions)
         {
-            try { session.FlushReactiveArtifacts(); }
-            catch (Exception exception) { session.RecordFailure(exception); failure ??= exception; }
+            try
+            {
+                session.FlushReactiveArtifacts();
+            }
+            catch (Exception exception)
+            {
+                session.RecordFailure(exception);
+                failure ??= exception;
+            }
         }
         _reactiveSessions.Clear();
     }
@@ -124,8 +138,15 @@ internal sealed class ApplicationExecution
         {
             if (execution is not null)
             {
-                try { execution.DrainBoundary(); }
-                finally { execution.Phase = ExecutionPhase.Idle; Current = null; }
+                try
+                {
+                    execution.DrainBoundary();
+                }
+                finally
+                {
+                    execution.Phase = ExecutionPhase.Idle;
+                    Current = null;
+                }
             }
         }
     }

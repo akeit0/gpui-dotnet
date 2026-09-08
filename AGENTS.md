@@ -15,9 +15,15 @@ coarse data batches, and native retained state over per-property, per-frame, or 
 
 Read the relevant focused document before changing a subsystem:
 
+- `docs/README.md`: documentation index
+- `docs/CONTRIBUTING.md`: formatting and verification workflow
 - `README.md`: setup and public API overview
 - `docs/ARCHITECTURE.md`: ownership and render/resource paths
 - `docs/COMPONENTS.md`: component classes and authoring workflow
+- `docs/COLLECTIONS.md`: Scroll, List, Table, and virtual rows
+- `docs/CONTROLS.md`: retained Input, Slider, and Dock
+- `docs/INTERACTION.md`: focus, shortcuts, observers, and accessible names
+- `docs/LAYERS.md`: overlays, tooltips, menus, and window chrome
 - `docs/VIEW_LIFECYCLE.md`: child slots, render purity, and teardown
 - `docs/THREADING.md`: GPUI entities, managed lifecycle, async continuations, and thread boundaries
 - `docs/HOT_RELOAD.md`: managed metadata-update and renderer refresh contract
@@ -44,6 +50,7 @@ Never hand-edit:
 - `src/Gpui/Rendering/SemanticElements.g.cs`
 - `crates/gpui-dotnet/src/semantic.g.rs`
 - `src/Gpui/Interop/NativeMethods.g.cs`
+- `docs/SEMANTIC_IDS.md`
 
 The native Cargo build generates `NativeMethods.g.cs` from Rust C-layout definitions through
 `csbindgen`. Include that generated change whenever `crates/gpui-dotnet/src/abi.rs` changes.
@@ -128,7 +135,10 @@ schema hash.
 - Preserve unrelated user changes in a dirty worktree.
 - Use `rg`/`rg --files` for discovery.
 - Use `apply_patch` for source and documentation edits.
-- Follow existing C# formatting and `cargo fmt` for Rust.
+- Run `dotnet tool restore`, then `dotnet csharpier format .` from the repository root for C# formatting.
+  The explicit `.` also works with redirected stdin. `.csharpierignore` excludes upstream code and
+  generator-owned outputs. Use `dotnet csharpier check .` to verify formatting.
+- Use `cargo fmt` for Rust. Generated semantic output must still pass generator verification.
 - Keep nullable analysis and warnings-as-errors clean.
 - Avoid allocations and string formatting in native row/render hot paths.
 - Keep comments focused on invariants and non-obvious ownership, not development history.
@@ -143,6 +153,7 @@ Run targeted tests while iterating. Before handing off a normal code change, run
 full checks:
 
 ```sh
+dotnet csharpier check .
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
 cargo fmt --manifest-path crates/gpui-dotnet/Cargo.toml -- --check
 cargo test --manifest-path crates/gpui-dotnet/Cargo.toml

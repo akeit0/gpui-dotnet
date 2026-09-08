@@ -18,7 +18,12 @@ internal sealed partial class ProfileView : View<ProfileProps>
     );
 
     private readonly record struct ProfileInput(
-        TravelStore Store, ulong ResetRevision, string Name, string Bio, float Goal);
+        TravelStore Store,
+        ulong ResetRevision,
+        string Name,
+        string Bio,
+        float Goal
+    );
 
     private readonly Effect<ProfileProps> _watch;
     private readonly Effect<ProfileInput> _sync;
@@ -51,7 +56,9 @@ internal sealed partial class ProfileView : View<ProfileProps>
     private void Synchronize(ProfileInput input)
     {
         var previous = _synced;
-        var reset = previous is null || !ReferenceEquals(previous.Value.Store, input.Store)
+        var reset =
+            previous is null
+            || !ReferenceEquals(previous.Value.Store, input.Store)
             || previous.Value.ResetRevision != input.ResetRevision;
         // External changes win only for the changed field; document resets replace all drafts.
         if (reset || previous!.Value.Name != input.Name)
@@ -160,7 +167,10 @@ internal sealed partial class ProfileView : View<ProfileProps>
                         ui.Text($"Season goal: {store.GoalKm:0} km")
                             .FontSize(Px(theme.Typography.Detail))
                             .TextColor(theme.Colors.TextMuted),
-                        ui.Slider(ref _goal, new SliderOptions(min: 20, max: 400, step: 10, value: store.GoalKm))
+                        ui.Slider(
+                                ref _goal,
+                                new SliderOptions(min: 20, max: 400, step: 10, value: store.GoalKm)
+                            )
                             .Style(WanderStyles.Goal(theme))
                             .OnChanged(this, static (view, e) => view.SetGoal(e.End))
                             .Width(Percent(100))

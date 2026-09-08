@@ -12,14 +12,17 @@ public readonly ref struct ViewConstruction
     {
         get
         {
-            if (_owner is null) throw new InvalidOperationException("A construction context is required.");
+            if (_owner is null)
+                throw new InvalidOperationException("A construction context is required.");
             _owner.AssertAccess();
-            if (_owner.ConstructionComplete) throw new InvalidOperationException("Construction has completed.");
+            if (_owner.ConstructionComplete)
+                throw new InvalidOperationException("Construction has completed.");
             return _owner;
         }
     }
 
     internal ViewConstruction(Gpui.Interop.Internal.ViewOwnership owner) => _owner = owner;
+
     internal Gpui.Interop.Internal.ViewOwnership Bind(ViewBase view)
     {
         var owner = Owner;
@@ -27,12 +30,18 @@ public readonly ref struct ViewConstruction
         return owner;
     }
 
-    public T Own<T>(T resource) where T : IDisposable => Owner.Own(resource);
-    public Memo<TInput, TResult> Memo<TInput, TResult>() where TInput : IEquatable<TInput> => Owner.Memo<TInput, TResult>();
-    public Effect<TInput> Effect<TInput>(Action<EffectScope, TInput> setup) where TInput : IEquatable<TInput> => Owner.Effect(setup);
+    public T Own<T>(T resource)
+        where T : IDisposable => Owner.Own(resource);
+
+    public Memo<TInput, TResult> Memo<TInput, TResult>()
+        where TInput : IEquatable<TInput> => Owner.Memo<TInput, TResult>();
+
+    public Effect<TInput> Effect<TInput>(Action<EffectScope, TInput> setup)
+        where TInput : IEquatable<TInput> => Owner.Effect(setup);
 
     public Dispatcher Dispatcher => _view.Dispatcher;
-    public GpuiWindow Window => Owner.Window ?? throw new InvalidOperationException("No window owns this construction.");
+    public GpuiWindow Window =>
+        Owner.Window ?? throw new InvalidOperationException("No window owns this construction.");
     public GpuiApplication Application => Window.Application;
 
     /// <summary>A stable work handle; starting production requires an accepted View.</summary>

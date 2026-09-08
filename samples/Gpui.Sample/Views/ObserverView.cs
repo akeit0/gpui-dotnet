@@ -54,7 +54,10 @@ internal sealed partial class ObserverView : View
                 ui.Text("Typing stays in the field"u8)
                     .FontSize(Px(theme.Typography.Detail))
                     .TextColor(theme.Colors.TextMuted),
-                ui.Input(ref _probe, new Utf8InputOptions(placeholder: "Type here — hot keys observe only"u8))
+                ui.Input(
+                        ref _probe,
+                        new Utf8InputOptions(placeholder: "Type here — hot keys observe only"u8)
+                    )
                     .Width(Percent(100))
             )
             .Gap(Px(6))
@@ -176,7 +179,9 @@ internal sealed partial class ObserverView : View
             );
 
         return ui.VStack(
-                ui.Text("Observers never stop propagation: focused editing wins, hot keys see the rest."u8)
+                ui.Text(
+                        "Observers never stop propagation: focused editing wins, hot keys see the rest."u8
+                    )
                     .FontSize(Px(theme.Typography.BodySmall))
                     .TextColor(theme.Colors.TextMuted),
                 ui.HStack(inputCard, mouseCard).Gap(Px(14)),

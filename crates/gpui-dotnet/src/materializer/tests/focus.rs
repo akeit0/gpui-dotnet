@@ -191,7 +191,7 @@ fn focus_targets_retain_identity_route_keys_and_respect_native_tab_and_pointer_f
         native.resources.publish_presence(&mut presence, 2)
     });
     assert_eq!(
-        presence.base_generation(RESOURCE_FOCUS, &command(50).key),
+        presence.base_generation(RESOURCE_FOCUS, &command(COMMAND_FOCUS_FOCUS).key),
         None
     );
     view.update(cx, |view, _| view.snapshot = snapshot(true, true, false));

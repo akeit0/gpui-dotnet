@@ -20,12 +20,7 @@ internal readonly record struct SampleButtonStyle(
 ) : IGpuiElementStyle<ButtonTag>
 {
     public Element<ButtonTag> Apply(Element<ButtonTag> button) =>
-        button
-            .Padding(Padding)
-            .Radius(Radius)
-            .Paint(Colors)
-            .BorderWidth(Px(1))
-            .BorderColor(Border);
+        button.Padding(Padding).Radius(Radius).Paint(Colors).BorderWidth(Px(1)).BorderColor(Border);
 }
 
 internal readonly record struct SampleCollectionRowStyle(
@@ -36,8 +31,7 @@ internal readonly record struct SampleCollectionRowStyle(
 ) : IGpuiElementStyle<DivTag>
 {
     public Element<DivTag> Apply(Element<DivTag> row) =>
-        row
-            .Padding(Padding)
+        row.Padding(Padding)
             .Radius(Px(6))
             .Surface(new(Background, Text))
             .BorderColor(Border)
@@ -47,11 +41,14 @@ internal readonly record struct SampleCollectionRowStyle(
 internal readonly record struct SampleTableRowStyle(GpuiTheme Theme, bool Selected)
     : IGpuiElementStyle<DivTag>
 {
-    public Element<DivTag> Apply(Element<DivTag> row) => row
-        .Surface(new(
-            Selected ? Theme.Colors.ElementSelected : Theme.Colors.SurfaceBackground,
-            Selected ? Theme.Colors.TextAccent : Theme.Colors.Text))
-        .PaddingY(Px(8));
+    public Element<DivTag> Apply(Element<DivTag> row) =>
+        row.Surface(
+                new(
+                    Selected ? Theme.Colors.ElementSelected : Theme.Colors.SurfaceBackground,
+                    Selected ? Theme.Colors.TextAccent : Theme.Colors.Text
+                )
+            )
+            .PaddingY(Px(8));
 }
 
 internal readonly record struct SampleInputStyle(GpuiTheme Theme, bool Invalid)
@@ -70,27 +67,27 @@ internal readonly record struct SampleInputStyle(GpuiTheme Theme, bool Invalid)
     }
 }
 
-internal readonly record struct SampleTableStyle(GpuiTheme Theme)
-    : IGpuiElementStyle<TableTag>
+internal readonly record struct SampleTableStyle(GpuiTheme Theme) : IGpuiElementStyle<TableTag>
 {
-    public Element<TableTag> Apply(Element<TableTag> table) => table
-        .Surface(new(Theme.Colors.SurfaceBackground, Theme.Colors.Text))
-        .BorderColor(Theme.Colors.BorderVariant)
-        .BorderWidth(Px(1))
-        .Radius(Px(8))
-        .HeaderBackground(Theme.Colors.InfoBackground)
-        .HeaderTextColor(Theme.Colors.Info)
-        .HeaderBorderColor(Theme.Colors.BorderFocused);
+    public Element<TableTag> Apply(Element<TableTag> table) =>
+        table
+            .Surface(new(Theme.Colors.SurfaceBackground, Theme.Colors.Text))
+            .BorderColor(Theme.Colors.BorderVariant)
+            .BorderWidth(Px(1))
+            .Radius(Px(8))
+            .HeaderBackground(Theme.Colors.InfoBackground)
+            .HeaderTextColor(Theme.Colors.Info)
+            .HeaderBorderColor(Theme.Colors.BorderFocused);
 }
 
-internal readonly record struct SampleSliderStyle(GpuiTheme Theme)
-    : IGpuiElementStyle<SliderTag>
+internal readonly record struct SampleSliderStyle(GpuiTheme Theme) : IGpuiElementStyle<SliderTag>
 {
-    public Element<SliderTag> Apply(Element<SliderTag> slider) => slider
-        .TrackColor(Theme.Colors.SuccessBackground)
-        .FillColor(Theme.Colors.Success)
-        .ThumbColor(Theme.Colors.SurfaceBackground)
-        .ThumbBorderColor(Theme.Colors.Success);
+    public Element<SliderTag> Apply(Element<SliderTag> slider) =>
+        slider
+            .TrackColor(Theme.Colors.SuccessBackground)
+            .FillColor(Theme.Colors.Success)
+            .ThumbColor(Theme.Colors.SurfaceBackground)
+            .ThumbBorderColor(Theme.Colors.Success);
 }
 
 internal static class SampleStyles
@@ -99,19 +96,23 @@ internal static class SampleStyles
 
     internal static SampleSliderStyle Slider(GpuiTheme theme) => new(theme);
 
-    internal static SampleTableRowStyle TableRow(GpuiTheme theme, bool selected) => new(theme, selected);
+    internal static SampleTableRowStyle TableRow(GpuiTheme theme, bool selected) =>
+        new(theme, selected);
 
-    internal static SampleInputStyle Input(GpuiTheme theme, bool invalid = false) => new(theme, invalid);
+    internal static SampleInputStyle Input(GpuiTheme theme, bool invalid = false) =>
+        new(theme, invalid);
 
-    internal static SampleButtonStyle TableHeader(GpuiTheme theme) => new(
+    internal static SampleButtonStyle TableHeader(GpuiTheme theme) =>
         new(
-            new(new Color(0), theme.Colors.Info),
-            new(theme.Colors.ElementHover, theme.Colors.Info),
-            new(theme.Colors.ElementActive, theme.Colors.Info)),
-        new Color(0),
-        Px(6),
-        Px(4)
-    );
+            new(
+                new(new Color(0), theme.Colors.Info),
+                new(theme.Colors.ElementHover, theme.Colors.Info),
+                new(theme.Colors.ElementActive, theme.Colors.Info)
+            ),
+            new Color(0),
+            Px(6),
+            Px(4)
+        );
 
     internal static SampleCollectionRowStyle CollectionRow(GpuiTheme theme, bool selected)
     {
@@ -139,7 +140,8 @@ internal static class SampleStyles
                 new(
                     new(colors.Accent, colors.TextOnAccent),
                     new(colors.AccentHover, colors.TextOnAccent),
-                    new(colors.AccentActive, colors.TextOnAccent)),
+                    new(colors.AccentActive, colors.TextOnAccent)
+                ),
                 colors.Accent,
                 padding,
                 radius
@@ -148,7 +150,8 @@ internal static class SampleStyles
                 new(
                     new(colors.Accent, colors.TextOnAccent),
                     new(colors.AccentHover, colors.TextOnAccent),
-                    new(colors.AccentActive, colors.TextOnAccent)),
+                    new(colors.AccentActive, colors.TextOnAccent)
+                ),
                 colors.BorderFocused,
                 padding,
                 radius
@@ -157,7 +160,8 @@ internal static class SampleStyles
                 new(
                     new(colors.TitleBarBackground, colors.TitleBarText),
                     new(colors.TitleBarHover, colors.TitleBarText),
-                    new(colors.TitleBarInactiveBackground, colors.TitleBarText)),
+                    new(colors.TitleBarInactiveBackground, colors.TitleBarText)
+                ),
                 colors.TitleBarHover,
                 padding,
                 radius
@@ -166,7 +170,8 @@ internal static class SampleStyles
                 new(
                     new(colors.ElementBackground, colors.Text),
                     new(colors.ElementHover, colors.Text),
-                    new(colors.ElementActive, colors.Text)),
+                    new(colors.ElementActive, colors.Text)
+                ),
                 colors.Border,
                 padding,
                 radius

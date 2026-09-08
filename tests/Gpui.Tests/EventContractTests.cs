@@ -8,14 +8,21 @@ public sealed class EventContractTests
     public void PublicEventBindingsAcceptOnlySynchronousCallbacks()
     {
         var callbacks = new[] { typeof(ElementExtensions), typeof(RenderContext) }
-            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance))
-            .Where(method => method.Name.StartsWith("On", StringComparison.Ordinal)
-                || method.Name == "BindNativeExtensionEvent")
+            .SelectMany(type =>
+                type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)
+            )
+            .Where(method =>
+                method.Name.StartsWith("On", StringComparison.Ordinal)
+                || method.Name == "BindNativeExtensionEvent"
+            )
             .SelectMany(method => method.GetParameters())
             .Where(parameter => parameter.Name == "callback")
-            .Select(parameter => parameter.ParameterType).ToArray();
+            .Select(parameter => parameter.ParameterType)
+            .ToArray();
         Assert.True(callbacks.Length > 20);
-        Assert.All(callbacks, callback => Assert.Equal(typeof(void), callback.GetMethod("Invoke")!.ReturnType));
+        Assert.All(
+            callbacks,
+            callback => Assert.Equal(typeof(void), callback.GetMethod("Invoke")!.ReturnType)
+        );
     }
-
 }

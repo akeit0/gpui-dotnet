@@ -26,9 +26,7 @@ internal sealed partial class ExploreView : View<ExploreProps>
         estimatedItemHeight: 150
     );
 
-    private static readonly ScrollOptions StoriesScrollOptions = new(
-        showScrollbar: false
-    );
+    private static readonly ScrollOptions StoriesScrollOptions = new(showScrollbar: false);
 
     private static readonly string CoverPath = Path.Combine(
         AppContext.BaseDirectory,
@@ -38,8 +36,15 @@ internal sealed partial class ExploreView : View<ExploreProps>
 
     private static readonly string[] StoryIds =
     [
-        "story-all", "story-0", "story-1", "story-2", "story-3",
-        "story-4", "story-5", "story-6", "story-7",
+        "story-all",
+        "story-0",
+        "story-1",
+        "story-2",
+        "story-3",
+        "story-4",
+        "story-5",
+        "story-6",
+        "story-7",
     ];
 
     private readonly Memo<ExploreFilter, List<FeedEntry>> _visible;
@@ -172,12 +177,19 @@ internal sealed partial class ExploreView : View<ExploreProps>
                             .Width(Px(36))
                             .Height(Px(36))
                             .Radius(Px(18))
-                            .Background(WanderStyles.AvatarColor(entry.Author.Length + entry.DestId, theme.Colors)),
+                            .Background(
+                                WanderStyles.AvatarColor(
+                                    entry.Author.Length + entry.DestId,
+                                    theme.Colors
+                                )
+                            ),
                         ui.VStack(
                                 ui.Text(entry.Author)
                                     .FontSize(Px(theme.Typography.BodySmall))
                                     .TextColor(theme.Colors.Text),
-                                ui.Text($"{TimeLabel(entry.MinutesAgo)} · {dest?.Name ?? "Somewhere"}")
+                                ui.Text(
+                                        $"{TimeLabel(entry.MinutesAgo)} · {dest?.Name ?? "Somewhere"}"
+                                    )
                                     .FontSize(Px(theme.Typography.Detail))
                                     .TextColor(theme.Colors.TextMuted)
                             )
@@ -197,16 +209,20 @@ internal sealed partial class ExploreView : View<ExploreProps>
                     .TextColor(theme.Colors.Text),
                 ui.HStack(
                         ui.Button("like", $"{(entry.Liked ? "♥" : "♡")} {entry.Likes:N0}")
-                            .OnClick(this, static (view, e) => view.ToggleLike(e.Payload), checked((ulong)entry.Id))
+                            .OnClick(
+                                this,
+                                static (view, e) => view.ToggleLike(e.Payload),
+                                checked((ulong)entry.Id)
+                            )
                             .Style(
-                                WanderStyles.Button(
-                                    theme,
-                                    WanderButtonVariant.Like,
-                                    entry.Liked
-                                )
+                                WanderStyles.Button(theme, WanderButtonVariant.Like, entry.Liked)
                             ),
                         ui.Button("view", "View place →")
-                            .OnClick(this, static (view, e) => view.OpenSheet(e.Payload), checked((ulong)entry.DestId))
+                            .OnClick(
+                                this,
+                                static (view, e) => view.OpenSheet(e.Payload),
+                                checked((ulong)entry.DestId)
+                            )
                             .Style(WanderStyles.Button(theme, WanderButtonVariant.Chip))
                     )
                     .Gap(Px(8))
@@ -234,12 +250,19 @@ internal sealed partial class ExploreView : View<ExploreProps>
         ui.Effect(_watch, props);
         var theme = ui.Theme;
         var rows = _visible.Get(
-            new ExploreFilter(props.Store, props.Store.Revision, new BoardQuery(_query), _chip, _storyDest),
+            new ExploreFilter(
+                props.Store,
+                props.Store.Revision,
+                new BoardQuery(_query),
+                _chip,
+                _storyDest
+            ),
             static input => TravelStore.ApplyFilter(input)
         );
         if (!ReferenceEquals(rows, _rows))
         {
-            var sameOrder = ReferenceEquals(_projectionStore, props.Store) && rows.Count == _rows.Count;
+            var sameOrder =
+                ReferenceEquals(_projectionStore, props.Store) && rows.Count == _rows.Count;
             for (var index = 0; sameOrder && index < rows.Count; index++)
                 sameOrder = rows[index].Id == _rows[index].Id;
             if (!sameOrder)
@@ -250,7 +273,10 @@ internal sealed partial class ExploreView : View<ExploreProps>
 
         var page = ui.VStack(
                 ui.HStack(
-                        ui.Input(ref _search, new Utf8InputOptions(placeholder: "Search places, people…"u8))
+                        ui.Input(
+                                ref _search,
+                                new Utf8InputOptions(placeholder: "Search places, people…"u8)
+                            )
                             .Style(WanderStyles.Field(theme))
                             .OnChanged(this, static (view, e) => view.SetQuery(e.Value))
                             .Grow()
@@ -302,7 +328,12 @@ internal sealed partial class ExploreView : View<ExploreProps>
             buffer[count++] = StoryItem(ref ui, this, theme, store.Destinations[i], i + 1);
         }
         Span<Element> stories = buffer;
-        return ui.Scroll("stories", ScrollAxis.Horizontal, StoriesScrollOptions, ui.HStack(stories[..count]).Gap(Px(12)))
+        return ui.Scroll(
+                "stories",
+                ScrollAxis.Horizontal,
+                StoriesScrollOptions,
+                ui.HStack(stories[..count]).Gap(Px(12))
+            )
             .Width(Percent(100));
     }
 
@@ -318,18 +349,30 @@ internal sealed partial class ExploreView : View<ExploreProps>
         var label = dest?.Name ?? "All";
         var circle = dest is null
             ? ui.Div(ui.Text("✈").TextColor(theme.Colors.SurfaceBackground))
-                .Width(Px(56)).Height(Px(56)).Radius(Px(28))
-                .Background(theme.Colors.Text).ItemsCenter().JustifyCenter()
+                .Width(Px(56))
+                .Height(Px(56))
+                .Radius(Px(28))
+                .Background(theme.Colors.Text)
+                .ItemsCenter()
+                .JustifyCenter()
             : ui.Div()
-                .Width(Px(56)).Height(Px(56)).Radius(Px(28))
+                .Width(Px(56))
+                .Height(Px(56))
+                .Radius(Px(28))
                 .Background(WanderStyles.AvatarColor(dest.Id, theme.Colors))
                 .BorderWidth(Px(selected ? 3 : 0))
                 .BorderColor(theme.Colors.Accent);
-        return ui.Button(StoryIds[payload], ui.VStack(circle, ui.Text(label)
-                    .FontSize(Px(theme.Typography.Caption))
-                    .TextColor(selected ? theme.Colors.TextAccent : theme.Colors.TextMuted))
-                .Gap(Px(4))
-                .ItemsCenter())
+        return ui.Button(
+                StoryIds[payload],
+                ui.VStack(
+                        circle,
+                        ui.Text(label)
+                            .FontSize(Px(theme.Typography.Caption))
+                            .TextColor(selected ? theme.Colors.TextAccent : theme.Colors.TextMuted)
+                    )
+                    .Gap(Px(4))
+                    .ItemsCenter()
+            )
             .OnClick(view, static (v, e) => v.SetStory(e.Payload), checked((ulong)payload))
             .Padding(Px(2));
     }
@@ -389,10 +432,20 @@ internal sealed partial class ExploreView : View<ExploreProps>
                     .TextColor(theme.Colors.Text),
                 ui.HStack(
                         ui.Button("sheet-like", $"{(dest.Liked ? "♥" : "♡")} {dest.Likes:N0}")
-                            .OnClick(this, static (view, e) => view.ToggleDestLike(e.Payload), checked((ulong)dest.Id))
-                            .Style(WanderStyles.Button(theme, WanderButtonVariant.Like, dest.Liked)),
+                            .OnClick(
+                                this,
+                                static (view, e) => view.ToggleDestLike(e.Payload),
+                                checked((ulong)dest.Id)
+                            )
+                            .Style(
+                                WanderStyles.Button(theme, WanderButtonVariant.Like, dest.Liked)
+                            ),
                         ui.Button("sheet-add", "＋ Add to current trip")
-                            .OnClick(this, static (view, e) => view.AddToTrip(e.Payload), checked((ulong)dest.Id))
+                            .OnClick(
+                                this,
+                                static (view, e) => view.AddToTrip(e.Payload),
+                                checked((ulong)dest.Id)
+                            )
                             .Style(WanderStyles.Button(theme, WanderButtonVariant.Primary))
                     )
                     .Gap(Px(8))

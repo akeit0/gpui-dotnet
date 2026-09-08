@@ -10,11 +10,18 @@ public sealed partial class RuntimeExecutionTests
         var log = new OwnershipLog();
         var application = new GpuiApplication();
         GpuiWindow window = null!;
-        var worker = new Thread(() => window = application.OpenWindow(OwnedPropsView.Spec(new(7, log))));
+        var worker = new Thread(() =>
+            window = application.OpenWindow(OwnedPropsView.Spec(new(7, log)))
+        );
         worker.Start();
         worker.Join();
         Assert.Equal(0, log.Constructions);
-        using var fixture = new SessionFixture(null, application, window.TakeRootDeclaration(), window);
+        using var fixture = new SessionFixture(
+            null,
+            application,
+            window.TakeRootDeclaration(),
+            window
+        );
         fixture.Publish();
         var view = Assert.IsType<OwnedPropsView>(fixture.Session.RootView);
         Assert.Equal(7, view.Draft);
@@ -59,7 +66,12 @@ public sealed partial class RuntimeExecutionTests
         var log = new OwnershipLog { CloseDuringConstruction = true };
         var application = new GpuiApplication();
         var window = application.OpenWindow(OwnedPropsView.Spec(new(1, log)));
-        using var fixture = new SessionFixture(null, application, window.TakeRootDeclaration(), window);
+        using var fixture = new SessionFixture(
+            null,
+            application,
+            window.TakeRootDeclaration(),
+            window
+        );
         Assert.Throws<InvalidOperationException>(fixture.Publish);
         Assert.False(window.IsClosed);
         Assert.Equal(["resource"], log.Cleanup);
@@ -99,11 +111,14 @@ public sealed partial class RuntimeExecutionTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void ConstructorFailureAndRejectedCandidatesReleaseLocalOwnership(bool constructorFailure)
+    public void ConstructorFailureAndRejectedCandidatesReleaseLocalOwnership(
+        bool constructorFailure
+    )
     {
         var log = new OwnershipLog { ThrowConstruction = constructorFailure };
         using var fixture = new SessionFixture(new OwnershipParent(new(1, log)));
-        if (constructorFailure) Assert.Throws<InvalidOperationException>(fixture.Publish);
+        if (constructorFailure)
+            Assert.Throws<InvalidOperationException>(fixture.Publish);
         else
         {
             fixture.Publish();
@@ -125,8 +140,12 @@ public sealed partial class RuntimeExecutionTests
         var oldScope = log.Scopes[0];
         var callback = oldScope.Bind(log, static state => state.Deliveries++);
         var completion = new TaskCompletionSource<int>();
-        oldScope.Work.Start(log, completion.Task, static (task, _) => task,
-            static (state, _) => state.Deliveries++);
+        oldScope.Work.Start(
+            log,
+            completion.Task,
+            static (task, _) => task,
+            static (state, _) => state.Deliveries++
+        );
         parent.Input = new(2, log);
         parent.Invalidate();
         fixture.Publish();
@@ -182,7 +201,9 @@ public sealed partial class RuntimeExecutionTests
         using var fixture = new SessionFixture(new OwnershipParent(new(2, log)));
         fixture.Render();
         var child = OwnedChild(fixture);
-        Assert.Throws<InvalidOperationException>(() => child.Memo.Get(new(9, 0, log), static input => input.Log.Signal.Value));
+        Assert.Throws<InvalidOperationException>(() =>
+            child.Memo.Get(new(9, 0, log), static input => input.Log.Signal.Value)
+        );
         Assert.Equal(18, child.Memo.Get(new(9, 0, log), static input => input.Value * 2));
         fixture.Session.Stop();
         Assert.Throws<ObjectDisposedException>(() => child.Memo.Get(new(9, 0, log), static _ => 1));
@@ -197,8 +218,18 @@ public sealed partial class RuntimeExecutionTests
         var first = new TaskCompletionSource<int>();
         var second = new TaskCompletionSource<int>();
         var results = new List<int>();
-        work.StartLatest(results, first.Task, static (task, _) => task, static (state, value) => state.Add(value));
-        work.StartLatest(results, second.Task, static (task, _) => task, static (state, value) => state.Add(value));
+        work.StartLatest(
+            results,
+            first.Task,
+            static (task, _) => task,
+            static (state, value) => state.Add(value)
+        );
+        work.StartLatest(
+            results,
+            second.Task,
+            static (task, _) => task,
+            static (state, value) => state.Add(value)
+        );
         second.SetResult(2);
         first.SetResult(1);
         fixture.Render();
@@ -216,17 +247,33 @@ public sealed partial class RuntimeExecutionTests
         var work = fixture.View.Runtime.GetWorkScope();
         var log = new List<int>();
         var never = new TaskCompletionSource<int>();
-        work.StartLatest(log, (work, log, never.Task), static (input, token) =>
-        {
-            token.Register(() => input.work.StartLatest(input.log, 3,
-                static (value, _) => Task.FromResult(value), static (state, value) => state.Add(value)));
-            return input.Task;
-        }, static (state, value) => state.Add(value));
-        work.StartLatest(log, log, static (state, _) =>
-        {
-            state.Add(-1); // This producer was superseded by the cancellation callback.
-            return Task.FromResult(2);
-        }, static (state, value) => state.Add(value));
+        work.StartLatest(
+            log,
+            (work, log, never.Task),
+            static (input, token) =>
+            {
+                token.Register(() =>
+                    input.work.StartLatest(
+                        input.log,
+                        3,
+                        static (value, _) => Task.FromResult(value),
+                        static (state, value) => state.Add(value)
+                    )
+                );
+                return input.Task;
+            },
+            static (state, value) => state.Add(value)
+        );
+        work.StartLatest(
+            log,
+            log,
+            static (state, _) =>
+            {
+                state.Add(-1); // This producer was superseded by the cancellation callback.
+                return Task.FromResult(2);
+            },
+            static (state, value) => state.Add(value)
+        );
         fixture.Render();
         Assert.Equal([3], log);
         never.SetResult(1);
@@ -253,7 +300,9 @@ public sealed partial class RuntimeExecutionTests
         GC.KeepAlive(callback);
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    [System.Runtime.CompilerServices.MethodImpl(
+        System.Runtime.CompilerServices.MethodImplOptions.NoInlining
+    )]
     private static (WeakReference, Action) CapturedEffectCallback(EffectScope scope)
     {
         var target = new object();
@@ -269,36 +318,49 @@ public sealed partial class RuntimeExecutionTests
         var memo = OwnedChild(fixture).Memo;
         var input = new CalculationInput(1, 0, log);
         Func<CalculationInput, int> compute = static value => value.Value;
-        for (var i = 0; i < 1000; i++) memo.Get(input, compute);
+        for (var i = 0; i < 1000; i++)
+            memo.Get(input, compute);
         var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 1000; i++) memo.Get(input, compute);
+        for (var i = 0; i < 1000; i++)
+            memo.Get(input, compute);
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
         Assert.Equal(1, log.Calculations);
     }
 
     private sealed class OwnershipLog
     {
-        internal int Constructions, ConstructionThread, Calculations, Deliveries;
-        internal bool ThrowConstruction, ThrowSetup, WriteDuringConstruction, CloseDuringConstruction;
+        internal int Constructions,
+            ConstructionThread,
+            Calculations,
+            Deliveries;
+        internal bool ThrowConstruction,
+            ThrowSetup,
+            WriteDuringConstruction,
+            CloseDuringConstruction;
         internal CancellationToken Lifetime;
         internal readonly Signal<int> Signal = new(0);
         internal readonly Signal<int> ConstructionOnly = new(0);
-        internal readonly List<int> Starts = [], Stops = [];
+        internal readonly List<int> Starts = [],
+            Stops = [];
         internal readonly List<string> Cleanup = [];
         internal readonly List<EffectScope> Scopes = [];
     }
 
     private readonly record struct OwnershipInput(int Value, OwnershipLog Log, bool Enabled = true);
+
     private readonly record struct CalculationInput(int Value, int Signal, OwnershipLog Log);
 
     private sealed class OwnershipParent(OwnershipInput input) : ProbeView
     {
         internal OwnershipInput Input = input;
+
         protected override Element Render(ref RenderContext ui) =>
             ui.Div(base.Render(ref ui), ui.Child("owned", OwnedPropsView.Spec(Input)));
     }
 
-    private sealed class OwnedPropsView : View<OwnershipInput>, IGeneratedViewFactory<OwnedPropsView, OwnershipInput>
+    private sealed class OwnedPropsView
+        : View<OwnershipInput>,
+            IGeneratedViewFactory<OwnedPropsView, OwnershipInput>
     {
         internal readonly int Draft;
         internal readonly Memo<CalculationInput, int> Memo;
@@ -306,41 +368,61 @@ public sealed partial class RuntimeExecutionTests
         private readonly Effect<int> _effect;
         private readonly OwnershipLog _log;
 
-        public OwnedPropsView(ViewConstruction construction, OwnershipInput initialProps) : base(construction)
+        public OwnedPropsView(ViewConstruction construction, OwnershipInput initialProps)
+            : base(construction)
         {
             _log = initialProps.Log;
             _log.Constructions++;
             _log.ConstructionThread = Environment.CurrentManagedThreadId;
             _log.Lifetime = Lifetime;
             construction.Own(new TestCleanup(() => _log.Cleanup.Add("resource")));
-            if (_log.CloseDuringConstruction) construction.Window.Close();
+            if (_log.CloseDuringConstruction)
+                construction.Window.Close();
             _ = _log.ConstructionOnly.Value;
-            if (_log.WriteDuringConstruction) _log.ConstructionOnly.Value++;
-            if (_log.ThrowConstruction) throw new InvalidOperationException("construction failed");
+            if (_log.WriteDuringConstruction)
+                _log.ConstructionOnly.Value++;
+            if (_log.ThrowConstruction)
+                throw new InvalidOperationException("construction failed");
             Draft = initialProps.Value;
             Memo = construction.Memo<CalculationInput, int>();
             _effect = construction.Effect<int>(Setup);
         }
 
-        public static OwnedPropsView CreateGpuiView(ViewConstruction construction, OwnershipInput initialProps) => new(construction, initialProps);
-        internal static ViewSpec<OwnedPropsView, OwnershipInput> Spec(OwnershipInput props) => new(props);
+        public static OwnedPropsView CreateGpuiView(
+            ViewConstruction construction,
+            OwnershipInput initialProps
+        ) => new(construction, initialProps);
+
+        internal static ViewSpec<OwnedPropsView, OwnershipInput> Spec(OwnershipInput props) =>
+            new(props);
 
         private void Setup(EffectScope scope, int input)
         {
             _log.Starts.Add(input);
             _log.Scopes.Add(scope);
-            scope.Own(new TestCleanup(() => { _log.Stops.Add(input); _log.Cleanup.Add("effect"); }));
-            if (_log.ThrowSetup) throw new InvalidOperationException("setup failed");
+            scope.Own(
+                new TestCleanup(() =>
+                {
+                    _log.Stops.Add(input);
+                    _log.Cleanup.Add("effect");
+                })
+            );
+            if (_log.ThrowSetup)
+                throw new InvalidOperationException("setup failed");
         }
 
         protected override Element Render(in OwnershipInput props, ref RenderContext ui)
         {
-            Result = Memo.Get(new(props.Value, props.Log.Signal.Value, props.Log), static input =>
-            {
-                input.Log.Calculations++;
-                return input.Value * 2 + input.Signal;
-            });
-            if (props.Enabled) ui.Effect(_effect, props.Value);
+            Result = Memo.Get(
+                new(props.Value, props.Log.Signal.Value, props.Log),
+                static input =>
+                {
+                    input.Log.Calculations++;
+                    return input.Value * 2 + input.Signal;
+                }
+            );
+            if (props.Enabled)
+                ui.Effect(_effect, props.Value);
             return ui.Text("owned");
         }
     }

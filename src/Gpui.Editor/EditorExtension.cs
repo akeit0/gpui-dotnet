@@ -119,7 +119,9 @@ public sealed class EditorChangedEvent : INativeExtensionEvent<EditorChangedEven
         var count = BinaryPrimitives.ReadUInt32LittleEndian(span[8..]);
         if (nativeEvent.Revision <= baseRevision || count == 0 || count > (span.Length - 12) / 24)
         {
-            throw new InvalidOperationException("The editor change revision or edit count is invalid.");
+            throw new InvalidOperationException(
+                "The editor change revision or edit count is invalid."
+            );
         }
 
         var edits = new EditorEdit[checked((int)count)];
@@ -176,8 +178,7 @@ public sealed class EditorChangedEvent : INativeExtensionEvent<EditorChangedEven
 }
 
 /// <summary>A revision-checked editor command that native state could not apply.</summary>
-public sealed class EditorCommandRejectedEvent
-    : INativeExtensionEvent<EditorCommandRejectedEvent>
+public sealed class EditorCommandRejectedEvent : INativeExtensionEvent<EditorCommandRejectedEvent>
 {
     private EditorCommandRejectedEvent(
         EditorCommandKind command,
@@ -262,7 +263,10 @@ public readonly struct EditorController
     {
         if (end < start)
         {
-            throw new ArgumentOutOfRangeException(nameof(end), "Selection end cannot precede start.");
+            throw new ArgumentOutOfRangeException(
+                nameof(end),
+                "Selection end cannot precede start."
+            );
         }
         Span<byte> payload = stackalloc byte[16];
         BinaryPrimitives.WriteUInt64LittleEndian(payload, start);
@@ -314,8 +318,10 @@ public readonly struct EditorController
 public static class EditorElements
 {
     /// <summary>Creates a controller for an editor declared by the same View.</summary>
-    public static EditorController CreateEditorController(this ViewConstruction context, string key) =>
-        new(context.CreateNativeExtensionController(EditorExtension.Component, key));
+    public static EditorController CreateEditorController(
+        this ViewConstruction context,
+        string key
+    ) => new(context.CreateNativeExtensionController(EditorExtension.Component, key));
 
     /// <summary>Creates a controller whose editor resource key is already UTF-8.</summary>
     public static EditorController CreateEditorController(
@@ -392,7 +398,11 @@ public static class EditorElements
         where TView : ViewBase
     {
         var changed = ui.BindNativeExtensionEvent(view, onChanged);
-        return ui.NativeExtension(EditorExtension.Component, key, Configuration(options, changed.Token, 0));
+        return ui.NativeExtension(
+            EditorExtension.Component,
+            key,
+            Configuration(options, changed.Token, 0)
+        );
     }
 
     /// <summary>Declares a keyed editor with change and command-rejection callbacks before mounting.</summary>
@@ -454,12 +464,9 @@ public static class EditorElements
         Span<byte> changedBytes = stackalloc byte[20];
         Span<byte> rejectedBytes = stackalloc byte[20];
         Span<byte> widthBytes = stackalloc byte[24];
-        if (!Utf8Formatter.TryFormat(flags, flagsBytes, out var flagsLength)
-            || !Utf8Formatter.TryFormat(
-                changedEventToken,
-                changedBytes,
-                out var changedLength
-            )
+        if (
+            !Utf8Formatter.TryFormat(flags, flagsBytes, out var flagsLength)
+            || !Utf8Formatter.TryFormat(changedEventToken, changedBytes, out var changedLength)
             || !Utf8Formatter.TryFormat(
                 commandRejectedEventToken,
                 rejectedBytes,
@@ -470,14 +477,25 @@ public static class EditorElements
                 widthBytes,
                 out var widthLength,
                 new StandardFormat('R')
-            ))
+            )
+        )
         {
             throw new InvalidOperationException("Failed to encode the editor configuration.");
         }
         var languageLength = Encoding.UTF8.GetByteCount(options.Language);
-        var configuration = new byte[checked(
-            flagsLength + 1 + languageLength + 1 + changedLength + 1 + rejectedLength + 1 + widthLength
-        )];
+        var configuration = new byte[
+            checked(
+                flagsLength
+                + 1
+                + languageLength
+                + 1
+                + changedLength
+                + 1
+                + rejectedLength
+                + 1
+                + widthLength
+            )
+        ];
         var destination = configuration.AsSpan();
         flagsBytes[..flagsLength].CopyTo(destination);
         var offset = flagsLength;

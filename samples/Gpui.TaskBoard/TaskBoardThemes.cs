@@ -44,7 +44,8 @@ internal static class TaskBoardThemes
         );
 
     internal static GpuiTheme Dark { get; } =
-        GpuiTheme.FromJson("""
+        GpuiTheme.FromJson(
+            """
             {
               "name": "TaskBoard Dark",
               "appearance": "dark",
@@ -52,5 +53,6 @@ internal static class TaskBoardThemes
                 "text.muted": "#CBD5E1"
               }
             }
-            """);
+            """
+        );
 }

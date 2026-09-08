@@ -35,7 +35,7 @@ public sealed partial class RuntimeExecutionTests
                     "view-with-lifetime" => CreateViewWithLifetime(),
                     "signal-int" => new Signal<int>(0),
                     "readonly-signal-int" => (IReadOnlySignal<int>)new Signal<int>(0),
-                    _ => new AllocationEmptyView()
+                    _ => new AllocationEmptyView(),
                 };
             }
             var bytes = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -95,7 +95,10 @@ public sealed partial class RuntimeExecutionTests
             ReportAllocation(pattern, batch, bytes);
             if (batch >= AllocationWarmups)
                 Assert.Equal(0, bytes);
-            Assert.Equal(pattern == "unsubscribed-write" ? (batch + 1) * AllocationBatchSize : 0, signal.Value);
+            Assert.Equal(
+                pattern == "unsubscribed-write" ? (batch + 1) * AllocationBatchSize : 0,
+                signal.Value
+            );
             Assert.Equal(0, total);
         }
     }
@@ -123,8 +126,13 @@ public sealed partial class RuntimeExecutionTests
     {
         using var fixture = new SessionFixture(new AllocationRenderRoot());
         fixture.Render();
-        var signals = Enumerable.Range(0, Math.Max(2, pattern == "conditional-switch" ? 2 * dependencyCount : dependencyCount))
-            .Select(static _ => new Signal<int>(0)).ToArray();
+        var signals = Enumerable
+            .Range(
+                0,
+                Math.Max(2, pattern == "conditional-switch" ? 2 * dependencyCount : dependencyCount)
+            )
+            .Select(static _ => new Signal<int>(0))
+            .ToArray();
         var consumer = new ReactiveConsumer(fixture.Session, fixture.View);
         IReadOnlySignal<int>[] readOnly = signals;
         var firstDependencies = pattern is "first-dependencies" or "readonly-first-dependencies";
@@ -150,8 +158,11 @@ public sealed partial class RuntimeExecutionTests
                     {
                         for (var dependency = 0; dependency < dependencyCount; dependency++)
                         {
-                            var slot = pattern == "conditional-switch" ? (index % 2) * dependencyCount + dependency
-                                : pattern is "repeated-same-signal" or "detach-resubscribe-pair" ? 0 : dependency;
+                            var slot =
+                                pattern == "conditional-switch"
+                                    ? (index % 2) * dependencyCount + dependency
+                                : pattern is "repeated-same-signal" or "detach-resubscribe-pair" ? 0
+                                : dependency;
                             _ = throughInterface ? readOnly[slot].Value : signals[slot].Value;
                         }
                     }
@@ -159,15 +170,21 @@ public sealed partial class RuntimeExecutionTests
                 }
                 var bytes = GC.GetAllocatedBytesForCurrentThread() - before;
                 ReportAllocation($"{pattern}-{dependencyCount}", batch, bytes);
-                if (batch >= AllocationWarmups && !firstDependencies
-                    && !(pattern == "conditional-switch" && dependencyCount > 8))
+                if (
+                    batch >= AllocationWarmups
+                    && !firstDependencies
+                    && !(pattern == "conditional-switch" && dependencyCount > 8)
+                )
                     Assert.Equal(0, bytes);
                 foreach (var item in fresh)
                     item.Dispose();
                 Assert.True(fresh.Length != 0 || consumer.Accepted);
             }
         }
-        finally { consumer.Dispose(); }
+        finally
+        {
+            consumer.Dispose();
+        }
     }
 
     [Theory]
@@ -183,11 +200,17 @@ public sealed partial class RuntimeExecutionTests
     public void CrossViewSignalUpdateAllocations(string pattern, int count)
     {
         var manySignals = pattern == "many-signals";
-        var signals = Enumerable.Range(0, manySignals ? count : 1).Select(static _ => new Signal<int>(0)).ToArray();
+        var signals = Enumerable
+            .Range(0, manySignals ? count : 1)
+            .Select(static _ => new Signal<int>(0))
+            .ToArray();
         var root = new AllocationTreeRoot(signals, manySignals ? 1 : count);
         using var fixture = new SessionFixture(root);
         fixture.Render();
-        var readers = fixture.State(root).Children!.Values.Select(static entry => (AllocationReaderView)entry.View).ToArray();
+        var readers = fixture
+            .State(root)
+            .Children!.Values.Select(static entry => (AllocationReaderView)entry.View)
+            .ToArray();
         if (pattern == "paused-readers")
         {
             for (var index = 0; index < readers.Length; index += 2)
@@ -219,7 +242,10 @@ public sealed partial class RuntimeExecutionTests
                 writes += GC.GetAllocatedBytesForCurrentThread() - before;
 
                 for (var reader = 0; reader < readers.Length; reader++)
-                    Assert.Equal(pattern != "equal-write" && readers[reader].Following.Value, states[reader].Dirty);
+                    Assert.Equal(
+                        pattern != "equal-write" && readers[reader].Following.Value,
+                        states[reader].Dirty
+                    );
                 before = GC.GetAllocatedBytesForCurrentThread();
                 fixture.Render();
                 renders += GC.GetAllocatedBytesForCurrentThread() - before;
@@ -231,12 +257,20 @@ public sealed partial class RuntimeExecutionTests
                 Assert.Equal(0, writes);
                 Assert.Equal(0, renders);
             }
-            Assert.Equal(pattern == "equal-write" ? 0 : AllocationBatchSize, fixture.Notifications - notifications);
+            Assert.Equal(
+                pattern == "equal-write" ? 0 : AllocationBatchSize,
+                fixture.Notifications - notifications
+            );
             for (var index = 0; index < readers.Length; index++)
             {
                 var active = readers[index].Following.Value;
-                Assert.Equal(counts[index] + (active && pattern != "equal-write" ? AllocationBatchSize : 0), readers[index].Renders);
-                var expected = root.UseAlternate.Value ? root.Alternate.Value : signals.Sum(static signal => signal.Value);
+                Assert.Equal(
+                    counts[index] + (active && pattern != "equal-write" ? AllocationBatchSize : 0),
+                    readers[index].Renders
+                );
+                var expected = root.UseAlternate.Value
+                    ? root.Alternate.Value
+                    : signals.Sum(static signal => signal.Value);
                 Assert.Equal(active ? expected : -1, readers[index].Observed);
             }
         }
@@ -245,23 +279,32 @@ public sealed partial class RuntimeExecutionTests
     private static void ReportAllocation(string pattern, int batch, long bytes)
     {
         if (batch >= AllocationWarmups)
-            TestContext.Current.TestOutputHelper!.WriteLine($"{pattern}: {bytes / (double)AllocationBatchSize:N1} B/op");
+            TestContext.Current.TestOutputHelper!.WriteLine(
+                $"{pattern}: {bytes / (double)AllocationBatchSize:N1} B/op"
+            );
     }
 
     private sealed class AllocationEmptyView : View
     {
-        public AllocationEmptyView() : this(TestViews.Construction()) { }
-        public AllocationEmptyView(ViewConstruction construction) : base(construction) { }
+        public AllocationEmptyView()
+            : this(TestViews.Construction()) { }
+
+        public AllocationEmptyView(ViewConstruction construction)
+            : base(construction) { }
 
         protected override Element Render(ref RenderContext ui) => ui.Text("view");
     }
 
     private sealed class AllocationSignalView : View
     {
-        public AllocationSignalView() : this(TestViews.Construction()) { }
-        public AllocationSignalView(ViewConstruction construction) : base(construction) { }
+        public AllocationSignalView()
+            : this(TestViews.Construction()) { }
+
+        public AllocationSignalView(ViewConstruction construction)
+            : base(construction) { }
 
         private readonly Signal<int> _count = new(0);
+
         protected override Element Render(ref RenderContext ui)
         {
             _ = _count.Value;
@@ -271,8 +314,11 @@ public sealed partial class RuntimeExecutionTests
 
     private sealed class AllocationPropsView : View<int>
     {
-        public AllocationPropsView() : this(TestViews.Construction()) { }
-        public AllocationPropsView(ViewConstruction construction) : base(construction) { }
+        public AllocationPropsView()
+            : this(TestViews.Construction()) { }
+
+        public AllocationPropsView(ViewConstruction construction)
+            : base(construction) { }
 
         protected override Element Render(in int props, ref RenderContext ui) => ui.Text("view");
     }
@@ -282,19 +328,35 @@ public sealed partial class RuntimeExecutionTests
         protected override Element Render(ref RenderContext ui) => ui.Text("view");
     }
 
-    private readonly record struct AllocationReaderProps(Signal<int>[] Signals, Signal<int> Alternate, Signal<bool> UseAlternate);
+    private readonly record struct AllocationReaderProps(
+        Signal<int>[] Signals,
+        Signal<int> Alternate,
+        Signal<bool> UseAlternate
+    );
 
-    private sealed class AllocationReaderView : View<AllocationReaderProps>, IGeneratedViewFactory<AllocationReaderView, AllocationReaderProps>
+    private sealed class AllocationReaderView
+        : View<AllocationReaderProps>,
+            IGeneratedViewFactory<AllocationReaderView, AllocationReaderProps>
     {
-        public static ViewSpec<AllocationReaderView, AllocationReaderProps> Spec(AllocationReaderProps props) => new(props);
+        public static ViewSpec<AllocationReaderView, AllocationReaderProps> Spec(
+            AllocationReaderProps props
+        ) => new(props);
 
-        public AllocationReaderView() : this(TestViews.Construction()) { }
-        public AllocationReaderView(ViewConstruction construction) : base(construction) { }
+        public AllocationReaderView()
+            : this(TestViews.Construction()) { }
 
-        public static AllocationReaderView CreateGpuiView(ViewConstruction construction, AllocationReaderProps initialProps) => new(construction);
+        public AllocationReaderView(ViewConstruction construction)
+            : base(construction) { }
+
+        public static AllocationReaderView CreateGpuiView(
+            ViewConstruction construction,
+            AllocationReaderProps initialProps
+        ) => new(construction);
+
         internal readonly Signal<bool> Following = new(true);
         internal int Renders;
         internal int Observed;
+
         protected override Element Render(in AllocationReaderProps props, ref RenderContext ui)
         {
             Renders++;
@@ -316,15 +378,23 @@ public sealed partial class RuntimeExecutionTests
     private sealed class AllocationTreeRoot(Signal<int>[] signals, int readers) : ProbeView
     {
         [System.Runtime.CompilerServices.InlineArray(32)]
-        private struct ChildBuffer { private Element _element; }
+        private struct ChildBuffer
+        {
+            private Element _element;
+        }
+
         internal readonly Signal<int> Alternate = new(42);
         internal readonly Signal<bool> UseAlternate = new(false);
+
         protected override Element Render(ref RenderContext ui)
         {
             ChildBuffer buffer = default;
             Span<Element> children = ((Span<Element>)buffer)[..readers];
             for (var index = 0; index < readers; index++)
-                children[index] = ui.Child(index, AllocationReaderView.Spec(new(signals, Alternate, UseAlternate)));
+                children[index] = ui.Child(
+                    index,
+                    AllocationReaderView.Spec(new(signals, Alternate, UseAlternate))
+                );
             return ui.Div(children);
         }
     }

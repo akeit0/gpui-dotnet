@@ -35,11 +35,7 @@ public readonly struct DockPanelOptions
 {
     private readonly bool _initialized;
 
-    public DockPanelOptions(
-        bool closable = true,
-        bool zoomable = true,
-        bool innerPadding = false
-    )
+    public DockPanelOptions(bool closable = true, bool zoomable = true, bool innerPadding = false)
     {
         Closable = closable;
         Zoomable = zoomable;
@@ -201,7 +197,10 @@ public readonly struct DockController
         ArgumentNullException.ThrowIfNull(layoutJson);
         if (layoutJson.Length == 0)
         {
-            throw new ArgumentException("A Dock layout document cannot be empty.", nameof(layoutJson));
+            throw new ArgumentException(
+                "A Dock layout document cannot be empty.",
+                nameof(layoutJson)
+            );
         }
         Owner.Runtime.DispatchResourceCommand(
             new ResourceCommand(

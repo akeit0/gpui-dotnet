@@ -3,6 +3,7 @@ namespace Gpui.Interop.Internal.Session;
 internal sealed unsafe partial class ManagedSession
 {
     private readonly record struct DemandArtifact(ReactiveConsumer Consumer, int OwnerSlot);
+
     private readonly Dictionary<ulong, DemandArtifact> _demandArtifacts = [];
     private ulong _nextArtifactId;
 
@@ -10,13 +11,18 @@ internal sealed unsafe partial class ManagedSession
     {
         if (source == 0)
         {
-            throw new InvalidOperationException("Demand rendering requires a bound source identity.");
+            throw new InvalidOperationException(
+                "Demand rendering requires a bound source identity."
+            );
         }
         var id = checked(++_nextArtifactId);
         var slots = GetRenderState(owner).DemandArtifacts ??= [];
         var consumer = new ReactiveConsumer(this, owner, source, id);
         _demandArtifacts.Add(id, new DemandArtifact(consumer, slots.Count));
-        try { slots.Add(id); }
+        try
+        {
+            slots.Add(id);
+        }
         catch
         {
             _demandArtifacts.Remove(id);
@@ -31,8 +37,11 @@ internal sealed unsafe partial class ManagedSession
         ThrowIfUnavailable(retireFailure: false);
         using var execution = Execution.Enter(ExecutionPhase.ArtifactAcceptance);
         RequireAcceptedRender();
-        if (!_demandArtifacts.TryGetValue(artifact, out var entry)
-            || entry.Consumer.Source != source || entry.Consumer.Accepted)
+        if (
+            !_demandArtifacts.TryGetValue(artifact, out var entry)
+            || entry.Consumer.Source != source
+            || entry.Consumer.Accepted
+        )
             throw new InvalidOperationException("Artifact acceptance has no matching publication.");
         entry.Consumer.Commit();
     }
@@ -60,13 +69,16 @@ internal sealed unsafe partial class ManagedSession
         }
         if (status != 0)
         {
-            throw new InvalidOperationException($"Native demand snapshot validation failed for session {_sessionId}, source {source}, artifact {artifact}: {NativeStatus.Describe(NativeStatusDomain.Snapshot, status)}.");
+            throw new InvalidOperationException(
+                $"Native demand snapshot validation failed for session {_sessionId}, source {source}, artifact {artifact}: {NativeStatus.Describe(NativeStatusDomain.Snapshot, status)}."
+            );
         }
     }
 
     private void RemoveDemandArtifact(ulong id)
     {
-        if (!_demandArtifacts.Remove(id, out var entry)) return;
+        if (!_demandArtifacts.Remove(id, out var entry))
+            return;
         var consumer = entry.Consumer;
         var slots = _renderStates[consumer.Owner].DemandArtifacts!;
         System.Diagnostics.Debug.Assert(slots[entry.OwnerSlot] == id);
@@ -84,7 +96,9 @@ internal sealed unsafe partial class ManagedSession
 
     private void RetireDemandArtifacts(RetainedViewState? state)
     {
-        if (state?.DemandArtifacts is not { } slots) return;
-        while (slots.Count != 0) RemoveDemandArtifact(slots[^1]);
+        if (state?.DemandArtifacts is not { } slots)
+            return;
+        while (slots.Count != 0)
+            RemoveDemandArtifact(slots[^1]);
     }
 }

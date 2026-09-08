@@ -7,7 +7,9 @@ internal sealed partial class CompanionWindowView : View<string>
     private int _localCount;
 
     private readonly GpuiWindow Window;
-    public CompanionWindowView(ViewConstruction construction, string initialProps) : base(construction) => Window = construction.Window;
+
+    public CompanionWindowView(ViewConstruction construction, string initialProps)
+        : base(construction) => Window = construction.Window;
 
     private void CloseWindow()
     {

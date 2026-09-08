@@ -10,7 +10,9 @@ internal static class ContrastAssert
             static double Linear(uint value)
             {
                 var channel = value / 255.0;
-                return channel <= 0.04045 ? channel / 12.92 : Math.Pow((channel + 0.055) / 1.055, 2.4);
+                return channel <= 0.04045
+                    ? channel / 12.92
+                    : Math.Pow((channel + 0.055) / 1.055, 2.4);
             }
             return 0.2126 * Linear(color.Rgba >> 24)
                 + 0.7152 * Linear((color.Rgba >> 16) & 255)
@@ -19,6 +21,9 @@ internal static class ContrastAssert
         var first = Luminance(foreground);
         var second = Luminance(background);
         var ratio = (Math.Max(first, second) + 0.05) / (Math.Min(first, second) + 0.05);
-        Assert.True(ratio >= 4.5, $"{context}: {foreground} on {background} has contrast {ratio:F2}.");
+        Assert.True(
+            ratio >= 4.5,
+            $"{context}: {foreground} on {background} has contrast {ratio:F2}."
+        );
     }
 }

@@ -11,10 +11,16 @@ public readonly unsafe ref partial struct RenderContext
     /// Movement, eviction, dismissal, or declaration removal expires the native anchor.
     /// </summary>
     public Element<TooltipTag> RowTooltip(
-        ReadOnlySpan<char> key, ListTooltipEvent request, Element content)
+        ReadOnlySpan<char> key,
+        ListTooltipEvent request,
+        Element content
+    )
     {
         if (request.AnchorId == 0)
-            throw new ArgumentException("A native row tooltip request is required.", nameof(request));
+            throw new ArgumentException(
+                "A native row tooltip request is required.",
+                nameof(request)
+            );
         if (key.IsEmpty)
             throw new ArgumentException("A tooltip key cannot be empty.", nameof(key));
         var element = ArenaWriter.AddNode<TooltipTag>(_arena, ComponentId.Tooltip, key);

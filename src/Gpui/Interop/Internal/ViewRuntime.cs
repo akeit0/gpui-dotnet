@@ -34,6 +34,7 @@ internal sealed class ViewRuntime
     private ViewCommandRoute? _commandRoute;
     private MountedViewAttachment? _uiAttachment;
     private int _lifecycle;
+
     // One-shot identity state: queued invalidation never reads a pooled UI attachment.
     private int _invalidationPending;
 
@@ -200,19 +201,20 @@ internal sealed class ViewRuntime
         return route;
     }
 
-    internal bool TryPostOwned(IIngressWork work) => Volatile.Read(ref _commandRoute)?.TryPost(work) == true;
+    internal bool TryPostOwned(IIngressWork work) =>
+        Volatile.Read(ref _commandRoute)?.TryPost(work) == true;
 
     private WorkScope? _constructionWork;
 
-    internal WorkScope GetConstructionWorkScope() =>
-        _constructionWork ??= new WorkScope(this);
+    internal WorkScope GetConstructionWorkScope() => _constructionWork ??= new WorkScope(this);
 
     internal void MountRuntime()
     {
         RequireUiAttachment();
         lock (_lifecycleGate)
         {
-            if (_lifecycle == LifecycleMounted) return;
+            if (_lifecycle == LifecycleMounted)
+                return;
             if (_lifecycle != LifecyclePrepared)
                 throw new InvalidOperationException("Only a prepared View can activate.");
             _commandRoute!.Activate();
@@ -248,7 +250,14 @@ internal sealed class ViewRuntime
         _constructionWork?.Revoke();
         _owner.Ownership.RevokeEffects();
         Exception? workFailure = null;
-        try { _constructionWork?.Retire(); } catch (Exception exception) { workFailure = exception; }
+        try
+        {
+            _constructionWork?.Retire();
+        }
+        catch (Exception exception)
+        {
+            workFailure = exception;
+        }
         _constructionWork = null;
         if (uiAttachment is not null)
         {
@@ -268,10 +277,15 @@ internal sealed class ViewRuntime
                 cancellationFailure = exception;
             }
 
-            try { _owner.Ownership.Retire(); }
+            try
+            {
+                _owner.Ownership.Retire();
+            }
             catch (Exception exception)
             {
-                lifecycleFailure = lifecycleFailure is null ? exception : new AggregateException(lifecycleFailure, exception);
+                lifecycleFailure = lifecycleFailure is null
+                    ? exception
+                    : new AggregateException(lifecycleFailure, exception);
             }
         }
         finally
@@ -319,7 +333,10 @@ internal sealed class ViewRuntime
     )
     {
         var route = Volatile.Read(ref _commandRoute);
-        if (route is null || !route.TryUtf8InputValue(utf8Key, utf8Value, command, expectedRevision, policies))
+        if (
+            route is null
+            || !route.TryUtf8InputValue(utf8Key, utf8Value, command, expectedRevision, policies)
+        )
         {
             throw new InvalidOperationException("The view is not mounted in a GPUI application.");
         }

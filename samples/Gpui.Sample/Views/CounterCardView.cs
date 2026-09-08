@@ -7,7 +7,8 @@ internal sealed partial class CounterCardView : View<CounterCardProps>
     private readonly Signal<int> _count = new(0);
     private readonly WorkScope _work;
 
-    public CounterCardView(ViewConstruction context, CounterCardProps initialProps) : base(context) => _work = context.Work;
+    public CounterCardView(ViewConstruction context, CounterCardProps initialProps)
+        : base(context) => _work = context.Work;
 
     private void Increment() =>
         _work.Start(

@@ -37,15 +37,32 @@ public sealed unsafe partial class RuntimeExecutionTests
         var application = new GpuiApplication();
         var trigger = new Signal<int>(0);
         var cleanupSignal = new Signal<int>(0);
-        using var healthyRows = new SessionFixture(new ProbeView
-        {
-            DuringRow = _ => { _ = cleanupSignal.Value; }
-        }, application);
-        using var failing = new SessionFixture(new ProbeView
-        {
-            DuringRender = failDuringFlush ? null : () => { _ = trigger.Value; },
-            DuringRow = _ => { _ = trigger.Value; }
-        }, application);
+        using var healthyRows = new SessionFixture(
+            new ProbeView
+            {
+                DuringRow = _ =>
+                {
+                    _ = cleanupSignal.Value;
+                },
+            },
+            application
+        );
+        using var failing = new SessionFixture(
+            new ProbeView
+            {
+                DuringRender = failDuringFlush
+                    ? null
+                    : () =>
+                    {
+                        _ = trigger.Value;
+                    },
+                DuringRow = _ =>
+                {
+                    _ = trigger.Value;
+                },
+            },
+            application
+        );
         healthyRows.Render();
         var artifact = healthyRows.Range(0);
         failing.Render();
@@ -77,9 +94,36 @@ public sealed unsafe partial class RuntimeExecutionTests
         var trigger = new Signal<int>(0);
         var intermediate = new Signal<int>(0);
         var final = new Signal<int>(0);
-        using var first = new SessionFixture(new ProbeView { DuringRow = _ => { _ = trigger.Value; } }, application);
-        using var second = new SessionFixture(new ProbeView { DuringRow = _ => { _ = intermediate.Value; } }, application);
-        using var healthy = new SessionFixture(new ProbeView { DuringRow = _ => { _ = final.Value; } }, application);
+        using var first = new SessionFixture(
+            new ProbeView
+            {
+                DuringRow = _ =>
+                {
+                    _ = trigger.Value;
+                },
+            },
+            application
+        );
+        using var second = new SessionFixture(
+            new ProbeView
+            {
+                DuringRow = _ =>
+                {
+                    _ = intermediate.Value;
+                },
+            },
+            application
+        );
+        using var healthy = new SessionFixture(
+            new ProbeView
+            {
+                DuringRow = _ =>
+                {
+                    _ = final.Value;
+                },
+            },
+            application
+        );
         first.Render();
         first.Range(0);
         second.Render();

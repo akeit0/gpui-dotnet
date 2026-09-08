@@ -9,7 +9,9 @@ public sealed partial class RuntimeExecutionTests
     public void DispatcherValuesRejectDefaultAndUnownedUse()
     {
         Assert.Throws<InvalidOperationException>(() => default(Dispatcher).Post(static () => { }));
-        Assert.Throws<InvalidOperationException>(() => default(Dispatcher).Post(1, static _ => { }));
+        Assert.Throws<InvalidOperationException>(() =>
+            default(Dispatcher).Post(1, static _ => { })
+        );
         var dispatcher = new ProbeView().Dispatcher;
         Assert.Throws<InvalidOperationException>(() => dispatcher.Post(1, static _ => { }));
     }
@@ -23,11 +25,16 @@ public sealed partial class RuntimeExecutionTests
         var copy = dispatcher;
         var values = new List<int>();
         var state = (values, thread: Environment.CurrentManagedThreadId);
-        RunWorker(() => copy.Post(state, static state =>
-        {
-            Assert.Equal(state.thread, Environment.CurrentManagedThreadId);
-            state.values.Add(42);
-        }));
+        RunWorker(() =>
+            copy.Post(
+                state,
+                static state =>
+                {
+                    Assert.Equal(state.thread, Environment.CurrentManagedThreadId);
+                    state.values.Add(42);
+                }
+            )
+        );
         Assert.Empty(values);
         fixture.Render();
         Assert.Equal([42], values);
@@ -47,7 +54,9 @@ public sealed partial class RuntimeExecutionTests
         Assert.Equal(0, fixture.Complete());
         fixture.Render();
         Assert.Empty(values);
-        Assert.Throws<InvalidOperationException>(() => dispatcher.Post(values, static values => values.Add(2)));
+        Assert.Throws<InvalidOperationException>(() =>
+            dispatcher.Post(values, static values => values.Add(2))
+        );
     }
 
     [Theory]
@@ -55,7 +64,10 @@ public sealed partial class RuntimeExecutionTests
     [InlineData(true, 32)]
     [InlineData(false, 65)]
     [InlineData(true, 65)]
-    public void ClearedDependencyStorageDoesNotRetainRemovedOrRejectedSignals(bool reject, int count)
+    public void ClearedDependencyStorageDoesNotRetainRemovedOrRejectedSignals(
+        bool reject,
+        int count
+    )
     {
         using var fixture = new SessionFixture(new AllocationRenderRoot());
         fixture.Render();
@@ -70,10 +82,21 @@ public sealed partial class RuntimeExecutionTests
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference[] RemoveAllocationDependency(ReactiveConsumer consumer, bool reject, int count)
+    private static WeakReference[] RemoveAllocationDependency(
+        ReactiveConsumer consumer,
+        bool reject,
+        int count
+    )
     {
-        var signals = Enumerable.Range(0, count).Select(static _ => new Signal<object>(new object())).ToArray();
-        var references = signals.SelectMany(static signal => new[] { new WeakReference(signal), new WeakReference(signal.Value) }).ToArray();
+        var signals = Enumerable
+            .Range(0, count)
+            .Select(static _ => new Signal<object>(new object()))
+            .ToArray();
+        var references = signals
+            .SelectMany(static signal =>
+                new[] { new WeakReference(signal), new WeakReference(signal.Value) }
+            )
+            .ToArray();
         using (consumer.Begin())
             foreach (var signal in signals)
                 _ = signal.Value;
@@ -159,5 +182,8 @@ public sealed partial class RuntimeExecutionTests
     private static void PostCapturedState(Dispatcher dispatcher, DispatchCounter counter) =>
         dispatcher.Post(() => counter.Value++);
 
-    private sealed class DispatchCounter { internal int Value; }
+    private sealed class DispatchCounter
+    {
+        internal int Value;
+    }
 }

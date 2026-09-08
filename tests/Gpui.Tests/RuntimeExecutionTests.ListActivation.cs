@@ -15,11 +15,26 @@ public sealed unsafe partial class RuntimeExecutionTests
         using var fixture = new SessionFixture(view);
         fixture.Render();
         var payload = ActivationPayload(51, identity ? ulong.MaxValue : 0);
-        Assert.Equal(0, fixture.Control(view.Token, (ushort)ListEventKind.Activated, payload,
-            (ushort)((keyboard ? 1 : 0) | (identity ? 2 : 0)), identity ? ulong.MaxValue : 0));
+        Assert.Equal(
+            0,
+            fixture.Control(
+                view.Token,
+                (ushort)ListEventKind.Activated,
+                payload,
+                (ushort)((keyboard ? 1 : 0) | (identity ? 2 : 0)),
+                identity ? ulong.MaxValue : 0
+            )
+        );
         payload.AsSpan().Clear();
-        Assert.Equal(new ListActivationEvent(51, identity ? ulong.MaxValue : null,
-            identity ? ulong.MaxValue : null, keyboard ? ListActivationSource.Keyboard : ListActivationSource.Pointer), view.Received);
+        Assert.Equal(
+            new ListActivationEvent(
+                51,
+                identity ? ulong.MaxValue : null,
+                identity ? ulong.MaxValue : null,
+                keyboard ? ListActivationSource.Keyboard : ListActivationSource.Pointer
+            ),
+            view.Received
+        );
     }
 
     [Fact]
@@ -29,13 +44,32 @@ public sealed unsafe partial class RuntimeExecutionTests
         using var fixture = new SessionFixture(view);
         fixture.Render();
         var payload = ActivationPayload(0, 0);
-        Assert.Equal(0, fixture.Control(view.Token, (ushort)ListEventKind.Activated, payload, 2, 0));
+        Assert.Equal(
+            0,
+            fixture.Control(view.Token, (ushort)ListEventKind.Activated, payload, 2, 0)
+        );
         Assert.Equal(0UL, view.Received!.Value.ContentRevision);
         view.Received = null;
-        Assert.Equal(-112, fixture.Control(view.Token, (ushort)ListEventKind.Activated, payload, 4));
-        Assert.Equal(-112, fixture.Control(view.Token, (ushort)ListEventKind.Activated, payload, 0, 1));
-        Assert.Equal(-112, fixture.Control(view.Token, (ushort)ListEventKind.Activated, payload.AsSpan(1)));
-        Assert.Equal(-112, fixture.Control(view.Token, (ushort)ListEventKind.Activated, ActivationPayload(uint.MaxValue, 1)));
+        Assert.Equal(
+            -112,
+            fixture.Control(view.Token, (ushort)ListEventKind.Activated, payload, 4)
+        );
+        Assert.Equal(
+            -112,
+            fixture.Control(view.Token, (ushort)ListEventKind.Activated, payload, 0, 1)
+        );
+        Assert.Equal(
+            -112,
+            fixture.Control(view.Token, (ushort)ListEventKind.Activated, payload.AsSpan(1))
+        );
+        Assert.Equal(
+            -112,
+            fixture.Control(
+                view.Token,
+                (ushort)ListEventKind.Activated,
+                ActivationPayload(uint.MaxValue, 1)
+            )
+        );
         payload[4] = 1;
         Assert.Equal(-112, fixture.Control(view.Token, (ushort)ListEventKind.Activated, payload));
         Assert.Null(view.Received);
@@ -48,7 +82,10 @@ public sealed unsafe partial class RuntimeExecutionTests
         var view = new ListActivationProbe { ThrowOnActivation = true };
         using var fixture = new SessionFixture(view);
         fixture.Render();
-        Assert.Equal(-113, fixture.Control(view.Token, (ushort)ListEventKind.Activated, ActivationPayload(1, 5)));
+        Assert.Equal(
+            -113,
+            fixture.Control(view.Token, (ushort)ListEventKind.Activated, ActivationPayload(1, 5))
+        );
         Assert.Equal("activation failed", fixture.Session.Failure!.Message);
     }
 
@@ -68,11 +105,14 @@ public sealed unsafe partial class RuntimeExecutionTests
 
         protected override Element Render(ref RenderContext ui)
         {
-            Token = Runtime.Events.BindListActivation<ListActivationProbe>(static (view, value) =>
-            {
-                if (view.ThrowOnActivation) throw new InvalidOperationException("activation failed");
-                view.Received = value;
-            });
+            Token = Runtime.Events.BindListActivation<ListActivationProbe>(
+                static (view, value) =>
+                {
+                    if (view.ThrowOnActivation)
+                        throw new InvalidOperationException("activation failed");
+                    view.Received = value;
+                }
+            );
             return base.Render(ref ui);
         }
     }

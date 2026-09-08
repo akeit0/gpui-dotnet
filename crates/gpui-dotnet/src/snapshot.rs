@@ -380,10 +380,10 @@ fn validate_resource_key_uniqueness(
         // A table's row-engine key is the first NUL-separated field of its data blob; a list's
         // key is the whole payload. The kind keeps Slider's separate resource namespace apart.
         let (kind, key_length) = match node.component {
-            COMPONENT_LIST => (2, node.data_length),
-            COMPONENT_SCROLL => (1, node.data_length),
+            COMPONENT_LIST => (crate::semantic::RESOURCE_LIST, node.data_length),
+            COMPONENT_SCROLL => (crate::semantic::RESOURCE_SCROLL, node.data_length),
             COMPONENT_INPUT => (
-                3,
+                crate::semantic::RESOURCE_INPUT,
                 utf8[node.data_offset as usize
                     ..node.data_offset as usize + node.data_length as usize]
                     .iter()
@@ -391,7 +391,7 @@ fn validate_resource_key_uniqueness(
                     .unwrap() as u32,
             ),
             COMPONENT_NATIVE_EXTENSION => (
-                6,
+                u16::MAX, // Extension identities have a separate namespace from core resources.
                 utf8[node.data_offset as usize
                     ..node.data_offset as usize + node.data_length as usize]
                     .iter()
@@ -402,15 +402,15 @@ fn validate_resource_key_uniqueness(
                     .0 as u32,
             ),
             COMPONENT_TABLE => (
-                2,
+                crate::semantic::RESOURCE_LIST,
                 utf8[node.data_offset as usize
                     ..node.data_offset as usize + node.data_length as usize]
                     .iter()
                     .position(|byte| *byte == 0)
                     .map_or(node.data_length, |position| position as u32),
             ),
-            COMPONENT_SLIDER => (4, node.data_length),
-            COMPONENT_DOCK_AREA => (5, node.data_length),
+            COMPONENT_SLIDER => (crate::semantic::RESOURCE_SLIDER, node.data_length),
+            COMPONENT_DOCK_AREA => (crate::semantic::RESOURCE_DOCK, node.data_length),
             _ => continue,
         };
         let owner = owners[index].0;

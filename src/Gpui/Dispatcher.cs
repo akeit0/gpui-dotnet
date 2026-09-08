@@ -14,8 +14,9 @@ public readonly struct Dispatcher
     public void Post(Action callback) => Runtime.Post(callback);
 
     /// <summary>Posts explicit state; use a static callback to avoid a capturing delegate.</summary>
-    public void Post<TState>(TState state, Action<TState> callback) => Runtime.Post(state, callback);
+    public void Post<TState>(TState state, Action<TState> callback) =>
+        Runtime.Post(state, callback);
 
-    private Gpui.Interop.Internal.ViewRuntime Runtime => _runtime
-        ?? throw new InvalidOperationException("The dispatcher is not initialized.");
+    private Gpui.Interop.Internal.ViewRuntime Runtime =>
+        _runtime ?? throw new InvalidOperationException("The dispatcher is not initialized.");
 }

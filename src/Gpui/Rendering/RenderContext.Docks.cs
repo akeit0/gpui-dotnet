@@ -137,10 +137,7 @@ public readonly unsafe ref partial struct RenderContext
 
     /// <summary>Declares a horizontal or vertical container in a Dock layout.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Element<DockSplitTag> DockSplit(
-        DockAxis axis,
-        params ReadOnlySpan<Element> children
-    )
+    public Element<DockSplitTag> DockSplit(DockAxis axis, params ReadOnlySpan<Element> children)
     {
         if ((uint)axis > (uint)DockAxis.Vertical)
         {
@@ -148,7 +145,10 @@ public readonly unsafe ref partial struct RenderContext
         }
         if (children.IsEmpty)
         {
-            throw new ArgumentException("A Dock split requires at least one child.", nameof(children));
+            throw new ArgumentException(
+                "A Dock split requires at least one child.",
+                nameof(children)
+            );
         }
 
         var element = ArenaWriter.AddNode<DockSplitTag>(_arena, ComponentId.DockSplit);
@@ -162,10 +162,7 @@ public readonly unsafe ref partial struct RenderContext
 
     /// <summary>Declares a tab group in a Dock layout.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Element<DockTabsTag> DockTabs(
-        int activeIndex = 0,
-        params ReadOnlySpan<Element> panels
-    )
+    public Element<DockTabsTag> DockTabs(int activeIndex = 0, params ReadOnlySpan<Element> panels)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(activeIndex);
         if (panels.IsEmpty)
@@ -180,11 +177,7 @@ public readonly unsafe ref partial struct RenderContext
         var element = ArenaWriter.AddNode<DockTabsTag>(_arena, ComponentId.DockTabs);
         if (activeIndex != 0)
         {
-            ArenaWriter.AddU32(
-                element.Inner,
-                OpCode.DockActiveIndex,
-                checked((uint)activeIndex)
-            );
+            ArenaWriter.AddU32(element.Inner, OpCode.DockActiveIndex, checked((uint)activeIndex));
         }
         ArenaWriter.AddChildren(element.Inner, panels);
         return element;

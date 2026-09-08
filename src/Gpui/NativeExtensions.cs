@@ -57,10 +57,14 @@ public readonly record struct NativeExtensionRequirement
         foreach (var character in value)
         {
             if (
-                character is not (
-                    >= 'a' and <= 'z'
-                    or >= 'A' and <= 'Z'
-                    or >= '0' and <= '9'
+                character
+                is not (
+                    >= 'a'
+                    and <= 'z'
+                    or >= 'A'
+                    and <= 'Z'
+                    or >= '0'
+                    and <= '9'
                     or '.'
                     or '-'
                     or '_'

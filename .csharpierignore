@@ -1,0 +1,4 @@
+# Third-party code and generator-owned outputs have their own formatting contracts.
+external/
+artifacts/
+**/*.g.cs

@@ -64,7 +64,11 @@ internal sealed class ViewCommandRoute
         }
     }
 
-    private sealed class RoutedCallback<TState>(ViewCommandRoute route, TState state, Action<TState> callback) : IIngressWork
+    private sealed class RoutedCallback<TState>(
+        ViewCommandRoute route,
+        TState state,
+        Action<TState> callback
+    ) : IIngressWork
     {
         public void Invoke()
         {

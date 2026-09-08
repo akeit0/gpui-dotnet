@@ -18,9 +18,17 @@ public sealed unsafe partial class RuntimeExecutionTests
             if (utf8)
                 fixture.Session.DispatchUtf8InputValue(owner, "入力"u8, "private document text"u8);
             else
-                fixture.Session.DispatchResourceCommand(owner,
-                    new ResourceCommand(ResourceKind.Input, ResourceCommandKind.InputSetValue,
-                        "入力", 0, 0, Data: "private document text"));
+                fixture.Session.DispatchResourceCommand(
+                    owner,
+                    new ResourceCommand(
+                        ResourceKind.Input,
+                        ResourceCommandKind.InputSetValue,
+                        "入力",
+                        0,
+                        0,
+                        Data: "private document text"
+                    )
+                );
         };
         Assert.Equal(-111, fixture.Click());
         var message = fixture.Session.Failure!.Message;

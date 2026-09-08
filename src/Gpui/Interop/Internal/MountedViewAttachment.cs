@@ -34,7 +34,8 @@ internal sealed class MountedViewAttachment
     {
         if (ManagedThreadId != Environment.CurrentManagedThreadId)
             throw new InvalidOperationException(
-                "Managed View render and event state is confined to the GPUI application thread.");
+                "Managed View render and event state is confined to the GPUI application thread."
+            );
     }
 
     internal static MountedViewAttachment Rent(ViewBase owner, uint viewHandle)

@@ -7,7 +7,10 @@ internal sealed partial class ArenaGrowthView : View
     private static readonly string LargePayload = new('x', 20 * 1024);
 
     [System.Runtime.CompilerServices.InlineArray(600)]
-    private struct RowBuffer { private Element _element; }
+    private struct RowBuffer
+    {
+        private Element _element;
+    }
 
     protected override Element Render(ref RenderContext ui)
     {

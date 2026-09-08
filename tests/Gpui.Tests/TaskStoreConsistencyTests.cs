@@ -71,7 +71,8 @@ public sealed class TaskStoreConsistencyTests
     {
         var store = new Board.TaskStore();
         var original = store.Tasks[0];
-        Action[] edits = [
+        Action[] edits =
+        [
             () => store.RenameTask(original.Id, "New title"),
             () => store.SetAssignee(original.Id, "New assignee"),
             () => store.SetStatus(original.Id, Board.TaskStatus.Review),
@@ -115,7 +116,9 @@ public sealed class TaskStoreConsistencyTests
         var store = new Board.TaskStore();
         var task = store.Tasks[0];
         var revision = store.Revision;
-        Assert.Throws<ArgumentOutOfRangeException>(() => store.TrySetEstimate(task.Id, task.Revision, hours));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            store.TrySetEstimate(task.Id, task.Revision, hours)
+        );
         Assert.Throws<ArgumentOutOfRangeException>(() => store.SetEstimate(task.Id, hours));
         Assert.Same(task, store.Find(task.Id));
         Assert.Equal(revision, store.Revision);

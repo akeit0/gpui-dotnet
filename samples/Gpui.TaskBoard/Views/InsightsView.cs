@@ -7,7 +7,14 @@ internal readonly record struct InsightsProps(TaskStore Store, ulong Revision);
 
 internal readonly record struct InsightsInput(TaskStore Store, ulong Revision);
 
-internal readonly record struct InsightsData(int Todo, int Doing, int Review, int Done, float AverageEstimate, int OpenEstimate);
+internal readonly record struct InsightsData(
+    int Todo,
+    int Doing,
+    int Review,
+    int Done,
+    float AverageEstimate,
+    int OpenEstimate
+);
 
 /// <summary>
 /// Retained child View showing board statistics and a vector chart. Pure derived data comes
@@ -35,10 +42,18 @@ internal sealed partial class InsightsView : View<InsightsProps>
         {
             switch (task.Status)
             {
-                case TaskStatus.Todo: todo++; break;
-                case TaskStatus.InProgress: doing++; break;
-                case TaskStatus.Review: review++; break;
-                case TaskStatus.Done: done++; break;
+                case TaskStatus.Todo:
+                    todo++;
+                    break;
+                case TaskStatus.InProgress:
+                    doing++;
+                    break;
+                case TaskStatus.Review:
+                    review++;
+                    break;
+                case TaskStatus.Done:
+                    done++;
+                    break;
             }
             estimate += task.EstimateHours;
             if (!task.Completed)
@@ -72,7 +87,9 @@ internal sealed partial class InsightsView : View<InsightsProps>
                 ui.HStack(cards).Gap(Px(10)),
                 DistributionBar(ref ui, stats, total),
                 VelocityChart(ref ui, stats),
-                ui.Text($"Average estimate {stats.AverageEstimate:0.0}h · open work ≈ {stats.OpenEstimate}h")
+                ui.Text(
+                        $"Average estimate {stats.AverageEstimate:0.0}h · open work ≈ {stats.OpenEstimate}h"
+                    )
                     .FontSize(Px(theme.Typography.Detail))
                     .TextColor(theme.Colors.TextMuted)
             )
@@ -85,7 +102,9 @@ internal sealed partial class InsightsView : View<InsightsProps>
     {
         var theme = ui.Theme;
         return ui.VStack(
-                ui.Text(label).FontSize(Px(theme.Typography.Caption)).TextColor(theme.Colors.TextMuted),
+                ui.Text(label)
+                    .FontSize(Px(theme.Typography.Caption))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.Text($"{value:N0}").FontSize(Px(theme.Typography.Heading)).TextColor(accent)
             )
             .Gap(Px(2))
@@ -108,7 +127,9 @@ internal sealed partial class InsightsView : View<InsightsProps>
             Segment(ref ui, stats.Done, total, theme.Colors.Success),
         ];
         return ui.VStack(
-                ui.Text("Status distribution").FontSize(Px(theme.Typography.Detail)).TextColor(theme.Colors.TextMuted),
+                ui.Text("Status distribution")
+                    .FontSize(Px(theme.Typography.Detail))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.HStack(segments)
                     .Height(Px(14))
                     .Width(Percent(100))
@@ -139,20 +160,37 @@ internal sealed partial class InsightsView : View<InsightsProps>
         var p7 = 88 - ((stats.Done * 8 + stats.Doing * 0) % 70);
         var area = ui.Path()
             .MoveTo(0, 100)
-            .LineTo(0, p0).LineTo(14.3f, p1).LineTo(28.6f, p2).LineTo(42.9f, p3)
-            .LineTo(57.1f, p4).LineTo(71.4f, p5).LineTo(85.7f, p6).LineTo(100, p7)
+            .LineTo(0, p0)
+            .LineTo(14.3f, p1)
+            .LineTo(28.6f, p2)
+            .LineTo(42.9f, p3)
+            .LineTo(57.1f, p4)
+            .LineTo(71.4f, p5)
+            .LineTo(85.7f, p6)
+            .LineTo(100, p7)
             .LineTo(100, 100)
             .Close()
             .Fill(theme.Colors.Success.WithAlpha(48));
         var line = ui.Path()
             .MoveTo(0, p0)
-            .LineTo(14.3f, p1).LineTo(28.6f, p2).LineTo(42.9f, p3)
-            .LineTo(57.1f, p4).LineTo(71.4f, p5).LineTo(85.7f, p6).LineTo(100, p7)
+            .LineTo(14.3f, p1)
+            .LineTo(28.6f, p2)
+            .LineTo(42.9f, p3)
+            .LineTo(57.1f, p4)
+            .LineTo(71.4f, p5)
+            .LineTo(85.7f, p6)
+            .LineTo(100, p7)
             .Stroke(theme.Colors.Success, Px(2));
-        var baseline = ui.Line(0, 100, 100, 100).Stroke(theme.Colors.BorderVariant, Px(1)).Dash(Px(3), Px(3));
-        var dot = ui.Circle(100, p7, 2.5f).Fill(theme.Colors.SurfaceBackground).Stroke(theme.Colors.Success, Px(2));
+        var baseline = ui.Line(0, 100, 100, 100)
+            .Stroke(theme.Colors.BorderVariant, Px(1))
+            .Dash(Px(3), Px(3));
+        var dot = ui.Circle(100, p7, 2.5f)
+            .Fill(theme.Colors.SurfaceBackground)
+            .Stroke(theme.Colors.Success, Px(2));
         return ui.VStack(
-                ui.Text("Throughput trend").FontSize(Px(theme.Typography.Detail)).TextColor(theme.Colors.TextMuted),
+                ui.Text("Throughput trend")
+                    .FontSize(Px(theme.Typography.Detail))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.Drawing(area, baseline, line, dot)
                     .ViewBox(0, 0, 100, 110)
                     .Width(Percent(100))

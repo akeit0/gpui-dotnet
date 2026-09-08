@@ -55,7 +55,8 @@ public sealed class KeyEvent
             return false;
         }
 
-        var expected = (control ? 1u : 0u)
+        var expected =
+            (control ? 1u : 0u)
             | (alt ? 2u : 0u)
             | (shift ? 4u : 0u)
             | (platform ? 8u : 0u)
