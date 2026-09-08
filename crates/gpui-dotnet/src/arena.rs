@@ -219,8 +219,8 @@ mod tests {
         );
         assert_eq!(result, Ok(()));
         assert_eq!((calls, consumed), (1, 1));
-        nodes[0].component = 7;
-        assert_eq!(nodes[0].component, 7);
+        nodes[0].component = crate::semantic::COMPONENT_DIVIDER;
+        assert_eq!(nodes[0].component, crate::semantic::COMPONENT_DIVIDER);
     }
 
     #[test]

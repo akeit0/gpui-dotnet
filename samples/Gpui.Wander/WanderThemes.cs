@@ -44,7 +44,8 @@ internal static class WanderThemes
         );
 
     internal static GpuiTheme Dark { get; } =
-        GpuiTheme.FromJson("""
+        GpuiTheme.FromJson(
+            """
             {
               "name": "Wander Dark",
               "appearance": "dark",
@@ -53,5 +54,6 @@ internal static class WanderThemes
                 "icon.muted": "#CBD5E1"
               }
             }
-            """);
+            """
+        );
 }

@@ -13,7 +13,13 @@ internal sealed partial class SignalReaderView : View<SignalReaderProps>
         var value = following ? $"{(long)props.Count.Value * props.Multiplier:N0}" : "Paused";
         Element control = props.CanPause
             ? ui.Button("toggle-following", following ? "Pause" : "Resume latest")
-                .OnClick(this, (view, _) => { view._following.Value = !view._following.Value; })
+                .OnClick(
+                    this,
+                    (view, _) =>
+                    {
+                        view._following.Value = !view._following.Value;
+                    }
+                )
                 .Style(SampleStyles.Button(ui.Theme))
             : ui.Text("Always follows the shared count"u8).TextColor(ui.Theme.Colors.TextMuted);
 

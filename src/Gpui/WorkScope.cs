@@ -50,10 +50,12 @@ public sealed class WorkScope
 
     /// <summary>Replaces the previous latest request, revoking delivery before requesting cancellation.</summary>
     public void StartLatest<TState, TRequest, TResult>(
-        TState state, TRequest request,
+        TState state,
+        TRequest request,
         Func<TRequest, CancellationToken, Task<TResult>> produce,
         Action<TState, TResult> complete,
-        Action<TState, Exception>? failed = null, Action<TState>? cancelled = null
+        Action<TState, Exception>? failed = null,
+        Action<TState>? cancelled = null
     ) => _ = StartCore(state, request, produce, complete, failed, cancelled, latest: true);
 
     internal PendingWork StartCore<TState, TRequest, TResult>(
@@ -77,7 +79,11 @@ public sealed class WorkScope
             _lifetime = _runtime.Lifetime;
         }
         var route = _route ?? throw new InvalidOperationException("The work scope has retired.");
-        if (ApplicationExecution.Current?.Phase is ExecutionPhase.Render or ExecutionPhase.DemandRender)
+        if (
+            ApplicationExecution.Current?.Phase
+            is ExecutionPhase.Render
+                or ExecutionPhase.DemandRender
+        )
             throw new InvalidOperationException("Asynchronous work cannot start during rendering.");
         route.EnsureAvailable();
 
@@ -98,7 +104,14 @@ public sealed class WorkScope
                 var cancellation = previous.Cancellation;
                 previous.Cancellation = null;
                 RemovePendingWork(previous);
-                try { cancellation?.Cancel(); } finally { cancellation?.Dispose(); }
+                try
+                {
+                    cancellation?.Cancel();
+                }
+                finally
+                {
+                    cancellation?.Dispose();
+                }
             }
             if (!ReferenceEquals(work.Owner, this))
             {
@@ -111,8 +124,11 @@ public sealed class WorkScope
             var wasCancelled = false;
             try
             {
-                task = produce(request, work.Cancellation?.Token ?? _lifetime)
-                    ?? throw new InvalidOperationException("The work producer returned a null Task.");
+                task =
+                    produce(request, work.Cancellation?.Token ?? _lifetime)
+                    ?? throw new InvalidOperationException(
+                        "The work producer returned a null Task."
+                    );
             }
             catch (OperationCanceledException)
             {
@@ -137,7 +153,8 @@ public sealed class WorkScope
 
     private void RemovePendingWork(PendingWork work)
     {
-        if (ReferenceEquals(_latest, work)) _latest = null;
+        if (ReferenceEquals(_latest, work))
+            _latest = null;
         var pending = _pendingWork!;
         var last = pending[^1];
         pending[work.Index] = last;
@@ -165,15 +182,27 @@ public sealed class WorkScope
         Revoke();
         var pending = _retiredWork;
         _retiredWork = null;
-        if (pending is null) return;
+        if (pending is null)
+            return;
         List<Exception>? failures = null;
         foreach (var work in pending)
         {
-            try { work.Cancellation?.Cancel(); }
-            catch (Exception e) { (failures ??= []).Add(e); }
-            finally { work.Cancellation?.Dispose(); work.Cancellation = null; }
+            try
+            {
+                work.Cancellation?.Cancel();
+            }
+            catch (Exception e)
+            {
+                (failures ??= []).Add(e);
+            }
+            finally
+            {
+                work.Cancellation?.Dispose();
+                work.Cancellation = null;
+            }
         }
-        if (failures is not null) throw new AggregateException(failures);
+        if (failures is not null)
+            throw new AggregateException(failures);
     }
 
     internal abstract class PendingWork : IIngressWork
@@ -229,7 +258,9 @@ public sealed class WorkScope
     }
 
     private sealed class PendingWork<TState, TResult>(
-        TState state, Action<TState, TResult> complete, Action<TState, Exception>? failed,
+        TState state,
+        Action<TState, TResult> complete,
+        Action<TState, Exception>? failed,
         Action<TState>? cancelled
     ) : PendingWork
     {

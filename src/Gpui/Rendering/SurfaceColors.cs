@@ -37,7 +37,8 @@ public static partial class ElementExtensions
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Element<TTag> Paint<TTag>(this Element<TTag> element, in InteractionColors colors)
         where TTag : unmanaged, IStyledElementTag, IInteractiveElementTag =>
-        element.Surface(colors.Normal)
+        element
+            .Surface(colors.Normal)
             .HoverBackground(colors.Hover.Background)
             .HoverTextColor(colors.Hover.Foreground)
             .ActiveBackground(colors.Pressed.Background)

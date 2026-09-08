@@ -18,7 +18,11 @@ internal static class NativeRegistry
     // Native text payloads must not silently acquire replacement characters.
     internal static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
-    internal static void RecordFailure(ulong sessionId, Exception exception, bool deferCleanup = false)
+    internal static void RecordFailure(
+        ulong sessionId,
+        Exception exception,
+        bool deferCleanup = false
+    )
     {
         if (Sessions.TryGetValue(sessionId, out var session))
         {

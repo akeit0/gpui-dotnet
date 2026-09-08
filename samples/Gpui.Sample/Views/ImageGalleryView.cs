@@ -15,7 +15,8 @@ internal sealed partial class ImageGalleryView : View
         "gpui.svg"
     );
 
-    public ImageGalleryView(ViewConstruction context) : base(context)
+    public ImageGalleryView(ViewConstruction context)
+        : base(context)
     {
         _scroll = context.CreateScrollController("images-scroll");
     }

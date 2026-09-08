@@ -24,10 +24,7 @@ public sealed unsafe class NativeRuntime
 
     internal GpuiDotnetApiV3* Api
     {
-        get
-        {
-            return _api;
-        }
+        get { return _api; }
     }
 
     /// <summary>Loads and validates the package's default native host.</summary>
@@ -103,12 +100,12 @@ public sealed unsafe class NativeRuntime
             api->validate_render == null
             || api->run_application == null
             || api->notify_view == null
-                || api->dispatch_command == null
-                || api->dispatch_application_command == null
-                || api->dispatch_application_menu == null
-                || api->supports_extension == null
-                || api->dispatch_extension_command == null
-                || api->invalidate_artifacts == null
+            || api->dispatch_command == null
+            || api->dispatch_application_command == null
+            || api->dispatch_application_menu == null
+            || api->supports_extension == null
+            || api->dispatch_extension_command == null
+            || api->invalidate_artifacts == null
         )
         {
             throw new InvalidOperationException(
@@ -185,7 +182,10 @@ public sealed unsafe class NativeRuntime
             );
         }
         int status;
-        try { status = _api->validate_render(owner.NativeArena, root.Node); }
+        try
+        {
+            status = _api->validate_render(owner.NativeArena, root.Node);
+        }
         finally
         {
             GC.KeepAlive(owner);
@@ -255,8 +255,14 @@ public sealed unsafe class NativeRuntime
     internal void NotifyView(ulong sessionId)
     {
         int status;
-        try { status = _api->notify_view(sessionId); }
-        finally { GC.KeepAlive(this); }
+        try
+        {
+            status = _api->notify_view(sessionId);
+        }
+        finally
+        {
+            GC.KeepAlive(this);
+        }
         if (status is -30 or -31)
         {
             // A late continuation may race normal native teardown.

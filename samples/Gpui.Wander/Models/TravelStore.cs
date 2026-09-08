@@ -31,13 +31,7 @@ public sealed record FeedEntry(
 );
 
 /// <summary>One trip plan. Identity is <see cref="Id"/>.</summary>
-public sealed record Trip(
-    int Id,
-    string Title,
-    int[] DestIds,
-    bool[] Days,
-    int Rating
-);
+public sealed record Trip(int Id, string Title, int[] DestIds, bool[] Days, int Rating);
 
 /// <summary>
 /// In-memory document for the sample. Observable mutations advance the revision
@@ -131,10 +125,7 @@ public sealed class TravelStore
 
     public void AddEntry(string author, string text, int destId)
     {
-        Entries.Insert(
-            0,
-            new FeedEntry(_nextEntry++, author, text, destId, 0, false, 0)
-        );
+        Entries.Insert(0, new FeedEntry(_nextEntry++, author, text, destId, 0, false, 0));
         Bump();
         Notify();
     }
@@ -257,9 +248,11 @@ public sealed class TravelStore
             {
                 continue;
             }
-            if (!filter.Query.IsEmpty
+            if (
+                !filter.Query.IsEmpty
                 && !entry.Text.Contains(filter.Query.Text, StringComparison.OrdinalIgnoreCase)
-                && !entry.Author.Contains(filter.Query.Text, StringComparison.OrdinalIgnoreCase))
+                && !entry.Author.Contains(filter.Query.Text, StringComparison.OrdinalIgnoreCase)
+            )
             {
                 continue;
             }
@@ -270,14 +263,94 @@ public sealed class TravelStore
 
     private void Seed()
     {
-        Destinations.Add(new(0, "Bali", "Indonesia", PlaceTag.Beach, "Temple mornings, surf afternoons, waterfall chases in between.", 214, false));
-        Destinations.Add(new(1, "Kyoto", "Japan", PlaceTag.City, "Maple lanes, quiet shrines, and the best kissaten coffee.", 189, true));
-        Destinations.Add(new(2, "Zermatt", "Switzerland", PlaceTag.Mountain, "Matterhorn views and trails above the clouds.", 167, false));
-        Destinations.Add(new(3, "Marrakech", "Morocco", PlaceTag.City, "Souks, spices, and rooftop sunsets over the medina.", 142, false));
-        Destinations.Add(new(4, "Banff", "Canada", PlaceTag.Mountain, "Turquoise lakes and ridgelines worth every switchback.", 158, false));
-        Destinations.Add(new(5, "Santorini", "Greece", PlaceTag.Beach, "White walls, blue domes, and slow Aegean evenings.", 201, true));
-        Destinations.Add(new(6, "Patagonia", "Chile", PlaceTag.Mountain, "Granite towers and wind that rewrites your plans.", 98, false));
-        Destinations.Add(new(7, "Hanoi", "Vietnam", PlaceTag.City, "Old-quarter chaos, egg coffee, and midnight pho.", 121, false));
+        Destinations.Add(
+            new(
+                0,
+                "Bali",
+                "Indonesia",
+                PlaceTag.Beach,
+                "Temple mornings, surf afternoons, waterfall chases in between.",
+                214,
+                false
+            )
+        );
+        Destinations.Add(
+            new(
+                1,
+                "Kyoto",
+                "Japan",
+                PlaceTag.City,
+                "Maple lanes, quiet shrines, and the best kissaten coffee.",
+                189,
+                true
+            )
+        );
+        Destinations.Add(
+            new(
+                2,
+                "Zermatt",
+                "Switzerland",
+                PlaceTag.Mountain,
+                "Matterhorn views and trails above the clouds.",
+                167,
+                false
+            )
+        );
+        Destinations.Add(
+            new(
+                3,
+                "Marrakech",
+                "Morocco",
+                PlaceTag.City,
+                "Souks, spices, and rooftop sunsets over the medina.",
+                142,
+                false
+            )
+        );
+        Destinations.Add(
+            new(
+                4,
+                "Banff",
+                "Canada",
+                PlaceTag.Mountain,
+                "Turquoise lakes and ridgelines worth every switchback.",
+                158,
+                false
+            )
+        );
+        Destinations.Add(
+            new(
+                5,
+                "Santorini",
+                "Greece",
+                PlaceTag.Beach,
+                "White walls, blue domes, and slow Aegean evenings.",
+                201,
+                true
+            )
+        );
+        Destinations.Add(
+            new(
+                6,
+                "Patagonia",
+                "Chile",
+                PlaceTag.Mountain,
+                "Granite towers and wind that rewrites your plans.",
+                98,
+                false
+            )
+        );
+        Destinations.Add(
+            new(
+                7,
+                "Hanoi",
+                "Vietnam",
+                PlaceTag.City,
+                "Old-quarter chaos, egg coffee, and midnight pho.",
+                121,
+                false
+            )
+        );
 
         var authors = new[] { "Aiko", "Ben", "Chloe", "Dev", "Eri", "Farah" };
         var notes = new[]
@@ -293,7 +366,10 @@ public sealed class TravelStore
         for (var i = 0; i < 24; i++)
         {
             var dest = i % Destinations.Count;
-            Destinations[dest] = Destinations[dest] with { Likes = Destinations[dest].Likes + (i % 5) };
+            Destinations[dest] = Destinations[dest] with
+            {
+                Likes = Destinations[dest].Likes + (i % 5),
+            };
             Entries.Add(
                 new FeedEntry(
                     _nextEntry++,
@@ -306,9 +382,27 @@ public sealed class TravelStore
                 )
             );
         }
-        Trips.Add(new Trip(1, "Alpine summer", [2, 4], [true, true, false, false, false, false, false], 4));
-        Trips.Add(new Trip(2, "Island hopping", [0, 5], [true, false, false, false, false, false, false], 5));
-        Trips.Add(new Trip(3, "City lights", [1, 3, 7], [false, false, false, false, false, false, false], 3));
+        Trips.Add(
+            new Trip(1, "Alpine summer", [2, 4], [true, true, false, false, false, false, false], 4)
+        );
+        Trips.Add(
+            new Trip(
+                2,
+                "Island hopping",
+                [0, 5],
+                [true, false, false, false, false, false, false],
+                5
+            )
+        );
+        Trips.Add(
+            new Trip(
+                3,
+                "City lights",
+                [1, 3, 7],
+                [false, false, false, false, false, false, false],
+                3
+            )
+        );
     }
 }
 

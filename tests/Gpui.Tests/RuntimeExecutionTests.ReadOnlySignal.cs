@@ -8,7 +8,9 @@ public sealed partial class RuntimeExecutionTests
         var signal = new Signal<string>("first");
         IReadOnlySignal<object> reader = signal;
         object? observed = null;
-        using var fixture = new SessionFixture(new ProbeView { DuringRender = () => observed = reader.Value });
+        using var fixture = new SessionFixture(
+            new ProbeView { DuringRender = () => observed = reader.Value }
+        );
         Assert.Same(signal, reader);
         fixture.Render();
         Assert.Equal("first", observed);
@@ -24,8 +26,12 @@ public sealed partial class RuntimeExecutionTests
     public void ReadOnlySignalPreservesCrossApplicationAccessChecks()
     {
         IReadOnlySignal<int> reader = new Signal<int>(0);
-        using var first = new SessionFixture(new ProbeView { DuringRender = () => _ = reader.Value });
-        using var second = new SessionFixture(new ProbeView { DuringRender = () => _ = reader.Value });
+        using var first = new SessionFixture(
+            new ProbeView { DuringRender = () => _ = reader.Value }
+        );
+        using var second = new SessionFixture(
+            new ProbeView { DuringRender = () => _ = reader.Value }
+        );
         first.Render();
         Assert.Throws<InvalidOperationException>(second.Render);
     }

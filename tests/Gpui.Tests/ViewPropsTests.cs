@@ -30,11 +30,15 @@ public sealed class ViewPropsTests
 
     private sealed class ProbeView : View<int>
     {
-        public ProbeView() : this(TestViews.Construction()) { }
-        public ProbeView(ViewConstruction construction) : base(construction) { }
+        public ProbeView()
+            : this(TestViews.Construction()) { }
+
+        public ProbeView(ViewConstruction construction)
+            : base(construction) { }
 
         internal int ReadProps() => CommittedProps;
 
-        protected override Element Render(in int props, ref RenderContext ui) => ui.Text($"{props}");
+        protected override Element Render(in int props, ref RenderContext ui) =>
+            ui.Text($"{props}");
     }
 }

@@ -10,12 +10,12 @@ use gpui::{
 };
 use gpui_base::PopoverState;
 
-use crate::{abi::NativeControlEvent, resources::ManagedListResource};
+use crate::{abi::NativeControlEvent, collections::CollectionEngine};
 
 struct Request {
     id: u64,
     owner: u32,
-    source: Weak<RefCell<ManagedListResource>>,
+    source: Weak<RefCell<CollectionEngine>>,
     index: usize,
     artifact: u64,
     item_id: u64,
@@ -58,7 +58,7 @@ impl RowMenus {
 
     pub(crate) fn observe(
         &self,
-        source: &Rc<RefCell<ManagedListResource>>,
+        source: &Rc<RefCell<CollectionEngine>>,
         index: usize,
         bounds: Bounds<Pixels>,
         mask: Bounds<Pixels>,
@@ -74,7 +74,7 @@ impl RowMenus {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn open(
         &self,
-        source: &Rc<RefCell<ManagedListResource>>,
+        source: &Rc<RefCell<CollectionEngine>>,
         index: usize,
         token: u64,
         bounds: Bounds<Pixels>,

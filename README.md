@@ -298,9 +298,9 @@ Controllers provide imperative operations without moving ownership back to C#. F
 
 Dock uses a structural managed declaration and retained native interaction. `DockPanel` content can
 be an ordinary element tree or a keyed child View; normal managed rerenders update content without
-resetting native tab moves, splitter sizes, or side-region state. The current slice covers center
-tabs and horizontal or vertical splits plus declarative left, bottom, and right regions with native
-collapse and resizing; persistence, tiles, and Dock commands/events remain roadmap work.
+resetting native tab moves, splitter sizes, or side-region state. Dock supports center tabs, horizontal and vertical splits, and declarative side regions with
+native collapse and resizing. Controllers support close, region visibility, and layout import/export;
+layout and close events report native changes. See [Retained Dock](docs/CONTROLS.md#retained-dock).
 
 Virtual rows are generated in aligned batches:
 
@@ -416,6 +416,9 @@ docs/                     design and contributor documentation
 Run these before submitting changes:
 
 ```sh
+dotnet tool restore
+dotnet csharpier format .
+dotnet csharpier check .
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
 cargo fmt --manifest-path crates/gpui-dotnet/Cargo.toml -- --check
 cargo test --manifest-path crates/gpui-dotnet/Cargo.toml
@@ -438,24 +441,10 @@ Do not edit generated semantic or extension schema files by hand.
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [gpui-base migration](docs/GPUI_BASE_MIGRATION.md)
-- [Components and retained resources](docs/COMPONENTS.md)
-- [Surface and interaction styling](docs/STYLING.md)
-- [Optional editor extension](docs/EDITOR.md)
-- [View lifecycle](docs/VIEW_LIFECYCLE.md)
-- [Lifecycle and threading](docs/THREADING.md)
-- [View-owned asynchronous work](docs/ASYNC_WORK.md)
-- [Signal reactivity and ownership](docs/REACTIVITY.md)
-- [Managed renderer Hot Reload](docs/HOT_RELOAD.md)
-- [ABI contract](docs/ABI.md)
-- [Binding generation](docs/BINDING_GENERATION.md)
-- [Performance contract](docs/PERFORMANCE.md)
-- [Packaging](docs/PACKAGING.md)
-- [Extensions and custom hosts](docs/EXTENSIONS.md)
-- [Contributing](docs/CONTRIBUTING.md)
-- [Native upstream baseline](docs/UPSTREAM_BASELINE.md)
-- [Roadmap](docs/NEXT_STEPS.md)
+Use the [documentation index](docs/README.md) to find application guides and implementation references.
+Start with [Components](docs/COMPONENTS.md) for authoring, [Contributing](docs/CONTRIBUTING.md)
+for formatting and checks, or [Architecture](docs/ARCHITECTURE.md) for ownership boundaries.
+The [generated ID catalog](docs/SEMANTIC_IDS.md) lists the current semantic protocol.
 
 GPUI.NET uses the pinned `gpui-base` foundation recorded in
 [the native upstream baseline](docs/UPSTREAM_BASELINE.md) while retaining its own semantic ABI and

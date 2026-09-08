@@ -71,7 +71,9 @@ internal sealed class ViewEventRegistry
     private void AssertAccess()
     {
         if (_threadId != Environment.CurrentManagedThreadId)
-            throw new InvalidOperationException("Event state is confined to the GPUI application thread.");
+            throw new InvalidOperationException(
+                "Event state is confined to the GPUI application thread."
+            );
     }
 
     private const uint DynamicEventBit = 0x8000_0000u;
@@ -89,11 +91,7 @@ internal sealed class ViewEventRegistry
         set => _currentEventBindingOwner = value;
     }
 
-    private delegate void EventBinder(
-        object target,
-        Delegate callback,
-        in EventDispatch dispatch
-    );
+    private delegate void EventBinder(object target, Delegate callback, in EventDispatch dispatch);
 
     private enum EventDispatchKind : byte
     {
@@ -120,6 +118,7 @@ internal sealed class ViewEventRegistry
     private readonly struct EventDispatch
     {
         internal EventDispatch(ShortcutEventKind kind) => Kind = EventDispatchKind.Shortcut;
+
         internal EventDispatch(ListTooltipEvent request)
         {
             Kind = EventDispatchKind.ListTooltip;
@@ -137,6 +136,7 @@ internal sealed class ViewEventRegistry
             Kind = EventDispatchKind.InputWrite;
             InputWrite = result;
         }
+
         internal EventDispatch(ListSelectionEvent selection)
         {
             Kind = EventDispatchKind.ListSelection;
@@ -342,6 +342,7 @@ internal sealed class ViewEventRegistry
         internal object? Target;
         internal Delegate? Callback;
         internal int BinderIndex;
+
         // Artifact-local chain in recyclable storage; -1 ends the chain.
         internal int NextArtifactSlot;
         internal long LastPass;
@@ -354,26 +355,31 @@ internal sealed class ViewEventRegistry
     /// render scope or demand artifact; retired identities never alias recycled storage slots.
     /// </summary>
     internal ulong BindClick<TView>(Action<TView, ClickEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ClickEventBinder<TView>.Index);
+        where TView : ViewBase =>
+        BindDynamicEvent(_owner!, callback, ClickEventBinder<TView>.Index);
 
     /// <summary>Registers a typed input callback on this mounted View.</summary>
     internal ulong BindInput<TView>(Action<TView, InputEvent> callback)
         where TView : ViewBase => BindDynamicEvent(_owner!, callback, InputBinder<TView>.Index);
 
     internal ulong BindInputWrite<TView>(Action<TView, InputWriteResult> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, InputWriteBinder<TView>.Index);
+        where TView : ViewBase =>
+        BindDynamicEvent(_owner!, callback, InputWriteBinder<TView>.Index);
 
     internal ulong BindSlider<TView>(Action<TView, SliderEvent> callback)
         where TView : ViewBase => BindDynamicEvent(_owner!, callback, SliderBinder<TView>.Index);
 
     internal ulong BindListActivation<TView>(Action<TView, ListActivationEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ListActivationBinder<TView>.Index);
+        where TView : ViewBase =>
+        BindDynamicEvent(_owner!, callback, ListActivationBinder<TView>.Index);
 
     internal ulong BindListContextMenu<TView>(Action<TView, ListContextMenuEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ListContextMenuBinder<TView>.Index);
+        where TView : ViewBase =>
+        BindDynamicEvent(_owner!, callback, ListContextMenuBinder<TView>.Index);
 
     internal ulong BindListTooltip<TView>(Action<TView, ListTooltipEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ListTooltipBinder<TView>.Index);
+        where TView : ViewBase =>
+        BindDynamicEvent(_owner!, callback, ListTooltipBinder<TView>.Index);
 
     internal ulong BindShortcut<TView>(Action<TView> callback)
         where TView : ViewBase => BindDynamicEvent(_owner!, callback, ShortcutBinder<TView>.Index);
@@ -389,9 +395,11 @@ internal sealed class ViewEventRegistry
         EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
-    private static class ShortcutBinder<TView> where TView : ViewBase
+    private static class ShortcutBinder<TView>
+        where TView : ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
         private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
             if (dispatch.Kind != EventDispatchKind.Shortcut)
@@ -405,7 +413,8 @@ internal sealed class ViewEventRegistry
     }
 
     internal ulong BindListSelection<TView>(Action<TView, ListSelectionEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ListSelectionBinder<TView>.Index);
+        where TView : ViewBase =>
+        BindDynamicEvent(_owner!, callback, ListSelectionBinder<TView>.Index);
 
     /// <summary>Registers a typed Dock area callback on this mounted View.</summary>
     internal ulong BindDock<TView>(Action<TView, DockEvent> callback)
@@ -433,7 +442,8 @@ internal sealed class ViewEventRegistry
 
     /// <summary>Registers a typed scroll-wheel callback on this mounted View.</summary>
     internal ulong BindScrollWheel<TView>(Action<TView, ScrollWheelEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ScrollWheelBinder<TView>.Index);
+        where TView : ViewBase =>
+        BindDynamicEvent(_owner!, callback, ScrollWheelBinder<TView>.Index);
 
     /// <summary>Registers a typed file-drop callback on this mounted View.</summary>
     internal ulong BindFileDrop<TView>(Action<TView, FileDropEvent> callback)
@@ -463,10 +473,17 @@ internal sealed class ViewEventRegistry
         var pass = attachment.EventBindingPass;
         var scopeSlots = attachment.RootEventSlots;
         var demand = scope == ViewEventBindingScope.Demand;
-        var artifactHead = demand && attachment.ArtifactEventSlots is { } artifactSlots
-            && artifactSlots.TryGetValue(attachment.EventBindingArtifact, out var head) ? head : -1;
+        var artifactHead =
+            demand
+            && attachment.ArtifactEventSlots is { } artifactSlots
+            && artifactSlots.TryGetValue(attachment.EventBindingArtifact, out var head)
+                ? head
+                : -1;
         var count = scopeSlots?.Count ?? 0;
-        var index = demand ? artifactHead : count == 0 ? -1 : scopeSlots![0];
+        var index =
+            demand ? artifactHead
+            : count == 0 ? -1
+            : scopeSlots![0];
         for (var candidate = 0; index != -1; candidate++)
         {
             var current = entries[index];
@@ -484,8 +501,10 @@ internal sealed class ViewEventRegistry
                 entries[index] = current;
                 return DynamicEventToken(attachment.ViewHandle, current.Id);
             }
-            index = demand ? current.NextArtifactSlot
-                : candidate + 1 < count ? scopeSlots![candidate + 1] : -1;
+            index =
+                demand ? current.NextArtifactSlot
+                : candidate + 1 < count ? scopeSlots![candidate + 1]
+                : -1;
         }
 
         if (attachment.NextEventId == DynamicEventEntryMask)
@@ -538,7 +557,9 @@ internal sealed class ViewEventRegistry
 
         if ((scope == ViewEventBindingScope.Demand) != (artifact != 0))
         {
-            throw new InvalidOperationException("Demand event bindings require an artifact identity.");
+            throw new InvalidOperationException(
+                "Demand event bindings require an artifact identity."
+            );
         }
         var pass = checked(++attachment.NextEventBindingPass);
         attachment.EventBindingArtifact = artifact;
@@ -582,7 +603,8 @@ internal sealed class ViewEventRegistry
                 {
                     ReleaseEventSlot(attachment, index);
                 }
-                else slots[retained++] = index;
+                else
+                    slots[retained++] = index;
             }
             slots.RemoveRange(retained, slots.Count - retained);
         }
@@ -631,11 +653,7 @@ internal sealed class ViewEventRegistry
         }
 
         var dispatch = new EventDispatch(clickEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(
-            entry.Target!,
-            entry.Callback!,
-            in dispatch
-        );
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
     private void DispatchDynamicInput(uint eventId, InputEvent inputEvent)
@@ -647,11 +665,7 @@ internal sealed class ViewEventRegistry
         }
 
         var dispatch = new EventDispatch(inputEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(
-            entry.Target!,
-            entry.Callback!,
-            in dispatch
-        );
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
     private void DispatchDynamicSlider(uint eventId, SliderEvent sliderEvent)
@@ -663,11 +677,7 @@ internal sealed class ViewEventRegistry
         }
 
         var dispatch = new EventDispatch(sliderEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(
-            entry.Target!,
-            entry.Callback!,
-            in dispatch
-        );
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
     private void DispatchDynamicDock(uint eventId, DockEvent dockEvent)
@@ -679,11 +689,7 @@ internal sealed class ViewEventRegistry
         }
 
         var dispatch = new EventDispatch(dockEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(
-            entry.Target!,
-            entry.Callback!,
-            in dispatch
-        );
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
     private void DispatchDynamicKey(uint eventId, KeyEvent keyEvent)
@@ -695,11 +701,7 @@ internal sealed class ViewEventRegistry
         }
 
         var dispatch = new EventDispatch(keyEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(
-            entry.Target!,
-            entry.Callback!,
-            in dispatch
-        );
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
     private void DispatchDynamicMouse(uint eventId, MouseEvent mouseEvent)
@@ -711,11 +713,7 @@ internal sealed class ViewEventRegistry
         }
 
         var dispatch = new EventDispatch(mouseEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(
-            entry.Target!,
-            entry.Callback!,
-            in dispatch
-        );
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
     private void DispatchDynamicModifiers(uint eventId, ModifiersEvent modifiersEvent)
@@ -727,11 +725,7 @@ internal sealed class ViewEventRegistry
         }
 
         var dispatch = new EventDispatch(modifiersEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(
-            entry.Target!,
-            entry.Callback!,
-            in dispatch
-        );
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
     private void DispatchDynamicHover(uint eventId, HoverEvent hoverEvent)
@@ -743,11 +737,7 @@ internal sealed class ViewEventRegistry
         }
 
         var dispatch = new EventDispatch(hoverEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(
-            entry.Target!,
-            entry.Callback!,
-            in dispatch
-        );
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
     private void DispatchDynamicMouseMove(uint eventId, MouseMoveEvent mouseMoveEvent)
@@ -759,11 +749,7 @@ internal sealed class ViewEventRegistry
         }
 
         var dispatch = new EventDispatch(mouseMoveEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(
-            entry.Target!,
-            entry.Callback!,
-            in dispatch
-        );
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
     private void DispatchDynamicScrollWheel(uint eventId, ScrollWheelEvent scrollWheelEvent)
@@ -775,11 +761,7 @@ internal sealed class ViewEventRegistry
         }
 
         var dispatch = new EventDispatch(scrollWheelEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(
-            entry.Target!,
-            entry.Callback!,
-            in dispatch
-        );
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
     private void DispatchDynamicFileDrop(uint eventId, FileDropEvent fileDropEvent)
@@ -791,11 +773,7 @@ internal sealed class ViewEventRegistry
         }
 
         var dispatch = new EventDispatch(fileDropEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(
-            entry.Target!,
-            entry.Callback!,
-            in dispatch
-        );
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
     private bool TryGetDynamicEvent(uint eventId, out EventEntry entry)
@@ -839,8 +817,10 @@ internal sealed class ViewEventRegistry
 
     private void MissingDynamicEvent(uint eventId, string eventType)
     {
-        if (IsWellFormedEventId(eventId)
-            && (Active is null || (eventId & DynamicEventEntryMask) <= Active.NextEventId))
+        if (
+            IsWellFormedEventId(eventId)
+            && (Active is null || (eventId & DynamicEventEntryMask) <= Active.NextEventId)
+        )
         {
             return;
         }
@@ -958,11 +938,7 @@ internal sealed class ViewEventRegistry
         }
 
         var dispatch = new EventDispatch(nativeExtensionEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(
-            entry.Target!,
-            entry.Callback!,
-            in dispatch
-        );
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
     }
 
     private static class EventBinderRegistry
@@ -1064,9 +1040,11 @@ internal sealed class ViewEventRegistry
         }
     }
 
-    private static class InputWriteBinder<TView> where TView : ViewBase
+    private static class InputWriteBinder<TView>
+        where TView : ViewBase
     {
         internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+
         private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
             if (dispatch.Kind != EventDispatchKind.InputWrite)
@@ -1346,7 +1324,10 @@ internal sealed class ViewEventRegistry
 
         private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
         {
-            if (dispatch.Kind != EventDispatchKind.FileDrop || dispatch.FileDrop is not { } fileDrop)
+            if (
+                dispatch.Kind != EventDispatchKind.FileDrop
+                || dispatch.FileDrop is not { } fileDrop
+            )
             {
                 throw WrongDispatchKind("file drop");
             }

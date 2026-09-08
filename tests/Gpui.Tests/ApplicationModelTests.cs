@@ -1,6 +1,6 @@
+using System.Runtime.InteropServices;
 using Gpui;
 using Gpui.Interop;
-using System.Runtime.InteropServices;
 
 namespace Gpui.Tests;
 
@@ -17,14 +17,33 @@ public sealed class ApplicationModelTests
     public unsafe void AcceptanceCallbackExtendsTheNativeCallbackTable()
     {
         Assert.Equal(12 * IntPtr.Size, sizeof(ManagedCallbacks));
-        Assert.Equal(11 * IntPtr.Size, (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.accept_artifact)));
+        Assert.Equal(
+            11 * IntPtr.Size,
+            (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.accept_artifact))
+        );
         Assert.Equal(16, sizeof(NativeArtifactKey));
-        Assert.Equal(8, (int)Marshal.OffsetOf<NativeArtifactKey>(nameof(NativeArtifactKey.artifact)));
-        Assert.Equal(16 + 8 * IntPtr.Size, (int)Marshal.OffsetOf<GpuiDotnetApiV3>(nameof(GpuiDotnetApiV3.invalidate_artifacts)));
-        Assert.Equal(9 * IntPtr.Size,
-            (int)System.Runtime.InteropServices.Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.render_completed)));
-        Assert.Equal(10 * IntPtr.Size,
-            (int)System.Runtime.InteropServices.Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.release_artifact)));
+        Assert.Equal(
+            8,
+            (int)Marshal.OffsetOf<NativeArtifactKey>(nameof(NativeArtifactKey.artifact))
+        );
+        Assert.Equal(
+            16 + 8 * IntPtr.Size,
+            (int)Marshal.OffsetOf<GpuiDotnetApiV3>(nameof(GpuiDotnetApiV3.invalidate_artifacts))
+        );
+        Assert.Equal(
+            9 * IntPtr.Size,
+            (int)
+                System.Runtime.InteropServices.Marshal.OffsetOf<ManagedCallbacks>(
+                    nameof(ManagedCallbacks.render_completed)
+                )
+        );
+        Assert.Equal(
+            10 * IntPtr.Size,
+            (int)
+                System.Runtime.InteropServices.Marshal.OffsetOf<ManagedCallbacks>(
+                    nameof(ManagedCallbacks.release_artifact)
+                )
+        );
     }
 
     [Fact]
@@ -151,8 +170,12 @@ public sealed class ApplicationModelTests
     private sealed class ProbeView : View, IGeneratedViewFactory<ProbeView>
     {
         internal static int Constructions;
-        public ProbeView(ViewConstruction construction) : base(construction) => Constructions++;
+
+        public ProbeView(ViewConstruction construction)
+            : base(construction) => Constructions++;
+
         public static ProbeView CreateGpuiView(ViewConstruction construction) => new(construction);
+
         internal static ViewSpec<ProbeView> Spec() => default;
 
         internal bool Unmounted => IsUnmounted;

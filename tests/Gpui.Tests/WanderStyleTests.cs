@@ -18,17 +18,28 @@ public sealed unsafe class WanderStyleTests
         foreach (var selected in new[] { false, true })
         {
             var ui = arena.BeginRender();
-            arena.Validate(ui.Button("probe", "Text").Style(Travel.WanderStyles.Button(theme, variant, selected)));
-            var ops = new ReadOnlySpan<OpRecord>(arena.NativeArena->Ops, arena.NativeArena->OpLength).ToArray();
-            foreach (var (backgroundCode, foregroundCode) in new[]
+            arena.Validate(
+                ui.Button("probe", "Text")
+                    .Style(Travel.WanderStyles.Button(theme, variant, selected))
+            );
+            var ops = new ReadOnlySpan<OpRecord>(
+                arena.NativeArena->Ops,
+                arena.NativeArena->OpLength
+            ).ToArray();
+            foreach (
+                var (backgroundCode, foregroundCode) in new[]
+                {
+                    (OpCode.BackgroundRgba, OpCode.TextRgba),
+                    (OpCode.HoverBackgroundRgba, OpCode.HoverTextRgba),
+                    (OpCode.ActiveBackgroundRgba, OpCode.ActiveTextRgba),
+                }
+            )
             {
-                (OpCode.BackgroundRgba, OpCode.TextRgba),
-                (OpCode.HoverBackgroundRgba, OpCode.HoverTextRgba),
-                (OpCode.ActiveBackgroundRgba, OpCode.ActiveTextRgba),
-            })
-            {
-                ContrastAssert.OpaqueText(LastColor(ops, foregroundCode), LastColor(ops, backgroundCode),
-                    $"{theme.Name}, {variant}, selected={selected}, {backgroundCode}");
+                ContrastAssert.OpaqueText(
+                    LastColor(ops, foregroundCode),
+                    LastColor(ops, backgroundCode),
+                    $"{theme.Name}, {variant}, selected={selected}, {backgroundCode}"
+                );
             }
         }
     }

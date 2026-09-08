@@ -4,67 +4,155 @@ using Gpui.Interop;
 
 namespace Gpui
 {
-    public interface IStyledElementTag { }
-    public interface IParentElementTag { }
-    public interface ILayoutElementTag { }
-    public interface IInteractiveElementTag { }
+    public interface IAccessibleElementTag { }
     public interface ICheckableElementTag { }
-    public interface IDisableableElementTag { }
-    public interface INativeStateElementTag { }
-    public interface IScrollableElementTag { }
-    public interface IVirtualizedElementTag { }
-    public interface IImageElementTag { }
-    public interface IInputElementTag { }
-    public interface IOverlayElementTag { }
-    public interface ITooltipElementTag { }
-    public interface IWindowControlElementTag { }
     public interface IContextMenuElementTag { }
-    public interface IPopoverMenuElementTag { }
-    public interface ITableElementTag { }
-    public interface ISliderElementTag { }
-    public interface IDrawingElementTag { }
-    public interface IPathElementTag { }
-    public interface IDynamicElementTag { }
+    public interface IDisableableElementTag { }
     public interface IDockAreaElementTag { }
     public interface IDockContainerElementTag { }
-    public interface IDockSplitElementTag { }
-    public interface IDockTabsElementTag { }
     public interface IDockPanelElementTag { }
     public interface IDockRegionElementTag { }
+    public interface IDockSplitElementTag { }
+    public interface IDockTabsElementTag { }
+    public interface IDrawingElementTag { }
+    public interface IDynamicElementTag { }
     public interface IExtensionElementTag { }
-    public interface IKeyMouseElementTag { }
-    public interface IAccessibleElementTag { }
-    public interface ITooltipOptionsElementTag { }
-    public interface IShortcutScopeElementTag { }
     public interface IFocusTargetElementTag { }
+    public interface IImageElementTag { }
+    public interface IInputElementTag { }
+    public interface IInteractiveElementTag { }
+    public interface IKeyMouseElementTag { }
+    public interface ILayoutElementTag { }
+    public interface INativeStateElementTag { }
+    public interface IOverlayElementTag { }
+    public interface IParentElementTag { }
+    public interface IPathElementTag { }
+    public interface IPopoverMenuElementTag { }
+    public interface IScrollableElementTag { }
+    public interface IShortcutScopeElementTag { }
+    public interface ISliderElementTag { }
+    public interface IStyledElementTag { }
+    public interface ITableElementTag { }
+    public interface ITooltipElementTag { }
+    public interface ITooltipOptionsElementTag { }
+    public interface IVirtualizedElementTag { }
+    public interface IWindowControlElementTag { }
 
-    public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag, IKeyMouseElementTag, IShortcutScopeElementTag, IFocusTargetElementTag, INativeStateElementTag { }
+    public readonly struct DivTag : IFocusTargetElementTag, IKeyMouseElementTag, ILayoutElementTag, INativeStateElementTag, IParentElementTag, IShortcutScopeElementTag, IStyledElementTag, IWindowControlElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
-    public readonly struct ButtonTag : IAccessibleElementTag, IStyledElementTag, IParentElementTag, IInteractiveElementTag, IDisableableElementTag, IWindowControlElementTag, IKeyMouseElementTag { }
-    public readonly struct CheckboxTag : IAccessibleElementTag, IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag, IDisableableElementTag, IKeyMouseElementTag { }
-    public readonly struct RadioTag : IAccessibleElementTag, IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag, IDisableableElementTag, IKeyMouseElementTag { }
-    public readonly struct BadgeTag : IStyledElementTag, IParentElementTag { }
-    public readonly struct DividerTag : IStyledElementTag { }
     public readonly struct SpacerTag : IStyledElementTag { }
-    public readonly struct ScrollTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IScrollableElementTag { }
-    public readonly struct ListTag : IStyledElementTag, INativeStateElementTag, IVirtualizedElementTag, ITooltipOptionsElementTag { }
-    public readonly struct ImageTag : IStyledElementTag, IImageElementTag { }
-    public readonly struct InputTag : IAccessibleElementTag, IStyledElementTag, INativeStateElementTag, IInputElementTag { }
-    public readonly struct OverlayTag : IParentElementTag, INativeStateElementTag, IOverlayElementTag, IShortcutScopeElementTag { }
-    public readonly struct TooltipTag : IParentElementTag, INativeStateElementTag, ITooltipElementTag, ITooltipOptionsElementTag { }
-    public readonly struct ContextMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IContextMenuElementTag { }
-    public readonly struct PopoverMenuTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IPopoverMenuElementTag { }
-    public readonly struct TableTag : IStyledElementTag, IParentElementTag, INativeStateElementTag, IVirtualizedElementTag, ITableElementTag, ITooltipOptionsElementTag { }
-    public readonly struct SliderTag : IAccessibleElementTag, IStyledElementTag, INativeStateElementTag, ISliderElementTag { }
-    public readonly struct DrawingTag : IStyledElementTag, IParentElementTag, IDrawingElementTag { }
+    public readonly struct DividerTag : IStyledElementTag { }
+    public readonly struct BadgeTag : IParentElementTag, IStyledElementTag { }
+    public readonly struct ButtonTag : IAccessibleElementTag, IDisableableElementTag, IInteractiveElementTag, IKeyMouseElementTag, IParentElementTag, IStyledElementTag, IWindowControlElementTag { }
+    public readonly struct CheckboxTag : IAccessibleElementTag, ICheckableElementTag, IDisableableElementTag, IInteractiveElementTag, IKeyMouseElementTag, IParentElementTag, IStyledElementTag { }
+    public readonly struct RadioTag : IAccessibleElementTag, ICheckableElementTag, IDisableableElementTag, IInteractiveElementTag, IKeyMouseElementTag, IParentElementTag, IStyledElementTag { }
+    public readonly struct ScrollTag : ILayoutElementTag, INativeStateElementTag, IParentElementTag, IScrollableElementTag, IStyledElementTag { }
+    public readonly struct ListTag : INativeStateElementTag, IStyledElementTag, ITooltipOptionsElementTag, IVirtualizedElementTag { }
+    public readonly struct TableTag : INativeStateElementTag, IParentElementTag, IStyledElementTag, ITableElementTag, ITooltipOptionsElementTag, IVirtualizedElementTag { }
+    public readonly struct InputTag : IAccessibleElementTag, IInputElementTag, INativeStateElementTag, IStyledElementTag { }
+    public readonly struct SliderTag : IAccessibleElementTag, INativeStateElementTag, ISliderElementTag, IStyledElementTag { }
+    public readonly struct ImageTag : IImageElementTag, IStyledElementTag { }
+    public readonly struct DrawingTag : IDrawingElementTag, IParentElementTag, IStyledElementTag { }
     public readonly struct PathTag : IPathElementTag { }
-    public readonly struct DynamicTag : IParentElementTag, INativeStateElementTag, IDynamicElementTag { }
-    public readonly struct DockAreaTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IDockAreaElementTag { }
-    public readonly struct DockSplitTag : IParentElementTag, IDockContainerElementTag, IDockSplitElementTag { }
-    public readonly struct DockTabsTag : IParentElementTag, IDockContainerElementTag, IDockTabsElementTag { }
-    public readonly struct DockPanelTag : IParentElementTag, IDockPanelElementTag { }
-    public readonly struct DockRegionTag : IParentElementTag, IDockContainerElementTag, IDockRegionElementTag { }
-    public readonly struct NativeExtensionTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, INativeStateElementTag, IExtensionElementTag { }
+    public readonly struct DynamicTag : IDynamicElementTag, INativeStateElementTag, IParentElementTag { }
+    public readonly struct OverlayTag : INativeStateElementTag, IOverlayElementTag, IParentElementTag, IShortcutScopeElementTag { }
+    public readonly struct TooltipTag : INativeStateElementTag, IParentElementTag, ITooltipElementTag, ITooltipOptionsElementTag { }
+    public readonly struct ContextMenuTag : IContextMenuElementTag, INativeStateElementTag, IParentElementTag, IStyledElementTag { }
+    public readonly struct PopoverMenuTag : INativeStateElementTag, IParentElementTag, IPopoverMenuElementTag, IStyledElementTag { }
+    public readonly struct DockAreaTag : IDockAreaElementTag, ILayoutElementTag, INativeStateElementTag, IParentElementTag, IStyledElementTag { }
+    public readonly struct DockSplitTag : IDockContainerElementTag, IDockSplitElementTag, IParentElementTag { }
+    public readonly struct DockTabsTag : IDockContainerElementTag, IDockTabsElementTag, IParentElementTag { }
+    public readonly struct DockPanelTag : IDockPanelElementTag, IParentElementTag { }
+    public readonly struct DockRegionTag : IDockContainerElementTag, IDockRegionElementTag, IParentElementTag { }
+    public readonly struct NativeExtensionTag : IExtensionElementTag, ILayoutElementTag, INativeStateElementTag, IParentElementTag, IStyledElementTag { }
+
+    public enum AlignContent : uint
+    {
+        Normal = 0,
+        FlexStart = 1,
+        FlexEnd = 2,
+        Center = 3,
+        Stretch = 4,
+        SpaceBetween = 5,
+        SpaceEvenly = 6,
+        SpaceAround = 7,
+    }
+
+    public enum BorderStyle : uint
+    {
+        Solid = 0,
+        Dashed = 1,
+    }
+
+    public enum FlexWrap : uint
+    {
+        NoWrap = 0,
+        Wrap = 1,
+        WrapReverse = 2,
+    }
+
+    public enum FontStyle : uint
+    {
+        Normal = 0,
+        Italic = 1,
+    }
+
+    public enum InputCompositionPolicy : uint
+    {
+        RejectWhileComposing = 0,
+        CancelComposition = 1,
+    }
+
+    public enum InputSelectionPolicy : uint
+    {
+        Preserve = 0,
+        MoveToEnd = 1,
+    }
+
+    public enum InputWriteOutcome : uint
+    {
+        Applied = 0,
+        Unchanged = 1,
+        Stale = 2,
+        Composing = 3,
+    }
+
+    public enum ListActivationSource : uint
+    {
+        Pointer = 0,
+        Keyboard = 1,
+    }
+
+    public enum ListSelectionSource : uint
+    {
+        Pointer = 0,
+        Keyboard = 1,
+    }
+
+    public enum MouseCursor : uint
+    {
+        Arrow = 0,
+        IBeam = 1,
+        Crosshair = 2,
+        ClosedHand = 3,
+        OpenHand = 4,
+        PointingHand = 5,
+        ResizeLeft = 6,
+        ResizeRight = 7,
+        ResizeLeftRight = 8,
+        ResizeUp = 9,
+        ResizeDown = 10,
+        ResizeUpDown = 11,
+        ResizeUpLeftDownRight = 12,
+        ResizeUpRightDownLeft = 13,
+        ResizeColumn = 14,
+        ResizeRow = 15,
+        IBeamCursorForVerticalLayout = 16,
+        OperationNotAllowed = 17,
+        DragLink = 18,
+        DragCopy = 19,
+        ContextualMenu = 20,
+    }
 
     public enum ShortcutKey : uint
     {
@@ -156,81 +244,11 @@ namespace Gpui
         Backtick = 86,
     }
 
-    public enum InputWriteOutcome : uint
-    {
-        Applied = 0,
-        Unchanged = 1,
-        Stale = 2,
-        Composing = 3,
-    }
-
-    public enum ListSelectionSource : uint
-    {
-        Pointer = 0,
-        Keyboard = 1,
-    }
-
-    public enum ListActivationSource : uint
-    {
-        Pointer = 0,
-        Keyboard = 1,
-    }
-
-    public enum InputSelectionPolicy : uint
-    {
-        Preserve = 0,
-        MoveToEnd = 1,
-    }
-
-    public enum InputCompositionPolicy : uint
-    {
-        RejectWhileComposing = 0,
-        CancelComposition = 1,
-    }
-
-    public enum FlexWrap : uint
-    {
-        NoWrap = 0,
-        Wrap = 1,
-        WrapReverse = 2,
-    }
-
     public enum TextAlignment : uint
     {
         Left = 0,
         Center = 1,
         Right = 2,
-    }
-
-    public enum MouseCursor : uint
-    {
-        Arrow = 0,
-        IBeam = 1,
-        Crosshair = 2,
-        ClosedHand = 3,
-        OpenHand = 4,
-        PointingHand = 5,
-        ResizeLeft = 6,
-        ResizeRight = 7,
-        ResizeLeftRight = 8,
-        ResizeUp = 9,
-        ResizeDown = 10,
-        ResizeUpDown = 11,
-        ResizeUpLeftDownRight = 12,
-        ResizeUpRightDownLeft = 13,
-        ResizeColumn = 14,
-        ResizeRow = 15,
-        IBeamCursorForVerticalLayout = 16,
-        OperationNotAllowed = 17,
-        DragLink = 18,
-        DragCopy = 19,
-        ContextualMenu = 20,
-    }
-
-    public enum WhiteSpace : uint
-    {
-        Normal = 0,
-        Nowrap = 1,
     }
 
     public enum Visibility : uint
@@ -239,126 +257,108 @@ namespace Gpui
         Hidden = 1,
     }
 
-    public enum AlignContent : uint
+    public enum WhiteSpace : uint
     {
         Normal = 0,
-        FlexStart = 1,
-        FlexEnd = 2,
-        Center = 3,
-        Stretch = 4,
-        SpaceBetween = 5,
-        SpaceEvenly = 6,
-        SpaceAround = 7,
-    }
-
-    public enum BorderStyle : uint
-    {
-        Solid = 0,
-        Dashed = 1,
-    }
-
-    public enum FontStyle : uint
-    {
-        Normal = 0,
-        Italic = 1,
-    }
-
-    public enum ShortcutEventKind : ushort
-    {
-        /// <summary>Matched native shortcut. Empty payload, flags and revision zero; callback owns command behavior.</summary>
-        Invoked = 25,
-    }
-
-    public enum ListEventKind : ushort
-    {
-        /// <summary>Delayed hover on a marked row element with stable ItemId. Uses the Row ContextMenu 24-byte identity/anchor packet and revision flag. No pointer motion crosses the ABI.</summary>
-        TooltipRequested = 24,
-        /// <summary>Opt-in single-row selection request. Uses the List Activated payload and flag layout; selection and presentation remain application-owned.</summary>
-        SelectionRequested = 21,
-        /// <summary>Right-click on a row with a stable ItemId. Carries the 16-byte row identity packet followed by a nonzero U64 native anchor. Only flag 1 (content revision present) is allowed.</summary>
-        ContextMenuRequested = 23,
-        /// <summary>Opt-in row activation. Data is 16 little-endian bytes: u32 index, zero u32 reserved, u64 ItemId (zero when absent). Flags bit 0 selects keyboard instead of pointer, bit 1 indicates a datasource content revision in revision; all other bits are zero. Without bit 1, revision is zero.</summary>
-        Activated = 20,
-    }
-
-    public enum InputWriteEventKind : ushort
-    {
-        /// <summary>Opt-in conditional write result. Payload: u64 request ID (1..2^62-1), u32 input_write_outcome, zero u32 reserved, all little-endian. Revision is the nonzero native revision at decision time; flags are zero. Delivered after native borrows are released, while the event binding remains live.</summary>
-        Completed = 22,
+        Nowrap = 1,
     }
 
     public enum InputEventKind : ushort
     {
         /// <summary>The input value changed.</summary>
-        Changed = 1,
-        /// <summary>The input value was submitted.</summary>
-        Submitted = 2,
+        Changed = 100,
         /// <summary>Input focus changed.</summary>
-        FocusChanged = 3,
+        FocusChanged = 101,
+        /// <summary>The input value was submitted.</summary>
+        Submitted = 102,
+    }
+
+    public enum InputWriteEventKind : ushort
+    {
+        /// <summary>Opt-in conditional write result. Payload: u64 request ID (1..2^62-1), u32 input_write_outcome, zero u32 reserved, all little-endian. Revision is the nonzero native revision at decision time; flags are zero. Delivered after native borrows are released, while the event binding remains live.</summary>
+        Completed = 200,
+    }
+
+    public enum ListEventKind : ushort
+    {
+        /// <summary>Opt-in row activation. Data is 16 little-endian bytes: u32 index, zero u32 reserved, u64 ItemId (zero when absent). Flags bit 0 selects keyboard instead of pointer, bit 1 indicates a datasource content revision in revision; all other bits are zero. Without bit 1, revision is zero.</summary>
+        Activated = 300,
+        /// <summary>Right-click on a row with a stable ItemId. Carries the 16-byte row identity packet followed by a nonzero U64 native anchor. Only flag 1 (content revision present) is allowed.</summary>
+        ContextMenuRequested = 301,
+        /// <summary>Opt-in single-row selection request. Uses the List Activated payload and flag layout; selection and presentation remain application-owned.</summary>
+        SelectionRequested = 302,
+        /// <summary>Delayed hover on a marked row element with stable ItemId. Uses the Row ContextMenu 24-byte identity/anchor packet and revision flag. No pointer motion crosses the ABI.</summary>
+        TooltipRequested = 303,
     }
 
     public enum SliderEventKind : ushort
     {
         /// <summary>The slider value changed during interaction.</summary>
-        Changed = 4,
+        Changed = 400,
         /// <summary>The slider interaction released.</summary>
-        Released = 5,
+        Released = 401,
     }
 
     public enum DockEventKind : ushort
     {
         /// <summary>Coarse structural signal. Fires for native interaction and for declarative or controller-driven structural changes. Carries no payload; debounce with the event revision.</summary>
-        LayoutChanged = 6,
+        LayoutChanged = 500,
         /// <summary>Carries the exported layout document requested through the controller.</summary>
-        LayoutExported = 7,
+        LayoutExported = 501,
         /// <summary>A panel left the Dock natively or through the controller. Carries the panel id. Panels removed by declaration or pruned by layout import do not fire this event.</summary>
-        PanelClosed = 8,
+        PanelClosed = 502,
     }
 
     public enum KeyEventKind : ushort
     {
         /// <summary>A key was pressed while the bound element had focus or the event bubbled to it. Carries the UTF-8 key name; flags hold modifiers and the held-repeat bit. Observers only: never stops propagation.</summary>
-        Down = 9,
+        Down = 600,
         /// <summary>A key was released while the bound element had focus or the event bubbled to it. Carries the UTF-8 key name; flags hold modifiers. Observers only: never stops propagation.</summary>
-        Up = 10,
+        Up = 601,
     }
 
     public enum MouseEventKind : ushort
     {
         /// <summary>A mouse button was pressed over the bound element. Carries x, y, button, and click count; flags hold modifiers. Observers only: never stops propagation.</summary>
-        Down = 11,
-        /// <summary>A mouse button was released over the bound element. Carries x, y, button, and click count; flags hold modifiers. Observers only: never stops propagation.</summary>
-        Up = 12,
+        Down = 700,
         /// <summary>A mouse button was pressed outside the bound element. Same payload as mouse down. Observers only: never stops propagation.</summary>
-        DownOut = 15,
-        /// <summary>A mouse button was released outside the bound element. Same payload as mouse up. Observers only: never stops propagation.</summary>
-        UpOut = 16,
+        DownOut = 701,
         /// <summary>The mouse moved over the bound element. Carries x, y, and the pressed button (none when empty); flags hold modifiers. High-frequency: only published while bound, and handlers must stay cheap. Observers only: never stops propagation.</summary>
-        Move = 17,
+        Move = 702,
+        /// <summary>A mouse button was released over the bound element. Carries x, y, button, and click count; flags hold modifiers. Observers only: never stops propagation.</summary>
+        Up = 703,
+        /// <summary>A mouse button was released outside the bound element. Same payload as mouse up. Observers only: never stops propagation.</summary>
+        UpOut = 704,
     }
 
     public enum ModifiersEventKind : ushort
     {
         /// <summary>Modifier keys changed while the bound element had focus or the event bubbled to it. Carries no payload; flags hold the current modifiers. This is the only event for modifier-only presses, which never produce key events. Observers only: never stops propagation.</summary>
-        Changed = 13,
+        Changed = 800,
     }
 
     public enum HoverEventKind : ushort
     {
         /// <summary>Hover state changed over the bound element. Carries no payload; flags hold modifiers in bits 0-4 and the hovering state in bit 5. Fires on enter/exit transitions only, never per move. Observers only: never stops propagation.</summary>
-        Changed = 14,
+        Changed = 900,
     }
 
     public enum ScrollEventKind : ushort
     {
         /// <summary>The scroll wheel moved over the bound element. Carries x, y, delta x/y, and pixel/line units; flags hold modifiers. High-frequency: only published while bound, and handlers must stay cheap. Does not replace retained Scroll resources. Observers only: never stops propagation.</summary>
-        Wheel = 18,
+        Wheel = 1000,
     }
 
     public enum FileEventKind : ushort
     {
         /// <summary>OS files were dropped onto the bound element. Carries x, y followed by NUL-separated UTF-8 paths (lossy); flags hold modifiers. Only published while bound. Observers only: never stops propagation.</summary>
-        Dropped = 19,
+        Dropped = 1100,
+    }
+
+    public enum ShortcutEventKind : ushort
+    {
+        /// <summary>Matched native shortcut. Empty payload, flags and revision zero; callback owns command behavior.</summary>
+        Invoked = 1200,
     }
 
     public readonly unsafe ref partial struct RenderContext
@@ -367,6 +367,22 @@ namespace Gpui
         public Element<DivTag> Div(params ReadOnlySpan<Element> children)
         {
             var element = ArenaWriter.AddNode<DivTag>(_arena, ComponentId.Div);
+            ArenaWriter.AddChildren(element.Inner, children);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Element<SpacerTag> Spacer() =>
+            ArenaWriter.AddNode<SpacerTag>(_arena, ComponentId.Spacer);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Element<DividerTag> Divider() =>
+            ArenaWriter.AddNode<DividerTag>(_arena, ComponentId.Divider);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public Element<BadgeTag> Badge(params ReadOnlySpan<Element> children)
+        {
+            var element = ArenaWriter.AddNode<BadgeTag>(_arena, ComponentId.Badge);
             ArenaWriter.AddChildren(element.Inner, children);
             return element;
         }
@@ -534,22 +550,6 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Element<BadgeTag> Badge(params ReadOnlySpan<Element> children)
-        {
-            var element = ArenaWriter.AddNode<BadgeTag>(_arena, ComponentId.Badge);
-            ArenaWriter.AddChildren(element.Inner, children);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Element<DividerTag> Divider() =>
-            ArenaWriter.AddNode<DividerTag>(_arena, ComponentId.Divider);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Element<SpacerTag> Spacer() =>
-            ArenaWriter.AddNode<SpacerTag>(_arena, ComponentId.Spacer);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Element<PathTag> Path() =>
             ArenaWriter.AddNode<PathTag>(_arena, ComponentId.Path);
 
@@ -575,10 +575,18 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> IsolateShortcuts<TTag>(this Element<TTag> element, bool value)
-            where TTag : unmanaged, IShortcutScopeElementTag
+        public static Element<TTag> Hidden<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
         {
-            ArenaWriter.AddU32(element.Inner, OpCode.IsolateShortcuts, value ? 1u : 0u);
+            ArenaWriter.AddNoArg(element.Inner, OpCode.DisplayNone);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ItemsBaseline<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.ItemsBaseline);
             return element;
         }
 
@@ -591,10 +599,26 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> JustifyCenter<TTag>(this Element<TTag> element)
+        public static Element<TTag> ItemsEnd<TTag>(this Element<TTag> element)
             where TTag : unmanaged, IStyledElementTag
         {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.JustifyCenter);
+            ArenaWriter.AddNoArg(element.Inner, OpCode.ItemsEnd);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ItemsStart<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.ItemsStart);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ItemsStretch<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.ItemsStretch);
             return element;
         }
 
@@ -607,18 +631,162 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Background<TTag>(this Element<TTag> element, Color color)
+        public static Element<TTag> JustifyCenter<TTag>(this Element<TTag> element)
             where TTag : unmanaged, IStyledElementTag
         {
-            ArenaWriter.AddU32(element.Inner, OpCode.BackgroundRgba, color.Rgba);
+            ArenaWriter.AddNoArg(element.Inner, OpCode.JustifyCenter);
             return element;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Checked<TTag>(this Element<TTag> element, bool value)
-            where TTag : unmanaged, ICheckableElementTag
+        public static Element<TTag> JustifyEnd<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
         {
-            ArenaWriter.AddU32(element.Inner, OpCode.Checked, value ? 1u : 0u);
+            ArenaWriter.AddNoArg(element.Inner, OpCode.JustifyEnd);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> JustifyStart<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.JustifyStart);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelfBaseline<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfBaseline);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelfCenter<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfCenter);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelfEnd<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfEnd);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelfFlexEnd<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfFlexEnd);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelfFlexStart<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfFlexStart);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelfStart<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfStart);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelfStretch<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfStretch);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Absolute<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.Absolute);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Relative<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.Relative);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ColEndAuto<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.ColEndAuto);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ColSpanFull<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.ColSpanFull);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ColStartAuto<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.ColStartAuto);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Grid<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.DisplayGrid);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RowEndAuto<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.RowEndAuto);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RowSpanFull<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.RowSpanFull);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RowStartAuto<TTag>(this Element<TTag> element)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddNoArg(element.Inner, OpCode.RowStartAuto);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Background<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.BackgroundRgba, color.Rgba);
             return element;
         }
 
@@ -635,134 +803,6 @@ namespace Gpui
             where TTag : unmanaged, IStyledElementTag
         {
             ArenaWriter.AddF32(element.Inner, OpCode.BorderWidthPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Radius<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.RadiusPx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> TextColor<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.TextRgba, color.Rgba);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> FontSize<TTag>(this Element<TTag> element, Pixels value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.FontSizePx, value.Value);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> HoverBackground<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, IInteractiveElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.HoverBackgroundRgba, color.Rgba);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> HoverTextColor<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, IInteractiveElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.HoverTextRgba, color.Rgba);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> HoverBorderColor<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, IInteractiveElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.HoverBorderRgba, color.Rgba);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ActiveBackground<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, IInteractiveElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.ActiveBackgroundRgba, color.Rgba);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ActiveTextColor<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, IInteractiveElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.ActiveTextRgba, color.Rgba);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ActiveBorderColor<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, IInteractiveElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.ActiveBorderRgba, color.Rgba);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Disabled<TTag>(this Element<TTag> element, bool value)
-            where TTag : unmanaged, IDisableableElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.Disabled, value ? 1u : 0u);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ItemsStart<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.ItemsStart);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ItemsEnd<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.ItemsEnd);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> JustifyStart<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.JustifyStart);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> JustifyEnd<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.JustifyEnd);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Relative<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.Relative);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Absolute<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.Absolute);
             return element;
         }
 
@@ -791,98 +831,18 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ItemsBaseline<TTag>(this Element<TTag> element)
+        public static Element<TTag> Radius<TTag>(this Element<TTag> element, Pixels value)
             where TTag : unmanaged, IStyledElementTag
         {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.ItemsBaseline);
+            ArenaWriter.AddF32(element.Inner, OpCode.RadiusPx, value.Value);
             return element;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ItemsStretch<TTag>(this Element<TTag> element)
+        public static Element<TTag> FontSize<TTag>(this Element<TTag> element, Pixels value)
             where TTag : unmanaged, IStyledElementTag
         {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.ItemsStretch);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> SelfStart<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfStart);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> SelfEnd<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfEnd);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> SelfFlexStart<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfFlexStart);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> SelfFlexEnd<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfFlexEnd);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> SelfCenter<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfCenter);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> SelfBaseline<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfBaseline);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> SelfStretch<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.SelfStretch);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Hidden<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.DisplayNone);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> TextEllipsis<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.TextEllipsis);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Underline<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.Underline);
+            ArenaWriter.AddF32(element.Inner, OpCode.FontSizePx, value.Value);
             return element;
         }
 
@@ -903,14 +863,6 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> TextDecorationWavy<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.TextDecorationWavy);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Element<TTag> TextDecorationSolid<TTag>(this Element<TTag> element)
             where TTag : unmanaged, IStyledElementTag
         {
@@ -919,114 +871,120 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Grid<TTag>(this Element<TTag> element)
+        public static Element<TTag> TextDecorationWavy<TTag>(this Element<TTag> element)
             where TTag : unmanaged, IStyledElementTag
         {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.DisplayGrid);
+            ArenaWriter.AddNoArg(element.Inner, OpCode.TextDecorationWavy);
             return element;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ColStartAuto<TTag>(this Element<TTag> element)
+        public static Element<TTag> TextEllipsis<TTag>(this Element<TTag> element)
             where TTag : unmanaged, IStyledElementTag
         {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.ColStartAuto);
+            ArenaWriter.AddNoArg(element.Inner, OpCode.TextEllipsis);
             return element;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ColEndAuto<TTag>(this Element<TTag> element)
+        public static Element<TTag> TextColor<TTag>(this Element<TTag> element, Color color)
             where TTag : unmanaged, IStyledElementTag
         {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.ColEndAuto);
+            ArenaWriter.AddU32(element.Inner, OpCode.TextRgba, color.Rgba);
             return element;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> RowStartAuto<TTag>(this Element<TTag> element)
+        public static Element<TTag> Underline<TTag>(this Element<TTag> element)
             where TTag : unmanaged, IStyledElementTag
         {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.RowStartAuto);
+            ArenaWriter.AddNoArg(element.Inner, OpCode.Underline);
             return element;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> RowEndAuto<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
+        public static Element<TTag> ActiveBackground<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInteractiveElementTag
         {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.RowEndAuto);
+            ArenaWriter.AddU32(element.Inner, OpCode.ActiveBackgroundRgba, color.Rgba);
             return element;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ColSpanFull<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
+        public static Element<TTag> ActiveBorderColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInteractiveElementTag
         {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.ColSpanFull);
+            ArenaWriter.AddU32(element.Inner, OpCode.ActiveBorderRgba, color.Rgba);
             return element;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> RowSpanFull<TTag>(this Element<TTag> element)
-            where TTag : unmanaged, IStyledElementTag
+        public static Element<TTag> ActiveTextColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInteractiveElementTag
         {
-            ArenaWriter.AddNoArg(element.Inner, OpCode.RowSpanFull);
+            ArenaWriter.AddU32(element.Inner, OpCode.ActiveTextRgba, color.Rgba);
             return element;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Sets the native accessible name, overriding inferred control text.</summary>
-        public static Element<TTag> AccessibleName<TTag>(this Element<TTag> element, ReadOnlySpan<char> name)
-            where TTag : unmanaged, IAccessibleElementTag
+        public static Element<TTag> Checked<TTag>(this Element<TTag> element, bool value)
+            where TTag : unmanaged, ICheckableElementTag
         {
-            if (name.IsEmpty)
+            ArenaWriter.AddU32(element.Inner, OpCode.Checked, value ? 1u : 0u);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Disabled<TTag>(this Element<TTag> element, bool value)
+            where TTag : unmanaged, IDisableableElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.Disabled, value ? 1u : 0u);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HoverBackground<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInteractiveElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.HoverBackgroundRgba, color.Rgba);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HoverBorderColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInteractiveElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.HoverBorderRgba, color.Rgba);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HoverTextColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInteractiveElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.HoverTextRgba, color.Rgba);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> IsolateShortcuts<TTag>(this Element<TTag> element, bool value)
+            where TTag : unmanaged, IShortcutScopeElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.IsolateShortcuts, value ? 1u : 0u);
+            return element;
+        }
+
+        /// <summary>Declares how content is aligned in the cross axis of a flex container.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> AlignContent<TTag>(this Element<TTag> element, AlignContent alignContent)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if ((uint)alignContent > (uint)global::Gpui.AlignContent.SpaceAround)
             {
-                throw new ArgumentException("A non-empty value is required.", nameof(name));
+                throw new ArgumentOutOfRangeException(nameof(alignContent));
             }
 
-            ArenaWriter.AddData(element.Inner, OpCode.AccessibleName, name);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Sets the native accessible name, overriding inferred control text.</summary>
-        public static Element<TTag> AccessibleName<TTag>(this Element<TTag> element, ReadOnlySpan<byte> utf8Name)
-            where TTag : unmanaged, IAccessibleElementTag
-        {
-            if (utf8Name.IsEmpty)
-            {
-                throw new ArgumentException("A non-empty value is required.", nameof(utf8Name));
-            }
-
-            ArenaWriter.AddData(element.Inner, OpCode.AccessibleName, utf8Name);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Sets supplementary native accessibility help without changing the visible content.</summary>
-        public static Element<TTag> AccessibleDescription<TTag>(this Element<TTag> element, ReadOnlySpan<char> description)
-            where TTag : unmanaged, IAccessibleElementTag
-        {
-            if (description.IsEmpty)
-            {
-                throw new ArgumentException("A non-empty value is required.", nameof(description));
-            }
-
-            ArenaWriter.AddData(element.Inner, OpCode.AccessibleDescription, description);
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Sets supplementary native accessibility help without changing the visible content.</summary>
-        public static Element<TTag> AccessibleDescription<TTag>(this Element<TTag> element, ReadOnlySpan<byte> utf8Description)
-            where TTag : unmanaged, IAccessibleElementTag
-        {
-            if (utf8Description.IsEmpty)
-            {
-                throw new ArgumentException("A non-empty value is required.", nameof(utf8Description));
-            }
-
-            ArenaWriter.AddData(element.Inner, OpCode.AccessibleDescription, utf8Description);
+            ArenaWriter.AddU32(element.Inner, OpCode.AlignContent, (uint)alignContent);
             return element;
         }
 
@@ -1062,161 +1020,6 @@ namespace Gpui
             return element;
         }
 
-        /// <summary>Declares the opacity of an element, from 0 (transparent) to 1 (opaque).</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Opacity<TTag>(this Element<TTag> element, float opacity)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.Opacity, opacity);
-            return element;
-        }
-
-        /// <summary>Declares the horizontal text alignment within an element.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> TextAlign<TTag>(this Element<TTag> element, TextAlignment align)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            if ((uint)align > (uint)global::Gpui.TextAlignment.Right)
-            {
-                throw new ArgumentOutOfRangeException(nameof(align));
-            }
-
-            ArenaWriter.AddU32(element.Inner, OpCode.TextAlign, (uint)align);
-            return element;
-        }
-
-        /// <summary>Truncates text after the given number of lines. Must be at least 1.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> LineClamp<TTag>(this Element<TTag> element, uint lines)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            if (lines == 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(lines), "Line clamp must be at least 1.");
-            }
-
-            ArenaWriter.AddU32(element.Inner, OpCode.LineClamp, lines);
-            return element;
-        }
-
-        /// <summary>Declares the mouse cursor shown while hovering an element.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Cursor<TTag>(this Element<TTag> element, MouseCursor cursor)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            if ((uint)cursor > (uint)global::Gpui.MouseCursor.ContextualMenu)
-            {
-                throw new ArgumentOutOfRangeException(nameof(cursor));
-            }
-
-            ArenaWriter.AddU32(element.Inner, OpCode.Cursor, (uint)cursor);
-            return element;
-        }
-
-        /// <summary>Declares the stable model identity of a virtualized list row. IDs must be unique within one list; payload 0 is reserved.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ItemId<TTag>(this Element<TTag> element, ulong itemId)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            if (itemId == 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(itemId), "Item ID 0 is reserved.");
-            }
-
-            ArenaWriter.AddU64(element.Inner, OpCode.ListItemId, itemId);
-            return element;
-        }
-
-        /// <summary>Overrides Input placeholder text color. Omission uses the current theme.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> PlaceholderColor<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, IInputElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.InputPlaceholderRgba, color.Rgba);
-            return element;
-        }
-
-        /// <summary>Overrides Input caret color. Omission uses the current theme accent.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> CaretColor<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, IInputElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.InputCaretRgba, color.Rgba);
-            return element;
-        }
-
-        /// <summary>Overrides Input selection background, including alpha. Omission uses the translucent theme accent.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> SelectionColor<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, IInputElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.InputSelectionRgba, color.Rgba);
-            return element;
-        }
-
-        /// <summary>Overrides the Table header background, including its scrollbar gutter. Omission uses the current theme element background.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> HeaderBackground<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, ITableElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.TableHeaderBackgroundRgba, color.Rgba);
-            return element;
-        }
-
-        /// <summary>Sets inherited Table header text color for labels and custom content. Omission uses the current theme muted text.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> HeaderTextColor<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, ITableElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.TableHeaderTextRgba, color.Rgba);
-            return element;
-        }
-
-        /// <summary>Overrides the Table header bottom border, including its scrollbar gutter. Omission uses the current theme border variant.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> HeaderBorderColor<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, ITableElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.TableHeaderBorderRgba, color.Rgba);
-            return element;
-        }
-
-        /// <summary>Overrides Slider track background, including alpha. Omission uses the current theme border variant.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> TrackColor<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, ISliderElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.SliderTrackRgba, color.Rgba);
-            return element;
-        }
-
-        /// <summary>Overrides Slider filled track color, including alpha. Omission uses the current theme accent.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> FillColor<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, ISliderElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.SliderFillRgba, color.Rgba);
-            return element;
-        }
-
-        /// <summary>Overrides Slider thumb background, including alpha. Omission uses the current theme surface background.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ThumbColor<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, ISliderElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.SliderThumbRgba, color.Rgba);
-            return element;
-        }
-
-        /// <summary>Overrides Slider thumb border color, including alpha. Omission uses the current theme accent.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ThumbBorderColor<TTag>(this Element<TTag> element, Color color)
-            where TTag : unmanaged, ISliderElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.SliderThumbBorderRgba, color.Rgba);
-            return element;
-        }
-
         /// <summary>Declares the preferred aspect ratio (width divided by height) of an item. Must be finite and positive.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Element<TTag> AspectRatio<TTag>(this Element<TTag> element, float ratio)
@@ -1231,63 +1034,111 @@ namespace Gpui
             return element;
         }
 
-        /// <summary>Declares the line-wrapping behavior of text within an element.</summary>
+        /// <summary>Declares the ending grid line of an item's columns. Negative lines count from the end.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> WhiteSpace<TTag>(this Element<TTag> element, WhiteSpace whiteSpace)
+        public static Element<TTag> ColEnd<TTag>(this Element<TTag> element, short end)
             where TTag : unmanaged, IStyledElementTag
         {
-            if ((uint)whiteSpace > (uint)global::Gpui.WhiteSpace.Nowrap)
-            {
-                throw new ArgumentOutOfRangeException(nameof(whiteSpace));
-            }
-
-            ArenaWriter.AddU32(element.Inner, OpCode.WhiteSpace, (uint)whiteSpace);
+            ArenaWriter.AddU32(element.Inner, OpCode.ColEnd, (uint)(ushort)end);
             return element;
         }
 
-        /// <summary>Declares the draw visibility of an element. Hidden elements still occupy layout space.</summary>
+        /// <summary>Declares how many grid columns an item spans.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> Visibility<TTag>(this Element<TTag> element, Visibility visibility)
+        public static Element<TTag> ColSpan<TTag>(this Element<TTag> element, ushort span)
             where TTag : unmanaged, IStyledElementTag
         {
-            if ((uint)visibility > (uint)global::Gpui.Visibility.Hidden)
-            {
-                throw new ArgumentOutOfRangeException(nameof(visibility));
-            }
-
-            ArenaWriter.AddU32(element.Inner, OpCode.Visibility, (uint)visibility);
+            ArenaWriter.AddU32(element.Inner, OpCode.ColSpan, span);
             return element;
         }
 
-        /// <summary>Declares how content is aligned in the cross axis of a flex container.</summary>
+        /// <summary>Declares the starting grid line of an item's columns. Negative lines count from the end.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> AlignContent<TTag>(this Element<TTag> element, AlignContent alignContent)
+        public static Element<TTag> ColStart<TTag>(this Element<TTag> element, short start)
             where TTag : unmanaged, IStyledElementTag
         {
-            if ((uint)alignContent > (uint)global::Gpui.AlignContent.SpaceAround)
-            {
-                throw new ArgumentOutOfRangeException(nameof(alignContent));
-            }
-
-            ArenaWriter.AddU32(element.Inner, OpCode.AlignContent, (uint)alignContent);
+            ArenaWriter.AddU32(element.Inner, OpCode.ColStart, (uint)(ushort)start);
             return element;
         }
 
-        /// <summary>Declares the font weight of an element, from 100 (thin) to 900 (black).</summary>
+        /// <summary>Declares the column count of a grid container.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> FontWeight<TTag>(this Element<TTag> element, float weight)
+        public static Element<TTag> GridCols<TTag>(this Element<TTag> element, ushort cols)
             where TTag : unmanaged, IStyledElementTag
         {
-            ArenaWriter.AddF32(element.Inner, OpCode.FontWeight, weight);
+            ArenaWriter.AddU32(element.Inner, OpCode.GridCols, cols);
             return element;
         }
 
-        /// <summary>Declares the background color behind an element's text.</summary>
+        /// <summary>Declares the column count of a grid container with max-content maximum sizing.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> TextBackground<TTag>(this Element<TTag> element, Color background)
+        public static Element<TTag> GridColsMaxContent<TTag>(this Element<TTag> element, ushort cols)
             where TTag : unmanaged, IStyledElementTag
         {
-            ArenaWriter.AddU32(element.Inner, OpCode.TextBackground, background.Rgba);
+            ArenaWriter.AddU32(element.Inner, OpCode.GridColsMaxContent, cols);
+            return element;
+        }
+
+        /// <summary>Declares the column count of a grid container with min-content minimum sizing.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> GridColsMinContent<TTag>(this Element<TTag> element, ushort cols)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.GridColsMinContent, cols);
+            return element;
+        }
+
+        /// <summary>Declares the row count of a grid container.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> GridRows<TTag>(this Element<TTag> element, ushort rows)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.GridRows, rows);
+            return element;
+        }
+
+        /// <summary>Declares the row count of a grid container with max-content maximum sizing.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> GridRowsMaxContent<TTag>(this Element<TTag> element, ushort rows)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.GridRowsMaxContent, rows);
+            return element;
+        }
+
+        /// <summary>Declares the row count of a grid container with min-content minimum sizing.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> GridRowsMinContent<TTag>(this Element<TTag> element, ushort rows)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.GridRowsMinContent, rows);
+            return element;
+        }
+
+        /// <summary>Declares the ending grid line of an item's rows. Negative lines count from the end.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RowEnd<TTag>(this Element<TTag> element, short end)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.RowEnd, (uint)(ushort)end);
+            return element;
+        }
+
+        /// <summary>Declares how many grid rows an item spans.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RowSpan<TTag>(this Element<TTag> element, ushort span)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.RowSpan, span);
+            return element;
+        }
+
+        /// <summary>Declares the starting grid line of an item's rows. Negative lines count from the end.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RowStart<TTag>(this Element<TTag> element, short start)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.RowStart, (uint)(ushort)start);
             return element;
         }
 
@@ -1305,21 +1156,12 @@ namespace Gpui
             return element;
         }
 
-        /// <summary>Declares the top-left corner radius of an element.</summary>
+        /// <summary>Declares the opacity of an element, from 0 (transparent) to 1 (opaque).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> RadiusTopLeft<TTag>(this Element<TTag> element, float radius)
+        public static Element<TTag> Opacity<TTag>(this Element<TTag> element, float opacity)
             where TTag : unmanaged, IStyledElementTag
         {
-            ArenaWriter.AddF32(element.Inner, OpCode.RadiusTopLeftPx, radius);
-            return element;
-        }
-
-        /// <summary>Declares the top-right corner radius of an element.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> RadiusTopRight<TTag>(this Element<TTag> element, float radius)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.RadiusTopRightPx, radius);
+            ArenaWriter.AddF32(element.Inner, OpCode.Opacity, opacity);
             return element;
         }
 
@@ -1341,17 +1183,30 @@ namespace Gpui
             return element;
         }
 
-        /// <summary>Declares the font style of an element. Only normal and italic faces are exposed.</summary>
+        /// <summary>Declares the top-left corner radius of an element.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> FontStyle<TTag>(this Element<TTag> element, FontStyle style)
+        public static Element<TTag> RadiusTopLeft<TTag>(this Element<TTag> element, float radius)
             where TTag : unmanaged, IStyledElementTag
         {
-            if ((uint)style > (uint)global::Gpui.FontStyle.Italic)
-            {
-                throw new ArgumentOutOfRangeException(nameof(style));
-            }
+            ArenaWriter.AddF32(element.Inner, OpCode.RadiusTopLeftPx, radius);
+            return element;
+        }
 
-            ArenaWriter.AddU32(element.Inner, OpCode.FontStyle, (uint)style);
+        /// <summary>Declares the top-right corner radius of an element.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> RadiusTopRight<TTag>(this Element<TTag> element, float radius)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.RadiusTopRightPx, radius);
+            return element;
+        }
+
+        /// <summary>Declares the blur radius of an element's box shadow, in pixels.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ShadowBlur<TTag>(this Element<TTag> element, float blur)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.ShadowBlur, blur);
             return element;
         }
 
@@ -1373,15 +1228,6 @@ namespace Gpui
             return element;
         }
 
-        /// <summary>Declares the blur radius of an element's box shadow, in pixels.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ShadowBlur<TTag>(this Element<TTag> element, float blur)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddF32(element.Inner, OpCode.ShadowBlur, blur);
-            return element;
-        }
-
         /// <summary>Declares the spread radius of an element's box shadow, in pixels.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Element<TTag> ShadowSpread<TTag>(this Element<TTag> element, float spread)
@@ -1391,12 +1237,39 @@ namespace Gpui
             return element;
         }
 
-        /// <summary>Declares the color of an element's underline, creating a default underline if none is set.</summary>
+        /// <summary>Declares the draw visibility of an element. Hidden elements still occupy layout space.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> TextDecorationColor<TTag>(this Element<TTag> element, Color color)
+        public static Element<TTag> Visibility<TTag>(this Element<TTag> element, Visibility visibility)
             where TTag : unmanaged, IStyledElementTag
         {
-            ArenaWriter.AddU32(element.Inner, OpCode.TextDecorationColor, color.Rgba);
+            if ((uint)visibility > (uint)global::Gpui.Visibility.Hidden)
+            {
+                throw new ArgumentOutOfRangeException(nameof(visibility));
+            }
+
+            ArenaWriter.AddU32(element.Inner, OpCode.Visibility, (uint)visibility);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares font fallback families tried in order when glyphs are missing.</summary>
+        public static Element<TTag> FontFallbacks<TTag>(this Element<TTag> element, params ReadOnlySpan<string> families)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if (families.IsEmpty)
+            {
+                throw new ArgumentException("At least one entry is required.", nameof(families));
+            }
+
+            foreach (var entry in families)
+            {
+                if (string.IsNullOrEmpty(entry) || entry.Contains(','))
+                {
+                    throw new ArgumentException("Entries must be non-empty and contain no commas.", nameof(families));
+                }
+            }
+
+            ArenaWriter.AddJoinedData(element.Inner, OpCode.FontFallbacks, families, ',');
             return element;
         }
 
@@ -1429,6 +1302,102 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares OpenType feature tags with values, such as ligatures.</summary>
+        public static Element<TTag> FontFeatures<TTag>(this Element<TTag> element, params ReadOnlySpan<(string Tag, uint Value)> features)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if (features.IsEmpty)
+            {
+                throw new ArgumentException("At least one entry is required.", nameof(features));
+            }
+
+            foreach (var (tag, _) in features)
+            {
+                var validTag = tag is not null && tag.Length > 0 && tag.Length <= 4;
+                for (var i = 0; validTag && i < tag.Length; i++)
+                {
+                    validTag = char.IsAsciiLetterOrDigit(tag[i]);
+                }
+                if (!validTag)
+                {
+                    throw new ArgumentException("Feature tags must be 1-4 ASCII letters or digits.", nameof(features));
+                }
+            }
+
+            ArenaWriter.AddFeatureData(element.Inner, OpCode.FontFeatures, features);
+            return element;
+        }
+
+        /// <summary>Declares the font style of an element. Only normal and italic faces are exposed.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> FontStyle<TTag>(this Element<TTag> element, FontStyle style)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if ((uint)style > (uint)global::Gpui.FontStyle.Italic)
+            {
+                throw new ArgumentOutOfRangeException(nameof(style));
+            }
+
+            ArenaWriter.AddU32(element.Inner, OpCode.FontStyle, (uint)style);
+            return element;
+        }
+
+        /// <summary>Declares the font weight of an element, from 100 (thin) to 900 (black).</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> FontWeight<TTag>(this Element<TTag> element, float weight)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddF32(element.Inner, OpCode.FontWeight, weight);
+            return element;
+        }
+
+        /// <summary>Truncates text after the given number of lines. Must be at least 1.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> LineClamp<TTag>(this Element<TTag> element, uint lines)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if (lines == 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(lines), "Line clamp must be at least 1.");
+            }
+
+            ArenaWriter.AddU32(element.Inner, OpCode.LineClamp, lines);
+            return element;
+        }
+
+        /// <summary>Declares the horizontal text alignment within an element.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> TextAlign<TTag>(this Element<TTag> element, TextAlignment align)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if ((uint)align > (uint)global::Gpui.TextAlignment.Right)
+            {
+                throw new ArgumentOutOfRangeException(nameof(align));
+            }
+
+            ArenaWriter.AddU32(element.Inner, OpCode.TextAlign, (uint)align);
+            return element;
+        }
+
+        /// <summary>Declares the background color behind an element's text.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> TextBackground<TTag>(this Element<TTag> element, Color background)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.TextBackground, background.Rgba);
+            return element;
+        }
+
+        /// <summary>Declares the color of an element's underline, creating a default underline if none is set.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> TextDecorationColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.TextDecorationColor, color.Rgba);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         /// <summary>Truncates overflowing text with the given indicator string, such as an ellipsis.</summary>
         public static Element<TTag> TextTruncate<TTag>(this Element<TTag> element, ReadOnlySpan<char> truncation)
             where TTag : unmanaged, IStyledElementTag
@@ -1456,200 +1425,191 @@ namespace Gpui
             return element;
         }
 
+        /// <summary>Declares the line-wrapping behavior of text within an element.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares OpenType feature tags with values, such as ligatures.</summary>
-        public static Element<TTag> FontFeatures<TTag>(this Element<TTag> element, params ReadOnlySpan<(string Tag, uint Value)> features)
+        public static Element<TTag> WhiteSpace<TTag>(this Element<TTag> element, WhiteSpace whiteSpace)
             where TTag : unmanaged, IStyledElementTag
         {
-            if (features.IsEmpty)
+            if ((uint)whiteSpace > (uint)global::Gpui.WhiteSpace.Nowrap)
             {
-                throw new ArgumentException("At least one entry is required.", nameof(features));
+                throw new ArgumentOutOfRangeException(nameof(whiteSpace));
             }
 
-            foreach (var (tag, _) in features)
+            ArenaWriter.AddU32(element.Inner, OpCode.WhiteSpace, (uint)whiteSpace);
+            return element;
+        }
+
+        /// <summary>Declares the mouse cursor shown while hovering an element.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> Cursor<TTag>(this Element<TTag> element, MouseCursor cursor)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if ((uint)cursor > (uint)global::Gpui.MouseCursor.ContextualMenu)
             {
-                var validTag = tag is not null && tag.Length > 0 && tag.Length <= 4;
-                for (var i = 0; validTag && i < tag.Length; i++)
-                {
-                    validTag = char.IsAsciiLetterOrDigit(tag[i]);
-                }
-                if (!validTag)
-                {
-                    throw new ArgumentException("Feature tags must be 1-4 ASCII letters or digits.", nameof(features));
-                }
+                throw new ArgumentOutOfRangeException(nameof(cursor));
             }
 
-            ArenaWriter.AddFeatureData(element.Inner, OpCode.FontFeatures, features);
+            ArenaWriter.AddU32(element.Inner, OpCode.Cursor, (uint)cursor);
             return element;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares font fallback families tried in order when glyphs are missing.</summary>
-        public static Element<TTag> FontFallbacks<TTag>(this Element<TTag> element, params ReadOnlySpan<string> families)
-            where TTag : unmanaged, IStyledElementTag
+        /// <summary>Sets supplementary native accessibility help without changing the visible content.</summary>
+        public static Element<TTag> AccessibleDescription<TTag>(this Element<TTag> element, ReadOnlySpan<char> description)
+            where TTag : unmanaged, IAccessibleElementTag
         {
-            if (families.IsEmpty)
+            if (description.IsEmpty)
             {
-                throw new ArgumentException("At least one entry is required.", nameof(families));
+                throw new ArgumentException("A non-empty value is required.", nameof(description));
             }
 
-            foreach (var entry in families)
+            ArenaWriter.AddData(element.Inner, OpCode.AccessibleDescription, description);
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Sets supplementary native accessibility help without changing the visible content.</summary>
+        public static Element<TTag> AccessibleDescription<TTag>(this Element<TTag> element, ReadOnlySpan<byte> utf8Description)
+            where TTag : unmanaged, IAccessibleElementTag
+        {
+            if (utf8Description.IsEmpty)
             {
-                if (string.IsNullOrEmpty(entry) || entry.Contains(','))
-                {
-                    throw new ArgumentException("Entries must be non-empty and contain no commas.", nameof(families));
-                }
+                throw new ArgumentException("A non-empty value is required.", nameof(utf8Description));
             }
 
-            ArenaWriter.AddJoinedData(element.Inner, OpCode.FontFallbacks, families, ',');
-            return element;
-        }
-
-        /// <summary>Declares the column count of a grid container.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> GridCols<TTag>(this Element<TTag> element, ushort cols)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.GridCols, cols);
-            return element;
-        }
-
-        /// <summary>Declares the column count of a grid container with min-content minimum sizing.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> GridColsMinContent<TTag>(this Element<TTag> element, ushort cols)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.GridColsMinContent, cols);
-            return element;
-        }
-
-        /// <summary>Declares the column count of a grid container with max-content maximum sizing.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> GridColsMaxContent<TTag>(this Element<TTag> element, ushort cols)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.GridColsMaxContent, cols);
-            return element;
-        }
-
-        /// <summary>Declares the row count of a grid container.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> GridRows<TTag>(this Element<TTag> element, ushort rows)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.GridRows, rows);
-            return element;
-        }
-
-        /// <summary>Declares the row count of a grid container with min-content minimum sizing.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> GridRowsMinContent<TTag>(this Element<TTag> element, ushort rows)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.GridRowsMinContent, rows);
-            return element;
-        }
-
-        /// <summary>Declares the row count of a grid container with max-content maximum sizing.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> GridRowsMaxContent<TTag>(this Element<TTag> element, ushort rows)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.GridRowsMaxContent, rows);
-            return element;
-        }
-
-        /// <summary>Declares how many grid columns an item spans.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ColSpan<TTag>(this Element<TTag> element, ushort span)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.ColSpan, span);
-            return element;
-        }
-
-        /// <summary>Declares how many grid rows an item spans.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> RowSpan<TTag>(this Element<TTag> element, ushort span)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.RowSpan, span);
-            return element;
-        }
-
-        /// <summary>Declares the starting grid line of an item's columns. Negative lines count from the end.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ColStart<TTag>(this Element<TTag> element, short start)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.ColStart, (uint)(ushort)start);
-            return element;
-        }
-
-        /// <summary>Declares the ending grid line of an item's columns. Negative lines count from the end.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> ColEnd<TTag>(this Element<TTag> element, short end)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.ColEnd, (uint)(ushort)end);
-            return element;
-        }
-
-        /// <summary>Declares the starting grid line of an item's rows. Negative lines count from the end.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> RowStart<TTag>(this Element<TTag> element, short start)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.RowStart, (uint)(ushort)start);
-            return element;
-        }
-
-        /// <summary>Declares the ending grid line of an item's rows. Negative lines count from the end.</summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static Element<TTag> RowEnd<TTag>(this Element<TTag> element, short end)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            ArenaWriter.AddU32(element.Inner, OpCode.RowEnd, (uint)(ushort)end);
+            ArenaWriter.AddData(element.Inner, OpCode.AccessibleDescription, utf8Description);
             return element;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the width of an element, in pixels or percent.</summary>
-        public static Element<TTag> Width<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
+        /// <summary>Sets the native accessible name, overriding inferred control text.</summary>
+        public static Element<TTag> AccessibleName<TTag>(this Element<TTag> element, ReadOnlySpan<char> name)
+            where TTag : unmanaged, IAccessibleElementTag
         {
-            switch (value.Unit)
+            if (name.IsEmpty)
             {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.WidthPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.WidthPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
+                throw new ArgumentException("A non-empty value is required.", nameof(name));
             }
 
+            ArenaWriter.AddData(element.Inner, OpCode.AccessibleName, name);
             return element;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the height of an element, in pixels or percent.</summary>
-        public static Element<TTag> Height<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
+        /// <summary>Sets the native accessible name, overriding inferred control text.</summary>
+        public static Element<TTag> AccessibleName<TTag>(this Element<TTag> element, ReadOnlySpan<byte> utf8Name)
+            where TTag : unmanaged, IAccessibleElementTag
         {
-            switch (value.Unit)
+            if (utf8Name.IsEmpty)
             {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.HeightPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.HeightPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
+                throw new ArgumentException("A non-empty value is required.", nameof(utf8Name));
             }
 
+            ArenaWriter.AddData(element.Inner, OpCode.AccessibleName, utf8Name);
+            return element;
+        }
+
+        /// <summary>Declares the stable model identity of a virtualized list row. IDs must be unique within one list; payload 0 is reserved.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ItemId<TTag>(this Element<TTag> element, ulong itemId)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            if (itemId == 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(itemId), "Item ID 0 is reserved.");
+            }
+
+            ArenaWriter.AddU64(element.Inner, OpCode.ListItemId, itemId);
+            return element;
+        }
+
+        /// <summary>Overrides the Table header background, including its scrollbar gutter. Omission uses the current theme element background.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HeaderBackground<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ITableElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.TableHeaderBackgroundRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides the Table header bottom border, including its scrollbar gutter. Omission uses the current theme border variant.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HeaderBorderColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ITableElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.TableHeaderBorderRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Sets inherited Table header text color for labels and custom content. Omission uses the current theme muted text.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> HeaderTextColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ITableElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.TableHeaderTextRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Input caret color. Omission uses the current theme accent.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> CaretColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInputElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.InputCaretRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Input placeholder text color. Omission uses the current theme.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> PlaceholderColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInputElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.InputPlaceholderRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Input selection background, including alpha. Omission uses the translucent theme accent.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> SelectionColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, IInputElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.InputSelectionRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Slider filled track color, including alpha. Omission uses the current theme accent.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> FillColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ISliderElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SliderFillRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Slider thumb border color, including alpha. Omission uses the current theme accent.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ThumbBorderColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ISliderElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SliderThumbBorderRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Slider thumb background, including alpha. Omission uses the current theme surface background.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> ThumbColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ISliderElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SliderThumbRgba, color.Rgba);
+            return element;
+        }
+
+        /// <summary>Overrides Slider track background, including alpha. Omission uses the current theme border variant.</summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Element<TTag> TrackColor<TTag>(this Element<TTag> element, Color color)
+            where TTag : unmanaged, ISliderElementTag
+        {
+            ArenaWriter.AddU32(element.Inner, OpCode.SliderTrackRgba, color.Rgba);
             return element;
         }
 
@@ -1674,357 +1634,17 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the minimum width of an element, in pixels or percent.</summary>
-        public static Element<TTag> MinWidth<TTag>(this Element<TTag> element, Length value)
+        /// <summary>Declares the bottom offset of an element, in pixels or percent.</summary>
+        public static Element<TTag> Bottom<TTag>(this Element<TTag> element, Length value)
             where TTag : unmanaged, IStyledElementTag
         {
             switch (value.Unit)
             {
                 case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MinWidthPx, value.Value);
+                    ArenaWriter.AddF32(element.Inner, OpCode.BottomPx, value.Value);
                     break;
                 case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MinWidthPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the minimum height of an element, in pixels or percent.</summary>
-        public static Element<TTag> MinHeight<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MinHeightPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MinHeightPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the maximum width of an element, in pixels or percent.</summary>
-        public static Element<TTag> MaxWidth<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MaxWidthPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MaxWidthPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the maximum height of an element, in pixels or percent.</summary>
-        public static Element<TTag> MaxHeight<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MaxHeightPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MaxHeightPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the margin of an element, in pixels or percent.</summary>
-        public static Element<TTag> Margin<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MarginPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MarginPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the horizontal margin of an element, in pixels or percent.</summary>
-        public static Element<TTag> MarginX<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MarginXPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MarginXPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the vertical margin of an element, in pixels or percent.</summary>
-        public static Element<TTag> MarginY<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MarginYPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MarginYPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the top margin of an element, in pixels or percent.</summary>
-        public static Element<TTag> MarginTop<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MarginTopPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MarginTopPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the bottom margin of an element, in pixels or percent.</summary>
-        public static Element<TTag> MarginBottom<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MarginBottomPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MarginBottomPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the left margin of an element, in pixels or percent.</summary>
-        public static Element<TTag> MarginLeft<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MarginLeftPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MarginLeftPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the right margin of an element, in pixels or percent.</summary>
-        public static Element<TTag> MarginRight<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MarginRightPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.MarginRightPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the padding of an element, in pixels or percent.</summary>
-        public static Element<TTag> Padding<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the horizontal padding of an element, in pixels or percent.</summary>
-        public static Element<TTag> PaddingX<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingXPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingXPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the vertical padding of an element, in pixels or percent.</summary>
-        public static Element<TTag> PaddingY<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingYPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingYPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the top padding of an element, in pixels or percent.</summary>
-        public static Element<TTag> PaddingTop<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingTopPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingTopPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the bottom padding of an element, in pixels or percent.</summary>
-        public static Element<TTag> PaddingBottom<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingBottomPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingBottomPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the left padding of an element, in pixels or percent.</summary>
-        public static Element<TTag> PaddingLeft<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingLeftPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingLeftPercent, value.Value);
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException(nameof(value));
-            }
-
-            return element;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the right padding of an element, in pixels or percent.</summary>
-        public static Element<TTag> PaddingRight<TTag>(this Element<TTag> element, Length value)
-            where TTag : unmanaged, IStyledElementTag
-        {
-            switch (value.Unit)
-            {
-                case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingRightPx, value.Value);
-                    break;
-                case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingRightPercent, value.Value);
+                    ArenaWriter.AddF32(element.Inner, OpCode.BottomPercent, value.Value);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(value));
@@ -2094,17 +1714,17 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the line height of an element, in pixels or percent of the font size.</summary>
-        public static Element<TTag> LineHeight<TTag>(this Element<TTag> element, Length value)
+        /// <summary>Declares the height of an element, in pixels or percent.</summary>
+        public static Element<TTag> Height<TTag>(this Element<TTag> element, Length value)
             where TTag : unmanaged, IStyledElementTag
         {
             switch (value.Unit)
             {
                 case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.LineHeightPx, value.Value);
+                    ArenaWriter.AddF32(element.Inner, OpCode.HeightPx, value.Value);
                     break;
                 case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.LineHeightPercent, value.Value);
+                    ArenaWriter.AddF32(element.Inner, OpCode.HeightPercent, value.Value);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(value));
@@ -2114,17 +1734,17 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the top offset of an element, in pixels or percent.</summary>
-        public static Element<TTag> Top<TTag>(this Element<TTag> element, Length value)
+        /// <summary>Declares the inset of an element, in pixels or percent.</summary>
+        public static Element<TTag> Inset<TTag>(this Element<TTag> element, Length value)
             where TTag : unmanaged, IStyledElementTag
         {
             switch (value.Unit)
             {
                 case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.TopPx, value.Value);
+                    ArenaWriter.AddF32(element.Inner, OpCode.InsetPx, value.Value);
                     break;
                 case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.TopPercent, value.Value);
+                    ArenaWriter.AddF32(element.Inner, OpCode.InsetPercent, value.Value);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(value));
@@ -2154,6 +1774,386 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the line height of an element, in pixels or percent of the font size.</summary>
+        public static Element<TTag> LineHeight<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.LineHeightPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.LineHeightPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the margin of an element, in pixels or percent.</summary>
+        public static Element<TTag> Margin<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the bottom margin of an element, in pixels or percent.</summary>
+        public static Element<TTag> MarginBottom<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginBottomPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginBottomPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the left margin of an element, in pixels or percent.</summary>
+        public static Element<TTag> MarginLeft<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginLeftPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginLeftPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the right margin of an element, in pixels or percent.</summary>
+        public static Element<TTag> MarginRight<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginRightPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginRightPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the top margin of an element, in pixels or percent.</summary>
+        public static Element<TTag> MarginTop<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginTopPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginTopPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the horizontal margin of an element, in pixels or percent.</summary>
+        public static Element<TTag> MarginX<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginXPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginXPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the vertical margin of an element, in pixels or percent.</summary>
+        public static Element<TTag> MarginY<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginYPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MarginYPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the maximum height of an element, in pixels or percent.</summary>
+        public static Element<TTag> MaxHeight<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MaxHeightPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MaxHeightPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the maximum width of an element, in pixels or percent.</summary>
+        public static Element<TTag> MaxWidth<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MaxWidthPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MaxWidthPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the minimum height of an element, in pixels or percent.</summary>
+        public static Element<TTag> MinHeight<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MinHeightPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MinHeightPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the minimum width of an element, in pixels or percent.</summary>
+        public static Element<TTag> MinWidth<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MinWidthPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.MinWidthPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the padding of an element, in pixels or percent.</summary>
+        public static Element<TTag> Padding<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the bottom padding of an element, in pixels or percent.</summary>
+        public static Element<TTag> PaddingBottom<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingBottomPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingBottomPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the left padding of an element, in pixels or percent.</summary>
+        public static Element<TTag> PaddingLeft<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingLeftPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingLeftPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the right padding of an element, in pixels or percent.</summary>
+        public static Element<TTag> PaddingRight<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingRightPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingRightPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the top padding of an element, in pixels or percent.</summary>
+        public static Element<TTag> PaddingTop<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingTopPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingTopPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the horizontal padding of an element, in pixels or percent.</summary>
+        public static Element<TTag> PaddingX<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingXPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingXPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        /// <summary>Declares the vertical padding of an element, in pixels or percent.</summary>
+        public static Element<TTag> PaddingY<TTag>(this Element<TTag> element, Length value)
+            where TTag : unmanaged, IStyledElementTag
+        {
+            switch (value.Unit)
+            {
+                case LengthUnit.Pixels:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingYPx, value.Value);
+                    break;
+                case LengthUnit.Percent:
+                    ArenaWriter.AddF32(element.Inner, OpCode.PaddingYPercent, value.Value);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            return element;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         /// <summary>Declares the right offset of an element, in pixels or percent.</summary>
         public static Element<TTag> Right<TTag>(this Element<TTag> element, Length value)
             where TTag : unmanaged, IStyledElementTag
@@ -2174,17 +2174,17 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the bottom offset of an element, in pixels or percent.</summary>
-        public static Element<TTag> Bottom<TTag>(this Element<TTag> element, Length value)
+        /// <summary>Declares the top offset of an element, in pixels or percent.</summary>
+        public static Element<TTag> Top<TTag>(this Element<TTag> element, Length value)
             where TTag : unmanaged, IStyledElementTag
         {
             switch (value.Unit)
             {
                 case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.BottomPx, value.Value);
+                    ArenaWriter.AddF32(element.Inner, OpCode.TopPx, value.Value);
                     break;
                 case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.BottomPercent, value.Value);
+                    ArenaWriter.AddF32(element.Inner, OpCode.TopPercent, value.Value);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(value));
@@ -2194,17 +2194,17 @@ namespace Gpui
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        /// <summary>Declares the inset of an element, in pixels or percent.</summary>
-        public static Element<TTag> Inset<TTag>(this Element<TTag> element, Length value)
+        /// <summary>Declares the width of an element, in pixels or percent.</summary>
+        public static Element<TTag> Width<TTag>(this Element<TTag> element, Length value)
             where TTag : unmanaged, IStyledElementTag
         {
             switch (value.Unit)
             {
                 case LengthUnit.Pixels:
-                    ArenaWriter.AddF32(element.Inner, OpCode.InsetPx, value.Value);
+                    ArenaWriter.AddF32(element.Inner, OpCode.WidthPx, value.Value);
                     break;
                 case LengthUnit.Percent:
-                    ArenaWriter.AddF32(element.Inner, OpCode.InsetPercent, value.Value);
+                    ArenaWriter.AddF32(element.Inner, OpCode.WidthPercent, value.Value);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(value));

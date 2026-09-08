@@ -57,7 +57,14 @@ internal sealed unsafe partial class ManagedSession
         uint count,
         RenderArena* output,
         out ulong artifact
-    ) => RenderDemandOutput(rendererToken, source, new ListRangeRenderRequest(start, count), output, out artifact);
+    ) =>
+        RenderDemandOutput(
+            rendererToken,
+            source,
+            new ListRangeRenderRequest(start, count),
+            output,
+            out artifact
+        );
 
     internal uint RenderDemandOutput<TRequest>(
         ulong rendererToken,
@@ -65,7 +72,8 @@ internal sealed unsafe partial class ManagedSession
         TRequest request,
         RenderArena* output,
         out ulong artifact
-    ) where TRequest : struct, IDemandRenderRequest
+    )
+        where TRequest : struct, IDemandRenderRequest
     {
         artifact = 0;
         EnterRenderOutput(output);

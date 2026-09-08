@@ -62,10 +62,7 @@ public sealed class NativeExtensionTests
     public void EditorCommandRejectionDecodesCurrentRevision()
     {
         Span<byte> payload = stackalloc byte[12];
-        BinaryPrimitives.WriteUInt16LittleEndian(
-            payload,
-            (ushort)EditorCommandKind.ApplyEdit
-        );
+        BinaryPrimitives.WriteUInt16LittleEndian(payload, (ushort)EditorCommandKind.ApplyEdit);
         BinaryPrimitives.WriteUInt64LittleEndian(payload[4..], 7);
 
         var rejected = EditorCommandRejectedEvent.Decode(
@@ -230,7 +227,11 @@ public sealed class NativeExtensionTests
             EditorElements.Configuration(new EditorOptions { Language = "a\nb" }, 0, 0)
         );
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            EditorElements.Configuration(new EditorOptions { LineNumberWidth = new Pixels(-1) }, 0, 0)
+            EditorElements.Configuration(
+                new EditorOptions { LineNumberWidth = new Pixels(-1) },
+                0,
+                0
+            )
         );
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             EditorElements.Configuration(
@@ -296,18 +297,13 @@ public sealed class NativeExtensionTests
                 Assert.True(payload[fields[2]].SequenceEqual("document"u8));
                 Assert.True(
                     Utf8Parser.TryParse(payload[fields[3]], out uint version, out var versionLength)
-                    && versionLength == payload[fields[3]].Length
-                    && version == EditorSchema.SchemaVersion
+                        && versionLength == payload[fields[3]].Length
+                        && version == EditorSchema.SchemaVersion
                 );
                 Assert.True(
-                    Utf8Parser.TryParse(
-                        payload[fields[4]],
-                        out ulong hash,
-                        out var hashLength,
-                        'X'
-                    )
-                    && hashLength == payload[fields[4]].Length
-                    && hash == EditorSchema.SchemaHash
+                    Utf8Parser.TryParse(payload[fields[4]], out ulong hash, out var hashLength, 'X')
+                        && hashLength == payload[fields[4]].Length
+                        && hash == EditorSchema.SchemaHash
                 );
                 Assert.True(payload[fields[5]].SequenceEqual(expected));
                 found = true;
@@ -334,9 +330,7 @@ public sealed class NativeExtensionTests
                 ui.NativeExtension(view.Editor.Native, [(byte)'a', 0]);
                 Assert.Fail("Expected a NUL-configuration ArgumentException.");
             }
-            catch (ArgumentException)
-            {
-            }
+            catch (ArgumentException) { }
         }
         finally
         {
@@ -359,18 +353,7 @@ public sealed class NativeExtensionTests
         Attach(
             view,
             41,
-            (
-                owner,
-                version,
-                hash,
-                id,
-                kind,
-                commandKey,
-                commandId,
-                _,
-                _,
-                commandPayload
-            ) =>
+            (owner, version, hash, id, kind, commandKey, commandId, _, _, commandPayload) =>
             {
                 ownerView = owner;
                 schemaVersion = version;
@@ -427,8 +410,11 @@ public sealed class NativeExtensionTests
     {
         var view = new ExtensionProbeView();
         view.Runtime.PrepareRuntime(
-            42, static callback => callback.Invoke(), static _ => { },
-            static (_, _) => { }, static (_, _, _, _, _, _) => { },
+            42,
+            static callback => callback.Invoke(),
+            static _ => { },
+            static (_, _) => { },
+            static (_, _, _, _, _, _) => { },
             static (_, _, _, _, _, _, _, _, _, _) => { },
             static () => { }
         );
@@ -438,9 +424,7 @@ public sealed class NativeExtensionTests
             Assert.False(view.Runtime.IsMounted);
             using var arena = new RenderArenaOwner();
             var ui = arena.BeginRender(new ExtensionNoopRenderer(), view);
-            var editor = ui.Editor(
-                "document", view, static (_, _) => { }, static (_, _) => { }
-            );
+            var editor = ui.Editor("document", view, static (_, _) => { }, static (_, _) => { });
             arena.Validate(editor);
             Assert.Contains("gpui.net.editor", arena.Dump(editor), StringComparison.Ordinal);
             Assert.False(view.Runtime.IsMounted);
@@ -459,9 +443,7 @@ public sealed class NativeExtensionTests
     [InlineData("")]
     public void ExtensionRequirementRejectsUnstableIdentifiers(string id)
     {
-        Assert.ThrowsAny<ArgumentException>(() =>
-            new NativeExtensionRequirement(id, 1, 1)
-        );
+        Assert.ThrowsAny<ArgumentException>(() => new NativeExtensionRequirement(id, 1, 1));
     }
 
     [Fact]
@@ -481,13 +463,7 @@ public sealed class NativeExtensionTests
     {
         using var arena = new RenderArenaOwner();
         var ui = arena.BeginRender(new ExtensionNoopRenderer(), view);
-        ui.Editor(
-            view.Editor,
-            new EditorOptions
-            {
-                LineNumberWidth = new Pixels(-1),
-            }
-        );
+        ui.Editor(view.Editor, new EditorOptions { LineNumberWidth = new Pixels(-1) });
     }
 
     private static void Attach(
@@ -510,9 +486,11 @@ public sealed class NativeExtensionTests
 
     private sealed class ExtensionProbeView : View
     {
-        public ExtensionProbeView() : this(TestViews.Construction()) { }
-        public ExtensionProbeView(ViewConstruction construction) : base(construction) =>
-            Editor = construction.CreateEditorController("document");
+        public ExtensionProbeView()
+            : this(TestViews.Construction()) { }
+
+        public ExtensionProbeView(ViewConstruction construction)
+            : base(construction) => Editor = construction.CreateEditorController("document");
 
         internal EditorController Editor { get; private set; }
         internal byte ExtensionEventValue { get; set; }
@@ -536,7 +514,11 @@ public sealed class NativeExtensionTests
 
     private sealed unsafe class ExtensionNoopRenderer : IViewRenderer
     {
-        public Element RenderChild<TView>(ViewBase owner, ChildSlot slot, RenderArenaOwner destination)
+        public Element RenderChild<TView>(
+            ViewBase owner,
+            ChildSlot slot,
+            RenderArenaOwner destination
+        )
             where TView : View, IGeneratedViewFactory<TView> => throw new NotSupportedException();
 
         public Element RenderChild<TView, TProps>(

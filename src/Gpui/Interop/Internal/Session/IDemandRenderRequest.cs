@@ -20,7 +20,10 @@ internal readonly struct ListRangeRenderRequest(uint start, uint count) : IDeman
     {
         var root = ui.Div();
         for (uint offset = 0; offset < count; offset++)
-            ArenaWriter.AddChild(root, owner.RenderListItemCore(rendererId, checked((int)(start + offset)), ref ui));
+            ArenaWriter.AddChild(
+                root,
+                owner.RenderListItemCore(rendererId, checked((int)(start + offset)), ref ui)
+            );
         return root;
     }
 }

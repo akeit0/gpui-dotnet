@@ -13,7 +13,8 @@ internal interface IViewEffect
 }
 
 /// <summary>An explicitly identified external relationship, activated only after native acceptance.</summary>
-public sealed class Effect<TInput> : IViewEffect where TInput : IEquatable<TInput>
+public sealed class Effect<TInput> : IViewEffect
+    where TInput : IEquatable<TInput>
 {
     private readonly ViewOwnership _owner;
     private Action<EffectScope, TInput>? _setup;
@@ -36,7 +37,9 @@ public sealed class Effect<TInput> : IViewEffect where TInput : IEquatable<TInpu
     {
         _owner.AssertAccess();
         if (!ReferenceEquals(_owner.View, owner) || _owner.Pass == 0)
-            throw new InvalidOperationException("Declare an effect only in its owning View's render.");
+            throw new InvalidOperationException(
+                "Declare an effect only in its owning View's render."
+            );
         if (_pass == _owner.Pass)
             throw new InvalidOperationException("An effect may be declared only once per render.");
         _pass = _owner.Pass;
@@ -50,10 +53,16 @@ public sealed class Effect<TInput> : IViewEffect where TInput : IEquatable<TInpu
         ReactiveConsumer.Comparing = true;
         try
         {
-            _replace = !declared || _scope is null || _codeChanged
+            _replace =
+                !declared
+                || _scope is null
+                || _codeChanged
                 || !EqualityComparer<TInput>.Default.Equals(_accepted, _staged);
         }
-        finally { ReactiveConsumer.Comparing = previous; }
+        finally
+        {
+            ReactiveConsumer.Comparing = previous;
+        }
         _start = declared && _replace;
         _accepted = declared ? _staged : default!;
         _staged = default!;
@@ -62,7 +71,8 @@ public sealed class Effect<TInput> : IViewEffect where TInput : IEquatable<TInpu
 
     void IViewEffect.StopChanged()
     {
-        if (!_replace) return;
+        if (!_replace)
+            return;
         var old = _scope;
         _scope = null;
         old?.Retire();
@@ -70,7 +80,8 @@ public sealed class Effect<TInput> : IViewEffect where TInput : IEquatable<TInpu
 
     void IViewEffect.Start()
     {
-        if (!_start) return;
+        if (!_start)
+            return;
         _start = false;
         _replace = false;
         // Publish ownership before user setup, so partial initialization is always cleaned up.
@@ -79,6 +90,7 @@ public sealed class Effect<TInput> : IViewEffect where TInput : IEquatable<TInpu
     }
 
     void IViewEffect.CodeChanged() => _codeChanged = true;
+
     void IViewEffect.Revoke() => _scope?.Revoke();
 
     void IViewEffect.Retire()

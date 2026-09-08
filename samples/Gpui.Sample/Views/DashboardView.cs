@@ -5,7 +5,10 @@ using static Gpui.Units;
 internal sealed partial class DashboardView : View
 {
     [System.Runtime.CompilerServices.InlineArray(36)]
-    private struct CardBuffer { private Element _element; }
+    private struct CardBuffer
+    {
+        private Element _element;
+    }
 
     private ScrollController _scroll;
     private int _propsRevision;
@@ -13,7 +16,8 @@ internal sealed partial class DashboardView : View
     private bool _foundationChecked;
     private int _foundationRadio;
 
-    public DashboardView(ViewConstruction context) : base(context)
+    public DashboardView(ViewConstruction context)
+        : base(context)
     {
         _scroll = context.CreateScrollController("overview-scroll");
     }

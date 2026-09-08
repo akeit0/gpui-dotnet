@@ -17,9 +17,13 @@ public sealed unsafe class ValidatorReviewTests
             var second = ui.Div(first);
             first.Child(second);
         }
-        else first.Child(first);
+        else
+            first.Child(first);
         Element root = ui.Div();
-        Assert.Contains("cycle", Assert.Throws<InvalidOperationException>(() => arena.Validate(root)).Message);
+        Assert.Contains(
+            "cycle",
+            Assert.Throws<InvalidOperationException>(() => arena.Validate(root)).Message
+        );
     }
 
     [Theory]
@@ -29,8 +33,12 @@ public sealed unsafe class ValidatorReviewTests
     {
         using var arena = new RenderArenaOwner();
         var ui = arena.BeginRender();
-        var inner = Area(arena, "inner").Child(ui.DockTabs(0, ui.DockPanel("same", "Inner", ui.Text("inner"))));
-        var outer = Area(arena, "outer").Child(ui.DockTabs(0, ui.DockPanel("same", "Outer", nested ? inner : ui.Text("outer"))));
+        var inner = Area(arena, "inner")
+            .Child(ui.DockTabs(0, ui.DockPanel("same", "Inner", ui.Text("inner"))));
+        var outer = Area(arena, "outer")
+            .Child(
+                ui.DockTabs(0, ui.DockPanel("same", "Outer", nested ? inner : ui.Text("outer")))
+            );
         Element root = nested ? outer : ui.Div(inner, outer);
         ReverseEdges(arena);
         arena.Validate(root);
@@ -45,13 +53,22 @@ public sealed unsafe class ValidatorReviewTests
     {
         using var arena = new RenderArenaOwner();
         var ui = arena.BeginRender();
-        var root = Area(arena, "area").Child(ui.DockTabs(0,
-            ui.DockPanel(first, "One", ui.Text("one")),
-            ui.DockPanel(second, "Two", ui.Text("two"))));
+        var root = Area(arena, "area")
+            .Child(
+                ui.DockTabs(
+                    0,
+                    ui.DockPanel(first, "One", ui.Text("one")),
+                    ui.DockPanel(second, "Two", ui.Text("two"))
+                )
+            );
         ReverseEdges(arena);
         if (duplicate)
-            Assert.Contains("duplicate panel ID", Assert.Throws<InvalidOperationException>(() => arena.Validate(root)).Message);
-        else arena.Validate(root);
+            Assert.Contains(
+                "duplicate panel ID",
+                Assert.Throws<InvalidOperationException>(() => arena.Validate(root)).Message
+            );
+        else
+            arena.Validate(root);
     }
 
     [Fact]
@@ -65,7 +82,10 @@ public sealed unsafe class ValidatorReviewTests
         var root = Area(arena, "area").Child(tabs);
         arena.Validate(root);
         ArenaWriter.AddU32(tabs.Inner, OpCode.DockActiveIndex, 2);
-        Assert.Contains("active index", Assert.Throws<InvalidOperationException>(() => arena.Validate(root)).Message);
+        Assert.Contains(
+            "active index",
+            Assert.Throws<InvalidOperationException>(() => arena.Validate(root)).Message
+        );
     }
 
     [Fact]
@@ -78,12 +98,18 @@ public sealed unsafe class ValidatorReviewTests
             var root = ui.Div();
             var last = ui.Div();
             root.Child(last);
-            for (var index = 0; index < 1024; index++) root.Child(ui.Text("leaf"));
-            if ((iteration & 1) == 0) root.Child(last);
+            for (var index = 0; index < 1024; index++)
+                root.Child(ui.Text("leaf"));
+            if ((iteration & 1) == 0)
+                root.Child(last);
             ReverseEdges(arena);
             if ((iteration & 1) == 0)
-                Assert.Contains("attached more than once", Assert.Throws<InvalidOperationException>(() => arena.Validate(root)).Message);
-            else arena.Validate(root);
+                Assert.Contains(
+                    "attached more than once",
+                    Assert.Throws<InvalidOperationException>(() => arena.Validate(root)).Message
+                );
+            else
+                arena.Validate(root);
             for (var index = 0; index < arena.NativeArena->NodeLength; index++)
                 Assert.Equal(0, arena.NativeArena->Nodes[index].Flags);
         }
@@ -93,7 +119,10 @@ public sealed unsafe class ValidatorReviewTests
         ArenaWriter.AddNode<DockAreaTag>(arena, ComponentId.DockArea, key);
 
     private static void ReverseEdges(RenderArenaOwner arena) =>
-        new Span<ChildRecord>(arena.NativeArena->Children, arena.NativeArena->ChildLength).Reverse();
+        new Span<ChildRecord>(
+            arena.NativeArena->Children,
+            arena.NativeArena->ChildLength
+        ).Reverse();
 
     [Theory]
     [InlineData(false)]
@@ -110,12 +139,12 @@ public sealed unsafe class ValidatorReviewTests
             var other = ui.DockSplit(DockAxis.Horizontal, split);
             split.Child(other);
         }
-        else split.Child(split);
+        else
+            split.Child(split);
         Element root = ui.Div();
         Assert.Throws<InvalidOperationException>(() => arena.Validate(root));
         for (var index = 0; index < arena.NativeArena->NodeLength; index++)
             Assert.Equal(0, arena.NativeArena->Nodes[index].Flags);
         Assert.Throws<InvalidOperationException>(() => arena.Validate(root));
     }
-
 }

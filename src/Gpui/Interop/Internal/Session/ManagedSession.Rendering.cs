@@ -55,7 +55,14 @@ internal sealed unsafe partial class ManagedSession
         uint count,
         RenderArenaOwner arena,
         out ulong artifact
-    ) => RenderDemand(rendererToken, source, new ListRangeRenderRequest(start, count), arena, out artifact);
+    ) =>
+        RenderDemand(
+            rendererToken,
+            source,
+            new ListRangeRenderRequest(start, count),
+            arena,
+            out artifact
+        );
 
     internal Element RenderDemand<TRequest>(
         ulong rendererToken,
@@ -63,7 +70,8 @@ internal sealed unsafe partial class ManagedSession
         TRequest request,
         RenderArenaOwner arena,
         out ulong artifact
-    ) where TRequest : struct, IDemandRenderRequest
+    )
+        where TRequest : struct, IDemandRenderRequest
     {
         ThrowIfUnavailable();
         using var execution = Execution.Enter(ExecutionPhase.DemandRender);
@@ -86,7 +94,9 @@ internal sealed unsafe partial class ManagedSession
         Volatile.Write(ref _renderingStarted, 1);
         if (Interlocked.CompareExchange(ref _renderingManaged, 1, 0) != 0)
         {
-            throw new InvalidOperationException("Nested managed demand rendering is not supported.");
+            throw new InvalidOperationException(
+                "Nested managed demand rendering is not supported."
+            );
         }
         Volatile.Write(ref _notifyAfterRender, 0);
         var previousEventBindingOwner = ViewEventRegistry.CurrentEventBindingOwner;
@@ -113,7 +123,10 @@ internal sealed unsafe partial class ManagedSession
         {
             try
             {
-                owner.Runtime.Events.CompleteEventBindingPass(ViewEventBindingScope.Demand, completed);
+                owner.Runtime.Events.CompleteEventBindingPass(
+                    ViewEventBindingScope.Demand,
+                    completed
+                );
                 if (!completed)
                 {
                     RemoveDemandArtifact(artifact);
@@ -229,9 +242,11 @@ internal sealed unsafe partial class ManagedSession
 
             if (state.Children is { } previousChildren)
                 foreach (var (slot, previous) in previousChildren)
-                    if (state.StagedChildren is null
+                    if (
+                        state.StagedChildren is null
                         || !state.StagedChildren.TryGetValue(slot, out var next)
-                        || !ReferenceEquals(previous.View, next.View))
+                        || !ReferenceEquals(previous.View, next.View)
+                    )
                         _unmountStack.Push((previous.View, false));
 
             (state.Children, state.StagedChildren) = (state.StagedChildren, state.Children);
@@ -242,7 +257,8 @@ internal sealed unsafe partial class ManagedSession
             state.Dirty = false;
             state.Consumer!.Commit();
             if (current.Ownership.Effects is { } committedEffects)
-                foreach (var effect in committedEffects) effect.Commit();
+                foreach (var effect in committedEffects)
+                    effect.Commit();
             current.CommitStagedProps();
             _acceptedViews.Add(current);
 
@@ -283,7 +299,8 @@ internal sealed unsafe partial class ManagedSession
 
         for (var index = _acceptedViews.Count - 1; index >= 0; index--)
             if (_acceptedViews[index].Ownership.Effects is { } effects)
-                foreach (var effect in effects) effect.StopChanged();
+                foreach (var effect in effects)
+                    effect.StopChanged();
 
         foreach (var view in _acceptedViews)
         {
@@ -295,7 +312,8 @@ internal sealed unsafe partial class ManagedSession
         {
             ThrowIfUnavailable();
             if (view.Ownership.Effects is { } effects)
-                foreach (var effect in effects) effect.Start();
+                foreach (var effect in effects)
+                    effect.Start();
         }
         _acceptedViews.Clear();
     }

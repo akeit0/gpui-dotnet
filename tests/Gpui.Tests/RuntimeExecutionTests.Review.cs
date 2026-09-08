@@ -10,8 +10,16 @@ public sealed partial class RuntimeExecutionTests
     {
         using var fixture = new SessionFixture(new TreeView());
         fixture.Render();
-        var branch = fixture.State(fixture.View).Children!.Values.Select(entry => entry.View).OfType<BranchView>().Single();
-        var leaf = fixture.State(branch).Children!.Values.Select(entry => entry.View).OfType<ChildView>().First();
+        var branch = fixture
+            .State(fixture.View)
+            .Children!.Values.Select(entry => entry.View)
+            .OfType<BranchView>()
+            .Single();
+        var leaf = fixture
+            .State(branch)
+            .Children!.Values.Select(entry => entry.View)
+            .OfType<ChildView>()
+            .First();
         var signal = new Signal<int>(0);
         leaf.DuringRender = () => _ = signal.Value;
         leaf.Invalidate();
@@ -34,8 +42,10 @@ public sealed partial class RuntimeExecutionTests
         fixture.Render();
         fixture.View.DuringRender = () =>
         {
-            if (post) fixture.View.Runtime.Post(static () => { });
-            else fixture.View.Invalidate();
+            if (post)
+                fixture.View.Runtime.Post(static () => { });
+            else
+                fixture.View.Invalidate();
         };
         var failure = Assert.Throws<InvalidOperationException>(() => fixture.Render());
         Assert.Contains("during rendering", failure.Message);
@@ -67,7 +77,8 @@ public sealed partial class RuntimeExecutionTests
                     var state = index;
                     callback = () => GC.KeepAlive(state);
                 }
-                if (validate) InspectCallbackBaseline(callback);
+                if (validate)
+                    InspectCallbackBaseline(callback);
                 fixture.View.Runtime.Post(callback);
             }
             var elapsed = Stopwatch.GetTimestamp() - start;
@@ -80,20 +91,32 @@ public sealed partial class RuntimeExecutionTests
             }
         }
         Array.Sort(samples);
-        TestContext.Current.TestOutputHelper!.WriteLine($"dispatcher-admission validate={validate} capture={capture}: median={samples[3]:F1} ns/post; allocated={allocations[3]} B/post");
+        TestContext.Current.TestOutputHelper!.WriteLine(
+            $"dispatcher-admission validate={validate} capture={capture}: median={samples[3]:F1} ns/post; allocated={allocations[3]} B/post"
+        );
     }
 
     // Test-only baseline for the removed runtime inspection. Never used by library admission.
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<System.Reflection.MethodInfo, object> InspectionCache = new();
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<
+        System.Reflection.MethodInfo,
+        object
+    > InspectionCache = new();
     private static readonly object SynchronousMethod = new();
 
     private static void InspectCallbackBaseline(Delegate callback)
     {
         foreach (var handler in Delegate.EnumerateInvocationList(callback))
         {
-            var contract = InspectionCache.GetValue(handler.Method, static method =>
-                method.IsDefined(typeof(System.Runtime.CompilerServices.AsyncStateMachineAttribute), false)
-                    ? throw new InvalidOperationException("Async callback") : SynchronousMethod);
+            var contract = InspectionCache.GetValue(
+                handler.Method,
+                static method =>
+                    method.IsDefined(
+                        typeof(System.Runtime.CompilerServices.AsyncStateMachineAttribute),
+                        false
+                    )
+                        ? throw new InvalidOperationException("Async callback")
+                        : SynchronousMethod
+            );
             GC.KeepAlive(contract);
         }
     }

@@ -1,13 +1,12 @@
+using System.Text;
 using Gpui;
 using Gpui.Editor;
-using System.Text;
 using static Gpui.Units;
 
-var hostName = OperatingSystem.IsWindows()
-    ? "gpui_dotnet_editor.dll"
-    : OperatingSystem.IsMacOS()
-        ? "libgpui_dotnet_editor.dylib"
-        : "libgpui_dotnet_editor.so";
+var hostName =
+    OperatingSystem.IsWindows() ? "gpui_dotnet_editor.dll"
+    : OperatingSystem.IsMacOS() ? "libgpui_dotnet_editor.dylib"
+    : "libgpui_dotnet_editor.so";
 var application = new GpuiApplication(
     new NativeRuntimeOptions
     {
@@ -47,7 +46,8 @@ internal sealed partial class EditorSampleView : View
 
     private readonly Effect<NoProps> _bootstrap;
 
-    public EditorSampleView(ViewConstruction context) : base(context)
+    public EditorSampleView(ViewConstruction context)
+        : base(context)
     {
         _editor = context.CreateEditorController("main-document");
         _bootstrap = context.Effect<NoProps>(Bootstrap);
@@ -186,13 +186,7 @@ internal sealed partial class EditorSampleView : View
                     _fixedLineNumberWidth,
                     EditorOption.FixedLineNumberWidth
                 ),
-                Option(
-                    ref ui,
-                    "folding",
-                    "Code folding",
-                    _folding,
-                    EditorOption.Folding
-                ),
+                Option(ref ui, "folding", "Code folding", _folding, EditorOption.Folding),
                 Option(
                     ref ui,
                     "whitespace",
@@ -200,20 +194,8 @@ internal sealed partial class EditorSampleView : View
                     _showWhitespace,
                     EditorOption.ShowWhitespace
                 ),
-                Option(
-                    ref ui,
-                    "read-only",
-                    "Read only",
-                    _readOnly,
-                    EditorOption.ReadOnly
-                ),
-                Option(
-                    ref ui,
-                    "disabled",
-                    "Disabled",
-                    _disabled,
-                    EditorOption.Disabled
-                )
+                Option(ref ui, "read-only", "Read only", _readOnly, EditorOption.ReadOnly),
+                Option(ref ui, "disabled", "Disabled", _disabled, EditorOption.Disabled)
             )
             .Gap(Px(5));
 
@@ -246,12 +228,14 @@ internal sealed partial class EditorSampleView : View
                             .FontSize(Px(theme.Typography.BodySmall))
                             .TextColor(theme.Colors.Text),
                         ui.Spacer(),
-                        ui.Text(_disabled ? "DISABLED" : _readOnly ? "READ ONLY" : "EDITING")
+                        ui.Text(
+                                _disabled ? "DISABLED"
+                                : _readOnly ? "READ ONLY"
+                                : "EDITING"
+                            )
                             .FontSize(Px(theme.Typography.Detail))
                             .TextColor(
-                                _readOnly || _disabled
-                                    ? theme.Colors.Warning
-                                    : theme.Colors.Success
+                                _readOnly || _disabled ? theme.Colors.Warning : theme.Colors.Success
                             )
                     )
                     .ItemsCenter()
@@ -271,12 +255,7 @@ internal sealed partial class EditorSampleView : View
                             "Insert marker",
                             EditorCommand.InsertMarker
                         ),
-                        CommandButton(
-                            ref ui,
-                            "editor-replace",
-                            "Replace",
-                            EditorCommand.Replace
-                        ),
+                        CommandButton(ref ui, "editor-replace", "Replace", EditorCommand.Replace),
                         CommandButton(
                             ref ui,
                             "editor-stale",
@@ -300,10 +279,7 @@ internal sealed partial class EditorSampleView : View
         return ui.VStack(
                 header,
                 ui.Divider(),
-                ui.HStack(sidebar, editorPanel)
-                    .Gap(Px(16))
-                    .Grow()
-                    .Width(Percent(100))
+                ui.HStack(sidebar, editorPanel).Gap(Px(16)).Grow().Width(Percent(100))
             )
             .Gap(Px(16))
             .Padding(Px(20))
@@ -322,14 +298,16 @@ internal sealed partial class EditorSampleView : View
         var edit = changed.Edits[0];
         _lastChange =
             $"{changed.Origin} · byte {edit.Start:N0} · -{edit.DeletedLength:N0} +{edit.InsertedUtf8.Length:N0}";
-        var inserted = Encoding.UTF8.GetString(edit.InsertedUtf8.Span)
+        var inserted = Encoding
+            .UTF8.GetString(edit.InsertedUtf8.Span)
             .Replace("\r", "\\r", StringComparison.Ordinal)
             .Replace("\n", "\\n", StringComparison.Ordinal);
         if (inserted.Length > 36)
         {
             inserted = inserted[..36] + "…";
         }
-        _lastInsertion = inserted.Length == 0 ? "Inserted UTF-8: ∅" : $"Inserted UTF-8: “{inserted}”";
+        _lastInsertion =
+            inserted.Length == 0 ? "Inserted UTF-8: ∅" : $"Inserted UTF-8: “{inserted}”";
         Invalidate();
     }
 

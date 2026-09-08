@@ -28,8 +28,11 @@ public readonly struct FocusController
 
     private void Dispatch(ResourceCommandKind command)
     {
-        var owner = _owner ?? throw new InvalidOperationException("Default FocusController cannot be used.");
-        owner.Runtime.DispatchResourceCommand(new ResourceCommand(ResourceKind.Focus, command,
-            null, 0, 0, null, _utf8Key));
+        var owner =
+            _owner
+            ?? throw new InvalidOperationException("Default FocusController cannot be used.");
+        owner.Runtime.DispatchResourceCommand(
+            new ResourceCommand(ResourceKind.Focus, command, null, 0, 0, null, _utf8Key)
+        );
     }
 }

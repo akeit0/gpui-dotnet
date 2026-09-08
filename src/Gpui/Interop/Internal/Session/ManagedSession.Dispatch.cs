@@ -162,58 +162,130 @@ internal sealed unsafe partial class ManagedSession
     }
 
     internal void DispatchClick(ulong eventToken, ClickEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchClickCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchClickCore(id, data)
+        );
 
     internal void DispatchInput(ulong eventToken, InputEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchInputCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchInputCore(id, data)
+        );
 
     internal void DispatchInputWrite(ulong eventToken, InputWriteResult value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchInputWriteCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchInputWriteCore(id, data)
+        );
 
     internal void DispatchListActivation(ulong eventToken, ListActivationEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchListActivationCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchListActivationCore(id, data)
+        );
 
     internal void DispatchListContextMenu(ulong eventToken, ListContextMenuEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchListContextMenuCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchListContextMenuCore(id, data)
+        );
 
     internal void DispatchListTooltip(ulong eventToken, ListTooltipEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchListTooltipCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchListTooltipCore(id, data)
+        );
 
     internal void DispatchShortcut(ulong eventToken) =>
-        DispatchEvent(eventToken, 0, static (owner, id, _) => owner.Runtime.Events.DispatchShortcutCore(id));
+        DispatchEvent(
+            eventToken,
+            0,
+            static (owner, id, _) => owner.Runtime.Events.DispatchShortcutCore(id)
+        );
 
     internal void DispatchListSelection(ulong eventToken, ListSelectionEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchListSelectionCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchListSelectionCore(id, data)
+        );
 
     internal void DispatchSlider(ulong eventToken, SliderEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchSliderCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchSliderCore(id, data)
+        );
 
     internal void DispatchDock(ulong eventToken, DockEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchDockCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchDockCore(id, data)
+        );
 
     internal void DispatchKey(ulong eventToken, KeyEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchKeyCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchKeyCore(id, data)
+        );
 
     internal void DispatchMouse(ulong eventToken, MouseEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchMouseCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchMouseCore(id, data)
+        );
 
     internal void DispatchModifiers(ulong eventToken, ModifiersEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchModifiersCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchModifiersCore(id, data)
+        );
 
     internal void DispatchHover(ulong eventToken, HoverEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchHoverCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchHoverCore(id, data)
+        );
 
     internal void DispatchMouseMove(ulong eventToken, MouseMoveEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchMouseMoveCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchMouseMoveCore(id, data)
+        );
 
     internal void DispatchScrollWheel(ulong eventToken, ScrollWheelEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchScrollWheelCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchScrollWheelCore(id, data)
+        );
 
     internal void DispatchFileDrop(ulong eventToken, FileDropEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchFileDropCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchFileDropCore(id, data)
+        );
 
     internal void DispatchNativeExtension(ulong eventToken, NativeExtensionEvent value) =>
-        DispatchEvent(eventToken, value, static (owner, id, data) => owner.Runtime.Events.DispatchNativeExtensionCore(id, data));
+        DispatchEvent(
+            eventToken,
+            value,
+            static (owner, id, data) => owner.Runtime.Events.DispatchNativeExtensionCore(id, data)
+        );
 
     private void DispatchEvent<TEvent>(
         ulong eventToken,

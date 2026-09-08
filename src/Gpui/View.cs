@@ -30,32 +30,44 @@ public abstract class ViewBase
     internal ViewOwnership Ownership { get; }
 
     internal ViewRuntime Runtime { get; }
+
     /// <summary>Posts callbacks to this View's UI thread while it remains mounted.</summary>
     protected internal Dispatcher Dispatcher => Runtime.Dispatcher;
+
     /// <summary>True while the framework owns this View in a mounted tree.</summary>
     protected bool IsMounted => Runtime.IsMounted;
+
     /// <summary>True after terminal retirement; a CLR reference does not retain UI ownership.</summary>
     protected bool IsUnmounted => Runtime.IsUnmounted;
+
     /// <summary>Stable, lazily created token cancelled before owned cleanup runs.</summary>
     protected CancellationToken Lifetime => Runtime.Lifetime;
 
     /// <summary>Requests a dirty render. Safe from any thread while mounted.</summary>
     protected internal void Invalidate() => Runtime.Invalidate();
+
     /// <summary>Binds a generated element-only row renderer to this View's native handle.</summary>
-    protected ListItemRenderer BindListRenderer(uint rendererId) => Runtime.BindListRenderer(rendererId);
+    protected ListItemRenderer BindListRenderer(uint rendererId) =>
+        Runtime.BindListRenderer(rendererId);
 
     /// <summary>Builds render IR without observable state changes or external effects.</summary>
     internal abstract Element RenderCore(ref RenderContext ui);
+
     /// <summary>Generated dispatch for element-only virtual rows; called on demand.</summary>
     protected virtual Element RenderListItem(uint rendererId, int index, ref RenderContext ui) =>
         throw new InvalidOperationException(
-            $"Generated list renderer 0x{rendererId:X8} is not defined on {GetType().Name}.");
+            $"Generated list renderer 0x{rendererId:X8} is not defined on {GetType().Name}."
+        );
+
     internal Element RenderListItemCore(uint rendererId, int index, ref RenderContext ui) =>
         RenderListItem(rendererId, index, ref ui);
 
     internal virtual void ValidateRenderInputs() { }
+
     internal virtual void CommitStagedProps() { }
+
     internal virtual void RollBackStagedProps() { }
+
     internal virtual void ReleaseRetainedState() { }
 }
 
@@ -65,8 +77,11 @@ public abstract class ViewBase
 /// </summary>
 public abstract class View : ViewBase
 {
-    protected View(ViewConstruction construction) : base(construction) { }
+    protected View(ViewConstruction construction)
+        : base(construction) { }
+
     protected abstract Element Render(ref RenderContext ui);
+
     internal override Element RenderCore(ref RenderContext ui) => Render(ref ui);
 }
 
@@ -79,8 +94,11 @@ public abstract class View : ViewBase
 public abstract class View<TProps> : ViewBase
     where TProps : IEquatable<TProps>
 {
-    protected View(ViewConstruction construction) : base(construction) { }
+    protected View(ViewConstruction construction)
+        : base(construction) { }
+
     protected abstract Element Render(in TProps props, ref RenderContext ui);
+
     internal override Element RenderCore(ref RenderContext ui) => Render(in _latestProps, ref ui);
 
     [Flags]

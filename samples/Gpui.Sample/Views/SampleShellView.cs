@@ -11,7 +11,8 @@ internal sealed partial class SampleShellView : View
     private readonly GpuiWindow Window;
     private readonly Effect<NoProps> _menus;
 
-    public SampleShellView(ViewConstruction construction) : base(construction)
+    public SampleShellView(ViewConstruction construction)
+        : base(construction)
     {
         Application = construction.Application;
         Window = construction.Window;
@@ -121,8 +122,10 @@ internal sealed partial class SampleShellView : View
             _page switch
             {
                 SamplePage.Overview => "retained ScrollHandle; wheel scrolling stays native",
-                SamplePage.Reactivity => "shared Signals across sibling views, conditional reads, and teardown",
-                SamplePage.Analysis => "document subscriptions, local queries, cached matches, and background analysis",
+                SamplePage.Reactivity =>
+                    "shared Signals across sibling views, conditional reads, and teardown",
+                SamplePage.Analysis =>
+                    "document subscriptions, local queries, cached matches, and background analysis",
                 SamplePage.Activity =>
                     "20,000 variable-height rows; managed rendering is range-batched",
                 SamplePage.Tables =>
@@ -132,7 +135,8 @@ internal sealed partial class SampleShellView : View
                 SamplePage.Images => "GPUI-native decoding, caching, fitting, and grayscale",
                 SamplePage.Text => "weight, style, decorations, and line height without a web view",
                 SamplePage.Grid => "grid containers, templates, spans, and line placement",
-                SamplePage.Focus => "focus a custom preview with the keyboard, pointer, or a command",
+                SamplePage.Focus =>
+                    "focus a custom preview with the keyboard, pointer, or a command",
                 SamplePage.Inputs =>
                     "retained native editing, IME, selection, focus, and UTF-8 events",
                 SamplePage.Observers =>
@@ -184,38 +188,101 @@ internal sealed partial class SampleShellView : View
         [
             new GpuiMenu(
                 "GPUI.NET",
-                GpuiMenuItem.Command("About GPUI.NET", scope.Bind(this, static view => view.ShowPage(SamplePage.Overview))),
-                GpuiMenuItem.Command("Toggle light/dark theme", scope.Bind(this, static view => view.ToggleTheme())),
+                GpuiMenuItem.Command(
+                    "About GPUI.NET",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Overview))
+                ),
+                GpuiMenuItem.Command(
+                    "Toggle light/dark theme",
+                    scope.Bind(this, static view => view.ToggleTheme())
+                ),
                 GpuiMenuItem.Separator(),
-                GpuiMenuItem.Command("Close window", scope.Bind(this, static view => view.CloseWindow()))
+                GpuiMenuItem.Command(
+                    "Close window",
+                    scope.Bind(this, static view => view.CloseWindow())
+                )
             ),
             new GpuiMenu(
                 "File",
-                GpuiMenuItem.Command("New window", scope.Bind(this, static view => view.OpenNewWindow())),
-                GpuiMenuItem.Command("New custom-title-bar window", scope.Bind(this, static view => view.OpenCustomTitleBarWindow())),
+                GpuiMenuItem.Command(
+                    "New window",
+                    scope.Bind(this, static view => view.OpenNewWindow())
+                ),
+                GpuiMenuItem.Command(
+                    "New custom-title-bar window",
+                    scope.Bind(this, static view => view.OpenCustomTitleBarWindow())
+                ),
                 GpuiMenuItem.Separator(),
-                GpuiMenuItem.Command("Close window", scope.Bind(this, static view => view.CloseWindow()))
+                GpuiMenuItem.Command(
+                    "Close window",
+                    scope.Bind(this, static view => view.CloseWindow())
+                )
             ),
             new GpuiMenu(
                 "View",
-                GpuiMenuItem.Command("Scroll view", scope.Bind(this, static view => view.ShowPage(SamplePage.Overview))),
-                GpuiMenuItem.Command("Reactivity", scope.Bind(this, static view => view.ShowPage(SamplePage.Reactivity))),
-                GpuiMenuItem.Command("Virtual list", scope.Bind(this, static view => view.ShowPage(SamplePage.Activity))),
-                GpuiMenuItem.Command("Virtual table", scope.Bind(this, static view => view.ShowPage(SamplePage.Tables))),
-                GpuiMenuItem.Command("Dock", scope.Bind(this, static view => view.ShowPage(SamplePage.Dock))),
-                GpuiMenuItem.Command("Images", scope.Bind(this, static view => view.ShowPage(SamplePage.Images))),
-                GpuiMenuItem.Command("Text", scope.Bind(this, static view => view.ShowPage(SamplePage.Text))),
-                GpuiMenuItem.Command("Grid", scope.Bind(this, static view => view.ShowPage(SamplePage.Grid))),
-                GpuiMenuItem.Command("Inputs", scope.Bind(this, static view => view.ShowPage(SamplePage.Inputs))),
-                GpuiMenuItem.Command("Observers", scope.Bind(this, static view => view.ShowPage(SamplePage.Observers))),
-                GpuiMenuItem.Command("Keyboard focus", scope.Bind(this, static view => view.ShowPage(SamplePage.Focus))),
-                GpuiMenuItem.Command("Overlays + tooltips", scope.Bind(this, static view => view.ShowPage(SamplePage.Overlays))),
-                GpuiMenuItem.Command("Windows", scope.Bind(this, static view => view.ShowPage(SamplePage.Windows)))
+                GpuiMenuItem.Command(
+                    "Scroll view",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Overview))
+                ),
+                GpuiMenuItem.Command(
+                    "Reactivity",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Reactivity))
+                ),
+                GpuiMenuItem.Command(
+                    "Virtual list",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Activity))
+                ),
+                GpuiMenuItem.Command(
+                    "Virtual table",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Tables))
+                ),
+                GpuiMenuItem.Command(
+                    "Dock",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Dock))
+                ),
+                GpuiMenuItem.Command(
+                    "Images",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Images))
+                ),
+                GpuiMenuItem.Command(
+                    "Text",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Text))
+                ),
+                GpuiMenuItem.Command(
+                    "Grid",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Grid))
+                ),
+                GpuiMenuItem.Command(
+                    "Inputs",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Inputs))
+                ),
+                GpuiMenuItem.Command(
+                    "Observers",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Observers))
+                ),
+                GpuiMenuItem.Command(
+                    "Keyboard focus",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Focus))
+                ),
+                GpuiMenuItem.Command(
+                    "Overlays + tooltips",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Overlays))
+                ),
+                GpuiMenuItem.Command(
+                    "Windows",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Windows))
+                )
             ),
             new GpuiMenu(
                 "Help",
-                GpuiMenuItem.Command("About GPUI.NET", scope.Bind(this, static view => view.ShowPage(SamplePage.Overview))),
-                GpuiMenuItem.Command("Open overlay gallery", scope.Bind(this, static view => view.ShowPage(SamplePage.Overlays)))
+                GpuiMenuItem.Command(
+                    "About GPUI.NET",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Overview))
+                ),
+                GpuiMenuItem.Command(
+                    "Open overlay gallery",
+                    scope.Bind(this, static view => view.ShowPage(SamplePage.Overlays))
+                )
             ),
         ];
 

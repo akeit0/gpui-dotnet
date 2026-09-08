@@ -118,7 +118,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
                     reserved2 = 0,
                 };
                 var status = _runtime.Api->dispatch_application_menu(_applicationId, &native);
-            GC.KeepAlive(_runtime);
+                GC.KeepAlive(_runtime);
                 if (status != 0)
                 {
                     throw new InvalidOperationException(
@@ -255,7 +255,13 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
             throw new InvalidOperationException("The GPUI application is stopping.");
         }
 
-        var session = new ManagedSession(_runtime, _application, window.Id, window.TakeRootDeclaration(), window);
+        var session = new ManagedSession(
+            _runtime,
+            _application,
+            window.Id,
+            window.TakeRootDeclaration(),
+            window
+        );
         if (!_sessions.TryAdd(window.Id, session))
         {
             throw new InvalidOperationException("Failed to register the managed window session.");

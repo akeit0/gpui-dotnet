@@ -15,11 +15,26 @@ public sealed unsafe partial class RuntimeExecutionTests
         using var fixture = new SessionFixture(view);
         fixture.Render();
         var payload = SelectionPayload(51, identity ? ulong.MaxValue : 0);
-        Assert.Equal(0, fixture.Control(view.Token, (ushort)ListEventKind.SelectionRequested, payload,
-            (ushort)((keyboard ? 1 : 0) | (identity ? 2 : 0)), identity ? ulong.MaxValue : 0));
+        Assert.Equal(
+            0,
+            fixture.Control(
+                view.Token,
+                (ushort)ListEventKind.SelectionRequested,
+                payload,
+                (ushort)((keyboard ? 1 : 0) | (identity ? 2 : 0)),
+                identity ? ulong.MaxValue : 0
+            )
+        );
         payload.AsSpan().Clear();
-        Assert.Equal(new ListSelectionEvent(51, identity ? ulong.MaxValue : null,
-            identity ? ulong.MaxValue : null, keyboard ? ListSelectionSource.Keyboard : ListSelectionSource.Pointer), view.Received);
+        Assert.Equal(
+            new ListSelectionEvent(
+                51,
+                identity ? ulong.MaxValue : null,
+                identity ? ulong.MaxValue : null,
+                keyboard ? ListSelectionSource.Keyboard : ListSelectionSource.Pointer
+            ),
+            view.Received
+        );
     }
 
     [Fact]
@@ -29,15 +44,37 @@ public sealed unsafe partial class RuntimeExecutionTests
         using var fixture = new SessionFixture(view);
         fixture.Render();
         var payload = SelectionPayload(0, 0);
-        Assert.Equal(0, fixture.Control(view.Token, (ushort)ListEventKind.SelectionRequested, payload, 2, 0));
+        Assert.Equal(
+            0,
+            fixture.Control(view.Token, (ushort)ListEventKind.SelectionRequested, payload, 2, 0)
+        );
         Assert.Equal(0UL, view.Received!.Value.ContentRevision);
         view.Received = null;
-        Assert.Equal(-112, fixture.Control(view.Token, (ushort)ListEventKind.SelectionRequested, payload, 4));
-        Assert.Equal(-112, fixture.Control(view.Token, (ushort)ListEventKind.SelectionRequested, payload, 0, 1));
-        Assert.Equal(-112, fixture.Control(view.Token, (ushort)ListEventKind.SelectionRequested, payload.AsSpan(1)));
-        Assert.Equal(-112, fixture.Control(view.Token, (ushort)ListEventKind.SelectionRequested, SelectionPayload(uint.MaxValue, 1)));
+        Assert.Equal(
+            -112,
+            fixture.Control(view.Token, (ushort)ListEventKind.SelectionRequested, payload, 4)
+        );
+        Assert.Equal(
+            -112,
+            fixture.Control(view.Token, (ushort)ListEventKind.SelectionRequested, payload, 0, 1)
+        );
+        Assert.Equal(
+            -112,
+            fixture.Control(view.Token, (ushort)ListEventKind.SelectionRequested, payload.AsSpan(1))
+        );
+        Assert.Equal(
+            -112,
+            fixture.Control(
+                view.Token,
+                (ushort)ListEventKind.SelectionRequested,
+                SelectionPayload(uint.MaxValue, 1)
+            )
+        );
         payload[4] = 1;
-        Assert.Equal(-112, fixture.Control(view.Token, (ushort)ListEventKind.SelectionRequested, payload));
+        Assert.Equal(
+            -112,
+            fixture.Control(view.Token, (ushort)ListEventKind.SelectionRequested, payload)
+        );
         Assert.Null(view.Received);
         Assert.Null(fixture.Session.Failure);
     }
@@ -48,7 +85,14 @@ public sealed unsafe partial class RuntimeExecutionTests
         var view = new ListSelectionProbe { ThrowOnSelection = true };
         using var fixture = new SessionFixture(view);
         fixture.Render();
-        Assert.Equal(-113, fixture.Control(view.Token, (ushort)ListEventKind.SelectionRequested, SelectionPayload(1, 5)));
+        Assert.Equal(
+            -113,
+            fixture.Control(
+                view.Token,
+                (ushort)ListEventKind.SelectionRequested,
+                SelectionPayload(1, 5)
+            )
+        );
         Assert.Equal("selection failed", fixture.Session.Failure!.Message);
     }
 
@@ -68,11 +112,14 @@ public sealed unsafe partial class RuntimeExecutionTests
 
         protected override Element Render(ref RenderContext ui)
         {
-            Token = Runtime.Events.BindListSelection<ListSelectionProbe>(static (view, value) =>
-            {
-                if (view.ThrowOnSelection) throw new InvalidOperationException("selection failed");
-                view.Received = value;
-            });
+            Token = Runtime.Events.BindListSelection<ListSelectionProbe>(
+                static (view, value) =>
+                {
+                    if (view.ThrowOnSelection)
+                        throw new InvalidOperationException("selection failed");
+                    view.Received = value;
+                }
+            );
             return base.Render(ref ui);
         }
     }

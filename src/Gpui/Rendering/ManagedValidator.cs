@@ -7,7 +7,11 @@ internal static unsafe class ManagedValidator
 {
     internal static void ValidateRoot(RenderArena* arena, Element root)
     {
-        if (root.Owner is null || root.Owner.NativeArena != arena || root.Generation != arena->Generation)
+        if (
+            root.Owner is null
+            || root.Owner.NativeArena != arena
+            || root.Generation != arena->Generation
+        )
         {
             throw new InvalidOperationException(
                 "Root does not belong to the active render generation."
@@ -33,11 +37,22 @@ internal static unsafe class ManagedValidator
         if (root >= (uint)arena->NodeLength)
             throw new InvalidOperationException("Root node is outside the node arena.");
         NodeInfo[]? rented = null;
-        Span<NodeInfo> nodes = arena->NodeLength <= 128
-            ? stackalloc NodeInfo[arena->NodeLength]
-            : (rented = ArrayPool<NodeInfo>.Shared.Rent(arena->NodeLength)).AsSpan(0, arena->NodeLength);
-        try { ValidateCore(arena, root, nodes); }
-        finally { if (rented is not null) ArrayPool<NodeInfo>.Shared.Return(rented); }
+        Span<NodeInfo> nodes =
+            arena->NodeLength <= 128
+                ? stackalloc NodeInfo[arena->NodeLength]
+                : (rented = ArrayPool<NodeInfo>.Shared.Rent(arena->NodeLength)).AsSpan(
+                    0,
+                    arena->NodeLength
+                );
+        try
+        {
+            ValidateCore(arena, root, nodes);
+        }
+        finally
+        {
+            if (rented is not null)
+                ArrayPool<NodeInfo>.Shared.Return(rented);
+        }
     }
 
     private static void ValidateCore(RenderArena* arena, uint root, Span<NodeInfo> nodes)
@@ -46,12 +61,9 @@ internal static unsafe class ManagedValidator
         for (var i = 0; i < arena->NodeLength; i++)
         {
             ref readonly var node = ref arena->Nodes[i];
-            nodes[i] = new NodeInfo
-            {
-                Parent = -1,
-                DockArea = UnknownArea,
-            };
-            if ((ComponentId)node.Component == ComponentId.DockPanel) panelCount++;
+            nodes[i] = new NodeInfo { Parent = -1, DockArea = UnknownArea };
+            if ((ComponentId)node.Component == ComponentId.DockPanel)
+                panelCount++;
             if (node.Flags != 0)
             {
                 throw new InvalidOperationException(
@@ -212,11 +224,7 @@ internal static unsafe class ManagedValidator
             if (expectedKind == ValueKind.Data)
             {
                 var dataEnd = operation.A + operation.B;
-                if (
-                    operation.B == 0
-                    || dataEnd < operation.A
-                    || dataEnd > (ulong)arena->Utf8Length
-                )
+                if (operation.B == 0 || dataEnd < operation.A || dataEnd > (ulong)arena->Utf8Length)
                 {
                     throw new InvalidOperationException(
                         $"Operation {i} has a data range outside the UTF-8 arena."
@@ -291,7 +299,9 @@ internal static unsafe class ManagedValidator
             {
                 ref var info = ref nodes[(int)operation.Node];
                 if (info.HasFocusTarget)
-                    throw new InvalidOperationException("A container can declare only one focus target.");
+                    throw new InvalidOperationException(
+                        "A container can declare only one focus target."
+                    );
                 info.HasFocusTarget = true;
             }
             if (code == OpCode.FocusTabStop)
@@ -300,8 +310,13 @@ internal static unsafe class ManagedValidator
 
         foreach (ref readonly var info in nodes)
         {
-            if ((info.HasFocusTabStop && !info.HasFocusTarget) || (info.HasFocusTarget && info.ResourceOwner == 0))
-                throw new InvalidOperationException("Focus targets require an owner and a target key.");
+            if (
+                (info.HasFocusTabStop && !info.HasFocusTarget)
+                || (info.HasFocusTarget && info.ResourceOwner == 0)
+            )
+                throw new InvalidOperationException(
+                    "Focus targets require an owner and a target key."
+                );
         }
 
         for (var i = 0; i < arena->ChildLength; i++)
@@ -312,7 +327,9 @@ internal static unsafe class ManagedValidator
 
             ref var child = ref nodes[(int)edge.Child];
             if (child.Parent != -1)
-                throw new InvalidOperationException($"Node {edge.Child} was attached more than once.");
+                throw new InvalidOperationException(
+                    $"Node {edge.Child} was attached more than once."
+                );
             if (edge.Child == root)
                 throw new InvalidOperationException("The root node cannot have a parent.");
             child.Parent = (int)edge.Parent;
@@ -323,18 +340,34 @@ internal static unsafe class ManagedValidator
             var childComponent = (ComponentId)arena->Nodes[edge.Child].Component;
             if ((parentComponent == ComponentId.Drawing) != (childComponent == ComponentId.Path))
                 throw new InvalidOperationException(
-                    "Drawing elements may contain only Path elements, and Path elements must belong to a Drawing.");
+                    "Drawing elements may contain only Path elements, and Path elements must belong to a Drawing."
+                );
 
             var validDockEdge = parentComponent switch
             {
-                ComponentId.DockArea => childComponent is ComponentId.DockSplit or ComponentId.DockTabs or ComponentId.DockRegion,
-                ComponentId.DockSplit => childComponent is ComponentId.DockSplit or ComponentId.DockTabs,
+                ComponentId.DockArea => childComponent
+                    is ComponentId.DockSplit
+                        or ComponentId.DockTabs
+                        or ComponentId.DockRegion,
+                ComponentId.DockSplit => childComponent
+                    is ComponentId.DockSplit
+                        or ComponentId.DockTabs,
                 ComponentId.DockTabs => childComponent == ComponentId.DockPanel,
-                ComponentId.DockRegion => childComponent is ComponentId.DockSplit or ComponentId.DockTabs,
-                _ => childComponent is not (ComponentId.DockSplit or ComponentId.DockTabs or ComponentId.DockPanel or ComponentId.DockRegion),
+                ComponentId.DockRegion => childComponent
+                    is ComponentId.DockSplit
+                        or ComponentId.DockTabs,
+                _ => childComponent
+                    is not (
+                        ComponentId.DockSplit
+                        or ComponentId.DockTabs
+                        or ComponentId.DockPanel
+                        or ComponentId.DockRegion
+                    ),
             };
             if (!validDockEdge)
-                throw new InvalidOperationException($"{childComponent} is not a valid child of {parentComponent}.");
+                throw new InvalidOperationException(
+                    $"{childComponent} is not a valid child of {parentComponent}."
+                );
 
             if (parentComponent == ComponentId.DockArea)
             {
@@ -342,10 +375,13 @@ internal static unsafe class ManagedValidator
                 {
                     var side = 1u << (int)child.ComponentValue;
                     if ((parent.SideMask & side) != 0)
-                        throw new InvalidOperationException($"DockArea node {edge.Parent} declares the same side more than once.");
+                        throw new InvalidOperationException(
+                            $"DockArea node {edge.Parent} declares the same side more than once."
+                        );
                     parent.SideMask |= side;
                 }
-                else parent.CenterCount++;
+                else
+                    parent.CenterCount++;
             }
         }
 
@@ -356,30 +392,43 @@ internal static unsafe class ManagedValidator
             if (component == ComponentId.Path && node.Parent == -1)
                 throw new InvalidOperationException($"Path node {index} must belong to a Drawing.");
             if ((uint)index != root && node.Parent == -1)
-                throw new InvalidOperationException($"Node {index} ({component}) was declared but never attached to the render tree.");
+                throw new InvalidOperationException(
+                    $"Node {index} ({component}) was declared but never attached to the render tree."
+                );
 
             var validCount = component switch
             {
-                ComponentId.Overlay or ComponentId.Dynamic or ComponentId.DockPanel or ComponentId.DockRegion => node.ChildCount == 1,
-                ComponentId.Tooltip or ComponentId.ContextMenu or ComponentId.PopoverMenu => node.ChildCount == 2,
+                ComponentId.Overlay
+                or ComponentId.Dynamic
+                or ComponentId.DockPanel
+                or ComponentId.DockRegion => node.ChildCount == 1,
+                ComponentId.Tooltip or ComponentId.ContextMenu or ComponentId.PopoverMenu =>
+                    node.ChildCount == 2,
                 ComponentId.DockArea => node.ChildCount is >= 1 and <= 4,
                 ComponentId.DockSplit or ComponentId.DockTabs => node.ChildCount > 0,
                 ComponentId.Table => node.ChildCount == 0 || node.ChildCount == node.ComponentValue,
                 _ => true,
             };
             if (!validCount)
-                throw new InvalidOperationException($"{component} node {index} has an invalid child count.");
+                throw new InvalidOperationException(
+                    $"{component} node {index} has an invalid child count."
+                );
             if (component == ComponentId.DockTabs && node.ComponentValue >= node.ChildCount)
-                throw new InvalidOperationException($"DockTabs node {index} has an active index outside its panels.");
+                throw new InvalidOperationException(
+                    $"DockTabs node {index} has an active index outside its panels."
+                );
             if (component == ComponentId.DockArea && node.CenterCount != 1)
-                throw new InvalidOperationException($"DockArea node {index} must declare exactly one center layout.");
+                throw new InvalidOperationException(
+                    $"DockArea node {index} must declare exactly one center layout."
+                );
         }
 
         // Resolve each parent path once, independent of declaration/edge order. The scratch
         // chain unwinds ancestor-first to compute nearest Dock areas and detect disconnected cycles.
         for (var index = 0; index < nodes.Length; index++)
         {
-            if (nodes[index].DockArea != UnknownArea) continue;
+            if (nodes[index].DockArea != UnknownArea)
+                continue;
             var current = index;
             var path = -1;
             while (current != -1 && nodes[current].DockArea == UnknownArea)
@@ -394,7 +443,8 @@ internal static unsafe class ManagedValidator
             var area = current == -1 ? -1 : nodes[current].DockArea;
             while (path != -1)
             {
-                if ((ComponentId)arena->Nodes[path].Component == ComponentId.DockArea) area = path;
+                if ((ComponentId)arena->Nodes[path].Component == ComponentId.DockArea)
+                    area = path;
                 nodes[path].DockArea = area;
                 path = nodes[path].PathPrevious;
             }
@@ -412,6 +462,7 @@ internal static unsafe class ManagedValidator
         internal bool HasFocusTabStop;
         internal int Parent;
         internal int ChildCount;
+
         // Dock active index/region side, or Table column count; component kinds are exclusive.
         internal uint ComponentValue;
         internal int CenterCount;
@@ -429,38 +480,55 @@ internal static unsafe class ManagedValidator
         public int CompareTo(PanelId other)
         {
             var areaOrder = Area.CompareTo(other.Area);
-            return areaOrder != 0 ? areaOrder
-                : new ReadOnlySpan<byte>(Bytes, Length).SequenceCompareTo(new ReadOnlySpan<byte>(other.Bytes, other.Length));
+            return areaOrder != 0
+                ? areaOrder
+                : new ReadOnlySpan<byte>(Bytes, Length).SequenceCompareTo(
+                    new ReadOnlySpan<byte>(other.Bytes, other.Length)
+                );
         }
     }
 
-    private static void ValidatePanelIds(RenderArena* arena, ReadOnlySpan<NodeInfo> nodes, int count)
+    private static void ValidatePanelIds(
+        RenderArena* arena,
+        ReadOnlySpan<NodeInfo> nodes,
+        int count
+    )
     {
-        if (count < 2) return;
+        if (count < 2)
+            return;
         PanelId[]? rented = null;
-        Span<PanelId> panels = count <= 128 ? stackalloc PanelId[count]
-            : (rented = ArrayPool<PanelId>.Shared.Rent(count)).AsSpan(0, count);
+        Span<PanelId> panels =
+            count <= 128
+                ? stackalloc PanelId[count]
+                : (rented = ArrayPool<PanelId>.Shared.Rent(count)).AsSpan(0, count);
         try
         {
             var next = 0;
             for (var index = 0; index < nodes.Length; index++)
             {
-                if ((ComponentId)arena->Nodes[index].Component != ComponentId.DockPanel) continue;
+                if ((ComponentId)arena->Nodes[index].Component != ComponentId.DockPanel)
+                    continue;
                 var id = DockPanelId(arena, index);
-                panels[next++] = new PanelId(nodes[index].DockArea, arena->Utf8 + arena->Nodes[index].DataOffset, id.Length);
+                panels[next++] = new PanelId(
+                    nodes[index].DockArea,
+                    arena->Utf8 + arena->Nodes[index].DataOffset,
+                    id.Length
+                );
             }
             // Sort UTF-8 slices, without allocating strings or hashing application-controlled IDs.
             panels.Sort();
             for (var index = 1; index < panels.Length; index++)
                 if (panels[index - 1].CompareTo(panels[index]) == 0)
                     throw new InvalidOperationException(
-                        $"DockArea contains duplicate panel ID '{System.Text.Encoding.UTF8.GetString(new ReadOnlySpan<byte>(panels[index].Bytes, panels[index].Length))}'.");
+                        $"DockArea contains duplicate panel ID '{System.Text.Encoding.UTF8.GetString(new ReadOnlySpan<byte>(panels[index].Bytes, panels[index].Length))}'."
+                    );
         }
         finally
         {
             // Scratch never retains pointers into a completed arena borrow.
             panels.Clear();
-            if (rented is not null) ArrayPool<PanelId>.Shared.Return(rented);
+            if (rented is not null)
+                ArrayPool<PanelId>.Shared.Return(rented);
         }
     }
 
@@ -523,10 +591,14 @@ internal static unsafe class ManagedValidator
         foreach (var character in value)
         {
             if (
-                character is not (
-                    >= (byte)'a' and <= (byte)'z'
-                    or >= (byte)'A' and <= (byte)'Z'
-                    or >= (byte)'0' and <= (byte)'9'
+                character
+                is not (
+                    >= (byte)'a'
+                    and <= (byte)'z'
+                    or >= (byte)'A'
+                    and <= (byte)'Z'
+                    or >= (byte)'0'
+                    and <= (byte)'9'
                     or (byte)'.'
                     or (byte)'-'
                     or (byte)'_'
@@ -565,8 +637,7 @@ internal static unsafe class ManagedValidator
     }
 
     private static bool IsAsciiHex(byte value) =>
-        value is >= (byte)'0' and <= (byte)'9'
-            or >= (byte)'A' and <= (byte)'F';
+        value is >= (byte)'0' and <= (byte)'9' or >= (byte)'A' and <= (byte)'F';
 
     private static bool IsNonZeroSchemaHash(ReadOnlySpan<byte> value)
     {

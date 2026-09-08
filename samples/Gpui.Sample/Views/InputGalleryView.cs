@@ -24,7 +24,9 @@ internal sealed partial class InputGalleryView : View
             "Interactive + UTF-8 events",
             ui.Input(ref _search, new Utf8InputOptions(placeholder: "Search or enter 日本語…"u8))
                 .AccessibleName("Search")
-                .AccessibleDescription(_invalid ? "Enter at most 24 characters." : "Search using any language.")
+                .AccessibleDescription(
+                    _invalid ? "Enter at most 24 characters." : "Search using any language."
+                )
                 .Style(SampleStyles.Input(theme, _invalid))
                 .OnChanged(
                     this,
@@ -56,13 +58,19 @@ internal sealed partial class InputGalleryView : View
                         view.Invalidate();
                     }
                 )
-                .OnWriteCompleted(this, static (view, result) =>
-                {
-                    view._lastWrite = $"Write #{result.RequestId}: {result.Outcome} · revision {result.Revision}";
-                    view.Invalidate();
-                })
+                .OnWriteCompleted(
+                    this,
+                    static (view, result) =>
+                    {
+                        view._lastWrite =
+                            $"Write #{result.RequestId}: {result.Outcome} · revision {result.Revision}";
+                        view.Invalidate();
+                    }
+                )
                 .Width(Percent(100)),
-            _invalid ? "Use at most 24 characters." : "Select text to preview the custom selection color.",
+            _invalid
+                ? "Use at most 24 characters."
+                : "Select text to preview the custom selection color.",
             _invalid
         );
         var password = Field(
@@ -137,9 +145,15 @@ internal sealed partial class InputGalleryView : View
                     .Padding(Px(8)),
                 ui.Button("conditional-write", "Write at last event revision")
                     .Disabled(_lastInputRevision == 0)
-                    .OnClick(this, static (view, _) =>
-                        view._search.SetValueIfCurrentWithResult("Conditional write"u8,
-                            view._lastInputRevision, checked(++view._writeRequest)))
+                    .OnClick(
+                        this,
+                        static (view, _) =>
+                            view._search.SetValueIfCurrentWithResult(
+                                "Conditional write"u8,
+                                view._lastInputRevision,
+                                checked(++view._writeRequest)
+                            )
+                    )
                     .Padding(Px(8))
             )
             .Gap(Px(8));
@@ -155,13 +169,19 @@ internal sealed partial class InputGalleryView : View
                 ui.HStack(readOnly, disabled).Gap(Px(14)),
                 ui.HStack(
                         volume,
-                        ui.Button("toggle-slider-style", _customSliderStyle ? "Use theme colors" : "Use custom colors")
+                        ui.Button(
+                                "toggle-slider-style",
+                                _customSliderStyle ? "Use theme colors" : "Use custom colors"
+                            )
                             .Style(SampleStyles.Button(theme))
-                            .OnClick(this, (view, _) =>
-                            {
-                                view._customSliderStyle = !view._customSliderStyle;
-                                view.Invalidate();
-                            })
+                            .OnClick(
+                                this,
+                                (view, _) =>
+                                {
+                                    view._customSliderStyle = !view._customSliderStyle;
+                                    view.Invalidate();
+                                }
+                            )
                     )
                     .Gap(Px(14)),
                 controls,
@@ -193,11 +213,9 @@ internal sealed partial class InputGalleryView : View
     {
         var theme = ui.Theme;
         var field = ui.VStack(
-                ui.Text(label)
-                    .FontSize(Px(theme.Typography.Detail))
-                    .TextColor(theme.Colors.TextMuted),
-                input
-            );
+            ui.Text(label).FontSize(Px(theme.Typography.Detail)).TextColor(theme.Colors.TextMuted),
+            input
+        );
         if (help is not null)
         {
             field.Child(

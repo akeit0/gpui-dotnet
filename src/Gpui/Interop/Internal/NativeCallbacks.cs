@@ -104,7 +104,14 @@ internal static unsafe class NativeCallbacks
             SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
             try
             {
-                *root = session.RenderListRangeOutput(rendererToken, source, start, count, arena, out var artifactId);
+                *root = session.RenderListRangeOutput(
+                    rendererToken,
+                    source,
+                    start,
+                    count,
+                    arena,
+                    out var artifactId
+                );
                 *artifact = artifactId;
                 return 0;
             }
@@ -274,8 +281,9 @@ internal static unsafe class NativeCallbacks
                 }
                 else if (
                     nativeEvent->kind
-                    is >= (ushort)InputEventKind.Changed
-                        and <= (ushort)InputEventKind.FocusChanged
+                    is (ushort)InputEventKind.Changed
+                        or (ushort)InputEventKind.Submitted
+                        or (ushort)InputEventKind.FocusChanged
                 )
                 {
                     if ((nativeEvent->flags & ~1u) != 0)
@@ -299,69 +307,136 @@ internal static unsafe class NativeCallbacks
                 }
                 else if (nativeEvent->kind == (ushort)InputWriteEventKind.Completed)
                 {
-                    if (nativeEvent->flags != 0 || nativeEvent->revision == 0 || nativeEvent->data_length != 16)
+                    if (
+                        nativeEvent->flags != 0
+                        || nativeEvent->revision == 0
+                        || nativeEvent->data_length != 16
+                    )
                         return -112;
                     var data = new ReadOnlySpan<byte>(nativeEvent->data, 16);
                     var requestId = BinaryPrimitives.ReadUInt64LittleEndian(data);
                     var outcome = BinaryPrimitives.ReadUInt32LittleEndian(data[8..]);
-                    if (requestId == 0 || requestId > (ulong.MaxValue >> 2)
+                    if (
+                        requestId == 0
+                        || requestId > (ulong.MaxValue >> 2)
                         || outcome > (uint)InputWriteOutcome.Composing
-                        || BinaryPrimitives.ReadUInt32LittleEndian(data[12..]) != 0)
+                        || BinaryPrimitives.ReadUInt32LittleEndian(data[12..]) != 0
+                    )
                         return -112;
-                    session.DispatchInputWrite(eventToken,
-                        new InputWriteResult(requestId, (InputWriteOutcome)outcome, nativeEvent->revision));
+                    session.DispatchInputWrite(
+                        eventToken,
+                        new InputWriteResult(
+                            requestId,
+                            (InputWriteOutcome)outcome,
+                            nativeEvent->revision
+                        )
+                    );
                 }
                 else if (nativeEvent->kind == (ushort)ShortcutEventKind.Invoked)
                 {
-                    if (nativeEvent->flags != 0 || nativeEvent->revision != 0 || nativeEvent->data_length != 0)
+                    if (
+                        nativeEvent->flags != 0
+                        || nativeEvent->revision != 0
+                        || nativeEvent->data_length != 0
+                    )
                         return -112;
                     session.DispatchShortcut(eventToken);
                 }
-                else if (nativeEvent->kind is (ushort)ListEventKind.ContextMenuRequested or (ushort)ListEventKind.TooltipRequested)
+                else if (
+                    nativeEvent->kind
+                    is (ushort)ListEventKind.ContextMenuRequested
+                        or (ushort)ListEventKind.TooltipRequested
+                )
                 {
-                    if ((nativeEvent->flags & ~2u) != 0 || nativeEvent->data_length != 24
-                        || ((nativeEvent->flags & 2) == 0 && nativeEvent->revision != 0))
+                    if (
+                        (nativeEvent->flags & ~2u) != 0
+                        || nativeEvent->data_length != 24
+                        || ((nativeEvent->flags & 2) == 0 && nativeEvent->revision != 0)
+                    )
                         return -112;
                     var data = new ReadOnlySpan<byte>(nativeEvent->data, 24);
                     var index = BinaryPrimitives.ReadUInt32LittleEndian(data);
                     var itemId = BinaryPrimitives.ReadUInt64LittleEndian(data[8..]);
                     var anchorId = BinaryPrimitives.ReadUInt64LittleEndian(data[16..]);
-                    if (index > int.MaxValue || BinaryPrimitives.ReadUInt32LittleEndian(data[4..]) != 0
-                        || itemId == 0 || anchorId == 0)
+                    if (
+                        index > int.MaxValue
+                        || BinaryPrimitives.ReadUInt32LittleEndian(data[4..]) != 0
+                        || itemId == 0
+                        || anchorId == 0
+                    )
                         return -112;
                     if (nativeEvent->kind == (ushort)ListEventKind.TooltipRequested)
-                        session.DispatchListTooltip(eventToken, new ListTooltipEvent(
-                            (int)index, itemId, (nativeEvent->flags & 2) == 0 ? null : nativeEvent->revision, anchorId));
+                        session.DispatchListTooltip(
+                            eventToken,
+                            new ListTooltipEvent(
+                                (int)index,
+                                itemId,
+                                (nativeEvent->flags & 2) == 0 ? null : nativeEvent->revision,
+                                anchorId
+                            )
+                        );
                     else
-                        session.DispatchListContextMenu(eventToken, new ListContextMenuEvent(
-                            (int)index, itemId, (nativeEvent->flags & 2) == 0 ? null : nativeEvent->revision, anchorId));
+                        session.DispatchListContextMenu(
+                            eventToken,
+                            new ListContextMenuEvent(
+                                (int)index,
+                                itemId,
+                                (nativeEvent->flags & 2) == 0 ? null : nativeEvent->revision,
+                                anchorId
+                            )
+                        );
                 }
-                else if (nativeEvent->kind is (ushort)ListEventKind.Activated or (ushort)ListEventKind.SelectionRequested)
+                else if (
+                    nativeEvent->kind
+                    is (ushort)ListEventKind.Activated
+                        or (ushort)ListEventKind.SelectionRequested
+                )
                 {
-                    if ((nativeEvent->flags & ~3u) != 0 || nativeEvent->data_length != 16
-                        || ((nativeEvent->flags & 2) == 0 && nativeEvent->revision != 0))
+                    if (
+                        (nativeEvent->flags & ~3u) != 0
+                        || nativeEvent->data_length != 16
+                        || ((nativeEvent->flags & 2) == 0 && nativeEvent->revision != 0)
+                    )
                         return -112;
                     var data = new ReadOnlySpan<byte>(nativeEvent->data, 16);
                     var index = BinaryPrimitives.ReadUInt32LittleEndian(data);
-                    if (index > int.MaxValue || BinaryPrimitives.ReadUInt32LittleEndian(data[4..]) != 0)
+                    if (
+                        index > int.MaxValue
+                        || BinaryPrimitives.ReadUInt32LittleEndian(data[4..]) != 0
+                    )
                         return -112;
                     var itemId = BinaryPrimitives.ReadUInt64LittleEndian(data[8..]);
                     ulong? identity = itemId == 0 ? null : itemId;
                     ulong? revision = (nativeEvent->flags & 2) == 0 ? null : nativeEvent->revision;
                     var keyboard = (nativeEvent->flags & 1) != 0;
                     if (nativeEvent->kind == (ushort)ListEventKind.Activated)
-                        session.DispatchListActivation(eventToken, new ListActivationEvent(
-                            (int)index, identity, revision,
-                            keyboard ? ListActivationSource.Keyboard : ListActivationSource.Pointer
-                        ));
+                        session.DispatchListActivation(
+                            eventToken,
+                            new ListActivationEvent(
+                                (int)index,
+                                identity,
+                                revision,
+                                keyboard
+                                    ? ListActivationSource.Keyboard
+                                    : ListActivationSource.Pointer
+                            )
+                        );
                     else
-                        session.DispatchListSelection(eventToken, new ListSelectionEvent(
-                            (int)index, identity, revision,
-                            keyboard ? ListSelectionSource.Keyboard : ListSelectionSource.Pointer
-                        ));
+                        session.DispatchListSelection(
+                            eventToken,
+                            new ListSelectionEvent(
+                                (int)index,
+                                identity,
+                                revision,
+                                keyboard
+                                    ? ListSelectionSource.Keyboard
+                                    : ListSelectionSource.Pointer
+                            )
+                        );
                 }
                 else if (
-                    nativeEvent->kind is (ushort)SliderEventKind.Changed
+                    nativeEvent->kind
+                    is (ushort)SliderEventKind.Changed
                         or (ushort)SliderEventKind.Released
                 )
                 {
@@ -404,9 +479,7 @@ internal static unsafe class NativeCallbacks
                         )
                     );
                 }
-                else if (
-                    nativeEvent->kind is (ushort)KeyEventKind.Down or (ushort)KeyEventKind.Up
-                )
+                else if (nativeEvent->kind is (ushort)KeyEventKind.Down or (ushort)KeyEventKind.Up)
                 {
                     // Key observer events: data is the UTF-8 GPUI key name (non-empty,
                     // NUL-free, bounded); flags carry modifiers in bits 0-4 and the
@@ -438,12 +511,7 @@ internal static unsafe class NativeCallbacks
                     var isHeld = isDown && (nativeEvent->flags & 0x20) != 0;
                     session.DispatchKey(
                         eventToken,
-                        new KeyEvent(
-                            (KeyEventKind)nativeEvent->kind,
-                            key,
-                            modifiers,
-                            isHeld
-                        )
+                        new KeyEvent((KeyEventKind)nativeEvent->kind, key, modifiers, isHeld)
                     );
                 }
                 else if (
@@ -505,10 +573,7 @@ internal static unsafe class NativeCallbacks
                         return -112;
                     }
 
-                    session.DispatchModifiers(
-                        eventToken,
-                        new ModifiersEvent(nativeEvent->flags)
-                    );
+                    session.DispatchModifiers(eventToken, new ModifiersEvent(nativeEvent->flags));
                 }
                 else if (nativeEvent->kind == (ushort)HoverEventKind.Changed)
                 {
@@ -529,7 +594,9 @@ internal static unsafe class NativeCallbacks
                     );
                 }
                 else if (
-                    nativeEvent->kind is (ushort)MouseEventKind.DownOut or (ushort)MouseEventKind.UpOut
+                    nativeEvent->kind
+                    is (ushort)MouseEventKind.DownOut
+                        or (ushort)MouseEventKind.UpOut
                 )
                 {
                     // Outside press/release: same 16-byte LE payload as down/up.
@@ -653,7 +720,14 @@ internal static unsafe class NativeCallbacks
 
                     session.DispatchScrollWheel(
                         eventToken,
-                        new ScrollWheelEvent(x, y, dx, dy, (ScrollDeltaUnits)units, nativeEvent->flags)
+                        new ScrollWheelEvent(
+                            x,
+                            y,
+                            dx,
+                            dy,
+                            (ScrollDeltaUnits)units,
+                            nativeEvent->flags
+                        )
                     );
                 }
                 else if (nativeEvent->kind == (ushort)FileEventKind.Dropped)
@@ -716,7 +790,8 @@ internal static unsafe class NativeCallbacks
                     );
                 }
                 else if (
-                    nativeEvent->kind is (ushort)DockEventKind.LayoutChanged
+                    nativeEvent->kind
+                    is (ushort)DockEventKind.LayoutChanged
                         or (ushort)DockEventKind.LayoutExported
                         or (ushort)DockEventKind.PanelClosed
                 )
@@ -728,7 +803,12 @@ internal static unsafe class NativeCallbacks
                         return -112;
                     }
 
-                    if (!TryDecodeUtf8(new ReadOnlySpan<byte>(nativeEvent->data, nativeEvent->data_length), out var text))
+                    if (
+                        !TryDecodeUtf8(
+                            new ReadOnlySpan<byte>(nativeEvent->data, nativeEvent->data_length),
+                            out var text
+                        )
+                    )
                         return -112;
                     var changedKind = (ushort)DockEventKind.LayoutChanged;
                     if (

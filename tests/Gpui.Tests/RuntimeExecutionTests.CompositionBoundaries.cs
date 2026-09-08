@@ -9,15 +9,24 @@ public sealed unsafe partial class RuntimeExecutionTests
     {
         Element<DivTag> escaped = default;
         var include = true;
-        var declaration = new FragmentDeclaration((ref RenderContext ui) =>
-        {
-            escaped = ui.Div();
-            return escaped;
-        });
-        using var fixture = new SessionFixture(new DeclarationRoot((ref RenderContext ui) =>
-            include
-                ? ui.Child("fragment", new ViewSpec<DeclarationChild, FragmentDeclaration>(declaration))
-                : ui.Div()));
+        var declaration = new FragmentDeclaration(
+            (ref RenderContext ui) =>
+            {
+                escaped = ui.Div();
+                return escaped;
+            }
+        );
+        using var fixture = new SessionFixture(
+            new DeclarationRoot(
+                (ref RenderContext ui) =>
+                    include
+                        ? ui.Child(
+                            "fragment",
+                            new ViewSpec<DeclarationChild, FragmentDeclaration>(declaration)
+                        )
+                        : ui.Div()
+            )
+        );
         fixture.Render();
         include = false;
         fixture.Render();
@@ -72,8 +81,12 @@ public sealed unsafe partial class RuntimeExecutionTests
         protected override Element Render(ref RenderContext ui)
         {
             if (IncludeFirst)
-                First = Runtime.Events.BindClick<ChangingRootBindings>(static (view, _) => view.FirstClicks++);
-            Second = Runtime.Events.BindClick<ChangingRootBindings>(static (view, _) => view.SecondClicks++);
+                First = Runtime.Events.BindClick<ChangingRootBindings>(
+                    static (view, _) => view.FirstClicks++
+                );
+            Second = Runtime.Events.BindClick<ChangingRootBindings>(
+                static (view, _) => view.SecondClicks++
+            );
             return ui.Text("root");
         }
     }
@@ -90,24 +103,33 @@ public sealed unsafe partial class RuntimeExecutionTests
         Element foreign = foreignUi.Text("foreign");
         Element previous = default;
         var invalid = false;
-        var declaration = new FragmentDeclaration((ref RenderContext ui) =>
-        {
-            Element current = ui.Text("current");
-            if (!invalid)
+        var declaration = new FragmentDeclaration(
+            (ref RenderContext ui) =>
             {
-                previous = current;
-                return current;
+                Element current = ui.Text("current");
+                if (!invalid)
+                {
+                    previous = current;
+                    return current;
+                }
+                return kind switch
+                {
+                    "default" => default,
+                    "foreign" => foreign,
+                    "stale" => previous,
+                    _ => new Element(current.Owner!, uint.MaxValue, current.Generation),
+                };
             }
-            return kind switch
-            {
-                "default" => default,
-                "foreign" => foreign,
-                "stale" => previous,
-                _ => new Element(current.Owner!, uint.MaxValue, current.Generation),
-            };
-        });
-        using var fixture = new SessionFixture(new DeclarationRoot((ref RenderContext ui) =>
-            ui.Child("fragment", new ViewSpec<DeclarationChild, FragmentDeclaration>(declaration))));
+        );
+        using var fixture = new SessionFixture(
+            new DeclarationRoot(
+                (ref RenderContext ui) =>
+                    ui.Child(
+                        "fragment",
+                        new ViewSpec<DeclarationChild, FragmentDeclaration>(declaration)
+                    )
+            )
+        );
         fixture.Render();
         var child = fixture.State(fixture.View).Children!.Values.Single().View;
         invalid = true;
@@ -115,7 +137,10 @@ public sealed unsafe partial class RuntimeExecutionTests
 
         var error = Assert.Throws<InvalidOperationException>(fixture.Render);
 
-        Assert.Contains(kind == "index" ? "outside the node arena" : "active render generation", error.Message);
+        Assert.Contains(
+            kind == "index" ? "outside the node arena" : "active render generation",
+            error.Message
+        );
         Assert.Same(error, fixture.Session.Failure);
         Assert.True(child.Runtime.IsUnmounted);
     }
@@ -123,13 +148,22 @@ public sealed unsafe partial class RuntimeExecutionTests
     [Fact]
     public void RootPublicationStillValidatesChildSemantics()
     {
-        var declaration = new FragmentDeclaration((ref RenderContext ui) =>
-        {
-            _ = ui.Text("unattached");
-            return ui.Text("root");
-        });
-        using var fixture = new SessionFixture(new DeclarationRoot((ref RenderContext ui) =>
-            ui.Child("fragment", new ViewSpec<DeclarationChild, FragmentDeclaration>(declaration))));
+        var declaration = new FragmentDeclaration(
+            (ref RenderContext ui) =>
+            {
+                _ = ui.Text("unattached");
+                return ui.Text("root");
+            }
+        );
+        using var fixture = new SessionFixture(
+            new DeclarationRoot(
+                (ref RenderContext ui) =>
+                    ui.Child(
+                        "fragment",
+                        new ViewSpec<DeclarationChild, FragmentDeclaration>(declaration)
+                    )
+            )
+        );
 
         var error = Assert.Throws<InvalidOperationException>(fixture.Publish);
 
@@ -141,11 +175,15 @@ public sealed unsafe partial class RuntimeExecutionTests
     [Fact]
     public void DuplicateChildKeyFaultsTheComposition()
     {
-        using var fixture = new SessionFixture(new DeclarationRoot((ref RenderContext ui) =>
-        {
-            var a = ui.Child("same", ChildView.Spec());
-            return ui.Div(a, ui.Child("same", ChildView.Spec()));
-        }));
+        using var fixture = new SessionFixture(
+            new DeclarationRoot(
+                (ref RenderContext ui) =>
+                {
+                    var a = ui.Child("same", ChildView.Spec());
+                    return ui.Div(a, ui.Child("same", ChildView.Spec()));
+                }
+            )
+        );
 
         var error = Assert.Throws<InvalidOperationException>(fixture.Publish);
 
@@ -159,10 +197,18 @@ public sealed unsafe partial class RuntimeExecutionTests
     public void OnlyKeyedSlotsCanReplaceTheirAcceptedType(bool keyed)
     {
         var replace = false;
-        using var fixture = new SessionFixture(new DeclarationRoot((ref RenderContext ui) =>
-            replace
-                ? keyed ? ui.Child("slot", BranchView.Spec()) : ui.Child(BranchView.Spec())
-                : keyed ? ui.Child("slot", ChildView.Spec()) : ui.Child(ChildView.Spec())));
+        using var fixture = new SessionFixture(
+            new DeclarationRoot(
+                (ref RenderContext ui) =>
+                    replace
+                        ? keyed
+                            ? ui.Child("slot", BranchView.Spec())
+                            : ui.Child(BranchView.Spec())
+                        : keyed
+                            ? ui.Child("slot", ChildView.Spec())
+                            : ui.Child(ChildView.Spec())
+            )
+        );
         fixture.Render();
         var original = fixture.Child;
         replace = true;
@@ -189,9 +235,13 @@ public sealed unsafe partial class RuntimeExecutionTests
         var existing = fixture.Child;
 
         var error = Assert.Throws<InvalidOperationException>(() =>
-            ViewFactory.Construct<ChildView, ChildView>(existing, static (_, view) => view));
+            ViewFactory.Construct<ChildView, ChildView>(existing, static (_, view) => view)
+        );
 
-        Assert.Contains("factory must return the View bound to its construction context", error.Message);
+        Assert.Contains(
+            "factory must return the View bound to its construction context",
+            error.Message
+        );
         Assert.True(existing.Runtime.IsMounted);
         fixture.Render();
         Assert.Same(existing, fixture.Child);
@@ -203,15 +253,28 @@ public sealed unsafe partial class RuntimeExecutionTests
         var cleanup = new List<string>();
         var grandchild = new FragmentDeclaration(
             (ref RenderContext ui) => ui.Text("grandchild"),
-            () => cleanup.Add("grandchild"));
+            () => cleanup.Add("grandchild")
+        );
         var child = new FragmentDeclaration(
-            (ref RenderContext ui) => ui.Child("grandchild", new ViewSpec<DeclarationChild, FragmentDeclaration>(grandchild)),
-            () => cleanup.Add("child"));
-        using var fixture = new SessionFixture(new DeclarationRoot((ref RenderContext ui) =>
-        {
-            _ = ui.Child("child", new ViewSpec<DeclarationChild, FragmentDeclaration>(child));
-            throw new InvalidOperationException("parent render failed");
-        }));
+            (ref RenderContext ui) =>
+                ui.Child(
+                    "grandchild",
+                    new ViewSpec<DeclarationChild, FragmentDeclaration>(grandchild)
+                ),
+            () => cleanup.Add("child")
+        );
+        using var fixture = new SessionFixture(
+            new DeclarationRoot(
+                (ref RenderContext ui) =>
+                {
+                    _ = ui.Child(
+                        "child",
+                        new ViewSpec<DeclarationChild, FragmentDeclaration>(child)
+                    );
+                    throw new InvalidOperationException("parent render failed");
+                }
+            )
+        );
 
         Assert.Throws<InvalidOperationException>(fixture.Publish);
 
@@ -244,22 +307,34 @@ public sealed unsafe partial class RuntimeExecutionTests
     }
 
     private delegate Element ElementDeclaration(ref RenderContext ui);
-    private readonly record struct FragmentDeclaration(ElementDeclaration Render, Action? Cleanup = null);
+
+    private readonly record struct FragmentDeclaration(
+        ElementDeclaration Render,
+        Action? Cleanup = null
+    );
 
     private sealed class DeclarationRoot(ElementDeclaration render) : ProbeView
     {
         protected override Element Render(ref RenderContext ui) => render(ref ui);
     }
 
-    private sealed class DeclarationChild : View<FragmentDeclaration>, IGeneratedViewFactory<DeclarationChild, FragmentDeclaration>
+    private sealed class DeclarationChild
+        : View<FragmentDeclaration>,
+            IGeneratedViewFactory<DeclarationChild, FragmentDeclaration>
     {
-        private DeclarationChild(ViewConstruction construction, FragmentDeclaration props) : base(construction)
+        private DeclarationChild(ViewConstruction construction, FragmentDeclaration props)
+            : base(construction)
         {
             if (props.Cleanup is { } cleanup)
                 construction.Own(new TestCleanup(cleanup));
         }
 
-        public static DeclarationChild CreateGpuiView(ViewConstruction construction, FragmentDeclaration props) => new(construction, props);
-        protected override Element Render(in FragmentDeclaration props, ref RenderContext ui) => props.Render(ref ui);
+        public static DeclarationChild CreateGpuiView(
+            ViewConstruction construction,
+            FragmentDeclaration props
+        ) => new(construction, props);
+
+        protected override Element Render(in FragmentDeclaration props, ref RenderContext ui) =>
+            props.Render(ref ui);
     }
 }

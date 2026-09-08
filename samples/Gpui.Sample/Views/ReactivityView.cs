@@ -31,18 +31,23 @@ internal sealed partial class ReactivityView : View
                 ui.Text("Use the controls, pause the doubled display, or remove and recreate it."u8)
                     .TextColor(ui.Theme.Colors.TextMuted),
                 ui.Child("controls", SignalControlsView.Spec(controlsProps)),
-                ui.HStack(
-                        ui.Child("count", SignalReaderView.Spec(countProps)),
-                        secondReader
-                    )
+                ui.HStack(ui.Child("count", SignalReaderView.Spec(countProps)), secondReader)
                     .Gap(Px(12)),
-                ui.Button("toggle-reader", showSecondReader ? "Remove doubled reader" : "Show doubled reader")
-                    .OnClick(this, (view, _) =>
-                    {
-                        view._showSecondReader.Value = !view._showSecondReader.Value;
-                    })
+                ui.Button(
+                        "toggle-reader",
+                        showSecondReader ? "Remove doubled reader" : "Show doubled reader"
+                    )
+                    .OnClick(
+                        this,
+                        (view, _) =>
+                        {
+                            view._showSecondReader.Value = !view._showSecondReader.Value;
+                        }
+                    )
                     .Style(SampleStyles.Button(ui.Theme)),
-                ui.Text("The live count keeps updating while the doubled reader is paused or absent."u8)
+                ui.Text(
+                        "The live count keeps updating while the doubled reader is paused or absent."u8
+                    )
                     .TextColor(ui.Theme.Colors.TextMuted)
             )
             .Gap(Px(14))

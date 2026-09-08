@@ -892,8 +892,8 @@ mod tests {
         });
         let command = ResourceCommand {
             key: crate::resources::ResourceKey::new(1, gpui::SharedString::new("slider")),
-            resource_kind: 4,
-            command: 30,
+            resource_kind: crate::semantic::RESOURCE_SLIDER,
+            command: crate::semantic::COMMAND_SLIDER_SET_VALUE,
             a: (20f32.to_bits() as u64) | ((20f32.to_bits() as u64) << 32),
             b: 0,
             data: gpui::SharedString::new(""),
@@ -918,7 +918,7 @@ mod tests {
         });
         let command = ResourceCommand {
             key: crate::resources::ResourceKey::new(1, gpui::SharedString::new("slider")),
-            resource_kind: 4,
+            resource_kind: crate::semantic::RESOURCE_SLIDER,
             command: COMMAND_SLIDER_SET_VALUE,
             a: (20f32.to_bits() as u64) | ((20f32.to_bits() as u64) << 32),
             b: 0,

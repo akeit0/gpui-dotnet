@@ -27,9 +27,13 @@ public sealed partial class RuntimeExecutionTests
         const int warmups = 4;
         const int measurements = 3;
         var isPending = pattern.Contains("pending", StringComparison.Ordinal);
-        var isCancellation = pattern.StartsWith("cancelled", StringComparison.Ordinal) || pattern == "producer-cancels";
-        var isFailure = pattern.StartsWith("faulted", StringComparison.Ordinal) || pattern == "producer-throws";
-        var ready = isCancellation ? Task.FromCanceled<int>(new CancellationToken(true))
+        var isCancellation =
+            pattern.StartsWith("cancelled", StringComparison.Ordinal)
+            || pattern == "producer-cancels";
+        var isFailure =
+            pattern.StartsWith("faulted", StringComparison.Ordinal) || pattern == "producer-throws";
+        var ready = isCancellation
+            ? Task.FromCanceled<int>(new CancellationToken(true))
             : Task.FromResult(42);
         // This probe measures synchronous registration and observation on the calling thread.
         // Setup, Task/source construction, assertions, and rendering are outside the interval.
@@ -42,7 +46,9 @@ public sealed partial class RuntimeExecutionTests
             // Do not reuse thrown exceptions: repeated observation can accumulate stack history.
             var failures = isFailure || pattern == "producer-cancels" ? new Exception[count] : [];
             for (var index = 0; index < failures.Length; index++)
-                failures[index] = isCancellation ? new OperationCanceledException() : new Exception("allocation probe");
+                failures[index] = isCancellation
+                    ? new OperationCanceledException()
+                    : new Exception("allocation probe");
             var faultedTasks = pattern == "faulted-ready" ? new Task<int>[count] : [];
             for (var index = 0; index < faultedTasks.Length; index++)
                 faultedTasks[index] = Task.FromException<int>(failures[index]);
@@ -51,8 +57,10 @@ public sealed partial class RuntimeExecutionTests
             var before = GC.GetAllocatedBytesForCurrentThread();
             for (var index = 0; index < count; index++)
             {
-                var task = isPending ? sources[index].Task
-                    : faultedTasks.Length != 0 ? faultedTasks[index] : ready;
+                var task =
+                    isPending ? sources[index].Task
+                    : faultedTasks.Length != 0 ? faultedTasks[index]
+                    : ready;
                 switch (pattern)
                 {
                     case "completed-instance":
@@ -68,20 +76,41 @@ public sealed partial class RuntimeExecutionTests
                         scope.Start(sink, task, static (task, _) => task, sink.CachedMulticast);
                         break;
                     case "completed-new-task":
-                        scope.Start(sink, 42, static (value, _) => Task.FromResult(value), CompleteAllocationWork);
+                        scope.Start(
+                            sink,
+                            42,
+                            static (value, _) => Task.FromResult(value),
+                            CompleteAllocationWork
+                        );
                         break;
                     case "producer-throws":
                     case "producer-cancels":
-                        scope.Start<WorkAllocationSink, Exception, int>(sink, failures[index], static (error, _) => throw error,
-                            CompleteAllocationWork, FailAllocationWork, CancelAllocationWork);
+                        scope.Start<WorkAllocationSink, Exception, int>(
+                            sink,
+                            failures[index],
+                            static (error, _) => throw error,
+                            CompleteAllocationWork,
+                            FailAllocationWork,
+                            CancelAllocationWork
+                        );
                         break;
                     case "pending-async-producer":
-                        scope.Start(sink, task, static async (task, _) => await task.ConfigureAwait(false),
-                            CompleteAllocationWork);
+                        scope.Start(
+                            sink,
+                            task,
+                            static async (task, _) => await task.ConfigureAwait(false),
+                            CompleteAllocationWork
+                        );
                         break;
                     default:
-                        scope.Start(sink, task, static (task, _) => task,
-                            CompleteAllocationWork, FailAllocationWork, CancelAllocationWork);
+                        scope.Start(
+                            sink,
+                            task,
+                            static (task, _) => task,
+                            CompleteAllocationWork,
+                            FailAllocationWork,
+                            CancelAllocationWork
+                        );
                         break;
                 }
             }
@@ -102,14 +131,19 @@ public sealed partial class RuntimeExecutionTests
             fixture.Render();
             Assert.Equal(isFailure ? count : 0, sink.Failed);
             Assert.Equal(isCancellation ? count : 0, sink.Cancelled);
-            Assert.Equal(isFailure || isCancellation ? 0
-                : pattern == "completed-cached-multicast" ? 2 * count : count, sink.Completed);
+            Assert.Equal(
+                isFailure || isCancellation ? 0
+                    : pattern == "completed-cached-multicast" ? 2 * count
+                    : count,
+                sink.Completed
+            );
             if (iteration >= warmups)
             {
                 var startBytes = (afterStart - before) / (double)count;
                 var observationBytes = (afterObservation - afterStart) / (double)count;
                 TestContext.Current.TestOutputHelper!.WriteLine(
-                    $"{pattern}: start={startBytes:N1}, observation={observationBytes:N1}, total={startBytes + observationBytes:N1} B/op");
+                    $"{pattern}: start={startBytes:N1}, observation={observationBytes:N1}, total={startBytes + observationBytes:N1} B/op"
+                );
                 // Detect accidental wrapper Tasks/closures on the basic paths, while leaving
                 // fault paths free to account for runtime exception/stack-trace allocation.
                 if (pattern is "completed-static" or "cancelled-ready")
@@ -120,12 +154,18 @@ public sealed partial class RuntimeExecutionTests
         }
     }
 
-    private static void CompleteAllocationWork(WorkAllocationSink state, int _) => state.Completed++;
+    private static void CompleteAllocationWork(WorkAllocationSink state, int _) =>
+        state.Completed++;
+
     private static void FailAllocationWork(WorkAllocationSink state, Exception _) => state.Failed++;
+
     private static void CancelAllocationWork(WorkAllocationSink state) => state.Cancelled++;
 
-    private static void StartWithLocalCapture(WorkScope scope, WorkAllocationSink sink, Task<int> task) =>
-        scope.Start(sink, task, static (task, _) => task, (_, _) => sink.Completed++);
+    private static void StartWithLocalCapture(
+        WorkScope scope,
+        WorkAllocationSink sink,
+        Task<int> task
+    ) => scope.Start(sink, task, static (task, _) => task, (_, _) => sink.Completed++);
 
     private sealed class WorkAllocationSink
     {
@@ -140,10 +180,12 @@ public sealed partial class RuntimeExecutionTests
         {
             _scope = scope;
             CachedInstance = Complete;
-            CachedMulticast = (Action<WorkAllocationSink, int>)CompleteAllocationWork + CompleteAllocationWork;
+            CachedMulticast =
+                (Action<WorkAllocationSink, int>)CompleteAllocationWork + CompleteAllocationWork;
         }
 
         private void Complete(WorkAllocationSink _, int value) => Completed++;
+
         internal void StartWithInstanceCapture(Task<int> task) =>
             _scope.Start(this, task, static (task, _) => task, (_, _) => Completed++);
     }

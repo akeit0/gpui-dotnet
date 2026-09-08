@@ -73,8 +73,7 @@ internal sealed partial class DockView : View
                 panels: ui.DockPanel("empty", "Empty", ui.Text("All panels closed."u8))
             );
         }
-        var left = ui
-            .DockRegion(
+        var left = ui.DockRegion(
                 DockSide.Left,
                 ui.DockTabs(
                     panels: ui.DockPanel(
@@ -86,8 +85,7 @@ internal sealed partial class DockView : View
                 )
             )
             .InitialSize(180);
-        var bottom = ui
-            .DockRegion(
+        var bottom = ui.DockRegion(
                 DockSide.Bottom,
                 ui.DockTabs(
                     panels: ui.DockPanel(
@@ -98,8 +96,7 @@ internal sealed partial class DockView : View
                 )
             )
             .InitialSize(220);
-        var inspector = ui
-            .VStack(
+        var inspector = ui.VStack(
                 ui.Text("Selection"u8).TextColor(theme.Colors.TextMuted),
                 ui.Text("No symbol selected"u8).TextColor(theme.Colors.Text),
                 ui.Divider(),
@@ -109,8 +106,7 @@ internal sealed partial class DockView : View
             .Padding(Px(12))
             .Grow()
             .Background(theme.Colors.SurfaceBackground);
-        var right = ui
-            .DockRegion(
+        var right = ui.DockRegion(
                 DockSide.Right,
                 ui.DockTabs(
                     panels: ui.DockPanel(
@@ -123,8 +119,7 @@ internal sealed partial class DockView : View
             )
             .InitialSize(180);
 
-        return ui
-            .DockArea("sample-dock", center, [left, bottom, right])
+        return ui.DockArea("sample-dock", center, [left, bottom, right])
             .OnDockPanelClosed(this, (view, dockEvent) => view.OnPanelClosed(dockEvent))
             .Grow()
             .Width(Percent(100))

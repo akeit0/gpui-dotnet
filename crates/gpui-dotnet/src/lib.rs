@@ -4,6 +4,7 @@ mod accessibility;
 mod allocation_tracking;
 mod app_host;
 mod arena;
+mod collections;
 mod components;
 mod context_menu;
 mod demand;
@@ -256,15 +257,23 @@ unsafe fn dispatch_command_inner(view_id: u64, command: *const NativeResourceCom
         RESOURCE_FOCUS => matches!(command.command, COMMAND_FOCUS_FOCUS | COMMAND_FOCUS_BLUR),
         RESOURCE_SCROLL => matches!(
             command.command,
-            COMMAND_SCROLL_TO_OFFSET..=COMMAND_SCROLL_TO_BOTTOM
+            COMMAND_SCROLL_TO_OFFSET | COMMAND_SCROLL_TO_TOP | COMMAND_SCROLL_TO_BOTTOM
         ),
         RESOURCE_LIST => matches!(
             command.command,
-            COMMAND_LIST_SCROLL_TO_ITEM..=COMMAND_LIST_REFRESH
+            COMMAND_LIST_SCROLL_TO_ITEM
+                | COMMAND_LIST_SPLICE
+                | COMMAND_LIST_RESET
+                | COMMAND_LIST_REFRESH
         ),
         RESOURCE_INPUT => matches!(
             command.command,
-            COMMAND_INPUT_FOCUS..=COMMAND_INPUT_SET_VALUE_IF_CURRENT_WITH_RESULT
+            COMMAND_INPUT_FOCUS
+                | COMMAND_INPUT_BLUR
+                | COMMAND_INPUT_SET_VALUE
+                | COMMAND_INPUT_SELECT_ALL
+                | COMMAND_INPUT_SET_VALUE_IF_CURRENT
+                | COMMAND_INPUT_SET_VALUE_IF_CURRENT_WITH_RESULT
         ),
         RESOURCE_SLIDER => command.command == COMMAND_SLIDER_SET_VALUE,
         RESOURCE_DOCK => matches!(

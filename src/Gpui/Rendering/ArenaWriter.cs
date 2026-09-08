@@ -730,9 +730,7 @@ internal static unsafe class ArenaWriter
         var bytes = 0;
         foreach (var (tag, value) in features)
         {
-            bytes = checked(
-                bytes + Encoding.UTF8.GetByteCount(tag) + 1 + DigitCount(value) + 1
-            );
+            bytes = checked(bytes + Encoding.UTF8.GetByteCount(tag) + 1 + DigitCount(value) + 1);
         }
 
         EnsureUtf8(arena, bytes);
@@ -824,10 +822,7 @@ internal static unsafe class ArenaWriter
         {
             var operation = source->Ops[index];
             operation.Node = checked(operation.Node + nodeOffset);
-            if (
-                operation.ValueKind == (ushort)ValueKind.Data
-                && operation.B != 0
-            )
+            if (operation.ValueKind == (ushort)ValueKind.Data && operation.B != 0)
             {
                 operation.A = checked(operation.A + utf8Offset);
             }
@@ -850,7 +845,11 @@ internal static unsafe class ArenaWriter
             destination->Utf8Length += source->Utf8Length;
         }
 
-        return new Element(destinationStorage, checked(sourceRoot + nodeOffset), destination->Generation);
+        return new Element(
+            destinationStorage,
+            checked(sourceRoot + nodeOffset),
+            destination->Generation
+        );
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

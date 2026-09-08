@@ -21,7 +21,8 @@ public sealed class SemanticRenderTests
 
     [Fact]
     public void MarginPaddingAndGapAxesPassManagedValidation()
-    {        using var arena = new RenderArenaOwner();
+    {
+        using var arena = new RenderArenaOwner();
         var ui = arena.BeginRender();
         var root = ui.VStack(ui.Text("box"u8))
             .Margin(Px(4))
@@ -220,16 +221,24 @@ public sealed class SemanticRenderTests
             var ui = arena.BeginRender(new NoopRenderer(), view);
             var root = ui.Div(
                 ui.Button("save").AccessibleName("Save").AccessibleDescription("Save changes"u8),
-                ui.Checkbox("check").AccessibleName("Remember me"u8).AccessibleDescription("Keep this session"),
+                ui.Checkbox("check")
+                    .AccessibleName("Remember me"u8)
+                    .AccessibleDescription("Keep this session"),
                 ui.Radio("radio").AccessibleName("Standard"),
                 ui.Input("account", new InputOptions()).AccessibleName("Account"),
-                ui.Slider("volume", new SliderOptions()).AccessibleName("Old").AccessibleName("音量"u8)
-                    .AccessibleDescription("Playback volume"));
+                ui.Slider("volume", new SliderOptions())
+                    .AccessibleName("Old")
+                    .AccessibleName("音量"u8)
+                    .AccessibleDescription("Playback volume")
+            );
             arena.Validate(root);
             Assert.Equal("音量", ReadDataOp(arena, OpCode.AccessibleName));
             Assert.Equal("Playback volume", ReadDataOp(arena, OpCode.AccessibleDescription));
         }
-        finally { view.Runtime.UnmountRuntime(); }
+        finally
+        {
+            view.Runtime.UnmountRuntime();
+        }
     }
 
     [Fact]
@@ -241,7 +250,9 @@ public sealed class SemanticRenderTests
         Assert.Throws<ArgumentException>(() => button.AccessibleName(string.Empty));
         Assert.Throws<ArgumentException>(() => button.AccessibleName(ReadOnlySpan<byte>.Empty));
         Assert.Throws<ArgumentException>(() => button.AccessibleDescription(string.Empty));
-        Assert.Throws<ArgumentException>(() => button.AccessibleDescription(ReadOnlySpan<byte>.Empty));
+        Assert.Throws<ArgumentException>(() =>
+            button.AccessibleDescription(ReadOnlySpan<byte>.Empty)
+        );
     }
 
     [Fact]
@@ -291,11 +302,7 @@ public sealed class SemanticRenderTests
         var childRoot = childUi.Div(childUi.Text("child").FontFamily("Georgia"));
         var parentUi = parent.BeginRender();
         var host = parentUi.Div(parentUi.Text("parent-text"));
-        var composed = ArenaWriter.AppendFragment(
-            parent,
-            child,
-            childRoot.Inner.Node
-        );
+        var composed = ArenaWriter.AppendFragment(parent, child, childRoot.Inner.Node);
         var root = host.Children(composed);
         parent.Validate(root);
         Assert.Equal("Georgia", ReadDataOp(parent, OpCode.FontFamily));
@@ -306,9 +313,7 @@ public sealed class SemanticRenderTests
     {
         using var arena = new RenderArenaOwner();
         var ui = arena.BeginRender();
-        var root = ui.Div(
-                ui.Div(ui.Text("cell"u8)).ColStart(0).ColEnd(2).RowStart(0).RowEnd(-1)
-            )
+        var root = ui.Div(ui.Div(ui.Text("cell"u8)).ColStart(0).ColEnd(2).RowStart(0).RowEnd(-1))
             .Grid()
             .GridCols(3)
             .GridRows(2)
@@ -374,7 +379,8 @@ public sealed class SemanticRenderTests
 
         using var percentArena = new RenderArenaOwner();
         var percentUi = percentArena.BeginRender();
-        var percentRoot = percentUi.Div()
+        var percentRoot = percentUi
+            .Div()
             .Top(Percent(10))
             .Left(Percent(20))
             .Right(Percent(30))
@@ -768,7 +774,10 @@ public sealed class SemanticRenderTests
             Assert.Equal(0x778899FFu, ReadLastU32Op(arena, OpCode.SliderThumbRgba));
             Assert.Equal(0xAABBCCFFu, ReadLastU32Op(arena, OpCode.SliderThumbBorderRgba));
         }
-        finally { view.Runtime.UnmountRuntime(); }
+        finally
+        {
+            view.Runtime.UnmountRuntime();
+        }
     }
 
     [Fact]
@@ -1108,7 +1117,11 @@ public sealed class SemanticRenderTests
     [InlineData(true, false, null)]
     [InlineData(true, false, 0UL)]
     [InlineData(true, true, ulong.MaxValue)]
-    public unsafe void CollectionProjectionRevisionPreservesOptionalU64(bool table, bool bound, ulong? projection)
+    public unsafe void CollectionProjectionRevisionPreservesOptionalU64(
+        bool table,
+        bool bound,
+        ulong? projection
+    )
     {
         var view = new ProbeView();
         Attach(view);
@@ -1120,20 +1133,33 @@ public sealed class SemanticRenderTests
             ListController controller = default;
             Element element = table
                 ? bound
-                    ? ui.Table(ref controller, source, view.Row, new TableColumn("name", "Name", 120))
+                    ? ui.Table(
+                        ref controller,
+                        source,
+                        view.Row,
+                        new TableColumn("name", "Name", 120)
+                    )
                     : ui.Table("grid", source, view.Row, new TableColumn("name", "Name", 120))
                 : bound
                     ? ui.List(ref controller, source, view.Row)
                     : ui.List("rows", source, view.Row);
             arena.Validate(element);
-            var ops = new ReadOnlySpan<OpRecord>(arena.NativeArena->Ops, arena.NativeArena->OpLength)
-                .ToArray().Where(op => op.Code == (ushort)OpCode.ListProjectionRevision).ToArray();
+            var ops = new ReadOnlySpan<OpRecord>(
+                arena.NativeArena->Ops,
+                arena.NativeArena->OpLength
+            )
+                .ToArray()
+                .Where(op => op.Code == (ushort)OpCode.ListProjectionRevision)
+                .ToArray();
             if (projection.HasValue)
                 Assert.Equal(projection.Value, Assert.Single(ops).A);
             else
                 Assert.Empty(ops);
         }
-        finally { view.Runtime.UnmountRuntime(); }
+        finally
+        {
+            view.Runtime.UnmountRuntime();
+        }
     }
 
     [Fact]
@@ -1328,7 +1354,12 @@ public sealed class SemanticRenderTests
             using var arena = new RenderArenaOwner();
             var ui = arena.BeginRender(new NoopRenderer(), view);
             Element root = table
-                ? ui.Table("grid", new ListDataSource(100, 7), view.Row, new TableColumn("name", "Name", 120))
+                ? ui.Table(
+                        "grid",
+                        new ListDataSource(100, 7),
+                        view.Row,
+                        new TableColumn("name", "Name", 120)
+                    )
                     .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value))
                 : ui.List("rows", new ListDataSource(100, 7), view.Row)
                     .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value));
@@ -1356,11 +1387,22 @@ public sealed class SemanticRenderTests
             using var arena = new RenderArenaOwner();
             var ui = arena.BeginRender(new NoopRenderer(), view);
             Element root = table
-                ? ui.Table("grid", new ListDataSource(100, 7), view.Row, new TableColumn("name", "Name", 120))
-                    .OnSelectionRequested(view, static (owner, value) => owner.ListSelections.Add(value))
+                ? ui.Table(
+                        "grid",
+                        new ListDataSource(100, 7),
+                        view.Row,
+                        new TableColumn("name", "Name", 120)
+                    )
+                    .OnSelectionRequested(
+                        view,
+                        static (owner, value) => owner.ListSelections.Add(value)
+                    )
                     .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value))
                 : ui.List("rows", new ListDataSource(100, 7), view.Row)
-                    .OnSelectionRequested(view, static (owner, value) => owner.ListSelections.Add(value))
+                    .OnSelectionRequested(
+                        view,
+                        static (owner, value) => owner.ListSelections.Add(value)
+                    )
                     .OnActivated(view, static (owner, value) => owner.ListActivations.Add(value));
             arena.Validate(root);
             var eventId = ReadCallbackEventId(arena, OpCode.ListOnSelectionRequested);
@@ -1425,17 +1467,29 @@ public sealed class SemanticRenderTests
         {
             using var arena = new RenderArenaOwner();
             var ui = arena.BeginRender(new NoopRenderer(), view);
-            var table = ui.Table("grid", new ListDataSource(10, 1), view.Row,
-                new TableColumn("name", "Name", 120), new TableColumn("size", "Size", 80));
+            var table = ui.Table(
+                "grid",
+                new ListDataSource(10, 1),
+                view.Row,
+                new TableColumn("name", "Name", 120),
+                new TableColumn("size", "Size", 80)
+            );
             var headers = new Element[headerCount];
             for (var i = 0; i < headers.Length; i++)
                 headers[i] = ui.Button($"header-{i}", ui.Text($"Column {i}"));
             table.Header(headers);
-            if (valid) arena.Validate(table);
-            else Assert.Contains("child count", Assert.Throws<InvalidOperationException>(
-                () => arena.Validate(table)).Message);
+            if (valid)
+                arena.Validate(table);
+            else
+                Assert.Contains(
+                    "child count",
+                    Assert.Throws<InvalidOperationException>(() => arena.Validate(table)).Message
+                );
         }
-        finally { view.Runtime.UnmountRuntime(); }
+        finally
+        {
+            view.Runtime.UnmountRuntime();
+        }
     }
 
     [Fact]
@@ -1447,8 +1501,12 @@ public sealed class SemanticRenderTests
         {
             using var arena = new RenderArenaOwner();
             var ui = arena.BeginRender(new NoopRenderer(), view);
-            var table = ui.Table("grid", new ListDataSource(10, 1), view.Row,
-                    new TableColumn("name", "Name", 120))
+            var table = ui.Table(
+                    "grid",
+                    new ListDataSource(10, 1),
+                    view.Row,
+                    new TableColumn("name", "Name", 120)
+                )
                 .HeaderBackground(Hex("#112233"))
                 .HeaderTextColor(Hex("#445566"))
                 .HeaderBorderColor(Hex("#77889940"))
@@ -1458,7 +1516,10 @@ public sealed class SemanticRenderTests
             Assert.Equal(0x445566FFu, ReadLastU32Op(arena, OpCode.TableHeaderTextRgba));
             Assert.Equal(0x77889940u, ReadLastU32Op(arena, OpCode.TableHeaderBorderRgba));
         }
-        finally { view.Runtime.UnmountRuntime(); }
+        finally
+        {
+            view.Runtime.UnmountRuntime();
+        }
     }
 
     [Fact]
@@ -1480,7 +1541,10 @@ public sealed class SemanticRenderTests
             Assert.Equal(0x445566FFu, ReadLastU32Op(arena, OpCode.InputCaretRgba));
             Assert.Equal(0x77889940u, ReadLastU32Op(arena, OpCode.InputSelectionRgba));
         }
-        finally { view.Runtime.UnmountRuntime(); }
+        finally
+        {
+            view.Runtime.UnmountRuntime();
+        }
     }
 
     [Fact]
@@ -1858,8 +1922,7 @@ public sealed class SemanticRenderTests
                     new DockPanelOptions(closable: false)
                 )
             );
-            var editors = ui
-                .DockTabs(
+            var editors = ui.DockTabs(
                     activeIndex: 1,
                     panels:
                     [
@@ -1873,12 +1936,9 @@ public sealed class SemanticRenderTests
                     ]
                 )
                 .InitialSize(640);
-            var inspector = ui
-                .DockRegion(
+            var inspector = ui.DockRegion(
                     DockSide.Right,
-                    ui.DockTabs(
-                        panels: ui.DockPanel("inspector", "Inspector", ui.Text("details"))
-                    ),
+                    ui.DockTabs(panels: ui.DockPanel("inspector", "Inspector", ui.Text("details"))),
                     new DockRegionOptions(initiallyOpen: false, collapsible: false)
                 )
                 .InitialSize(280);
@@ -2003,7 +2063,9 @@ public sealed class SemanticRenderTests
             Assert.False(unbound.IsBound);
             Assert.True(unbound.IsDefault);
             Assert.Throws<InvalidOperationException>(() => unbound.ClosePanel("editor"));
-            Assert.Throws<InvalidOperationException>(() => unbound.SetRegionOpen(DockSide.Left, true));
+            Assert.Throws<InvalidOperationException>(() =>
+                unbound.SetRegionOpen(DockSide.Left, true)
+            );
             Assert.Throws<InvalidOperationException>(() => unbound.ImportLayout("{}"));
             Assert.Throws<InvalidOperationException>(() => unbound.ExportLayout());
 
@@ -2012,8 +2074,8 @@ public sealed class SemanticRenderTests
             Assert.Throws<ArgumentNullException>(() => controller.ClosePanel(null!));
             Assert.Throws<ArgumentException>(() => controller.ClosePanel(""));
             Assert.Throws<ArgumentException>(() => controller.ClosePanel("a\0b"));
-            Assert.Throws<ArgumentOutOfRangeException>(
-                () => controller.SetRegionOpen((DockSide)3, true)
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                controller.SetRegionOpen((DockSide)3, true)
             );
             Assert.Throws<ArgumentNullException>(() => controller.ImportLayout(null!));
             Assert.Throws<ArgumentException>(() => controller.ImportLayout(""));
@@ -2055,9 +2117,7 @@ public sealed class SemanticRenderTests
                 );
                 Assert.Fail("Expected a key-mismatch ArgumentException.");
             }
-            catch (ArgumentException)
-            {
-            }
+            catch (ArgumentException) { }
         }
         finally
         {
@@ -2146,8 +2206,14 @@ public sealed class SemanticRenderTests
             var scrollWheel = ReadCallbackEventId(arena, OpCode.OnScrollWheel);
             var fileDrop = ReadCallbackEventId(arena, OpCode.OnFileDrop);
 
-            view.Runtime.Events.DispatchKeyCore(keyDown, new KeyEvent(KeyEventKind.Down, "s", 1, false));
-            view.Runtime.Events.DispatchKeyCore(keyUp, new KeyEvent(KeyEventKind.Up, "s", 1, false));
+            view.Runtime.Events.DispatchKeyCore(
+                keyDown,
+                new KeyEvent(KeyEventKind.Down, "s", 1, false)
+            );
+            view.Runtime.Events.DispatchKeyCore(
+                keyUp,
+                new KeyEvent(KeyEventKind.Up, "s", 1, false)
+            );
             view.Runtime.Events.DispatchMouseCore(
                 mouseDown,
                 new MouseEvent(MouseEventKind.Down, 12, 34, MouseButton.Right, 1, 1)
@@ -2455,8 +2521,11 @@ public sealed class SemanticRenderTests
 
     private sealed class ProbeView : View
     {
-        public ProbeView() : this(TestViews.Construction()) { }
-        public ProbeView(ViewConstruction construction) : base(construction) { }
+        public ProbeView()
+            : this(TestViews.Construction()) { }
+
+        public ProbeView(ViewConstruction construction)
+            : base(construction) { }
 
         internal float SliderEvents;
         internal float SliderReleases;
@@ -2480,8 +2549,11 @@ public sealed class SemanticRenderTests
 
     private sealed class DynamicCallbackView : View
     {
-        public DynamicCallbackView() : this(TestViews.Construction()) { }
-        public DynamicCallbackView(ViewConstruction construction) : base(construction) { }
+        public DynamicCallbackView()
+            : this(TestViews.Construction()) { }
+
+        public DynamicCallbackView(ViewConstruction construction)
+            : base(construction) { }
 
         internal bool BindCallback = true;
         internal CallbackTargetView? CallbackTarget;
@@ -2506,8 +2578,11 @@ public sealed class SemanticRenderTests
 
     private sealed class CallbackTargetView : View
     {
-        public CallbackTargetView() : this(TestViews.Construction()) { }
-        public CallbackTargetView(ViewConstruction construction) : base(construction) { }
+        public CallbackTargetView()
+            : this(TestViews.Construction()) { }
+
+        public CallbackTargetView(ViewConstruction construction)
+            : base(construction) { }
 
         internal int ClickCount;
 

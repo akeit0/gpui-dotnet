@@ -29,8 +29,14 @@ public sealed unsafe class SurfaceColorsTests
         }
 
         arena.Validate(root);
-        Assert.Equal(surfaceLast ? Palette.Normal.Background : literal, LastColor(arena, OpCode.BackgroundRgba));
-        Assert.Equal(surfaceLast ? Palette.Normal.Foreground : literal, LastColor(arena, OpCode.TextRgba));
+        Assert.Equal(
+            surfaceLast ? Palette.Normal.Background : literal,
+            LastColor(arena, OpCode.BackgroundRgba)
+        );
+        Assert.Equal(
+            surfaceLast ? Palette.Normal.Foreground : literal,
+            LastColor(arena, OpCode.TextRgba)
+        );
     }
 
     [Fact]
@@ -38,9 +44,7 @@ public sealed unsafe class SurfaceColorsTests
     {
         using var arena = new RenderArenaOwner();
         var ui = arena.BeginRender();
-        var root = ui.Button("paint", "label")
-            .Paint(default)
-            .Style(new PaintStyle(Palette));
+        var root = ui.Button("paint", "label").Paint(default).Style(new PaintStyle(Palette));
 
         arena.Validate(root);
         AssertPalette(arena, Palette);
@@ -60,15 +64,20 @@ public sealed unsafe class SurfaceColorsTests
         var ui = arena.BeginRender();
         var foreground = new Color(0x99887766);
         var hoverBackground = new Color(0x55443322);
-        var root = ui.Button("paint", "label").Paint(Palette)
-            .TextColor(foreground).HoverBackground(hoverBackground);
+        var root = ui.Button("paint", "label")
+            .Paint(Palette)
+            .TextColor(foreground)
+            .HoverBackground(hoverBackground);
 
         arena.Validate(root);
-        AssertPalette(arena, Palette with
-        {
-            Normal = Palette.Normal with { Foreground = foreground },
-            Hover = Palette.Hover with { Background = hoverBackground },
-        });
+        AssertPalette(
+            arena,
+            Palette with
+            {
+                Normal = Palette.Normal with { Foreground = foreground },
+                Hover = Palette.Hover with { Background = hoverBackground },
+            }
+        );
     }
 
     [Fact]
@@ -108,7 +117,8 @@ public sealed unsafe class SurfaceColorsTests
         throw new InvalidOperationException($"Missing operation {code}.");
     }
 
-    private readonly record struct PaintStyle(InteractionColors Colors) : IGpuiElementStyle<ButtonTag>
+    private readonly record struct PaintStyle(InteractionColors Colors)
+        : IGpuiElementStyle<ButtonTag>
     {
         public Element<ButtonTag> Apply(Element<ButtonTag> button) => button.Paint(Colors);
     }

@@ -183,11 +183,7 @@ public sealed class TaskStore
     public void SetStatus(long id, TaskStatus status) =>
         Replace(
             id,
-            t => t with
-            {
-                Status = status,
-                Completed = status == TaskStatus.Done || t.Completed,
-            },
+            t => t with { Status = status, Completed = status == TaskStatus.Done || t.Completed },
             $"Moved task #{id} to {status}"
         );
 
@@ -211,7 +207,14 @@ public sealed class TaskStore
         var index = FindIndex(id);
         if (index < 0 || _tasks[index].Revision != expectedRevision)
             return false;
-        CommitReplacement(index, _tasks[index] with { EstimateHours = normalized }, $"Re-estimated task #{id}");
+        CommitReplacement(
+            index,
+            _tasks[index] with
+            {
+                EstimateHours = normalized,
+            },
+            $"Re-estimated task #{id}"
+        );
         return true;
     }
 
@@ -232,17 +235,25 @@ public sealed class TaskStore
         var completed = !task.Completed;
         Replace(
             id,
-            t => t with
-            {
-                Completed = completed,
-                Status = completed ? TaskStatus.Done : t.Status == TaskStatus.Done ? TaskStatus.Todo : t.Status,
-            },
+            t =>
+                t with
+                {
+                    Completed = completed,
+                    Status =
+                        completed ? TaskStatus.Done
+                        : t.Status == TaskStatus.Done ? TaskStatus.Todo
+                        : t.Status,
+                },
             completed ? $"Completed task #{id}" : $"Reopened task #{id}"
         );
     }
 
     public void AddAttachment(long id, string fileName) =>
-        Replace(id, t => t with { Attachments = [.. t.Attachments, fileName] }, $"Attached “{fileName}” to task #{id}");
+        Replace(
+            id,
+            t => t with { Attachments = [.. t.Attachments, fileName] },
+            $"Attached “{fileName}” to task #{id}"
+        );
 
     public int CountForProject(string projectId) =>
         projectId == "all" ? Tasks.Count : Tasks.Count(t => t.ProjectId == projectId);
@@ -270,7 +281,10 @@ public sealed class TaskStore
             {
                 continue;
             }
-            if (!filter.Query.IsEmpty && !task.Title.Contains(filter.Query.Text, StringComparison.OrdinalIgnoreCase))
+            if (
+                !filter.Query.IsEmpty
+                && !task.Title.Contains(filter.Query.Text, StringComparison.OrdinalIgnoreCase)
+            )
             {
                 continue;
             }
@@ -281,7 +295,10 @@ public sealed class TaskStore
             {
                 var order = filter.SortBy switch
                 {
-                    BoardSort.Priority => Comparer<TaskPriority>.Default.Compare(a.Priority, b.Priority),
+                    BoardSort.Priority => Comparer<TaskPriority>.Default.Compare(
+                        a.Priority,
+                        b.Priority
+                    ),
                     BoardSort.Estimate => a.EstimateHours.CompareTo(b.EstimateHours),
                     _ => string.Compare(a.Title, b.Title, StringComparison.OrdinalIgnoreCase),
                 };
@@ -303,10 +320,21 @@ public sealed class TaskStore
         var assignees = new[] { "Aiko", "Ben", "Chloe", "Dev", "Eri", "Farah" };
         var titles = new[]
         {
-            "Fix flaky sync retry", "Add offline queue", "Review auth tokens", "Migrate settings screen",
-            "Polish empty states", "Write release notes", "Benchmark list scrolling", "Harden IME paths",
-            "Add keyboard shortcuts", "Audit focus order", "Shrink native payload", "Cache row measurements",
-            "Design onboarding", "Localize error strings", "Add dark-mode snapshots",
+            "Fix flaky sync retry",
+            "Add offline queue",
+            "Review auth tokens",
+            "Migrate settings screen",
+            "Polish empty states",
+            "Write release notes",
+            "Benchmark list scrolling",
+            "Harden IME paths",
+            "Add keyboard shortcuts",
+            "Audit focus order",
+            "Shrink native payload",
+            "Cache row measurements",
+            "Design onboarding",
+            "Localize error strings",
+            "Add dark-mode snapshots",
         };
         var random = new Random(42);
         var projects = new[] { "platform", "mobile", "website" };

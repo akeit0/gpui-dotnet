@@ -25,17 +25,24 @@ public sealed unsafe partial class RuntimeExecutionTests
     {
         var first = new Signal<int>(0);
         var second = new Signal<int>(0);
-        using var fixture = new SessionFixture(new ProbeView
-        {
-            DuringRow = index => _ = index == 0 ? first.Value : second.Value
-        });
+        using var fixture = new SessionFixture(
+            new ProbeView { DuringRow = index => _ = index == 0 ? first.Value : second.Value }
+        );
         fixture.Render();
         var a = fixture.Range(0);
         var b = fixture.Range(1);
-        fixture.View.OnClick = () => { first.Value++; second.Value++; first.Value++; };
+        fixture.View.OnClick = () =>
+        {
+            first.Value++;
+            second.Value++;
+            first.Value++;
+        };
         Assert.Equal(0, fixture.Click());
         Assert.Single(fixture.ArtifactBatches);
-        Assert.Equal(new[] { a, b }, fixture.ArtifactBatches[0].Select(key => key.artifact).Order().ToArray());
+        Assert.Equal(
+            new[] { a, b },
+            fixture.ArtifactBatches[0].Select(key => key.artifact).Order().ToArray()
+        );
         Assert.Equal(0, fixture.Notifications);
         Assert.False(fixture.State(fixture.View).Dirty);
         Assert.Equal(1, fixture.View.RenderCount);
@@ -92,8 +99,14 @@ public sealed unsafe partial class RuntimeExecutionTests
     {
         var signal = new Signal<int>(0);
         var application = new GpuiApplication();
-        using var first = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value }, application);
-        using var second = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value }, application);
+        using var first = new SessionFixture(
+            new ProbeView { DuringRender = () => _ = signal.Value },
+            application
+        );
+        using var second = new SessionFixture(
+            new ProbeView { DuringRender = () => _ = signal.Value },
+            application
+        );
         first.Render();
         second.Render();
         signal.Value++;
@@ -109,9 +122,18 @@ public sealed unsafe partial class RuntimeExecutionTests
         var signal = new Signal<int>(0);
         var application = new GpuiApplication();
         var observed = -1;
-        using var healthy = new SessionFixture(new ProbeView { DuringRender = () => observed = signal.Value }, application);
-        using var secondFailure = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value }, application);
-        using var firstFailure = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value }, application);
+        using var healthy = new SessionFixture(
+            new ProbeView { DuringRender = () => observed = signal.Value },
+            application
+        );
+        using var secondFailure = new SessionFixture(
+            new ProbeView { DuringRender = () => _ = signal.Value },
+            application
+        );
+        using var firstFailure = new SessionFixture(
+            new ProbeView { DuringRender = () => _ = signal.Value },
+            application
+        );
         // New subscriptions precede old ones: both failures occur before the healthy subscriber.
         healthy.Render();
         secondFailure.Render();
@@ -142,9 +164,18 @@ public sealed unsafe partial class RuntimeExecutionTests
     {
         var signal = new Signal<int>(0);
         var application = new GpuiApplication();
-        using var healthyRows = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value }, application);
-        using var failedRows = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value }, application);
-        using var failedView = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value }, application);
+        using var healthyRows = new SessionFixture(
+            new ProbeView { DuringRow = _ => _ = signal.Value },
+            application
+        );
+        using var failedRows = new SessionFixture(
+            new ProbeView { DuringRow = _ => _ = signal.Value },
+            application
+        );
+        using var failedView = new SessionFixture(
+            new ProbeView { DuringRender = () => _ = signal.Value },
+            application
+        );
         healthyRows.Render();
         var healthyArtifact = healthyRows.Range(0);
         failedRows.Render();
@@ -157,7 +188,10 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Same(failedView.Session.Failure, error);
         Assert.NotNull(failedRows.Session.Failure);
         Assert.Null(healthyRows.Session.Failure);
-        Assert.Equal(healthyArtifact, Assert.Single(Assert.Single(healthyRows.ArtifactBatches)).artifact);
+        Assert.Equal(
+            healthyArtifact,
+            Assert.Single(Assert.Single(healthyRows.ArtifactBatches)).artifact
+        );
         Assert.Single(failedRows.ArtifactBatches);
         Assert.False(healthyRows.State(healthyRows.View).Dirty);
         Assert.Null(ApplicationExecution.Current);
@@ -175,8 +209,14 @@ public sealed unsafe partial class RuntimeExecutionTests
     {
         var signal = new Signal<int>(0);
         var application = new GpuiApplication();
-        using var healthy = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value }, application);
-        using var failing = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value }, application);
+        using var healthy = new SessionFixture(
+            new ProbeView { DuringRow = _ => _ = signal.Value },
+            application
+        );
+        using var failing = new SessionFixture(
+            new ProbeView { DuringRow = _ => _ = signal.Value },
+            application
+        );
         healthy.Render();
         var artifact = healthy.Range(0);
         failing.Render();
@@ -198,10 +238,22 @@ public sealed unsafe partial class RuntimeExecutionTests
     {
         var signal = new Signal<int>(0);
         var application = new GpuiApplication();
-        using var healthyRows = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value }, application);
-        using var otherRows = new SessionFixture(new ProbeView { DuringRow = _ => _ = signal.Value }, application);
-        using var failedView = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value }, application);
-        using var writer = new SessionFixture(new ProbeView { OnClick = () => signal.Set(1) }, application);
+        using var healthyRows = new SessionFixture(
+            new ProbeView { DuringRow = _ => _ = signal.Value },
+            application
+        );
+        using var otherRows = new SessionFixture(
+            new ProbeView { DuringRow = _ => _ = signal.Value },
+            application
+        );
+        using var failedView = new SessionFixture(
+            new ProbeView { DuringRender = () => _ = signal.Value },
+            application
+        );
+        using var writer = new SessionFixture(
+            new ProbeView { OnClick = () => signal.Set(1) },
+            application
+        );
         healthyRows.Render();
         var artifact = healthyRows.Range(0);
         otherRows.Render();
@@ -237,11 +289,13 @@ public sealed unsafe partial class RuntimeExecutionTests
     public void ASignalWriteFromMountInvalidatesTheAlreadyAcceptedConsumer()
     {
         var signal = new Signal<int>(0);
-        using var fixture = new SessionFixture(new ProbeView
-        {
-            DuringRender = () => _ = signal.Value,
-            DuringMount = () => signal.Value++
-        });
+        using var fixture = new SessionFixture(
+            new ProbeView
+            {
+                DuringRender = () => _ = signal.Value,
+                DuringMount = () => signal.Value++,
+            }
+        );
         fixture.Render();
         Assert.True(fixture.State(fixture.View).Dirty);
         fixture.Render();
@@ -265,11 +319,14 @@ public sealed unsafe partial class RuntimeExecutionTests
     private static WeakReference[] RetireSignalConsumer(Signal<int> signal)
     {
         var application = new GpuiApplication();
-        using var fixture = new SessionFixture(new ProbeView
-        {
-            DuringRender = () => _ = signal.Value,
-            DuringRow = index => _ = signal.Value
-        }, application);
+        using var fixture = new SessionFixture(
+            new ProbeView
+            {
+                DuringRender = () => _ = signal.Value,
+                DuringRow = index => _ = signal.Value,
+            },
+            application
+        );
         fixture.Render();
         fixture.Range(0);
         return [new(fixture.View), new(fixture.Session), new(application)];
@@ -280,17 +337,19 @@ public sealed unsafe partial class RuntimeExecutionTests
     {
         var signal = new Signal<int>(0);
         var allocated = -1L;
-        using var fixture = new SessionFixture(new ProbeView
-        {
-            DuringRender = () =>
+        using var fixture = new SessionFixture(
+            new ProbeView
             {
-                _ = signal.Value;
-                var before = GC.GetAllocatedBytesForCurrentThread();
-                for (var i = 0; i < 10_000; i++)
+                DuringRender = () =>
+                {
                     _ = signal.Value;
-                allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+                    var before = GC.GetAllocatedBytesForCurrentThread();
+                    for (var i = 0; i < 10_000; i++)
+                        _ = signal.Value;
+                    allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+                },
             }
-        });
+        );
         fixture.Render();
         fixture.Render();
         Assert.Equal(0, allocated);
@@ -336,8 +395,10 @@ public sealed unsafe partial class RuntimeExecutionTests
         var parent = new SignalSiblingParentView();
         using var fixture = new SessionFixture(parent);
         fixture.Render();
-        var readers = fixture.State(parent).Children!.Values
-            .Select(entry => (SharedSignalReaderView)entry.View).ToArray();
+        var readers = fixture
+            .State(parent)
+            .Children!.Values.Select(entry => (SharedSignalReaderView)entry.View)
+            .ToArray();
         var live = readers.Single(reader => !reader.CanPause);
         var pausable = readers.Single(reader => reader.CanPause);
         Assert.Equal(1, live.RenderCount);
@@ -395,7 +456,9 @@ public sealed unsafe partial class RuntimeExecutionTests
     public void SignalChangeBetweenObservationAndAcceptanceIsNotLost()
     {
         var signal = new Signal<int>(0);
-        using var fixture = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value });
+        using var fixture = new SessionFixture(
+            new ProbeView { DuringRender = () => _ = signal.Value }
+        );
         fixture.Publish();
         signal.Value = 1;
         Assert.Equal(0, fixture.Complete());
@@ -407,7 +470,9 @@ public sealed unsafe partial class RuntimeExecutionTests
     {
         var signal = new Signal<int>(0);
         IReadOnlySignal<int> readOnly = signal;
-        using var fixture = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value });
+        using var fixture = new SessionFixture(
+            new ProbeView { DuringRender = () => _ = signal.Value }
+        );
         fixture.Render();
         RunWorker(() =>
         {
@@ -421,8 +486,12 @@ public sealed unsafe partial class RuntimeExecutionTests
     public void SignalCannotBindToAnotherApplicationOnTheSameThread()
     {
         var signal = new Signal<int>(0);
-        using var first = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value });
-        using var second = new SessionFixture(new ProbeView { DuringRender = () => _ = signal.Value });
+        using var first = new SessionFixture(
+            new ProbeView { DuringRender = () => _ = signal.Value }
+        );
+        using var second = new SessionFixture(
+            new ProbeView { DuringRender = () => _ = signal.Value }
+        );
         first.Render();
         Assert.Throws<InvalidOperationException>(second.Render);
     }
@@ -431,7 +500,9 @@ public sealed unsafe partial class RuntimeExecutionTests
     public void EvenAnEqualUnboundSignalWriteDuringRenderIsRejected()
     {
         var signal = new Signal<int>(0);
-        using var fixture = new SessionFixture(new ProbeView { DuringRender = () => signal.Set(0) });
+        using var fixture = new SessionFixture(
+            new ProbeView { DuringRender = () => signal.Set(0) }
+        );
         Assert.Throws<InvalidOperationException>(fixture.Render);
     }
 
@@ -520,10 +591,16 @@ public sealed unsafe partial class RuntimeExecutionTests
     {
         using var fixture = new SessionFixture(new TreeView());
         fixture.Render();
-        var children = fixture.State(fixture.View).Children!.Values.Select(entry => entry.View).ToArray();
+        var children = fixture
+            .State(fixture.View)
+            .Children!.Values.Select(entry => entry.View)
+            .ToArray();
         var branch = Assert.IsType<BranchView>(children.Single(view => view is BranchView));
         var unaffected = Assert.IsType<ChildView>(children.Single(view => view is ChildView));
-        var leaves = fixture.State(branch).Children!.Values.Select(entry => (ChildView)entry.View).ToArray();
+        var leaves = fixture
+            .State(branch)
+            .Children!.Values.Select(entry => (ChildView)entry.View)
+            .ToArray();
 
         // Dirty the common ancestor first, then both leaves. Each leaf must still render.
         branch.Invalidate();
@@ -543,7 +620,9 @@ public sealed unsafe partial class RuntimeExecutionTests
         var parent = new PropsParentView();
         using var fixture = new SessionFixture(parent);
         fixture.Render();
-        var child = Assert.IsType<PropsChildView>(fixture.State(parent).Children!.Values.Single().View);
+        var child = Assert.IsType<PropsChildView>(
+            fixture.State(parent).Children!.Values.Single().View
+        );
         parent.Label = "changed";
         fixture.Publish();
         Assert.True(fixture.State(child).Dirty);
@@ -565,10 +644,12 @@ public sealed unsafe partial class RuntimeExecutionTests
     [Fact]
     public void FailedRootRenderNeverMountsOrUnmountsThePreparedView()
     {
-        using var fixture = new SessionFixture(new ProbeView
-        {
-            DuringRender = () => throw new InvalidOperationException("invalid declaration")
-        });
+        using var fixture = new SessionFixture(
+            new ProbeView
+            {
+                DuringRender = () => throw new InvalidOperationException("invalid declaration"),
+            }
+        );
         Assert.Throws<InvalidOperationException>(fixture.Render);
         fixture.Session.Stop();
         Assert.Equal(0, fixture.View.MountCount);
@@ -604,7 +685,9 @@ public sealed unsafe partial class RuntimeExecutionTests
         fixture.Publish();
         fixture.View.DuringMount = () =>
         {
-            var child = Assert.IsType<PropsChildView>(fixture.State(fixture.View).Children!.Values.Single().View);
+            var child = Assert.IsType<PropsChildView>(
+                fixture.State(fixture.View).Children!.Values.Single().View
+            );
             Assert.Equal(new LabelProps("accepted"), child.CurrentProps);
         };
         Assert.Equal(0, fixture.Complete());
@@ -862,7 +945,9 @@ public sealed unsafe partial class RuntimeExecutionTests
     public void RenderFailureIsTerminalEvenAfterMetadataUpdate()
     {
         var failure = new InvalidOperationException("render fault");
-        using var fixture = new SessionFixture(new ProbeView { DuringRender = () => throw failure });
+        using var fixture = new SessionFixture(
+            new ProbeView { DuringRender = () => throw failure }
+        );
         Assert.Same(failure, Assert.Throws<InvalidOperationException>(fixture.Render));
         fixture.View.DuringRender = null;
         var posted = false;
@@ -1076,26 +1161,49 @@ public sealed unsafe partial class RuntimeExecutionTests
     {
         private static long _nextId = 1_000_000;
         private static readonly ConcurrentDictionary<ulong, int> NotificationCounts = new();
-        private static readonly ConcurrentDictionary<ulong, List<NativeArtifactKey[]>> ArtifactCalls = new();
+        private static readonly ConcurrentDictionary<
+            ulong,
+            List<NativeArtifactKey[]>
+        > ArtifactCalls = new();
         private static readonly ConcurrentDictionary<ulong, int> NotifyStatuses = new();
         private static readonly ConcurrentDictionary<ulong, int> ArtifactStatuses = new();
         private static readonly ConcurrentDictionary<ulong, int> ResourceStatuses = new();
-        private static readonly ConcurrentDictionary<ulong, List<(uint Owner, ResourceCommand Command)>> ResourceCalls = new();
+        private static readonly ConcurrentDictionary<
+            ulong,
+            List<(uint Owner, ResourceCommand Command)>
+        > ResourceCalls = new();
         private readonly GpuiDotnetApiV3* _api;
         private readonly ulong _id;
         internal ProbeView View { get; }
         internal ManagedSession Session { get; }
         internal int Notifications => NotificationCounts[_id];
         internal List<NativeArtifactKey[]> ArtifactBatches => ArtifactCalls[_id];
-        internal int NotifyStatus { set => NotifyStatuses[_id] = value; }
-        internal int ArtifactStatus { set => ArtifactStatuses[_id] = value; }
-        internal int ResourceStatus { set => ResourceStatuses[_id] = value; }
-        internal List<(uint Owner, ResourceCommand Command)> CaptureResourceCommands() => ResourceCalls[_id] = [];
-        internal ChildView Child => (ChildView)State(View).Children!.Values.Single().View;
-        internal ChildView CandidateChild => (ChildView)State(View).StagedChildren!.Values.Single().View;
+        internal int NotifyStatus
+        {
+            set => NotifyStatuses[_id] = value;
+        }
+        internal int ArtifactStatus
+        {
+            set => ArtifactStatuses[_id] = value;
+        }
+        internal int ResourceStatus
+        {
+            set => ResourceStatuses[_id] = value;
+        }
 
-        internal SessionFixture(ProbeView? view, GpuiApplication? application = null,
-            RootViewDeclaration? declaration = null, GpuiWindow? window = null)
+        internal List<(uint Owner, ResourceCommand Command)> CaptureResourceCommands() =>
+            ResourceCalls[_id] = [];
+
+        internal ChildView Child => (ChildView)State(View).Children!.Values.Single().View;
+        internal ChildView CandidateChild =>
+            (ChildView)State(View).StagedChildren!.Values.Single().View;
+
+        internal SessionFixture(
+            ProbeView? view,
+            GpuiApplication? application = null,
+            RootViewDeclaration? declaration = null,
+            GpuiWindow? window = null
+        )
         {
             View = view!;
             _id = checked((ulong)Interlocked.Increment(ref _nextId));
@@ -1105,8 +1213,11 @@ public sealed unsafe partial class RuntimeExecutionTests
             _api->notify_view = &Notify;
             _api->invalidate_artifacts = &InvalidateArtifacts;
             _api->dispatch_command = &DispatchResource;
-            var constructor = typeof(NativeRuntime).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic).Single();
-            var runtime = (NativeRuntime)constructor.Invoke([Pointer.Box(_api, typeof(GpuiDotnetApiV3*)), null]);
+            var constructor = typeof(NativeRuntime)
+                .GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic)
+                .Single();
+            var runtime = (NativeRuntime)
+                constructor.Invoke([Pointer.Box(_api, typeof(GpuiDotnetApiV3*)), null]);
             Session = declaration is null
                 ? new ManagedSession(runtime, application ?? new GpuiApplication(), _id, view!)
                 : new ManagedSession(runtime, application!, _id, declaration, window!);
@@ -1129,7 +1240,8 @@ public sealed unsafe partial class RuntimeExecutionTests
 
         internal int NativePublish(out ulong revision, out RenderArena output)
         {
-            delegate* unmanaged[Cdecl]<ulong, RenderArena*, uint*, ulong*, int> callback = &NativeCallbacks.Render;
+            delegate* unmanaged[Cdecl]<ulong, RenderArena*, uint*, ulong*, int> callback =
+                &NativeCallbacks.Render;
             RenderArena arena = default;
             uint root = 0;
             ulong value = 0;
@@ -1147,11 +1259,18 @@ public sealed unsafe partial class RuntimeExecutionTests
 
         internal int Complete(ulong? revision = null, int status = 0)
         {
-            delegate* unmanaged[Cdecl]<ulong, ulong, int, int> callback = &NativeCallbacks.RenderCompleted;
+            delegate* unmanaged[Cdecl]<ulong, ulong, int, int> callback =
+                &NativeCallbacks.RenderCompleted;
             return callback(_id, revision ?? Session.PendingRenderRevision, status);
         }
 
-        internal ulong Range(uint start, ulong source = 1, bool accept = true, uint count = 1, ProbeView? owner = null)
+        internal ulong Range(
+            uint start,
+            ulong source = 1,
+            bool accept = true,
+            uint count = 1,
+            ProbeView? owner = null
+        )
         {
             Assert.Equal(0, NativeRange(start, out var artifact, source, count, owner));
             if (accept)
@@ -1159,49 +1278,93 @@ public sealed unsafe partial class RuntimeExecutionTests
             return artifact;
         }
 
-        internal int NativeRange(uint start, out ulong artifact, ulong source = 1, uint count = 1, ProbeView? owner = null)
+        internal int NativeRange(
+            uint start,
+            out ulong artifact,
+            ulong source = 1,
+            uint count = 1,
+            ProbeView? owner = null
+        )
         {
             RenderArena arena = default;
             uint root = 0;
             ulong value = 0;
-            delegate* unmanaged[Cdecl]<ulong, ulong, ulong, uint, uint, RenderArena*, uint*, ulong*, int> callback = &NativeCallbacks.ListRenderRange;
-            var status = callback(_id, ((ulong)(owner ?? View).Runtime.RuntimeViewHandle << 32) | 1, source, start, count, &arena, &root, &value);
+            delegate* unmanaged[Cdecl]<
+                ulong,
+                ulong,
+                ulong,
+                uint,
+                uint,
+                RenderArena*,
+                uint*,
+                ulong*,
+                int> callback = &NativeCallbacks.ListRenderRange;
+            var status = callback(
+                _id,
+                ((ulong)(owner ?? View).Runtime.RuntimeViewHandle << 32) | 1,
+                source,
+                start,
+                count,
+                &arena,
+                &root,
+                &value
+            );
             artifact = value;
             return status;
         }
 
         internal int Accept(ulong source, ulong artifact)
         {
-            delegate* unmanaged[Cdecl]<ulong, ulong, ulong, int> callback = &NativeCallbacks.AcceptArtifact;
+            delegate* unmanaged[Cdecl]<ulong, ulong, ulong, int> callback =
+                &NativeCallbacks.AcceptArtifact;
             return callback(_id, source, artifact);
         }
 
-        internal int Control(ulong token, ushort kind, ReadOnlySpan<byte> payload, ushort flags = 0, ulong revision = 0)
+        internal int Control(
+            ulong token,
+            ushort kind,
+            ReadOnlySpan<byte> payload,
+            ushort flags = 0,
+            ulong revision = 0
+        )
         {
-            delegate* unmanaged[Cdecl]<ulong, ulong, NativeControlEvent*, int> callback = &NativeCallbacks.ControlEvent;
+            delegate* unmanaged[Cdecl]<ulong, ulong, NativeControlEvent*, int> callback =
+                &NativeCallbacks.ControlEvent;
             fixed (byte* bytes = payload)
             {
-                var value = new NativeControlEvent { kind = kind, data = bytes, data_length = payload.Length, flags = flags, revision = revision };
+                var value = new NativeControlEvent
+                {
+                    kind = kind,
+                    data = bytes,
+                    data_length = payload.Length,
+                    flags = flags,
+                    revision = revision,
+                };
                 return callback(_id, token, &value);
             }
         }
 
         internal int Release(ulong source, ulong artifact, int status = 0)
         {
-            delegate* unmanaged[Cdecl]<ulong, ulong, ulong, int, int> callback = &NativeCallbacks.ReleaseArtifact;
+            delegate* unmanaged[Cdecl]<ulong, ulong, ulong, int, int> callback =
+                &NativeCallbacks.ReleaseArtifact;
             return callback(_id, source, artifact, status);
         }
 
         internal int Click(ulong? token = null, ulong payload = 0)
         {
-            delegate* unmanaged[Cdecl]<ulong, ulong, ulong, NativeClickEvent*, int> callback = &NativeCallbacks.Click;
+            delegate* unmanaged[Cdecl]<ulong, ulong, ulong, NativeClickEvent*, int> callback =
+                &NativeCallbacks.Click;
             NativeClickEvent click = default;
             return callback(_id, token ?? View.ClickToken, payload, &click);
         }
 
         internal RetainedViewState State(ViewBase view)
         {
-            var field = typeof(ManagedSession).GetField("_renderStates", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            var field = typeof(ManagedSession).GetField(
+                "_renderStates",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            )!;
             return ((Dictionary<ViewBase, RetainedViewState>)field.GetValue(Session)!)[view];
         }
 
@@ -1230,12 +1393,23 @@ public sealed unsafe partial class RuntimeExecutionTests
         {
             if (ResourceCalls.TryGetValue(id, out var calls))
             {
-                calls.Add((command->owner_view, new ResourceCommand(
-                    (ResourceKind)command->resource_kind, (ResourceCommandKind)command->command,
-                    System.Text.Encoding.UTF8.GetString(new ReadOnlySpan<byte>(command->key, command->key_length)),
-                    command->a, command->b,
-                    System.Text.Encoding.UTF8.GetString(new ReadOnlySpan<byte>(command->data, command->data_length))
-                )));
+                calls.Add(
+                    (
+                        command->owner_view,
+                        new ResourceCommand(
+                            (ResourceKind)command->resource_kind,
+                            (ResourceCommandKind)command->command,
+                            System.Text.Encoding.UTF8.GetString(
+                                new ReadOnlySpan<byte>(command->key, command->key_length)
+                            ),
+                            command->a,
+                            command->b,
+                            System.Text.Encoding.UTF8.GetString(
+                                new ReadOnlySpan<byte>(command->data, command->data_length)
+                            )
+                        )
+                    )
+                );
             }
             return ResourceStatuses.GetValueOrDefault(id);
         }
@@ -1250,9 +1424,13 @@ public sealed unsafe partial class RuntimeExecutionTests
 
     private class ProbeView : View
     {
-        public ProbeView() : this(TestViews.Construction()) { }
+        public ProbeView()
+            : this(TestViews.Construction()) { }
+
         private readonly Effect<NoProps> _activation;
-        public ProbeView(ViewConstruction construction) : base(construction)
+
+        public ProbeView(ViewConstruction construction)
+            : base(construction)
         {
             _activation = construction.Effect<NoProps>(Activate);
         }
@@ -1284,11 +1462,13 @@ public sealed unsafe partial class RuntimeExecutionTests
         {
             ui.Effect(_activation, default);
             RenderCount++;
-            ClickToken = Runtime.Events.BindClick<ProbeView>(static (view, _) =>
-            {
-                view.ClickCount++;
-                view.OnClick?.Invoke();
-            });
+            ClickToken = Runtime.Events.BindClick<ProbeView>(
+                static (view, _) =>
+                {
+                    view.ClickCount++;
+                    view.OnClick?.Invoke();
+                }
+            );
             DuringRender?.Invoke();
             return ui.Text("probe");
         }
@@ -1303,13 +1483,19 @@ public sealed unsafe partial class RuntimeExecutionTests
         protected override Element RenderListItem(uint rendererId, int index, ref RenderContext ui)
         {
             DuringRow?.Invoke(index);
-            if (RowsWithoutEvents) return ui.Text("row");
-            Action<ProbeView, ClickEvent> callback = index == 0
-                ? static (view, _) => view.ClickCount++
-                : static (view, _) => view.SecondClickCount++;
+            if (RowsWithoutEvents)
+                return ui.Text("row");
+            Action<ProbeView, ClickEvent> callback =
+                index == 0
+                    ? static (view, _) => view.ClickCount++
+                    : static (view, _) => view.SecondClickCount++;
             if (RowCapture is { } captured)
             {
-                callback = (view, _) => { GC.KeepAlive(captured); view.ClickCount++; };
+                callback = (view, _) =>
+                {
+                    GC.KeepAlive(captured);
+                    view.ClickCount++;
+                };
             }
             RowToken = Runtime.Events.BindClick(callback);
             return ui.Button("row", "row").OnClick(this, callback);
@@ -1320,8 +1506,11 @@ public sealed unsafe partial class RuntimeExecutionTests
     {
         public static ViewSpec<ChildView> Spec() => default;
 
-        public ChildView() : this(TestViews.Construction()) { }
-        public ChildView(ViewConstruction construction) : base(construction) { }
+        public ChildView()
+            : this(TestViews.Construction()) { }
+
+        public ChildView(ViewConstruction construction)
+            : base(construction) { }
 
         public static ChildView CreateGpuiView(ViewConstruction construction) => new(construction);
     }
@@ -1344,30 +1533,56 @@ public sealed unsafe partial class RuntimeExecutionTests
     {
         public static ViewSpec<BranchView> Spec() => default;
 
-        public BranchView() : this(TestViews.Construction()) { }
-        public BranchView(ViewConstruction construction) : base(construction) { }
+        public BranchView()
+            : this(TestViews.Construction()) { }
+
+        public BranchView(ViewConstruction construction)
+            : base(construction) { }
 
         public static BranchView CreateGpuiView(ViewConstruction construction) => new(construction);
+
         protected override Element Render(ref RenderContext ui) =>
-            ui.Div(base.Render(ref ui), ui.Child("first", ChildView.Spec()), ui.Child("second", ChildView.Spec()));
+            ui.Div(
+                base.Render(ref ui),
+                ui.Child("first", ChildView.Spec()),
+                ui.Child("second", ChildView.Spec())
+            );
     }
 
     private sealed class TreeView : ProbeView
     {
         protected override Element Render(ref RenderContext ui) =>
-            ui.Div(base.Render(ref ui), ui.Child("branch", BranchView.Spec()), ui.Child("unaffected", ChildView.Spec()));
+            ui.Div(
+                base.Render(ref ui),
+                ui.Child("branch", BranchView.Spec()),
+                ui.Child("unaffected", ChildView.Spec())
+            );
     }
 
-    private readonly record struct SharedSignalReaderProps(IReadOnlySignal<int> Count, bool CanPause);
+    private readonly record struct SharedSignalReaderProps(
+        IReadOnlySignal<int> Count,
+        bool CanPause
+    );
 
-    private sealed class SharedSignalReaderView : View<SharedSignalReaderProps>, IGeneratedViewFactory<SharedSignalReaderView, SharedSignalReaderProps>
+    private sealed class SharedSignalReaderView
+        : View<SharedSignalReaderProps>,
+            IGeneratedViewFactory<SharedSignalReaderView, SharedSignalReaderProps>
     {
-        public static ViewSpec<SharedSignalReaderView, SharedSignalReaderProps> Spec(SharedSignalReaderProps props) => new(props);
+        public static ViewSpec<SharedSignalReaderView, SharedSignalReaderProps> Spec(
+            SharedSignalReaderProps props
+        ) => new(props);
 
-        public SharedSignalReaderView() : this(TestViews.Construction()) { }
-        public SharedSignalReaderView(ViewConstruction construction) : base(construction) { }
+        public SharedSignalReaderView()
+            : this(TestViews.Construction()) { }
 
-        public static SharedSignalReaderView CreateGpuiView(ViewConstruction construction, SharedSignalReaderProps initialProps) => new(construction);
+        public SharedSignalReaderView(ViewConstruction construction)
+            : base(construction) { }
+
+        public static SharedSignalReaderView CreateGpuiView(
+            ViewConstruction construction,
+            SharedSignalReaderProps initialProps
+        ) => new(construction);
+
         private readonly Signal<bool> _following = new(true);
         internal bool CanPause => CommittedProps.CanPause;
         internal int RenderCount;
@@ -1378,10 +1593,12 @@ public sealed unsafe partial class RuntimeExecutionTests
         {
             RenderCount++;
             ObservedValue = !props.CanPause || _following.Value ? props.Count.Value : null;
-            ToggleToken = Runtime.Events.BindClick<SharedSignalReaderView>(static (view, _) =>
-            {
-                view._following.Value = !view._following.Value;
-            });
+            ToggleToken = Runtime.Events.BindClick<SharedSignalReaderView>(
+                static (view, _) =>
+                {
+                    view._following.Value = !view._following.Value;
+                }
+            );
             return ui.Text(ObservedValue?.ToString() ?? "Paused");
         }
     }
@@ -1400,16 +1617,26 @@ public sealed unsafe partial class RuntimeExecutionTests
 
     private sealed record LabelProps(string Text);
 
-    private sealed class PropsChildView : View<LabelProps>, IGeneratedViewFactory<PropsChildView, LabelProps>
+    private sealed class PropsChildView
+        : View<LabelProps>,
+            IGeneratedViewFactory<PropsChildView, LabelProps>
     {
         public static ViewSpec<PropsChildView, LabelProps> Spec(LabelProps props) => new(props);
 
-        public PropsChildView() : this(TestViews.Construction()) { }
-        public PropsChildView(ViewConstruction construction) : base(construction) { }
+        public PropsChildView()
+            : this(TestViews.Construction()) { }
 
-        public static PropsChildView CreateGpuiView(ViewConstruction construction, LabelProps initialProps) => new(construction);
+        public PropsChildView(ViewConstruction construction)
+            : base(construction) { }
+
+        public static PropsChildView CreateGpuiView(
+            ViewConstruction construction,
+            LabelProps initialProps
+        ) => new(construction);
+
         internal LabelProps CurrentProps => CommittedProps;
         internal int RenderCount;
+
         protected override Element Render(in LabelProps props, ref RenderContext ui)
         {
             RenderCount++;
@@ -1420,6 +1647,7 @@ public sealed unsafe partial class RuntimeExecutionTests
     private sealed class PropsParentView : ProbeView
     {
         internal string Label = "accepted";
+
         protected override Element Render(ref RenderContext ui) =>
             ui.Child("props-child", PropsChildView.Spec(new LabelProps(Label)));
     }

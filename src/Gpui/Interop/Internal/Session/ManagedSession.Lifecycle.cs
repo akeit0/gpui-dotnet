@@ -10,8 +10,13 @@ internal sealed unsafe partial class ManagedSession
         BuildUnmountOrder();
         foreach (var view in _unmountCandidates)
         {
-            try { Unmount(view); }
-            catch (Exception) { /* The session retains the original failure; all owners still retire. */ }
+            try
+            {
+                Unmount(view);
+            }
+            catch (Exception)
+            { /* The session retains the original failure; all owners still retire. */
+            }
         }
         _unmountCandidates.Clear();
         _acceptedViews.Clear();
@@ -28,9 +33,10 @@ internal sealed unsafe partial class ManagedSession
         }
         // A session that never entered a native callback owns no UI state and may be
         // discarded on the window-opening thread if native registration fails.
-        using var execution = Volatile.Read(ref _renderingStarted) == 0
-            ? default(ApplicationExecution.Scope)
-            : Execution.Enter(ExecutionPhase.Cleanup);
+        using var execution =
+            Volatile.Read(ref _renderingStarted) == 0
+                ? default(ApplicationExecution.Scope)
+                : Execution.Enter(ExecutionPhase.Cleanup);
         if (Interlocked.Exchange(ref _stopped, 1) != 0)
         {
             return;
@@ -80,16 +86,15 @@ internal sealed unsafe partial class ManagedSession
     {
         if (_rootView is null)
         {
-            var declaration = _rootDeclaration ?? throw new InvalidOperationException("No root declaration.");
+            var declaration =
+                _rootDeclaration ?? throw new InvalidOperationException("No root declaration.");
             _rootDeclaration = null;
             _rootView = declaration.Create(_window!);
         }
         var rootState = GetRenderState(RootView);
         if (rootState.Parent is not null)
         {
-            throw new InvalidOperationException(
-                "The root View cannot be owned by another View."
-            );
+            throw new InvalidOperationException("The root View cannot be owned by another View.");
         }
         Attach(RootView);
     }

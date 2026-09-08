@@ -85,8 +85,11 @@ public sealed class GpuiWindow
     public bool IsClosed => Volatile.Read(ref _closed) != 0;
 
     private RootViewDeclaration? _rootDeclaration;
-    internal RootViewDeclaration TakeRootDeclaration() => Interlocked.Exchange(ref _rootDeclaration, null)
+
+    internal RootViewDeclaration TakeRootDeclaration() =>
+        Interlocked.Exchange(ref _rootDeclaration, null)
         ?? throw new InvalidOperationException("The window root was already consumed or closed.");
+
     internal GpuiWindowSnapshot Snapshot { get; set; }
     internal bool CloseRequested { get; set; }
 
@@ -247,7 +250,10 @@ public sealed class GpuiApplication
         where TView : View, IGeneratedViewFactory<TView> =>
         OpenWindowCore(new RootViewDeclaration<TView>(root), options);
 
-    public GpuiWindow OpenWindow<TView, TProps>(ViewSpec<TView, TProps> root, GpuiWindowOptions? options = null)
+    public GpuiWindow OpenWindow<TView, TProps>(
+        ViewSpec<TView, TProps> root,
+        GpuiWindowOptions? options = null
+    )
         where TProps : IEquatable<TProps>
         where TView : View<TProps>, IGeneratedViewFactory<TView, TProps> =>
         OpenWindowCore(new RootViewDeclaration<TView, TProps>(root), options);
@@ -314,7 +320,10 @@ public sealed class GpuiApplication
         {
             RunOnUiThread(() => NativeRuntime.Load(_runtimeOptions).Run(this));
         }
-        finally { FinishRun(); }
+        finally
+        {
+            FinishRun();
+        }
     }
 
     private void FinishRun()
@@ -323,14 +332,18 @@ public sealed class GpuiApplication
         {
             _state = ApplicationState.Stopped;
             _host = null;
-            foreach (var window in _windows.Values) window.MarkClosed();
+            foreach (var window in _windows.Values)
+                window.MarkClosed();
             _windows.Clear();
         }
     }
 
     /// <summary>Runs one framework-owned root with the selected native runtime.</summary>
-    public static void Run<TView>(ViewSpec<TView> root, GpuiWindowOptions? options = null,
-        NativeRuntimeOptions? runtimeOptions = null)
+    public static void Run<TView>(
+        ViewSpec<TView> root,
+        GpuiWindowOptions? options = null,
+        NativeRuntimeOptions? runtimeOptions = null
+    )
         where TView : View, IGeneratedViewFactory<TView>
     {
         var application = new GpuiApplication(runtimeOptions);
@@ -338,8 +351,11 @@ public sealed class GpuiApplication
         application.Run();
     }
 
-    public static void Run<TView, TProps>(ViewSpec<TView, TProps> root, GpuiWindowOptions? options = null,
-        NativeRuntimeOptions? runtimeOptions = null)
+    public static void Run<TView, TProps>(
+        ViewSpec<TView, TProps> root,
+        GpuiWindowOptions? options = null,
+        NativeRuntimeOptions? runtimeOptions = null
+    )
         where TProps : IEquatable<TProps>
         where TView : View<TProps>, IGeneratedViewFactory<TView, TProps>
     {
@@ -410,7 +426,8 @@ public sealed class GpuiApplication
             }
         }
 
-        if (host is null) return;
+        if (host is null)
+            return;
 
         try
         {

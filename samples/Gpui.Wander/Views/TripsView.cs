@@ -26,18 +26,33 @@ internal sealed partial class TripsView : View<TripsProps>
 
     private static readonly string[] TripIds =
     [
-        "trip-0", "trip-1", "trip-2", "trip-3", "trip-4", "trip-5", "trip-6",
+        "trip-0",
+        "trip-1",
+        "trip-2",
+        "trip-3",
+        "trip-4",
+        "trip-5",
+        "trip-6",
     ];
 
     private static readonly string[] DayIds =
     [
-        "trip-day-0", "trip-day-1", "trip-day-2", "trip-day-3",
-        "trip-day-4", "trip-day-5", "trip-day-6",
+        "trip-day-0",
+        "trip-day-1",
+        "trip-day-2",
+        "trip-day-3",
+        "trip-day-4",
+        "trip-day-5",
+        "trip-day-6",
     ];
 
     private static readonly string[] StarIds =
     [
-        "trip-star-1", "trip-star-2", "trip-star-3", "trip-star-4", "trip-star-5",
+        "trip-star-1",
+        "trip-star-2",
+        "trip-star-3",
+        "trip-star-4",
+        "trip-star-5",
     ];
 
     private static readonly string CoverPath = Path.Combine(
@@ -56,7 +71,9 @@ internal sealed partial class TripsView : View<TripsProps>
         : base(construction) => _watch = construction.Effect<NoProps>(WatchStore);
 
     private void WatchStore(EffectScope scope, NoProps input) =>
-        scope.Own(CommittedProps.Store.Subscribe(scope.Bind(this, static view => view.Invalidate())));
+        scope.Own(
+            CommittedProps.Store.Subscribe(scope.Bind(this, static view => view.Invalidate()))
+        );
 
     private void SelectTrip(ulong payload)
     {
@@ -137,7 +154,9 @@ internal sealed partial class TripsView : View<TripsProps>
                             .Height(Px(76))
                             .Background(WanderStyles.AvatarColor(trip.Id, theme.Colors))
                             .Radius(Px(12)),
-                        ui.Text($"{done}/{trip.Days.Length} days · {WanderStyles.Stars(trip.Rating)}")
+                        ui.Text(
+                                $"{done}/{trip.Days.Length} days · {WanderStyles.Stars(trip.Rating)}"
+                            )
                             .FontSize(Px(theme.Typography.Detail))
                             .TextColor(theme.Colors.TextMuted)
                     )
@@ -173,11 +192,7 @@ internal sealed partial class TripsView : View<TripsProps>
                             .Style(WanderStyles.Button(theme, WanderButtonVariant.Primary))
                     )
                     .ItemsCenter(),
-                ui.Div(cardSpan[..count])
-                    .Grid()
-                    .GridCols(2)
-                    .Gap(Px(10))
-                    .Width(Percent(100))
+                ui.Div(cardSpan[..count]).Grid().GridCols(2).Gap(Px(10)).Width(Percent(100))
             )
             .Gap(Px(12))
             .Grow();
@@ -190,7 +205,9 @@ internal sealed partial class TripsView : View<TripsProps>
         {
             return page;
         }
-        return ui.VStack(page, TripSheet(ref ui, store.Trips[_selected])).Grow().Height(Percent(100));
+        return ui.VStack(page, TripSheet(ref ui, store.Trips[_selected]))
+            .Grow()
+            .Height(Percent(100));
     }
 
     private Element TripSheet(ref RenderContext ui, Trip trip)
@@ -205,7 +222,8 @@ internal sealed partial class TripsView : View<TripsProps>
                 .OnClick(
                     this,
                     static (view, e) => view.ToggleDay(e.Payload),
-                    checked((ulong)((trip.Id << 8) | captured)))
+                    checked((ulong)((trip.Id << 8) | captured))
+                )
                 .Padding(Px(4));
         }
         Span<Element> daySpan = days;
@@ -236,9 +254,13 @@ internal sealed partial class TripsView : View<TripsProps>
                             .Style(WanderStyles.Button(theme))
                     )
                     .ItemsCenter(),
-                ui.Text("Daily plan").FontSize(Px(theme.Typography.Detail)).TextColor(theme.Colors.TextMuted),
+                ui.Text("Daily plan")
+                    .FontSize(Px(theme.Typography.Detail))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.VStack(daySpan[..trip.Days.Length]).Gap(Px(2)),
-                ui.Text("Rating").FontSize(Px(theme.Typography.Detail)).TextColor(theme.Colors.TextMuted),
+                ui.Text("Rating")
+                    .FontSize(Px(theme.Typography.Detail))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.HStack(stars).Gap(Px(4)).ItemsCenter()
             )
             .Gap(Px(10))
@@ -273,7 +295,11 @@ internal sealed partial class TripsView : View<TripsProps>
         int stars
     ) =>
         ui.Button(StarIds[stars - 1], stars <= trip.Rating ? "★" : "☆")
-            .OnClick(view, static (v, e) => v.SetRating(e.Payload), checked((ulong)((trip.Id << 8) | stars)))
+            .OnClick(
+                view,
+                static (v, e) => v.SetRating(e.Payload),
+                checked((ulong)((trip.Id << 8) | stars))
+            )
             .Style(WanderStyles.Button(theme, WanderButtonVariant.Chip, stars <= trip.Rating))
             .FontSize(Px(20));
 
@@ -289,9 +315,7 @@ internal sealed partial class TripsView : View<TripsProps>
                     .OnChanged(this, static (view, e) => view.SetDraft(e.Value))
                     .OnSubmitted(this, static (view, _) => view.CreateTrip())
                     .Width(Percent(100)),
-                ui.Text(_error)
-                    .FontSize(Px(theme.Typography.Detail))
-                    .TextColor(theme.Colors.Error),
+                ui.Text(_error).FontSize(Px(theme.Typography.Detail)).TextColor(theme.Colors.Error),
                 ui.HStack(
                         ui.Spacer(),
                         ui.Button("new-trip-cancel", "Cancel")

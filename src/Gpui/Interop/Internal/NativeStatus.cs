@@ -29,8 +29,13 @@ internal static class NativeStatus
 
     private static string? Reason(NativeStatusDomain domain, int status)
     {
-        if (domain is NativeStatusDomain.ResourceCommand or NativeStatusDomain.ExtensionCommand
-            or NativeStatusDomain.Notification or NativeStatusDomain.ArtifactInvalidation)
+        if (
+            domain
+            is NativeStatusDomain.ResourceCommand
+                or NativeStatusDomain.ExtensionCommand
+                or NativeStatusDomain.Notification
+                or NativeStatusDomain.ArtifactInvalidation
+        )
         {
             var delivery = status switch
             {
@@ -38,11 +43,15 @@ internal static class NativeStatus
                 -31 => "SessionClosed: the native session queue is closed",
                 -32 => "SessionLockFailed: native session bookkeeping is unavailable",
                 -33 => "SessionQueueFull: the native session queue rejected the command",
-                -34 when domain is NativeStatusDomain.ResourceCommand or NativeStatusDomain.ExtensionCommand =>
+                -34
+                    when domain
+                        is NativeStatusDomain.ResourceCommand
+                            or NativeStatusDomain.ExtensionCommand =>
                     "ResourceNotDeclared: the resource is not declared in the accepted snapshot",
                 _ => null,
             };
-            if (delivery is not null) return delivery;
+            if (delivery is not null)
+                return delivery;
         }
         if (domain is NativeStatusDomain.ApplicationCommand or NativeStatusDomain.ApplicationMenu)
         {
@@ -54,7 +63,8 @@ internal static class NativeStatus
                 -43 => "ApplicationQueueFull",
                 _ => null,
             };
-            if (delivery is not null) return delivery;
+            if (delivery is not null)
+                return delivery;
         }
         return domain switch
         {
@@ -68,16 +78,20 @@ internal static class NativeStatus
                 -55 => "InvalidCommandText",
                 _ => null,
             },
-            NativeStatusDomain.ExtensionCommand or NativeStatusDomain.ExtensionSupport => status switch
-            {
-                -80 => "InvalidExtensionIdentity",
-                -81 => "ExtensionNotInstalled",
-                -82 => "ExtensionSchemaMismatch",
-                -83 when domain == NativeStatusDomain.ExtensionCommand => "InvalidExtensionCommandEnvelope",
-                -84 when domain == NativeStatusDomain.ExtensionCommand => "InvalidExtensionCommandIdentity",
-                -85 when domain == NativeStatusDomain.ExtensionCommand => "ExtensionCommandRejected",
-                _ => null,
-            },
+            NativeStatusDomain.ExtensionCommand or NativeStatusDomain.ExtensionSupport =>
+                status switch
+                {
+                    -80 => "InvalidExtensionIdentity",
+                    -81 => "ExtensionNotInstalled",
+                    -82 => "ExtensionSchemaMismatch",
+                    -83 when domain == NativeStatusDomain.ExtensionCommand =>
+                        "InvalidExtensionCommandEnvelope",
+                    -84 when domain == NativeStatusDomain.ExtensionCommand =>
+                        "InvalidExtensionCommandIdentity",
+                    -85 when domain == NativeStatusDomain.ExtensionCommand =>
+                        "ExtensionCommandRejected",
+                    _ => null,
+                },
             NativeStatusDomain.ArtifactInvalidation => status switch
             {
                 -1 => "InvalidArtifactBatch",

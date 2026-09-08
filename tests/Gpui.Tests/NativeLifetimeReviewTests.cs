@@ -14,8 +14,11 @@ public sealed unsafe class NativeLifetimeReviewTests
     public void StandaloneValidationKeepsArenaAliveDuringNativeCall()
     {
         var api = new GpuiDotnetApiV3 { validate_render = &CollectDuringValidation };
-        var constructor = typeof(NativeRuntime).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic).Single();
-        var runtime = (NativeRuntime)constructor.Invoke([Pointer.Box(&api, typeof(GpuiDotnetApiV3*)), null]);
+        var constructor = typeof(NativeRuntime)
+            .GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic)
+            .Single();
+        var runtime = (NativeRuntime)
+            constructor.Invoke([Pointer.Box(&api, typeof(GpuiDotnetApiV3*)), null]);
         ValidateLastUse(runtime);
         Assert.True(_aliveDuringCall);
         GC.Collect();

@@ -5,20 +5,21 @@ namespace Gpui.Tests;
 public sealed unsafe partial class RuntimeExecutionTests
 {
     [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(3)]
-    [InlineData(7)]
-    [InlineData(8)]
-    [InlineData(9)]
-    [InlineData(10)]
-    [InlineData(19)]
+    [InlineData((int)InputEventKind.Changed)]
+    [InlineData((int)InputEventKind.Submitted)]
+    [InlineData((int)InputEventKind.FocusChanged)]
+    [InlineData((int)DockEventKind.LayoutExported)]
+    [InlineData((int)DockEventKind.PanelClosed)]
+    [InlineData((int)KeyEventKind.Down)]
+    [InlineData((int)KeyEventKind.Up)]
+    [InlineData((int)FileEventKind.Dropped)]
     public void NativeTextEventsRejectMalformedUtf8BeforeDelivery(int kind)
     {
         var view = new TextEventProbe();
         using var fixture = new SessionFixture(view);
         fixture.Render();
-        byte[][] malformed = [
+        byte[][] malformed =
+        [
             [0x80], // Isolated continuation.
             [0xC0, 0xAF], // Overlong encoding.
             [0xE2, 0x82], // Truncated sequence.
@@ -27,7 +28,10 @@ public sealed unsafe partial class RuntimeExecutionTests
         ];
         foreach (var bytes in malformed)
         {
-            Assert.Equal(-112, fixture.Control(view.Token(kind), (ushort)kind, TextEventPayload(kind, bytes)));
+            Assert.Equal(
+                -112,
+                fixture.Control(view.Token(kind), (ushort)kind, TextEventPayload(kind, bytes))
+            );
             Assert.Null(view.Received);
             Assert.Null(fixture.Session.Failure);
         }
@@ -44,7 +48,10 @@ public sealed unsafe partial class RuntimeExecutionTests
                 Assert.Equal(text, input.Value);
                 break;
             case DockEvent dock:
-                Assert.Equal(text, kind == 7 ? dock.LayoutJson : dock.PanelId);
+                Assert.Equal(
+                    text,
+                    kind == (int)DockEventKind.LayoutExported ? dock.LayoutJson : dock.PanelId
+                );
                 break;
             case KeyEvent key:
                 Assert.Equal(text, key.Key);
@@ -64,22 +71,42 @@ public sealed unsafe partial class RuntimeExecutionTests
         var view = new TextEventProbe();
         using var fixture = new SessionFixture(view);
         fixture.Render();
-        Assert.Equal(0, fixture.Control(view.Token(1), 1, []));
+        Assert.Equal(
+            0,
+            fixture.Control(
+                view.Token((int)InputEventKind.Changed),
+                (ushort)InputEventKind.Changed,
+                []
+            )
+        );
         Assert.Equal(string.Empty, Assert.IsType<InputEvent>(view.Received).Value);
-        Assert.Equal(0, fixture.Control(view.Token(6), 6, []));
+        Assert.Equal(
+            0,
+            fixture.Control(
+                view.Token((int)DockEventKind.LayoutChanged),
+                (ushort)DockEventKind.LayoutChanged,
+                []
+            )
+        );
         Assert.IsType<DockEvent>(view.Received);
 
         byte[] payload = [0xFF, 0x00, 0xC0];
         Assert.Equal(0, fixture.Control(view.ExtensionToken, 0x8001, payload));
         Array.Clear(payload);
-        Assert.Equal(new byte[] { 0xFF, 0x00, 0xC0 }, Assert.IsType<BinaryEvent>(view.Received).Event.Payload.ToArray());
+        Assert.Equal(
+            new byte[] { 0xFF, 0x00, 0xC0 },
+            Assert.IsType<BinaryEvent>(view.Received).Event.Payload.ToArray()
+        );
         Assert.Null(fixture.Session.Failure);
     }
 
     private static byte[] TextEventPayload(int kind, byte[] text) =>
-        kind == 19 ? [0, 0, 0, 0, 0, 0, 0, 0, .. "first.txt\0"u8, .. text] : text;
+        kind == (int)FileEventKind.Dropped
+            ? [0, 0, 0, 0, 0, 0, 0, 0, .. "first.txt\0"u8, .. text]
+            : text;
 
-    private readonly record struct BinaryEvent(NativeExtensionEvent Event) : INativeExtensionEvent<BinaryEvent>
+    private readonly record struct BinaryEvent(NativeExtensionEvent Event)
+        : INativeExtensionEvent<BinaryEvent>
     {
         public static BinaryEvent Decode(NativeExtensionEvent nativeEvent) => new(nativeEvent);
     }
@@ -93,21 +120,37 @@ public sealed unsafe partial class RuntimeExecutionTests
         private ulong _keyToken;
         private ulong _fileDropToken;
 
-        internal ulong Token(int kind) => kind switch
-        {
-            <= 3 => _inputToken,
-            <= 8 => _dockToken,
-            <= 10 => _keyToken,
-            _ => _fileDropToken,
-        };
+        internal ulong Token(int kind) =>
+            kind switch
+            {
+                (int)InputEventKind.Changed
+                or (int)InputEventKind.Submitted
+                or (int)InputEventKind.FocusChanged => _inputToken,
+                (int)DockEventKind.LayoutChanged
+                or (int)DockEventKind.LayoutExported
+                or (int)DockEventKind.PanelClosed => _dockToken,
+                (int)KeyEventKind.Down or (int)KeyEventKind.Up => _keyToken,
+                (int)FileEventKind.Dropped => _fileDropToken,
+                _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+            };
 
         protected override Element Render(ref RenderContext ui)
         {
-            _inputToken = Runtime.Events.BindInput<TextEventProbe>(static (view, value) => view.Received = value);
-            _dockToken = Runtime.Events.BindDock<TextEventProbe>(static (view, value) => view.Received = value);
-            _keyToken = Runtime.Events.BindKey<TextEventProbe>(static (view, value) => view.Received = value);
-            _fileDropToken = Runtime.Events.BindFileDrop<TextEventProbe>(static (view, value) => view.Received = value);
-            ExtensionToken = Runtime.Events.BindNativeExtensionEvent<TextEventProbe, BinaryEvent>(static (view, value) => view.Received = value);
+            _inputToken = Runtime.Events.BindInput<TextEventProbe>(
+                static (view, value) => view.Received = value
+            );
+            _dockToken = Runtime.Events.BindDock<TextEventProbe>(
+                static (view, value) => view.Received = value
+            );
+            _keyToken = Runtime.Events.BindKey<TextEventProbe>(
+                static (view, value) => view.Received = value
+            );
+            _fileDropToken = Runtime.Events.BindFileDrop<TextEventProbe>(
+                static (view, value) => view.Received = value
+            );
+            ExtensionToken = Runtime.Events.BindNativeExtensionEvent<TextEventProbe, BinaryEvent>(
+                static (view, value) => view.Received = value
+            );
             return base.Render(ref ui);
         }
     }

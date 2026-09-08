@@ -47,22 +47,43 @@ internal sealed partial class WanderShellView : View
     }
 
     private GpuiMenu[] CreateMenuBar(EffectScope scope) =>
-    [
-        new GpuiMenu(
-            "Wander",
-            GpuiMenuItem.Command("Reset demo data", scope.Bind(this, static view => view.ResetDemo())),
-            GpuiMenuItem.Command("Toggle light/dark theme", scope.Bind(this, static view => view.ToggleTheme())),
-            GpuiMenuItem.Separator(),
-            GpuiMenuItem.Command("Close window", scope.Bind(this, static view => view.CloseWindow()))
-        ),
-        new GpuiMenu(
-            "Go",
-            GpuiMenuItem.Command("Explore", scope.Bind(this, static view => view.ShowTab(WanderTab.Explore))),
-            GpuiMenuItem.Command("Trips", scope.Bind(this, static view => view.ShowTab(WanderTab.Trips))),
-            GpuiMenuItem.Command("Stats", scope.Bind(this, static view => view.ShowTab(WanderTab.Stats))),
-            GpuiMenuItem.Command("Profile", scope.Bind(this, static view => view.ShowTab(WanderTab.Profile)))
-        ),
-    ];
+        [
+            new GpuiMenu(
+                "Wander",
+                GpuiMenuItem.Command(
+                    "Reset demo data",
+                    scope.Bind(this, static view => view.ResetDemo())
+                ),
+                GpuiMenuItem.Command(
+                    "Toggle light/dark theme",
+                    scope.Bind(this, static view => view.ToggleTheme())
+                ),
+                GpuiMenuItem.Separator(),
+                GpuiMenuItem.Command(
+                    "Close window",
+                    scope.Bind(this, static view => view.CloseWindow())
+                )
+            ),
+            new GpuiMenu(
+                "Go",
+                GpuiMenuItem.Command(
+                    "Explore",
+                    scope.Bind(this, static view => view.ShowTab(WanderTab.Explore))
+                ),
+                GpuiMenuItem.Command(
+                    "Trips",
+                    scope.Bind(this, static view => view.ShowTab(WanderTab.Trips))
+                ),
+                GpuiMenuItem.Command(
+                    "Stats",
+                    scope.Bind(this, static view => view.ShowTab(WanderTab.Stats))
+                ),
+                GpuiMenuItem.Command(
+                    "Profile",
+                    scope.Bind(this, static view => view.ShowTab(WanderTab.Profile))
+                )
+            ),
+        ];
 
     private void ResetDemo() => _store.Reset();
 
@@ -137,7 +158,10 @@ internal sealed partial class WanderShellView : View
         {
             WanderTab.Explore => ui.Child("tab", ExploreView.Spec(new ExploreProps(_store))),
             WanderTab.Trips => ui.Child("tab", TripsView.Spec(new TripsProps(_store))),
-            WanderTab.Stats => ui.Child("tab", StatsView.Spec(new StatsProps(_store, _store.Revision))),
+            WanderTab.Stats => ui.Child(
+                "tab",
+                StatsView.Spec(new StatsProps(_store, _store.Revision))
+            ),
             _ => ui.Child("tab", ProfileView.Spec(new ProfileProps(_store))),
         };
 
@@ -161,11 +185,7 @@ internal sealed partial class WanderShellView : View
                     .Padding(Px(10)),
                 // Flex column, not Div: Grow is inert inside a block parent, and the
                 // page's Grow (then the list's) needs a flex ancestor to fill against.
-                ui.VStack(page)
-                    .Grow()
-                    .Width(Percent(100))
-                    .Height(Percent(100))
-                    .PaddingX(Px(14)),
+                ui.VStack(page).Grow().Width(Percent(100)).Height(Percent(100)).PaddingX(Px(14)),
                 TabBar(ref ui, likes)
             )
             .Width(Px(430))
@@ -192,10 +212,7 @@ internal sealed partial class WanderShellView : View
             TabButton(ref ui, this, theme, WanderTab.Stats, string.Empty, 0, false),
             TabButton(ref ui, this, theme, WanderTab.Profile, string.Empty, 0, false),
         ];
-        return ui.VStack(
-                ui.Divider(),
-                ui.HStack(tabs).Gap(Px(4))
-            )
+        return ui.VStack(ui.Divider(), ui.HStack(tabs).Gap(Px(4)))
             .Gap(Px(6))
             .Padding(Px(10))
             .Surface(new(theme.Colors.SurfaceBackground, theme.Colors.Text));
@@ -213,18 +230,13 @@ internal sealed partial class WanderShellView : View
     {
         var selected = view._tab == tab;
         // The badge interpolation lands directly in ui.Text's arena handler: no string.
-        var badge = showBadge
-            ? ui.Text($"{badgePrefix}{badgeNumber:N0}")
-            : ui.Text(string.Empty);
+        var badge = showBadge ? ui.Text($"{badgePrefix}{badgeNumber:N0}") : ui.Text(string.Empty);
         return ui.Button(
                 TabIds[(int)tab],
                 ui.VStack(
-                        ui.Text(TabGlyph(tab))
-                            .FontSize(Px(18)),
-                        ui.Text(TabLabel(tab))
-                            .FontSize(Px(theme.Typography.Caption)),
-                        badge
-                            .FontSize(Px(theme.Typography.Caption))
+                        ui.Text(TabGlyph(tab)).FontSize(Px(18)),
+                        ui.Text(TabLabel(tab)).FontSize(Px(theme.Typography.Caption)),
+                        badge.FontSize(Px(theme.Typography.Caption))
                     )
                     .Gap(Px(1))
                     .ItemsCenter()

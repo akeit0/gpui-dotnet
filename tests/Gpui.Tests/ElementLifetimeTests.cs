@@ -46,15 +46,29 @@ public sealed class ElementLifetimeTests
         var ui = arena.BeginRender();
         var handler = new Utf8InterpolatedStringHandler(1, 0, ui);
         handler.AppendLiteral("a");
-        if (dispose) arena.Dispose();
-        else arena.BeginRender();
+        if (dispose)
+            arena.Dispose();
+        else
+            arena.BeginRender();
 
         Exception? contextError = null;
         Exception? handlerError = null;
-        try { _ = ui.Text("stale"); }
-        catch (Exception error) { contextError = error; }
-        try { handler.AppendLiteral("stale"); }
-        catch (Exception error) { handlerError = error; }
+        try
+        {
+            _ = ui.Text("stale");
+        }
+        catch (Exception error)
+        {
+            contextError = error;
+        }
+        try
+        {
+            handler.AppendLiteral("stale");
+        }
+        catch (Exception error)
+        {
+            handlerError = error;
+        }
         Assert.IsAssignableFrom<InvalidOperationException>(contextError);
         Assert.IsAssignableFrom<InvalidOperationException>(handlerError);
     }
@@ -119,12 +133,30 @@ public sealed class ElementLifetimeTests
         Exception? disposeError = null;
         var thread = new Thread(() =>
         {
-            try { element.Padding(Px(8)); }
-            catch (Exception error) { writeError = error; }
-            try { arena.BeginRender(); }
-            catch (Exception error) { resetError = error; }
-            try { arena.Dispose(); }
-            catch (Exception error) { disposeError = error; }
+            try
+            {
+                element.Padding(Px(8));
+            }
+            catch (Exception error)
+            {
+                writeError = error;
+            }
+            try
+            {
+                arena.BeginRender();
+            }
+            catch (Exception error)
+            {
+                resetError = error;
+            }
+            try
+            {
+                arena.Dispose();
+            }
+            catch (Exception error)
+            {
+                disposeError = error;
+            }
         });
         thread.Start();
         thread.Join();
@@ -145,8 +177,14 @@ public sealed class ElementLifetimeTests
         var ui = arena.BeginRender();
         var formatter = new ReentrantFormatter(arena, operation);
         Exception? failure = null;
-        try { _ = ui.Text($"{formatter}"); }
-        catch (Exception error) { failure = error; }
+        try
+        {
+            _ = ui.Text($"{formatter}");
+        }
+        catch (Exception error)
+        {
+            failure = error;
+        }
         Assert.IsType<InvalidOperationException>(failure);
         var fresh = arena.BeginRender().Text("recovered");
         arena.Validate(fresh);
@@ -159,9 +197,15 @@ public sealed class ElementLifetimeTests
             Collect();
             switch (operation)
             {
-                case "dispose": arena.Dispose(); break;
-                case "reset": arena.BeginRender(); break;
-                default: new RenderContext(arena).Text(new string('x', 8192)); break;
+                case "dispose":
+                    arena.Dispose();
+                    break;
+                case "reset":
+                    arena.BeginRender();
+                    break;
+                default:
+                    new RenderContext(arena).Text(new string('x', 8192));
+                    break;
             }
             return "unsafe";
         }

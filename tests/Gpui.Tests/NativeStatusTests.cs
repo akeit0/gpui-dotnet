@@ -7,10 +7,22 @@ public sealed class NativeStatusTests
     [Fact]
     public void OverlappingStatusesKeepTheirOperationMeaning()
     {
-        Assert.Contains("SessionMissing", NativeStatus.Describe(NativeStatusDomain.ResourceCommand, -30));
-        Assert.Contains("InvalidImageObjectFit", NativeStatus.Describe(NativeStatusDomain.Snapshot, -30));
-        Assert.Contains("InvalidThemePayload", NativeStatus.Describe(NativeStatusDomain.ApplicationCommand, -64));
-        Assert.Contains("InvalidMenuPointer", NativeStatus.Describe(NativeStatusDomain.ApplicationMenu, -64));
+        Assert.Contains(
+            "SessionMissing",
+            NativeStatus.Describe(NativeStatusDomain.ResourceCommand, -30)
+        );
+        Assert.Contains(
+            "InvalidImageObjectFit",
+            NativeStatus.Describe(NativeStatusDomain.Snapshot, -30)
+        );
+        Assert.Contains(
+            "InvalidThemePayload",
+            NativeStatus.Describe(NativeStatusDomain.ApplicationCommand, -64)
+        );
+        Assert.Contains(
+            "InvalidMenuPointer",
+            NativeStatus.Describe(NativeStatusDomain.ApplicationMenu, -64)
+        );
     }
 
     [Theory]
@@ -26,7 +38,13 @@ public sealed class NativeStatusTests
     [Fact]
     public void AmbiguousSnapshotStatusesDoNotInventAPreciseCause()
     {
-        Assert.Contains("EmptyOperationDataOrWrongRowCount", NativeStatus.Describe(NativeStatusDomain.Snapshot, -63));
-        Assert.Contains("InvalidFontDataOrMissingArtifact", NativeStatus.Describe(NativeStatusDomain.Snapshot, -64));
+        Assert.Contains(
+            "EmptyOperationDataOrWrongRowCount",
+            NativeStatus.Describe(NativeStatusDomain.Snapshot, -63)
+        );
+        Assert.Contains(
+            "InvalidFontDataOrMissingArtifact",
+            NativeStatus.Describe(NativeStatusDomain.Snapshot, -64)
+        );
     }
 }

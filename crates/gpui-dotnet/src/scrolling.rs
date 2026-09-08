@@ -8,7 +8,10 @@ use gpui_base::{
     Scrollbar, ScrollbarAxis, ScrollbarHandle as FoundationScrollbarHandle, ScrollbarMode,
 };
 
-use crate::resources::{ManagedListResource, ManagedScrollResource, ScrollInteraction};
+use crate::{
+    collections::CollectionEngine,
+    resources::{ManagedScrollResource, ScrollInteraction},
+};
 
 const SMOOTHING: f32 = 0.24;
 const FINISH_THRESHOLD: Pixels = px(0.5);
@@ -78,7 +81,7 @@ pub(crate) fn scroll_overlay(
 }
 
 pub(crate) fn list_overlay(
-    resource: Rc<std::cell::RefCell<ManagedListResource>>,
+    resource: Rc<std::cell::RefCell<CollectionEngine>>,
     smooth: bool,
     show_scrollbar: bool,
     metrics: ScrollbarMetrics,
@@ -177,10 +180,7 @@ fn schedule_scroll_frame(resource: Rc<ManagedScrollResource>, window: &mut Windo
     window.refresh();
 }
 
-fn start_list_animation(
-    resource: Rc<std::cell::RefCell<ManagedListResource>>,
-    window: &mut Window,
-) {
+fn start_list_animation(resource: Rc<std::cell::RefCell<CollectionEngine>>, window: &mut Window) {
     let interaction = resource.borrow().interaction.clone();
     if interaction.animating.replace(true) {
         return;
@@ -188,7 +188,7 @@ fn start_list_animation(
     schedule_list_frame(resource, window);
 }
 
-fn schedule_list_frame(resource: Rc<std::cell::RefCell<ManagedListResource>>, window: &mut Window) {
+fn schedule_list_frame(resource: Rc<std::cell::RefCell<CollectionEngine>>, window: &mut Window) {
     window.on_next_frame(move |window, _| {
         let borrowed = resource.borrow();
         let interaction = borrowed.interaction.clone();
@@ -308,15 +308,12 @@ impl FoundationScrollbarHandle for ScrollFoundationHandle {
 
 #[derive(Clone)]
 struct ListFoundationHandle {
-    resource: Rc<std::cell::RefCell<ManagedListResource>>,
+    resource: Rc<std::cell::RefCell<CollectionEngine>>,
     metrics: ScrollbarMetrics,
 }
 
 impl ListFoundationHandle {
-    fn new(
-        resource: Rc<std::cell::RefCell<ManagedListResource>>,
-        metrics: ScrollbarMetrics,
-    ) -> Self {
+    fn new(resource: Rc<std::cell::RefCell<CollectionEngine>>, metrics: ScrollbarMetrics) -> Self {
         Self { resource, metrics }
     }
 }

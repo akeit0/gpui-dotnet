@@ -77,7 +77,8 @@ public enum ListAlignment : uint
 /// </summary>
 public readonly struct ListDataSource
 {
-    public ListDataSource(int count, ulong contentRevision) : this(count, contentRevision, null) { }
+    public ListDataSource(int count, ulong contentRevision)
+        : this(count, contentRevision, null) { }
 
     public ListDataSource(int count, ulong contentRevision, ulong? projectionRevision)
     {

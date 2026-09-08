@@ -11,15 +11,21 @@ namespace Gpui.Generators;
 public sealed class ViewWorkAnalyzer : DiagnosticAnalyzer
 {
     private static readonly DiagnosticDescriptor StaticProducer = new(
-        "GPUI016", "Work producers must be static",
+        "GPUI016",
+        "Work producers must be static",
         "Pass a static lambda or static method directly as the work producer; put inputs in the request snapshot",
-        "Ownership", DiagnosticSeverity.Error, isEnabledByDefault: true
+        "Ownership",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true
     );
 
     private static readonly DiagnosticDescriptor SynchronousCompletion = new(
-        "GPUI017", "Work completion handlers must be synchronous",
+        "GPUI017",
+        "Work completion handlers must be synchronous",
         "Work completion handlers cannot be async; start another View-owned operation instead",
-        "Ownership", DiagnosticSeverity.Error, isEnabledByDefault: true
+        "Ownership",
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true
     );
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
@@ -35,8 +41,10 @@ public sealed class ViewWorkAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeInvocation(OperationAnalysisContext context)
     {
         var invocation = (IInvocationOperation)context.Operation;
-        if (invocation.TargetMethod.Name is not ("Start" or "StartLatest")
-            || invocation.TargetMethod.ContainingType.ToDisplayString() != "Gpui.WorkScope")
+        if (
+            invocation.TargetMethod.Name is not ("Start" or "StartLatest")
+            || invocation.TargetMethod.ContainingType.ToDisplayString() != "Gpui.WorkScope"
+        )
             return;
 
         foreach (var argument in invocation.Arguments)
@@ -48,15 +56,23 @@ public sealed class ViewWorkAnalyzer : DiagnosticAnalyzer
                     ? lambda.Syntax is LambdaExpressionSyntax syntax
                         && syntax.Modifiers.Any(SyntaxKind.StaticKeyword)
                     : value is IMethodReferenceOperation method
-                        && method.Method.IsStatic && method.Instance is null;
+                        && method.Method.IsStatic
+                        && method.Instance is null;
                 if (!isStatic)
-                    context.ReportDiagnostic(Diagnostic.Create(StaticProducer, argument.Syntax.GetLocation()));
+                    context.ReportDiagnostic(
+                        Diagnostic.Create(StaticProducer, argument.Syntax.GetLocation())
+                    );
             }
             else if (argument.Parameter?.Name is "complete" or "failed" or "cancelled")
             {
-                if (value is IAnonymousFunctionOperation { Symbol.IsAsync: true }
-                    or IMethodReferenceOperation { Method.IsAsync: true })
-                    context.ReportDiagnostic(Diagnostic.Create(SynchronousCompletion, argument.Syntax.GetLocation()));
+                if (
+                    value
+                    is IAnonymousFunctionOperation { Symbol.IsAsync: true }
+                        or IMethodReferenceOperation { Method.IsAsync: true }
+                )
+                    context.ReportDiagnostic(
+                        Diagnostic.Create(SynchronousCompletion, argument.Syntax.GetLocation())
+                    );
             }
         }
     }

@@ -5,7 +5,9 @@ public sealed unsafe partial class RuntimeExecutionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ChildRetirementReleasesOnlyItsRemainingArtifactsAfterUnorderedEviction(bool withoutEvents)
+    public void ChildRetirementReleasesOnlyItsRemainingArtifactsAfterUnorderedEviction(
+        bool withoutEvents
+    )
     {
         var signal = new Signal<int>(0);
         var parent = new ParentView { DuringRow = _ => _ = signal.Value };

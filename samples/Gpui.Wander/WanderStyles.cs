@@ -33,8 +33,7 @@ internal readonly record struct WanderButtonStyle(
 internal readonly record struct WanderCardStyle(GpuiTheme Theme) : IGpuiElementStyle<DivTag>
 {
     public Element<DivTag> Apply(Element<DivTag> card) =>
-        card
-            .Padding(Px(14))
+        card.Padding(Px(14))
             .Radius(Px(16))
             .Surface(new(Theme.Colors.SurfaceBackground, Theme.Colors.Text))
             .BorderWidth(Px(1))
@@ -68,29 +67,49 @@ internal static class WanderStyles
         new(
             new(new(0xFFF1DDFF), new(0x8A430BFF)),
             new(new(0xFFE6BFFF), new(0x8A430BFF)),
-            new(new(0xFFD9A3FF), new(0x8A430BFF))),
-        new(0xF2D1A7FF), Px(9), Px(18), 600);
+            new(new(0xFFD9A3FF), new(0x8A430BFF))
+        ),
+        new(0xF2D1A7FF),
+        Px(9),
+        Px(18),
+        600
+    );
 
     private static readonly WanderButtonStyle DarkSelection = new(
         new(
             new(new(0x3A2A1BFF), new(0xFFD7A0FF)),
             new(new(0x493321FF), new(0xFFD7A0FF)),
-            new(new(0x583D24FF), new(0xFFD7A0FF))),
-        new(0x7C5632FF), Px(9), Px(18), 600);
+            new(new(0x583D24FF), new(0xFFD7A0FF))
+        ),
+        new(0x7C5632FF),
+        Px(9),
+        Px(18),
+        600
+    );
 
     private static readonly WanderButtonStyle LightLiked = new(
         new(
             new(new(0xFCE7F0FF), new(0x9D174DFF)),
             new(new(0xFBCFE1FF), new(0x9D174DFF)),
-            new(new(0xF9B6D2FF), new(0x9D174DFF))),
-        new(0xF4AAC8FF), Px(9), Px(18), 600);
+            new(new(0xF9B6D2FF), new(0x9D174DFF))
+        ),
+        new(0xF4AAC8FF),
+        Px(9),
+        Px(18),
+        600
+    );
 
     private static readonly WanderButtonStyle DarkLiked = new(
         new(
             new(new(0x421F32FF), new(0xFFBDD7FF)),
             new(new(0x52263EFF), new(0xFFBDD7FF)),
-            new(new(0x642B48FF), new(0xFFBDD7FF))),
-        new(0xA34C76FF), Px(9), Px(18), 600);
+            new(new(0x642B48FF), new(0xFFBDD7FF))
+        ),
+        new(0xA34C76FF),
+        Px(9),
+        Px(18),
+        600
+    );
 
     internal static WanderButtonStyle Button(
         GpuiTheme theme,
@@ -106,35 +125,57 @@ internal static class WanderStyles
                 new(
                     new(colors.Accent, colors.TextOnAccent),
                     new(colors.AccentHover, colors.TextOnAccent),
-                    new(colors.AccentActive, colors.TextOnAccent)),
-                colors.Accent, Px(12), Px(14)),
+                    new(colors.AccentActive, colors.TextOnAccent)
+                ),
+                colors.Accent,
+                Px(12),
+                Px(14)
+            ),
             WanderButtonVariant.Like when selected => dark ? DarkLiked : LightLiked,
-            WanderButtonVariant.Navigation when selected =>
-                (dark ? DarkSelection : LightSelection) with { Radius = Px(12) },
+            WanderButtonVariant.Navigation when selected => (
+                dark ? DarkSelection : LightSelection
+            ) with
+            {
+                Radius = Px(12),
+            },
             WanderButtonVariant.Chip when selected => dark ? DarkSelection : LightSelection,
             WanderButtonVariant.Navigation => new(
                 new(
                     new(colors.SurfaceBackground, colors.TextMuted),
                     new(colors.ElementHover, colors.Text),
-                    new(colors.ElementActive, colors.Text)),
-                colors.SurfaceBackground, Px(9), Px(12)),
+                    new(colors.ElementActive, colors.Text)
+                ),
+                colors.SurfaceBackground,
+                Px(9),
+                Px(12)
+            ),
             WanderButtonVariant.Chip or WanderButtonVariant.Like => new(
                 new(
                     new(colors.SurfaceBackground, colors.TextMuted),
                     new(colors.ElementHover, colors.TextMuted),
-                    new(colors.ElementActive, colors.TextMuted)),
-                colors.Border, Px(9), Px(18)),
+                    new(colors.ElementActive, colors.TextMuted)
+                ),
+                colors.Border,
+                Px(9),
+                Px(18)
+            ),
             _ => new(
                 new(
                     new(colors.ElementBackground, colors.Text),
                     new(colors.ElementHover, colors.Text),
-                    new(colors.ElementActive, colors.Text)),
-                colors.Border, Px(12), Px(14)),
+                    new(colors.ElementActive, colors.Text)
+                ),
+                colors.Border,
+                Px(12),
+                Px(14)
+            ),
         };
     }
 
     internal static WanderCardStyle Card(GpuiTheme theme) => new(theme);
+
     internal static WanderFieldStyle Field(GpuiTheme theme) => new(theme);
+
     internal static WanderGoalStyle Goal(GpuiTheme theme) => new(theme);
 
     internal static string TagLabel(PlaceTag tag) =>

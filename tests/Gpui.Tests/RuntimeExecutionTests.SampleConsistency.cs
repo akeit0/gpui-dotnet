@@ -12,20 +12,29 @@ public sealed unsafe partial class RuntimeExecutionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ProfileSaveMergesUnrelatedExternalEditsBeforeOrAfterTheirRender(bool renderExternalEdit)
+    public void ProfileSaveMergesUnrelatedExternalEditsBeforeOrAfterTheirRender(
+        bool renderExternalEdit
+    )
     {
         var store = new Travel.TravelStore();
         var application = new GpuiApplication();
         var spec = Travel.ProfileView.Spec(new(store));
         var window = application.OpenWindow(spec);
-        using var fixture = new SessionFixture(null, application,
-            new RootViewDeclaration<Travel.ProfileView, Travel.ProfileProps>(spec), window);
+        using var fixture = new SessionFixture(
+            null,
+            application,
+            new RootViewDeclaration<Travel.ProfileView, Travel.ProfileProps>(spec),
+            window
+        );
 
         (ulong Name, ulong Bio, ulong Save) Publish()
         {
             Assert.Equal(0, fixture.NativePublish(out var revision, out var arena));
-            var inputs = new ReadOnlySpan<OpRecord>(arena.Ops, arena.OpLength).ToArray()
-                .Where(op => op.Code == (ushort)OpCode.InputOnChanged).OrderBy(op => op.Node).ToArray();
+            var inputs = new ReadOnlySpan<OpRecord>(arena.Ops, arena.OpLength)
+                .ToArray()
+                .Where(op => op.Code == (ushort)OpCode.InputOnChanged)
+                .OrderBy(op => op.Node)
+                .ToArray();
             var save = SampleButtonClick(arena, "profile-save"u8);
             Assert.Equal(0, fixture.Complete(revision));
             Assert.Equal(2, inputs.Length);
@@ -33,7 +42,10 @@ public sealed unsafe partial class RuntimeExecutionTests
         }
 
         var bindings = Publish();
-        Assert.Equal(0, fixture.Control(bindings.Name, 1, "Local name draft"u8));
+        Assert.Equal(
+            0,
+            fixture.Control(bindings.Name, (ushort)InputEventKind.Changed, "Local name draft"u8)
+        );
         store.SetProfile(store.ProfileName, "External bio");
         if (renderExternalEdit)
             bindings = Publish();
@@ -42,7 +54,7 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Equal("External bio", store.ProfileBio);
 
         bindings = Publish();
-        Assert.Equal(0, fixture.Control(bindings.Bio, 1, ""u8));
+        Assert.Equal(0, fixture.Control(bindings.Bio, (ushort)InputEventKind.Changed, ""u8));
         store.SetProfile("External name", store.ProfileBio);
         if (renderExternalEdit)
             bindings = Publish();
@@ -61,14 +73,20 @@ public sealed unsafe partial class RuntimeExecutionTests
         var application = new GpuiApplication();
         var spec = Travel.ProfileView.Spec(new(store));
         var window = application.OpenWindow(spec);
-        using var fixture = new SessionFixture(null, application,
-            new RootViewDeclaration<Travel.ProfileView, Travel.ProfileProps>(spec), window);
+        using var fixture = new SessionFixture(
+            null,
+            application,
+            new RootViewDeclaration<Travel.ProfileView, Travel.ProfileProps>(spec),
+            window
+        );
         Assert.Equal(0, fixture.NativePublish(out var revision, out var arena));
-        var name = new ReadOnlySpan<OpRecord>(arena.Ops, arena.OpLength).ToArray()
-            .First(op => op.Code == (ushort)OpCode.InputOnChanged).A;
+        var name = new ReadOnlySpan<OpRecord>(arena.Ops, arena.OpLength)
+            .ToArray()
+            .First(op => op.Code == (ushort)OpCode.InputOnChanged)
+            .A;
         var save = SampleButtonClick(arena, "profile-save"u8);
         Assert.Equal(0, fixture.Complete(revision));
-        Assert.Equal(0, fixture.Control(name, 1, "Local draft"u8));
+        Assert.Equal(0, fixture.Control(name, (ushort)InputEventKind.Changed, "Local draft"u8));
         if (reset)
             store.Reset();
         else
@@ -86,8 +104,12 @@ public sealed unsafe partial class RuntimeExecutionTests
         var application = new GpuiApplication();
         var spec = Travel.ProfileView.Spec(new(store));
         var window = application.OpenWindow(spec);
-        using var fixture = new SessionFixture(null, application,
-            new RootViewDeclaration<Travel.ProfileView, Travel.ProfileProps>(spec), window);
+        using var fixture = new SessionFixture(
+            null,
+            application,
+            new RootViewDeclaration<Travel.ProfileView, Travel.ProfileProps>(spec),
+            window
+        );
         var commands = fixture.CaptureResourceCommands();
         fixture.RenderFromNative();
         commands.Clear();
@@ -108,18 +130,28 @@ public sealed unsafe partial class RuntimeExecutionTests
         var application = new GpuiApplication();
         var spec = Travel.ExploreView.Spec(new(store));
         var window = application.OpenWindow(spec);
-        using var fixture = new SessionFixture(null, application,
-            new RootViewDeclaration<Travel.ExploreView, Travel.ExploreProps>(spec), window);
+        using var fixture = new SessionFixture(
+            null,
+            application,
+            new RootViewDeclaration<Travel.ExploreView, Travel.ExploreProps>(spec),
+            window
+        );
 
-        (ulong Projection, ulong Content, ulong Count) Publish(string? clickKey = null, ulong payload = 0)
+        (ulong Projection, ulong Content, ulong Count) Publish(
+            string? clickKey = null,
+            ulong payload = 0
+        )
         {
             Assert.Equal(0, fixture.NativePublish(out var revision, out var arena));
             var ops = new ReadOnlySpan<OpRecord>(arena.Ops, arena.OpLength).ToArray();
             var result = (
                 Assert.Single(ops, op => op.Code == (ushort)OpCode.ListProjectionRevision).A,
                 Assert.Single(ops, op => op.Code == (ushort)OpCode.ListContentRevision).A,
-                Assert.Single(ops, op => op.Code == (ushort)OpCode.ListItemCount).A);
-            var click = clickKey is null ? 0 : SampleButtonClick(arena, System.Text.Encoding.UTF8.GetBytes(clickKey));
+                Assert.Single(ops, op => op.Code == (ushort)OpCode.ListItemCount).A
+            );
+            var click = clickKey is null
+                ? 0
+                : SampleButtonClick(arena, System.Text.Encoding.UTF8.GetBytes(clickKey));
             Assert.Equal(0, fixture.Complete(revision));
             if (clickKey is not null)
                 Assert.Equal(0, fixture.Click(click, payload));
@@ -154,7 +186,9 @@ public sealed unsafe partial class RuntimeExecutionTests
         store.ToggleEntryLike(original.Id);
         Assert.Equal(2, notifications);
         Assert.True(store.Revision > filter.StoreRevision);
-        var liked = Travel.TravelStore.ApplyFilter(filter with { StoreRevision = store.Revision })[0];
+        var liked = Travel.TravelStore.ApplyFilter(filter with { StoreRevision = store.Revision })[
+            0
+        ];
         Assert.NotSame(original, liked);
         Assert.True(liked.Liked);
         Assert.Equal(original.Likes + 1, liked.Likes);
@@ -172,8 +206,12 @@ public sealed unsafe partial class RuntimeExecutionTests
         var application = new GpuiApplication();
         var spec = Travel.ProfileView.Spec(new(store));
         var window = application.OpenWindow(spec);
-        using var fixture = new SessionFixture(null, application,
-            new RootViewDeclaration<Travel.ProfileView, Travel.ProfileProps>(spec), window);
+        using var fixture = new SessionFixture(
+            null,
+            application,
+            new RootViewDeclaration<Travel.ProfileView, Travel.ProfileProps>(spec),
+            window
+        );
         var commands = fixture.CaptureResourceCommands();
 
         for (var save = 0; save < 2; save++)
@@ -207,8 +245,12 @@ public sealed unsafe partial class RuntimeExecutionTests
         var application = new GpuiApplication();
         var spec = Board.TaskDetailView.Spec(new(store, task.Id));
         var window = application.OpenWindow(spec);
-        using var fixture = new SessionFixture(null, application,
-            new RootViewDeclaration<Board.TaskDetailView, Board.TaskDetailProps>(spec), window);
+        using var fixture = new SessionFixture(
+            null,
+            application,
+            new RootViewDeclaration<Board.TaskDetailView, Board.TaskDetailProps>(spec),
+            window
+        );
         var commands = fixture.CaptureResourceCommands();
         fixture.RenderFromNative();
         Assert.Equal(3, commands.Count);
@@ -238,21 +280,33 @@ public sealed unsafe partial class RuntimeExecutionTests
         var application = new GpuiApplication();
         var spec = Board.TaskDetailView.Spec(new(store, task.Id));
         var window = application.OpenWindow(spec);
-        using var fixture = new SessionFixture(null, application,
-            new RootViewDeclaration<Board.TaskDetailView, Board.TaskDetailProps>(spec), window);
+        using var fixture = new SessionFixture(
+            null,
+            application,
+            new RootViewDeclaration<Board.TaskDetailView, Board.TaskDetailProps>(spec),
+            window
+        );
         Assert.Equal(0, fixture.NativePublish(out var revision, out var arena));
         var click = SampleButtonClick(arena, "detail-suggest"u8);
         Assert.Equal(0, fixture.Complete(revision));
         Assert.Equal(0, fixture.Click(click));
         store.SetEstimate(task.Id, 100);
 
-        Assert.True(SpinWait.SpinUntil(() =>
-        {
-            Assert.Equal(0, fixture.NativePublish(out var next, out var output));
-            var text = System.Text.Encoding.UTF8.GetString(output.Utf8, output.Utf8Length);
-            Assert.Equal(0, fixture.Complete(next));
-            return text.Contains("Task changed; suggestion discarded.", StringComparison.Ordinal);
-        }, TimeSpan.FromSeconds(5)));
+        Assert.True(
+            SpinWait.SpinUntil(
+                () =>
+                {
+                    Assert.Equal(0, fixture.NativePublish(out var next, out var output));
+                    var text = System.Text.Encoding.UTF8.GetString(output.Utf8, output.Utf8Length);
+                    Assert.Equal(0, fixture.Complete(next));
+                    return text.Contains(
+                        "Task changed; suggestion discarded.",
+                        StringComparison.Ordinal
+                    );
+                },
+                TimeSpan.FromSeconds(5)
+            )
+        );
         Assert.Equal(100, store.Find(task.Id)!.EstimateHours);
         Assert.Null(fixture.Session.Failure);
     }

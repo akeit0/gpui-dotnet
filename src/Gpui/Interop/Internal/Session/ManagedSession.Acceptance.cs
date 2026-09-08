@@ -10,11 +10,15 @@ internal sealed unsafe partial class ManagedSession
         {
             if (revision == 0 || revision != _pendingRenderRevision)
             {
-                throw new InvalidOperationException("Native render acknowledgement has no matching publication.");
+                throw new InvalidOperationException(
+                    "Native render acknowledgement has no matching publication."
+                );
             }
             if (status != 0)
             {
-                throw new InvalidOperationException($"Native snapshot validation failed for session {_sessionId}, revision {revision}: {NativeStatus.Describe(NativeStatusDomain.Snapshot, status)}.");
+                throw new InvalidOperationException(
+                    $"Native snapshot validation failed for session {_sessionId}, revision {revision}: {NativeStatus.Describe(NativeStatusDomain.Snapshot, status)}."
+                );
             }
 
             // External entry remains excluded while every reachable View commits its props

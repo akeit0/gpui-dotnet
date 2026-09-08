@@ -18,7 +18,10 @@ public readonly unsafe ref partial struct RenderContext
     )
     {
         if (request.AnchorId == 0)
-            throw new ArgumentException("A native row context-menu request is required.", nameof(request));
+            throw new ArgumentException(
+                "A native row context-menu request is required.",
+                nameof(request)
+            );
         var element = ContextMenu(key, Div(), content, options);
         ArenaWriter.AddU64(element.Inner, OpCode.ContextMenuRowAnchor, request.AnchorId);
         return element;

@@ -231,7 +231,7 @@ retaining the batch. Tooltip targets are scalar row markers; the collection decl
 tooltip options and native timing requests managed content only after sustained hover. Deferred
 prepaint checks current geometry and cache identity before exposing content
 or hitboxes. Anchor loss expires the request; a stale managed declaration cannot reopen it.
-See [Deferred layers](COMPONENTS.md#deferred-layers).
+See [Deferred layers](LAYERS.md#deferred-layers).
 
 ## Applications, windows, and threading
 

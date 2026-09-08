@@ -345,9 +345,11 @@ impl ManagedView {
         {
             return false;
         }
-        let notify_native_only = command.resource_kind == 1
-            || command.resource_kind == 3
-            || (command.resource_kind == 2 && command.command == 10);
+        let notify_native_only = matches!(
+            command.resource_kind,
+            crate::semantic::RESOURCE_SCROLL | crate::semantic::RESOURCE_INPUT
+        ) || (command.resource_kind == crate::semantic::RESOURCE_LIST
+            && command.command == crate::semantic::COMMAND_LIST_SCROLL_TO_ITEM);
         self.resources.dispatch(command);
         notify_native_only
     }
@@ -1528,7 +1530,7 @@ mod tests {
             .lock()
             .unwrap()
             .accept(&list_presence, &HashSet::new(), 6);
-        let config = crate::resources::ListConfiguration {
+        let config = crate::collections::ListConfiguration {
             tooltip_token: 0,
             tooltip: Default::default(),
             item_count: 100,

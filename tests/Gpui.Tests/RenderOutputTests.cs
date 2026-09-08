@@ -160,8 +160,12 @@ public sealed unsafe class RenderOutputTests
         Element root = ui.Text($"prefix:{longText}:{42:D1200}:{true}:suffix");
         storage.Validate(root);
         var node = storage.NativeArena->Nodes[root.Node];
-        var text = Encoding.UTF8.GetString(new ReadOnlySpan<byte>(
-            storage.NativeArena->Utf8 + node.DataOffset, checked((int)node.DataLength)));
+        var text = Encoding.UTF8.GetString(
+            new ReadOnlySpan<byte>(
+                storage.NativeArena->Utf8 + node.DataOffset,
+                checked((int)node.DataLength)
+            )
+        );
         Assert.Equal($"prefix:{longText}:{42:D1200}:{true}:suffix", text);
     }
 
@@ -226,8 +230,11 @@ public sealed unsafe class RenderOutputTests
 
     private sealed class LargeView : View
     {
-        public LargeView() : this(TestViews.Construction()) { }
-        public LargeView(ViewConstruction construction) : base(construction) { }
+        public LargeView()
+            : this(TestViews.Construction()) { }
+
+        public LargeView(ViewConstruction construction)
+            : base(construction) { }
 
         private readonly string _text = new('x', 128);
         private readonly string _rowText = new('r', 16384);
@@ -255,10 +262,14 @@ public sealed unsafe class RenderOutputTests
 
     private sealed class ThrowingView : View
     {
-        public ThrowingView() : this(TestViews.Construction()) { }
-        public ThrowingView(ViewConstruction construction) : base(construction) { }
+        public ThrowingView()
+            : this(TestViews.Construction()) { }
+
+        public ThrowingView(ViewConstruction construction)
+            : base(construction) { }
 
         internal int Calls;
+
         protected override Element Render(ref RenderContext ui)
         {
             Calls++;
@@ -269,24 +280,33 @@ public sealed unsafe class RenderOutputTests
 
     private sealed class SwitchingView : View
     {
-        public SwitchingView() : this(TestViews.Construction()) { }
-        public SwitchingView(ViewConstruction construction) : base(construction) { }
+        public SwitchingView()
+            : this(TestViews.Construction()) { }
+
+        public SwitchingView(ViewConstruction construction)
+            : base(construction) { }
 
         internal bool Keyed;
         internal bool Second;
-        protected override Element Render(ref RenderContext ui) => Second
-            ? (Keyed ? ui.Child("slot", SecondChild.Spec()) : ui.Child(SecondChild.Spec()))
-            : (Keyed ? ui.Child("slot", FirstChild.Spec()) : ui.Child(FirstChild.Spec()));
+
+        protected override Element Render(ref RenderContext ui) =>
+            Second
+                ? (Keyed ? ui.Child("slot", SecondChild.Spec()) : ui.Child(SecondChild.Spec()))
+                : (Keyed ? ui.Child("slot", FirstChild.Spec()) : ui.Child(FirstChild.Spec()));
     }
 
     private sealed class FirstChild : View, IGeneratedViewFactory<FirstChild>
     {
         public static ViewSpec<FirstChild> Spec() => default;
 
-        public FirstChild() : this(TestViews.Construction()) { }
-        public FirstChild(ViewConstruction construction) : base(construction) { }
+        public FirstChild()
+            : this(TestViews.Construction()) { }
+
+        public FirstChild(ViewConstruction construction)
+            : base(construction) { }
 
         public static FirstChild CreateGpuiView(ViewConstruction construction) => new(construction);
+
         protected override Element Render(ref RenderContext ui) => ui.Div();
     }
 
@@ -294,10 +314,15 @@ public sealed unsafe class RenderOutputTests
     {
         public static ViewSpec<SecondChild> Spec() => default;
 
-        public SecondChild() : this(TestViews.Construction()) { }
-        public SecondChild(ViewConstruction construction) : base(construction) { }
+        public SecondChild()
+            : this(TestViews.Construction()) { }
 
-        public static SecondChild CreateGpuiView(ViewConstruction construction) => new(construction);
+        public SecondChild(ViewConstruction construction)
+            : base(construction) { }
+
+        public static SecondChild CreateGpuiView(ViewConstruction construction) =>
+            new(construction);
+
         protected override Element Render(ref RenderContext ui) => ui.Div();
     }
 }

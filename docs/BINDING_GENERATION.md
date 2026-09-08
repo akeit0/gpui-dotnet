@@ -9,6 +9,7 @@ The repository has two generators with separate responsibilities.
 - `src/Gpui/Rendering/Semantic.g.cs` (wire protocol: IDs and the validation registry);
 - `src/Gpui/Rendering/SemanticElements.g.cs` (managed API: tags, style enums, factories, styling);
 - `crates/gpui-dotnet/src/semantic.g.rs`;
+- `docs/SEMANTIC_IDS.md` (the numeric protocol reference);
 - matching component IDs, operation IDs, capabilities, adapters, value constraints, and schema
   hash on both sides.
 
@@ -26,6 +27,38 @@ dotnet run --project tools/Gpui.Bindings.Generator -- verify
 
 `verify` fails when any committed base or extension output does not match its schema. Never edit a
 generated semantic or extension file by hand.
+
+## Schema organization and IDs
+
+`operationGroups` groups operations by subsystem, with an explicit `firstId`/`lastId` allocation.
+Groups and operations are ordered by numeric ID. The generator rejects empty groups, overlapping
+ranges, out-of-range operations, and duplicate IDs or names. Add an operation to its existing group
+instead of appending unrelated entries to the schema. IDs are explicit; list position never assigns them.
+
+The identity group occupies 1–99. Other groups each reserve one hundred IDs; the generated
+[Semantic IDs](SEMANTIC_IDS.md#operations) table lists their ranges. Components are ordered by
+authoring family. Resource command blocks start at `resourceId * 100`; control events use separate
+hundred-ID blocks by event family, below the extension-event high bit. Enums keep explicit values,
+including packed key/modifier policies; do not infer their meaning from array position.
+
+Use generated names in routing and tests. Match named operations or events explicitly rather than
+depending on numeric intervals. Numeric assignments may change during preview without aliases;
+the semantic hash rejects mismatched managed/native builds. Rebuild both sides together.
+
+## Generator implementation
+
+The semantic generator is split by responsibility:
+
+- `Program.cs` is the entry point; `BindingGenerator.Runner.cs` loads, hashes, and writes or verifies outputs.
+- `Schema.cs` models source data; `BindingGenerator.Validation.cs` validates core declarations.
+- `BindingGenerator.CSharp.cs` and `BindingGenerator.Rust.cs` emit language-specific code.
+- `BindingGenerator.Extensions.cs` handles independent extension schemas.
+- `BindingGenerator.Reference.cs` emits the ID catalog; `BindingGenerator.Names.cs` contains naming and capability helpers.
+
+Handwritten generator sources use `dotnet csharpier format .`. Generated C# files retain emitter
+formatting and are excluded from that command. Native generated output must also satisfy `cargo fmt`.
+
+## Schema contents
 
 The schema defines:
 

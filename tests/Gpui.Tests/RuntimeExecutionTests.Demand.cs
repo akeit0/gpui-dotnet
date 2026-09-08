@@ -13,7 +13,13 @@ public sealed unsafe partial class RuntimeExecutionTests
         var signal = new Signal<string>("card");
         var token = ((ulong)fixture.View.Runtime.RuntimeViewHandle << 32) | 1;
         RenderArena output = default;
-        var root = fixture.Session.RenderDemandOutput(token, 17, new CardRequest(signal), &output, out var artifact);
+        var root = fixture.Session.RenderDemandOutput(
+            token,
+            17,
+            new CardRequest(signal),
+            &output,
+            out var artifact
+        );
         Assert.Equal((ushort)ComponentId.Button, output.nodes[root].component);
         Assert.Equal(1, output.child_length); // The Button's text, with no range wrapper.
         var click = fixture.View.RowToken;
@@ -46,22 +52,33 @@ public sealed unsafe partial class RuntimeExecutionTests
         Assert.Throws<InvalidOperationException>(() =>
         {
             RenderArena output = default;
-            fixture.Session.RenderDemandOutput(token, 17, new CardRequest(signal, true), &output, out _);
+            fixture.Session.RenderDemandOutput(
+                token,
+                17,
+                new CardRequest(signal, true),
+                &output,
+                out _
+            );
         });
         Assert.Equal("card", signal.Value);
         Assert.True(fixture.View.Runtime.IsUnmounted);
     }
 
-    private readonly struct CardRequest(Signal<string> text, bool mutate = false) : IDemandRenderRequest
+    private readonly struct CardRequest(Signal<string> text, bool mutate = false)
+        : IDemandRenderRequest
     {
         public void Validate() { }
 
         public Element Render(ViewBase owner, uint rendererId, ref RenderContext ui)
         {
             var view = (ProbeView)owner;
-            if (mutate) text.Value = "forbidden";
-            view.RowToken = view.Runtime.Events.BindClick<ProbeView>(static (view, _) => view.SecondClickCount++);
-            return ui.Button("card", text.Value).OnClick(view, static (view, _) => view.SecondClickCount++);
+            if (mutate)
+                text.Value = "forbidden";
+            view.RowToken = view.Runtime.Events.BindClick<ProbeView>(
+                static (view, _) => view.SecondClickCount++
+            );
+            return ui.Button("card", text.Value)
+                .OnClick(view, static (view, _) => view.SecondClickCount++);
         }
     }
 }

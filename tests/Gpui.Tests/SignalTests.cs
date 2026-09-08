@@ -31,12 +31,14 @@ public sealed class SignalTests
     {
         internal int Calls;
         internal Action? DuringCompare;
+
         public bool Equals(string? x, string? y)
         {
             Calls++;
             DuringCompare?.Invoke();
             return StringComparer.OrdinalIgnoreCase.Equals(x, y);
         }
+
         public int GetHashCode(string value) => StringComparer.OrdinalIgnoreCase.GetHashCode(value);
     }
 }

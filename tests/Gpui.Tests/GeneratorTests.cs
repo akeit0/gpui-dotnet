@@ -210,7 +210,11 @@ public sealed class GeneratorTests
             output.GetDiagnostics(TestContext.Current.CancellationToken),
             diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
         );
-        Assert.Contains("IGeneratedViewFactory<HeaderView, global::HeaderProps>", generated, StringComparison.Ordinal);
+        Assert.Contains(
+            "IGeneratedViewFactory<HeaderView, global::HeaderProps>",
+            generated,
+            StringComparison.Ordinal
+        );
     }
 
     [Fact]
@@ -258,8 +262,10 @@ public sealed class GeneratorTests
             }
             """;
         var (result, output) = RunGeneratorAndUpdateCompilation(source);
-        Assert.DoesNotContain(output.GetDiagnostics(TestContext.Current.CancellationToken),
-            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(
+            output.GetDiagnostics(TestContext.Current.CancellationToken),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
         var generated = string.Join("\n", result.GeneratedTrees.Select(tree => tree.ToString()));
         Assert.Contains("new Items(construction, initialProps)", generated);
         Assert.Contains("Row(index, in CommittedProps, ref ui)", generated);
@@ -279,8 +285,13 @@ public sealed class GeneratorTests
                 private Element Row(int index, ref RenderContext ui) => ui.Div();
             }
             """;
-        var diagnostic = Assert.Single(RunGenerator(source).Diagnostics.Where(d => d.Id == "GPUI012"));
-        Assert.Contains("Element Method(int index, in Inputs props, ref RenderContext ui)", diagnostic.GetMessage());
+        var diagnostic = Assert.Single(
+            RunGenerator(source).Diagnostics.Where(d => d.Id == "GPUI012")
+        );
+        Assert.Contains(
+            "Element Method(int index, in Inputs props, ref RenderContext ui)",
+            diagnostic.GetMessage()
+        );
     }
 
     [Fact]
@@ -296,7 +307,9 @@ public sealed class GeneratorTests
                 private static Element Row(int index, ref RenderContext ui) => ui.Div();
             }
             """;
-        var diagnostic = Assert.Single(RunGenerator(source).Diagnostics.Where(d => d.Id == "GPUI012"));
+        var diagnostic = Assert.Single(
+            RunGenerator(source).Diagnostics.Where(d => d.Id == "GPUI012")
+        );
         Assert.Contains("Element Method(int index, ref RenderContext ui)", diagnostic.GetMessage());
     }
 

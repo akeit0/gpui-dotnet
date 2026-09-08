@@ -22,7 +22,13 @@ internal enum BoardDialog
 [GpuiView]
 internal sealed partial class TaskBoardShellView : View
 {
-    private enum TaskMenuAction { Open, Duplicate, ToggleComplete, Delete }
+    private enum TaskMenuAction
+    {
+        Open,
+        Duplicate,
+        ToggleComplete,
+        Delete,
+    }
 
     [InlineArray(9)]
     private struct ProjectBuffer
@@ -74,29 +80,53 @@ internal sealed partial class TaskBoardShellView : View
 
     private static readonly string[] NewProjectIds =
     [
-        "new-project-0", "new-project-1", "new-project-2", "new-project-3",
-        "new-project-4", "new-project-5", "new-project-6", "new-project-7",
+        "new-project-0",
+        "new-project-1",
+        "new-project-2",
+        "new-project-3",
+        "new-project-4",
+        "new-project-5",
+        "new-project-6",
+        "new-project-7",
     ];
 
     private static readonly string[] StatusOptionIds =
     [
-        "status-option-0", "status-option-1", "status-option-2",
-        "status-option-3", "status-option-4",
+        "status-option-0",
+        "status-option-1",
+        "status-option-2",
+        "status-option-3",
+        "status-option-4",
     ];
 
     private static readonly string[] SortOptionIds =
-        ["sort-option-0", "sort-option-1", "sort-option-2"];
+    [
+        "sort-option-0",
+        "sort-option-1",
+        "sort-option-2",
+    ];
 
     private static readonly string[] SortHeaderIds =
-        ["sort-header-0", "sort-header-1", "sort-header-2"];
+    [
+        "sort-header-0",
+        "sort-header-1",
+        "sort-header-2",
+    ];
 
     private static readonly string[] NewStatusIds =
     [
-        "new-status-0", "new-status-1", "new-status-2", "new-status-3",
+        "new-status-0",
+        "new-status-1",
+        "new-status-2",
+        "new-status-3",
     ];
 
     private static readonly string[] NewPriorityIds =
-        ["new-priority-0", "new-priority-1", "new-priority-2"];
+    [
+        "new-priority-0",
+        "new-priority-1",
+        "new-priority-2",
+    ];
 
     private readonly TaskStore _store = new();
     private readonly GpuiApplication _application;
@@ -172,29 +202,56 @@ internal sealed partial class TaskBoardShellView : View
     }
 
     private GpuiMenu[] CreateMenuBar(EffectScope scope) =>
-    [
-        new GpuiMenu(
-            "Board",
-            GpuiMenuItem.Command("New task…", scope.Bind(this, static view => view.OpenNewDialog())),
-            GpuiMenuItem.Command("Open selected in window", scope.Bind(this, static view => view.OpenSelectedInWindow())),
-            GpuiMenuItem.Separator(),
-            GpuiMenuItem.Command("Close window", scope.Bind(this, static view => view.CloseWindow()))
-        ),
-        new GpuiMenu(
-            "View",
-            GpuiMenuItem.Command("Sync now", scope.Bind(this, static view => view.SyncNow())),
-            GpuiMenuItem.Command("Toggle light/dark theme", scope.Bind(this, static view => view.ToggleTheme())),
-            GpuiMenuItem.Command("Toggle open-only", scope.Bind(this, static view => view.ToggleOnlyOpen())),
-            GpuiMenuItem.Separator(),
-            GpuiMenuItem.Command("Board settings…", scope.Bind(this, static view => view.ToggleSettings()))
-        ),
-        new GpuiMenu(
-            "Task",
-            GpuiMenuItem.Command("Duplicate selected", scope.Bind(this, static view => view.DuplicateSelected())),
-            GpuiMenuItem.Command("Toggle selected complete", scope.Bind(this, static view => view.ToggleSelectedComplete())),
-            GpuiMenuItem.Command("Delete selected…", scope.Bind(this, static view => view.DeleteSelected()))
-        ),
-    ];
+        [
+            new GpuiMenu(
+                "Board",
+                GpuiMenuItem.Command(
+                    "New task…",
+                    scope.Bind(this, static view => view.OpenNewDialog())
+                ),
+                GpuiMenuItem.Command(
+                    "Open selected in window",
+                    scope.Bind(this, static view => view.OpenSelectedInWindow())
+                ),
+                GpuiMenuItem.Separator(),
+                GpuiMenuItem.Command(
+                    "Close window",
+                    scope.Bind(this, static view => view.CloseWindow())
+                )
+            ),
+            new GpuiMenu(
+                "View",
+                GpuiMenuItem.Command("Sync now", scope.Bind(this, static view => view.SyncNow())),
+                GpuiMenuItem.Command(
+                    "Toggle light/dark theme",
+                    scope.Bind(this, static view => view.ToggleTheme())
+                ),
+                GpuiMenuItem.Command(
+                    "Toggle open-only",
+                    scope.Bind(this, static view => view.ToggleOnlyOpen())
+                ),
+                GpuiMenuItem.Separator(),
+                GpuiMenuItem.Command(
+                    "Board settings…",
+                    scope.Bind(this, static view => view.ToggleSettings())
+                )
+            ),
+            new GpuiMenu(
+                "Task",
+                GpuiMenuItem.Command(
+                    "Duplicate selected",
+                    scope.Bind(this, static view => view.DuplicateSelected())
+                ),
+                GpuiMenuItem.Command(
+                    "Toggle selected complete",
+                    scope.Bind(this, static view => view.ToggleSelectedComplete())
+                ),
+                GpuiMenuItem.Command(
+                    "Delete selected…",
+                    scope.Bind(this, static view => view.DeleteSelected())
+                )
+            ),
+        ];
 
     // ----- event-time mutators (never called from Render) -----
 
@@ -521,10 +578,18 @@ internal sealed partial class TaskBoardShellView : View
         {
             switch (action)
             {
-                case TaskMenuAction.Open: OpenTaskInWindow(id); break;
-                case TaskMenuAction.Duplicate: _store.DuplicateTask(id); break;
-                case TaskMenuAction.ToggleComplete: _store.ToggleCompleted(id); break;
-                case TaskMenuAction.Delete: RequestDelete(id); break;
+                case TaskMenuAction.Open:
+                    OpenTaskInWindow(id);
+                    break;
+                case TaskMenuAction.Duplicate:
+                    _store.DuplicateTask(id);
+                    break;
+                case TaskMenuAction.ToggleComplete:
+                    _store.ToggleCompleted(id);
+                    break;
+                case TaskMenuAction.Delete:
+                    RequestDelete(id);
+                    break;
             }
         }
         Invalidate();
@@ -569,11 +634,15 @@ internal sealed partial class TaskBoardShellView : View
                         ui.TableCell(
                                 0,
                                 ui.Div(
-                                        ui.Text($"{(task.Completed ? "✓ " : string.Empty)}{BoardStyles.StatusLabel(task.Status)}")
+                                        ui.Text(
+                                                $"{(task.Completed ? "✓ " : string.Empty)}{BoardStyles.StatusLabel(task.Status)}"
+                                            )
                                             .FontSize(Px(theme.Typography.Caption))
                                             .TextColor(statusColor)
                                     )
-                                    .Background(BoardStyles.StatusBackground(task.Status, theme.Colors))
+                                    .Background(
+                                        BoardStyles.StatusBackground(task.Status, theme.Colors)
+                                    )
                                     .Padding(Px(4))
                                     .Radius(Px(8))
                             )
@@ -611,7 +680,8 @@ internal sealed partial class TaskBoardShellView : View
     private static Element PriorityCell(ref RenderContext ui, TaskPriority priority)
     {
         var colors = ui.Theme.Colors;
-        var color = priority == TaskPriority.High ? colors.Error
+        var color =
+            priority == TaskPriority.High ? colors.Error
             : priority == TaskPriority.Medium ? colors.Warning
             : colors.Success;
         return ui.Text(TaskDetailView.PriorityLabelFor(priority))
@@ -681,27 +751,61 @@ internal sealed partial class TaskBoardShellView : View
             .Height(Percent(100))
             .Background(theme.Colors.Background)
             .TextColor(theme.Colors.Text)
-            .OnShortcut(this, new(ShortcutKey.N, ShortcutModifiers.Primary), static view => view.OpenNewDialog())
-            .OnShortcut(this, new(ShortcutKey.F, ShortcutModifiers.Primary), static view => view.FocusSearch())
-            .OnShortcut(this, new(ShortcutKey.S, ShortcutModifiers.Primary), static view => view.SyncNow(), new(enabled: !_syncing))
-            .OnShortcut(this, new(ShortcutKey.D, ShortcutModifiers.Primary), static view => view.DeleteSelected(), new(enabled: _store.Find(_selectedId) is not null));
+            .OnShortcut(
+                this,
+                new(ShortcutKey.N, ShortcutModifiers.Primary),
+                static view => view.OpenNewDialog()
+            )
+            .OnShortcut(
+                this,
+                new(ShortcutKey.F, ShortcutModifiers.Primary),
+                static view => view.FocusSearch()
+            )
+            .OnShortcut(
+                this,
+                new(ShortcutKey.S, ShortcutModifiers.Primary),
+                static view => view.SyncNow(),
+                new(enabled: !_syncing)
+            )
+            .OnShortcut(
+                this,
+                new(ShortcutKey.D, ShortcutModifiers.Primary),
+                static view => view.DeleteSelected(),
+                new(enabled: _store.Find(_selectedId) is not null)
+            );
 
-        if (_dialog == BoardDialog.None && _taskTooltip is { } tooltipRequest
-            && _store.Find((long)tooltipRequest.ItemId) is { } tooltipTask)
+        if (
+            _dialog == BoardDialog.None
+            && _taskTooltip is { } tooltipRequest
+            && _store.Find((long)tooltipRequest.ItemId) is { } tooltipTask
+        )
         {
-            content = content.Child(ui.RowTooltip("task-tooltip", tooltipRequest,
-                ui.VStack(
-                        ui.Text(tooltipTask.Title).FontWeight(600),
-                        ui.Text($"Assignee: {tooltipTask.Assignee}"),
-                        ui.Text($"Status: {BoardStyles.StatusLabel(tooltipTask.Status)}"),
-                        ui.Text($"Estimate: {tooltipTask.EstimateHours:0.#}h")
-                    ).Gap(Px(5)).Padding(Px(12)).Width(Px(300))
-                    .Surface(new(theme.Colors.ElevatedSurfaceBackground, theme.Colors.Text))
-                    .BorderColor(theme.Colors.Border).BorderWidth(Px(1)).Radius(Px(8))));
+            content = content.Child(
+                ui.RowTooltip(
+                    "task-tooltip",
+                    tooltipRequest,
+                    ui.VStack(
+                            ui.Text(tooltipTask.Title).FontWeight(600),
+                            ui.Text($"Assignee: {tooltipTask.Assignee}"),
+                            ui.Text($"Status: {BoardStyles.StatusLabel(tooltipTask.Status)}"),
+                            ui.Text($"Estimate: {tooltipTask.EstimateHours:0.#}h")
+                        )
+                        .Gap(Px(5))
+                        .Padding(Px(12))
+                        .Width(Px(300))
+                        .Surface(new(theme.Colors.ElevatedSurfaceBackground, theme.Colors.Text))
+                        .BorderColor(theme.Colors.Border)
+                        .BorderWidth(Px(1))
+                        .Radius(Px(8))
+                )
+            );
         }
 
-        if (_dialog == BoardDialog.None && _taskMenu is { } request
-            && _store.Find((long)request.ItemId) is { } menuTask)
+        if (
+            _dialog == BoardDialog.None
+            && _taskMenu is { } request
+            && _store.Find((long)request.ItemId) is { } menuTask
+        )
         {
             content = content.Child(RenderTaskMenu(ref ui, request, menuTask));
         }
@@ -759,7 +863,10 @@ internal sealed partial class TaskBoardShellView : View
                         .Background(theme.Colors.TitleBarBackground)
                         .Radius(Px(6))
                 ),
-                ui.Button("toggle-theme", theme.Appearance == GpuiThemeAppearance.Dark ? "Light" : "Dark")
+                ui.Button(
+                        "toggle-theme",
+                        theme.Appearance == GpuiThemeAppearance.Dark ? "Light" : "Dark"
+                    )
                     .OnClick(this, static (view, _) => view.ToggleTheme())
                     .Style(BoardStyles.Button(theme)),
                 ui.Button("open-settings", "Settings")
@@ -780,11 +887,7 @@ internal sealed partial class TaskBoardShellView : View
                 .FontSize(Px(theme.Typography.Detail))
                 .TextColor(theme.Colors.TextMuted);
         }
-        var progress = Math.Clamp(
-            Stopwatch.GetElapsedTime(_syncStart).TotalSeconds / 0.8,
-            0,
-            1
-        );
+        var progress = Math.Clamp(Stopwatch.GetElapsedTime(_syncStart).TotalSeconds / 0.8, 0, 1);
         var dots = 1 + (int)(progress * 3);
         var label = dots switch
         {
@@ -886,13 +989,7 @@ internal sealed partial class TaskBoardShellView : View
     ) =>
         ui.Button(SortOptionIds[(int)sort], label)
             .OnClick(view, static (v, e) => v.SetSort(e.Payload), (ulong)sort)
-            .Style(
-                BoardStyles.Button(
-                    theme,
-                    BoardButtonVariant.Navigation,
-                    view._sort == sort
-                )
-            )
+            .Style(BoardStyles.Button(theme, BoardButtonVariant.Navigation, view._sort == sort))
             .Width(Percent(100));
 
     private Element RenderSidebar(ref RenderContext ui)
@@ -900,7 +997,11 @@ internal sealed partial class TaskBoardShellView : View
         var theme = ui.Theme;
         var projects = _store.Projects;
         ProjectBuffer buffer = default;
-        var allProjectsStyle = BoardStyles.Button(theme, BoardButtonVariant.Navigation, _projectId == "all");
+        var allProjectsStyle = BoardStyles.Button(
+            theme,
+            BoardButtonVariant.Navigation,
+            _projectId == "all"
+        );
         buffer[0] = ui.Button(
                 "project-all",
                 ui.HStack(
@@ -932,7 +1033,11 @@ internal sealed partial class TaskBoardShellView : View
                         .Width(Percent(100))
                         .ItemsCenter()
                 )
-                .OnClick(this, static (view, e) => view.SelectProject(e.Payload), checked((ulong)i + 1))
+                .OnClick(
+                    this,
+                    static (view, e) => view.SelectProject(e.Payload),
+                    checked((ulong)i + 1)
+                )
                 .Style(projectStyle)
                 .Width(Percent(100));
         }
@@ -980,28 +1085,62 @@ internal sealed partial class TaskBoardShellView : View
             .Shrink(0);
     }
 
-    private Element RenderTaskMenu(ref RenderContext ui, ListContextMenuEvent request, TaskItem task)
+    private Element RenderTaskMenu(
+        ref RenderContext ui,
+        ListContextMenuEvent request,
+        TaskItem task
+    )
     {
         var theme = ui.Theme;
-        return ui.RowContextMenu("tasks-context", request,
+        return ui.RowContextMenu(
+            "tasks-context",
+            request,
             ui.VStack(
                     ui.Text(task.Title).FontWeight(600).Padding(Px(6)),
                     ui.Button("ctx-open", "Open in window")
-                        .OnClick(this, static (view, e) => view.RunTaskMenuAction(e.Payload, TaskMenuAction.Open), request.ItemId)
-                        .Style(BoardStyles.Button(theme)).Width(Percent(100)),
+                        .OnClick(
+                            this,
+                            static (view, e) =>
+                                view.RunTaskMenuAction(e.Payload, TaskMenuAction.Open),
+                            request.ItemId
+                        )
+                        .Style(BoardStyles.Button(theme))
+                        .Width(Percent(100)),
                     ui.Button("ctx-duplicate", "Duplicate")
-                        .OnClick(this, static (view, e) => view.RunTaskMenuAction(e.Payload, TaskMenuAction.Duplicate), request.ItemId)
-                        .Style(BoardStyles.Button(theme)).Width(Percent(100)),
+                        .OnClick(
+                            this,
+                            static (view, e) =>
+                                view.RunTaskMenuAction(e.Payload, TaskMenuAction.Duplicate),
+                            request.ItemId
+                        )
+                        .Style(BoardStyles.Button(theme))
+                        .Width(Percent(100)),
                     ui.Button("ctx-toggle", task.Completed ? "Mark incomplete" : "Mark complete")
-                        .OnClick(this, static (view, e) => view.RunTaskMenuAction(e.Payload, TaskMenuAction.ToggleComplete), request.ItemId)
-                        .Style(BoardStyles.Button(theme)).Width(Percent(100)),
+                        .OnClick(
+                            this,
+                            static (view, e) =>
+                                view.RunTaskMenuAction(e.Payload, TaskMenuAction.ToggleComplete),
+                            request.ItemId
+                        )
+                        .Style(BoardStyles.Button(theme))
+                        .Width(Percent(100)),
                     ui.Button("ctx-delete", "Delete…")
-                        .OnClick(this, static (view, e) => view.RunTaskMenuAction(e.Payload, TaskMenuAction.Delete), request.ItemId)
-                        .Style(BoardStyles.Button(theme, BoardButtonVariant.Danger)).Width(Percent(100))
+                        .OnClick(
+                            this,
+                            static (view, e) =>
+                                view.RunTaskMenuAction(e.Payload, TaskMenuAction.Delete),
+                            request.ItemId
+                        )
+                        .Style(BoardStyles.Button(theme, BoardButtonVariant.Danger))
+                        .Width(Percent(100))
                 )
-                .Gap(Px(2)).Padding(Px(6)).Width(Px(260))
+                .Gap(Px(2))
+                .Padding(Px(6))
+                .Width(Px(260))
                 .Surface(new(theme.Colors.ElevatedSurfaceBackground, theme.Colors.Text))
-                .BorderWidth(Px(1)).BorderColor(theme.Colors.Border).Radius(Px(8))
+                .BorderWidth(Px(1))
+                .BorderColor(theme.Colors.Border)
+                .Radius(Px(8))
         );
     }
 
@@ -1016,18 +1155,20 @@ internal sealed partial class TaskBoardShellView : View
                 TaskColumns
             )
             .Header(
-                ui.Text("Status")
-                .TextColor(theme.Colors.Text),
+                ui.Text("Status").TextColor(theme.Colors.Text),
                 SortHeader(ref ui, this, theme, BoardSort.Title),
-                ui.Text("Assignee")
-                .TextColor(theme.Colors.Text),
+                ui.Text("Assignee").TextColor(theme.Colors.Text),
                 SortHeader(ref ui, this, theme, BoardSort.Estimate),
                 SortHeader(ref ui, this, theme, BoardSort.Priority)
             )
             .OnSelectionRequested(this, static (view, e) => view.SelectTask(e))
             .OnActivated(this, static (view, e) => view.ActivateTask(e))
             .OnContextMenuRequested(this, static (view, e) => view.RequestTaskMenu(e))
-            .OnTooltipRequested(this, static (view, e) => view.RequestTaskTooltip(e), TaskTooltipOptions)
+            .OnTooltipRequested(
+                this,
+                static (view, e) => view.RequestTaskTooltip(e),
+                TaskTooltipOptions
+            )
             .Grow()
             .Width(Percent(100))
             .Style(BoardStyles.Table(theme));
@@ -1066,7 +1207,17 @@ internal sealed partial class TaskBoardShellView : View
             .Width(Percent(100));
         var bottom = ui.DockRegion(
                 DockSide.Bottom,
-                ui.DockTabs(0, [ui.DockPanel("activity", "Activity", activityList, new DockPanelOptions(closable: false))])
+                ui.DockTabs(
+                    0,
+                    [
+                        ui.DockPanel(
+                            "activity",
+                            "Activity",
+                            activityList,
+                            new DockPanelOptions(closable: false)
+                        ),
+                    ]
+                )
             )
             .InitialSize(170);
 
@@ -1084,7 +1235,16 @@ internal sealed partial class TaskBoardShellView : View
                     DockSide.Right,
                     ui.DockTabs(
                         0,
-                        [ui.DockPanel("detail", "Details", ui.Child("detail", TaskDetailView.Spec(new TaskDetailProps(_store, _selectedId))))]
+                        [
+                            ui.DockPanel(
+                                "detail",
+                                "Details",
+                                ui.Child(
+                                    "detail",
+                                    TaskDetailView.Spec(new TaskDetailProps(_store, _selectedId))
+                                )
+                            ),
+                        ]
                     )
                 )
                 .InitialSize(340);
@@ -1095,8 +1255,7 @@ internal sealed partial class TaskBoardShellView : View
             dock = ui.DockArea(ref _dock, "board-dock", center, regionSpan);
         }
 
-        return dock
-            .OnDockPanelClosed(this, static (view, e) => view.OnDockPanelClosed(e))
+        return dock.OnDockPanelClosed(this, static (view, e) => view.OnDockPanelClosed(e))
             .Grow()
             .Height(Percent(100));
     }
@@ -1139,7 +1298,9 @@ internal sealed partial class TaskBoardShellView : View
             }
         }
         return ui.HStack(
-                ui.Text($"{_rows.Count:N0} shown · {_store.Tasks.Count:N0} total · {open:N0} open · rev {_store.Revision:N0}")
+                ui.Text(
+                        $"{_rows.Count:N0} shown · {_store.Tasks.Count:N0} total · {open:N0} open · rev {_store.Revision:N0}"
+                    )
                     .FontSize(Px(theme.Typography.Detail))
                     .TextColor(theme.Colors.TextMuted),
                 ui.Spacer(),
@@ -1167,7 +1328,11 @@ internal sealed partial class TaskBoardShellView : View
             var selected = _newProject == index + 1;
             buffer[count++] = ui.Radio(NewProjectIds[index], ui.Text(projects[index].Name))
                 .Checked(selected)
-                .OnClick(this, static (view, e) => view.SetNewProject(e.Payload), checked((ulong)index + 1))
+                .OnClick(
+                    this,
+                    static (view, e) => view.SetNewProject(e.Payload),
+                    checked((ulong)index + 1)
+                )
                 .Padding(Px(4));
         }
         Span<Element> projectSpan = buffer;
@@ -1196,11 +1361,17 @@ internal sealed partial class TaskBoardShellView : View
                     .OnChanged(this, static (view, e) => view.SetNewTitle(e.Value))
                     .OnSubmitted(this, static (view, _) => view.CreateTask())
                     .Width(Percent(100)),
-                ui.Text("Project").FontSize(Px(theme.Typography.Detail)).TextColor(theme.Colors.TextMuted),
+                ui.Text("Project")
+                    .FontSize(Px(theme.Typography.Detail))
+                    .TextColor(theme.Colors.TextMuted),
                 projectRadios,
-                ui.Text("Status").FontSize(Px(theme.Typography.Detail)).TextColor(theme.Colors.TextMuted),
+                ui.Text("Status")
+                    .FontSize(Px(theme.Typography.Detail))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.HStack(statusRadios).Gap(Px(6)).Wrap(FlexWrap.Wrap),
-                ui.Text("Priority").FontSize(Px(theme.Typography.Detail)).TextColor(theme.Colors.TextMuted),
+                ui.Text("Priority")
+                    .FontSize(Px(theme.Typography.Detail))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.HStack(priorityRadios).Gap(Px(6)),
                 ui.Input("new-assignee", new InputOptions(placeholder: "Assignee"))
                     .Style(BoardStyles.Field(theme))
@@ -1234,7 +1405,11 @@ internal sealed partial class TaskBoardShellView : View
                 panel,
                 new OverlayOptions(margin: 24, backdrop: theme.Colors.Background.WithAlpha(150))
             )
-            .OnShortcut(this, new(ShortcutKey.Enter, ShortcutModifiers.Primary), static view => view.CreateTask())
+            .OnShortcut(
+                this,
+                new(ShortcutKey.Enter, ShortcutModifiers.Primary),
+                static view => view.CreateTask()
+            )
             .OnDismiss(this, static (view, _) => view.CancelDialog());
     }
 
@@ -1272,7 +1447,11 @@ internal sealed partial class TaskBoardShellView : View
                 ui.Text("Delete task?")
                     .FontSize(Px(theme.Typography.Heading))
                     .TextColor(theme.Colors.Text),
-                ui.Text(task is null ? "The task is already gone." : $"“{task.Title}” will be removed.")
+                ui.Text(
+                        task is null
+                            ? "The task is already gone."
+                            : $"“{task.Title}” will be removed."
+                    )
                     .FontSize(Px(theme.Typography.BodySmall))
                     .TextColor(theme.Colors.TextMuted),
                 ui.HStack(
@@ -1317,7 +1496,9 @@ internal sealed partial class TaskBoardShellView : View
                             .Style(BoardStyles.Button(theme))
                     )
                     .ItemsCenter(),
-                ui.Text("Theme").FontSize(Px(theme.Typography.Detail)).TextColor(theme.Colors.TextMuted),
+                ui.Text("Theme")
+                    .FontSize(Px(theme.Typography.Detail))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.HStack(
                         ui.Radio("settings-light", ui.Text("Light"))
                             .Checked(theme.Appearance == GpuiThemeAppearance.Light)
@@ -1344,8 +1525,12 @@ internal sealed partial class TaskBoardShellView : View
                     .Gap(Px(8))
                     .Wrap(FlexWrap.Wrap),
                 ui.Divider(),
-                ui.Text("Shortcuts").FontSize(Px(theme.Typography.Detail)).TextColor(theme.Colors.TextMuted),
-                ui.Text("Ctrl+N new · Ctrl+F search · Ctrl+S sync · Ctrl+D delete · Enter opens selection")
+                ui.Text("Shortcuts")
+                    .FontSize(Px(theme.Typography.Detail))
+                    .TextColor(theme.Colors.TextMuted),
+                ui.Text(
+                        "Ctrl+N new · Ctrl+F search · Ctrl+S sync · Ctrl+D delete · Enter opens selection"
+                    )
                     .FontSize(Px(theme.Typography.Detail))
                     .TextColor(theme.Colors.TextMuted)
             )
