@@ -52,6 +52,15 @@ internal sealed partial class TaskBoardShellView : View
         scrollbarGutter: true
     );
 
+    private static readonly TooltipOptions TaskTooltipOptions = new(
+        placement: TooltipPlacement.Right,
+        alignment: TooltipAlignment.Center,
+        showDelay: TimeSpan.FromMilliseconds(700),
+        hideDelay: TimeSpan.FromMilliseconds(150),
+        gap: 12,
+        margin: 12
+    );
+
     private static readonly ListOptions ActivityListOptions = new(
         batchSize: 32,
         overdraw: 200,
@@ -595,9 +604,11 @@ internal sealed partial class TaskBoardShellView : View
                             .PaddingX(Px(8)),
                         ui.TableCell(
                                 1,
-                                ui.Text(task.Title).FontSize(Px(theme.Typography.BodySmall)).RowTooltipTarget()
+                                ui.Text(task.Title).FontSize(Px(theme.Typography.BodySmall))
                             )
-                            .PaddingX(Px(8)),
+                            .PaddingX(Px(8))
+                            // Keep the popup beside the column, independent of title length.
+                            .RowTooltipTarget(),
                         ui.TableCell(
                                 2,
                                 ui.Text(task.Assignee)
@@ -1037,7 +1048,7 @@ internal sealed partial class TaskBoardShellView : View
             .OnSelectionRequested(this, static (view, e) => view.SelectTask(e))
             .OnActivated(this, static (view, e) => view.ActivateTask(e))
             .OnContextMenuRequested(this, static (view, e) => view.RequestTaskMenu(e))
-            .OnTooltipRequested(this, static (view, e) => view.RequestTaskTooltip(e))
+            .OnTooltipRequested(this, static (view, e) => view.RequestTaskTooltip(e), TaskTooltipOptions)
             .Grow()
             .Width(Percent(100))
             .Style(BoardStyles.Table(theme));

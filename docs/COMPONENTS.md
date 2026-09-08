@@ -564,7 +564,8 @@ For virtual-item hover details, mark the target element with `.RowTooltipTarget(
 `.OnTooltipRequested(this, static (view, request) => ...)` on the List or Table. The row root must
 declare a nonzero `ItemId`. Store the `ListTooltipEvent`, invalidate the owning View, and declare
 `ui.RowTooltip("item-tooltip", request, content)` outside the row renderer. TaskBoard demonstrates
-this on task titles. As with row menus, keep `ListDataSource.ContentRevision` stable while opening.
+this on task cells, with explicit right-side placement to keep neighboring titles clear, a 700 ms
+show delay, and a 150 ms hide delay. As with row menus, keep `ListDataSource.ContentRevision` stable while opening.
 The marker adds no retained resource or deferred child to a row; outside a virtual row it has no effect.
 
 `OnTooltipRequested` accepts the same `TooltipOptions` as ordinary tooltips: show and hide delays,
