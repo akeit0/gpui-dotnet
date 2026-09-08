@@ -1,6 +1,8 @@
+mod controls;
 mod events;
 mod styles;
 
+use controls::ControlPresentation;
 use events::*;
 use styles::*;
 
@@ -327,33 +329,13 @@ impl ManagedView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let theme = *self.theme.borrow();
-        let disabled = components::has_u32_flag(node, snapshot, OP_DISABLED);
-        let mut element = components::button(
-            interactive_element_id(node_id, node, snapshot),
-            disabled,
-            theme,
-        );
-        element = crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
-        if let Some(label) = accessibility_label(node, snapshot) {
-            element = element.accessibility_label(label);
-        }
-        for child in snapshot.children(node) {
-            element = element.child(self.materialize_node(*child, snapshot, window, cx));
-        }
-        element = apply_styles(element, node, snapshot);
-        element = apply_window_control_area(element, node, snapshot);
-        if !disabled {
-            // An explicit Cursor operation takes precedence over the pointing-hand default.
-            element = if use_default_cursor(node, snapshot) {
-                element.cursor_pointer()
-            } else {
-                element
-            };
-            element = apply_interaction_styles(element, node, snapshot, theme);
-        }
-
-        let element = presentation::disabled(element, disabled);
+        let presentation = ControlPresentation::new(node, snapshot, *self.theme.borrow());
+        let children = snapshot
+            .children(node)
+            .iter()
+            .map(|child| self.materialize_node(*child, snapshot, window, cx));
+        let element =
+            presentation.button(interactive_element_id(node_id, node, snapshot), children);
         let bindings = key_mouse_bindings(node, snapshot);
         let element = attach_key_mouse(element, &bindings, cx);
         let element = attach_hover(element, &bindings, cx);
@@ -382,34 +364,13 @@ impl ManagedView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let theme = *self.theme.borrow();
-        let checked = components::has_u32_flag(node, snapshot, OP_CHECKED);
-        let disabled = components::has_u32_flag(node, snapshot, OP_DISABLED);
-        let mut element = components::checkbox(
-            interactive_element_id(node_id, node, snapshot),
-            checked,
-            disabled,
-            theme,
-        );
-        element = crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
-        if let Some(label) = accessibility_label(node, snapshot) {
-            element = element.accessibility_label(label);
-        }
-        for child in snapshot.children(node) {
-            element = element.child(self.materialize_node(*child, snapshot, window, cx));
-        }
-        element = apply_styles(element, node, snapshot);
-        if !disabled {
-            // An explicit Cursor operation takes precedence over the pointing-hand default.
-            element = if use_default_cursor(node, snapshot) {
-                element.cursor_pointer()
-            } else {
-                element
-            };
-            element = apply_interaction_styles(element, node, snapshot, theme);
-        }
-
-        let element = presentation::disabled(element, disabled);
+        let presentation = ControlPresentation::new(node, snapshot, *self.theme.borrow());
+        let children = snapshot
+            .children(node)
+            .iter()
+            .map(|child| self.materialize_node(*child, snapshot, window, cx));
+        let element =
+            presentation.checkbox(interactive_element_id(node_id, node, snapshot), children);
         let bindings = key_mouse_bindings(node, snapshot);
         let element = attach_key_mouse(element, &bindings, cx);
         let element = attach_hover(element, &bindings, cx);
@@ -439,34 +400,12 @@ impl ManagedView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let theme = *self.theme.borrow();
-        let checked = components::has_u32_flag(node, snapshot, OP_CHECKED);
-        let disabled = components::has_u32_flag(node, snapshot, OP_DISABLED);
-        let mut element = components::radio(
-            interactive_element_id(node_id, node, snapshot),
-            checked,
-            disabled,
-            theme,
-        );
-        element = crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
-        if let Some(label) = accessibility_label(node, snapshot) {
-            element = element.accessibility_label(label);
-        }
-        for child in snapshot.children(node) {
-            element = element.child(self.materialize_node(*child, snapshot, window, cx));
-        }
-        element = apply_styles(element, node, snapshot);
-        if !disabled {
-            // An explicit Cursor operation takes precedence over the pointing-hand default.
-            element = if use_default_cursor(node, snapshot) {
-                element.cursor_pointer()
-            } else {
-                element
-            };
-            element = apply_interaction_styles(element, node, snapshot, theme);
-        }
-
-        let element = presentation::disabled(element, disabled);
+        let presentation = ControlPresentation::new(node, snapshot, *self.theme.borrow());
+        let children = snapshot
+            .children(node)
+            .iter()
+            .map(|child| self.materialize_node(*child, snapshot, window, cx));
+        let element = presentation.radio(interactive_element_id(node_id, node, snapshot), children);
         let bindings = key_mouse_bindings(node, snapshot);
         let element = attach_key_mouse(element, &bindings, cx);
         let element = attach_hover(element, &bindings, cx);
@@ -1381,19 +1320,14 @@ fn materialize_detached_foundation_control(
         return None;
     }
 
-    let children = snapshot
-        .children(node)
-        .iter()
-        .map(|child| {
-            materialize_snapshot_node_detached(
-                *child, snapshot, session_id, callbacks, resources, list_key, item_index, item_id,
-            )
-        })
-        .collect::<Vec<_>>();
+    let children = snapshot.children(node).iter().map(|child| {
+        materialize_snapshot_node_detached(
+            *child, snapshot, session_id, callbacks, resources, list_key, item_index, item_id,
+        )
+    });
     let state_id = row_state_id(list_key, item_index, item_id, &node.data);
     let element_id: ElementId = ("managed-list-row", state_id).into();
-    let disabled = components::has_u32_flag(node, snapshot, OP_DISABLED);
-    let label = accessibility_label(node, snapshot);
+    let presentation = ControlPresentation::new(node, snapshot, theme);
     let binding = click_binding(node, snapshot).map(|(token, payload)| {
         let payload = if payload == 0 {
             item_id.unwrap_or(0)
@@ -1405,23 +1339,7 @@ fn materialize_detached_foundation_control(
 
     Some(match adapter {
         NativeAdapter::Button => {
-            let mut element = components::button(element_id, disabled, theme);
-            element =
-                crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
-            if let Some(label) = label {
-                element = element.accessibility_label(label);
-            }
-            element = element.children(children);
-            element = apply_styles(element, node, snapshot);
-            element = apply_window_control_area(element, node, snapshot);
-            if !disabled {
-                element = if use_default_cursor(node, snapshot) {
-                    element.cursor_pointer()
-                } else {
-                    element
-                };
-                element = apply_interaction_styles(element, node, snapshot, theme);
-            }
+            let mut element = presentation.button(element_id, children);
             if let Some((event_token, event_payload)) = binding {
                 element = element.on_click(move |event: &ClickEvent, _, _| {
                     crate::app_host::after_detached_callback(
@@ -1433,23 +1351,7 @@ fn materialize_detached_foundation_control(
             element.into_any_element()
         }
         NativeAdapter::Checkbox => {
-            let checked = components::has_u32_flag(node, snapshot, OP_CHECKED);
-            let mut element = components::checkbox(element_id, checked, disabled, theme);
-            element =
-                crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
-            if let Some(label) = label {
-                element = element.accessibility_label(label);
-            }
-            element = element.children(children);
-            element = apply_styles(element, node, snapshot);
-            if !disabled {
-                element = if use_default_cursor(node, snapshot) {
-                    element.cursor_pointer()
-                } else {
-                    element
-                };
-                element = apply_interaction_styles(element, node, snapshot, theme);
-            }
+            let mut element = presentation.checkbox(element_id, children);
             if let Some((event_token, event_payload)) = binding {
                 element = element.on_change(move |_, event, _, _| {
                     crate::app_host::after_detached_callback(
@@ -1461,23 +1363,7 @@ fn materialize_detached_foundation_control(
             element.into_any_element()
         }
         NativeAdapter::Radio => {
-            let checked = components::has_u32_flag(node, snapshot, OP_CHECKED);
-            let mut element = components::radio(element_id, checked, disabled, theme);
-            element =
-                crate::accessibility::Accessibility::from_snapshot(node, snapshot).apply(element);
-            if let Some(label) = label {
-                element = element.accessibility_label(label);
-            }
-            element = element.children(children);
-            element = apply_styles(element, node, snapshot);
-            if !disabled {
-                element = if use_default_cursor(node, snapshot) {
-                    element.cursor_pointer()
-                } else {
-                    element
-                };
-                element = apply_interaction_styles(element, node, snapshot, theme);
-            }
+            let mut element = presentation.radio(element_id, children);
             if let Some((event_token, event_payload)) = binding {
                 element = element.on_change(move |_, event, _, _| {
                     crate::app_host::after_detached_callback(
@@ -2397,6 +2283,7 @@ fn last_op<'a>(
 
 #[cfg(test)]
 mod tests {
+    mod controls;
     mod focus;
     mod shortcuts;
     use super::*;
