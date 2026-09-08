@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Gpui.Interop.Internal;
 
 internal enum ViewEventBindingScope
@@ -91,257 +93,14 @@ internal sealed class ViewEventRegistry
         set => _currentEventBindingOwner = value;
     }
 
-    private delegate void EventBinder(object target, Delegate callback, in EventDispatch dispatch);
-
-    private enum EventDispatchKind : byte
-    {
-        Click,
-        Input,
-        Slider,
-        Dock,
-        Key,
-        Mouse,
-        Modifiers,
-        Hover,
-        MouseMove,
-        ScrollWheel,
-        FileDrop,
-        NativeExtension,
-        ListActivation,
-        ListSelection,
-        ListContextMenu,
-        ListTooltip,
-        Shortcut,
-        InputWrite,
-    }
-
-    private readonly struct EventDispatch
-    {
-        internal EventDispatch(ShortcutEventKind kind) => Kind = EventDispatchKind.Shortcut;
-
-        internal EventDispatch(ListTooltipEvent request)
-        {
-            Kind = EventDispatchKind.ListTooltip;
-            ListTooltip = request;
-        }
-
-        internal EventDispatch(ListContextMenuEvent request)
-        {
-            Kind = EventDispatchKind.ListContextMenu;
-            ListContextMenu = request;
-        }
-
-        internal EventDispatch(InputWriteResult result)
-        {
-            Kind = EventDispatchKind.InputWrite;
-            InputWrite = result;
-        }
-
-        internal EventDispatch(ListSelectionEvent selection)
-        {
-            Kind = EventDispatchKind.ListSelection;
-            ListSelection = selection;
-        }
-
-        internal EventDispatch(ListActivationEvent activation)
-        {
-            Kind = EventDispatchKind.ListActivation;
-            ListActivation = activation;
-        }
-
-        internal EventDispatch(ClickEvent click)
-        {
-            Kind = EventDispatchKind.Click;
-            Click = click;
-            Input = null;
-            Slider = default;
-            Dock = default;
-            Key = null;
-            Mouse = default;
-            NativeExtension = null;
-        }
-
-        internal EventDispatch(InputEvent input)
-        {
-            Kind = EventDispatchKind.Input;
-            Click = default;
-            Input = input;
-            Slider = default;
-            Dock = default;
-            Key = null;
-            Mouse = default;
-            NativeExtension = null;
-        }
-
-        internal EventDispatch(SliderEvent slider)
-        {
-            Kind = EventDispatchKind.Slider;
-            Click = default;
-            Input = null;
-            Slider = slider;
-            Dock = default;
-            Key = null;
-            Mouse = default;
-            NativeExtension = null;
-        }
-
-        internal EventDispatch(DockEvent dock)
-        {
-            Kind = EventDispatchKind.Dock;
-            Click = default;
-            Input = null;
-            Slider = default;
-            Dock = dock;
-            Key = null;
-            Mouse = default;
-            NativeExtension = null;
-        }
-
-        internal EventDispatch(KeyEvent key)
-        {
-            Kind = EventDispatchKind.Key;
-            Click = default;
-            Input = null;
-            Slider = default;
-            Dock = default;
-            Key = key;
-            Mouse = default;
-            NativeExtension = null;
-        }
-
-        internal EventDispatch(MouseEvent mouse)
-        {
-            Kind = EventDispatchKind.Mouse;
-            Click = default;
-            Input = null;
-            Slider = default;
-            Dock = default;
-            Key = null;
-            Mouse = mouse;
-            Modifiers = default;
-            NativeExtension = null;
-        }
-
-        internal EventDispatch(ModifiersEvent modifiers)
-        {
-            Kind = EventDispatchKind.Modifiers;
-            Click = default;
-            Input = null;
-            Slider = default;
-            Dock = default;
-            Key = null;
-            Mouse = default;
-            Modifiers = modifiers;
-            Hover = default;
-            MouseMove = default;
-            ScrollWheel = default;
-            NativeExtension = null;
-        }
-
-        internal EventDispatch(HoverEvent hover)
-        {
-            Kind = EventDispatchKind.Hover;
-            Click = default;
-            Input = null;
-            Slider = default;
-            Dock = default;
-            Key = null;
-            Mouse = default;
-            Modifiers = default;
-            Hover = hover;
-            MouseMove = default;
-            ScrollWheel = default;
-            NativeExtension = null;
-        }
-
-        internal EventDispatch(MouseMoveEvent mouseMove)
-        {
-            Kind = EventDispatchKind.MouseMove;
-            Click = default;
-            Input = null;
-            Slider = default;
-            Dock = default;
-            Key = null;
-            Mouse = default;
-            Modifiers = default;
-            Hover = default;
-            MouseMove = mouseMove;
-            ScrollWheel = default;
-            NativeExtension = null;
-        }
-
-        internal EventDispatch(ScrollWheelEvent scrollWheel)
-        {
-            Kind = EventDispatchKind.ScrollWheel;
-            Click = default;
-            Input = null;
-            Slider = default;
-            Dock = default;
-            Key = null;
-            Mouse = default;
-            Modifiers = default;
-            Hover = default;
-            MouseMove = default;
-            ScrollWheel = scrollWheel;
-            FileDrop = null;
-            NativeExtension = null;
-        }
-
-        internal EventDispatch(FileDropEvent fileDrop)
-        {
-            Kind = EventDispatchKind.FileDrop;
-            Click = default;
-            Input = null;
-            Slider = default;
-            Dock = default;
-            Key = null;
-            Mouse = default;
-            Modifiers = default;
-            Hover = default;
-            MouseMove = default;
-            ScrollWheel = default;
-            FileDrop = fileDrop;
-            NativeExtension = null;
-        }
-
-        internal EventDispatch(NativeExtensionEvent nativeExtension)
-        {
-            Kind = EventDispatchKind.NativeExtension;
-            Click = default;
-            Input = null;
-            Slider = default;
-            Dock = default;
-            Key = null;
-            Mouse = default;
-            Modifiers = default;
-            NativeExtension = nativeExtension;
-        }
-
-        internal EventDispatchKind Kind { get; }
-        internal ListActivationEvent ListActivation { get; }
-        internal ListSelectionEvent ListSelection { get; }
-        internal ListContextMenuEvent ListContextMenu { get; }
-        internal ListTooltipEvent ListTooltip { get; }
-        internal ClickEvent Click { get; }
-        internal InputEvent? Input { get; }
-        internal InputWriteResult InputWrite { get; }
-        internal SliderEvent Slider { get; }
-        internal DockEvent Dock { get; }
-        internal KeyEvent? Key { get; }
-        internal MouseEvent Mouse { get; }
-        internal ModifiersEvent Modifiers { get; }
-        internal HoverEvent Hover { get; }
-        internal MouseMoveEvent MouseMove { get; }
-        internal ScrollWheelEvent ScrollWheel { get; }
-        internal FileDropEvent? FileDrop { get; }
-        internal NativeExtensionEvent? NativeExtension { get; }
-    }
-
     private struct EventEntry
     {
         internal object? Target;
         internal Delegate? Callback;
-        internal int BinderIndex;
+
+        // Decode routing for extension bindings; always zero for built-in families,
+        // which dispatch through the statically known per-payload invoker.
+        internal int ExtensionIndex;
 
         // Artifact-local chain in recyclable storage; -1 ends the chain.
         internal int NextArtifactSlot;
@@ -355,34 +114,29 @@ internal sealed class ViewEventRegistry
     /// render scope or demand artifact; retired identities never alias recycled storage slots.
     /// </summary>
     internal ulong BindClick<TView>(Action<TView, ClickEvent> callback)
-        where TView : ViewBase =>
-        BindDynamicEvent(_owner!, callback, ClickEventBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     /// <summary>Registers a typed input callback on this mounted View.</summary>
     internal ulong BindInput<TView>(Action<TView, InputEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, InputBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     internal ulong BindInputWrite<TView>(Action<TView, InputWriteResult> callback)
-        where TView : ViewBase =>
-        BindDynamicEvent(_owner!, callback, InputWriteBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     internal ulong BindSlider<TView>(Action<TView, SliderEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, SliderBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     internal ulong BindListActivation<TView>(Action<TView, ListActivationEvent> callback)
-        where TView : ViewBase =>
-        BindDynamicEvent(_owner!, callback, ListActivationBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     internal ulong BindListContextMenu<TView>(Action<TView, ListContextMenuEvent> callback)
-        where TView : ViewBase =>
-        BindDynamicEvent(_owner!, callback, ListContextMenuBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     internal ulong BindListTooltip<TView>(Action<TView, ListTooltipEvent> callback)
-        where TView : ViewBase =>
-        BindDynamicEvent(_owner!, callback, ListTooltipBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     internal ulong BindShortcut<TView>(Action<TView> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ShortcutBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     internal void DispatchShortcutCore(uint eventId)
     {
@@ -391,79 +145,74 @@ internal sealed class ViewEventRegistry
             MissingDynamicEvent(eventId, "shortcut");
             return;
         }
-        var dispatch = new EventDispatch(ShortcutEventKind.Invoked);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
+        Unsafe.As<Action<ViewBase>>(entry.Callback!)((ViewBase)entry.Target!);
     }
 
-    private static class ShortcutBinder<TView>
-        where TView : ViewBase
+    private void DispatchPayloadCore<TEvent>(uint eventId, TEvent payload, string eventType)
     {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        if (!TryGetDynamicEvent(eventId, out var entry))
         {
-            if (dispatch.Kind != EventDispatchKind.Shortcut)
-                throw WrongDispatchKind("shortcut");
-            if (target is not TView typedTarget)
-                throw WrongTarget<TView>(target, "shortcut");
-            if (callback is not Action<TView> typedCallback)
-                throw WrongCallback("Action<TView>", "shortcut");
-            typedCallback(typedTarget);
+            MissingDynamicEvent(eventId, eventType);
+            return;
         }
+        // Pairing is the caller's contract — entries always store the callback together
+        // with the target it was bound for, bind sites reject nulls, tokens are routed by
+        // native kind to the matching dispatch core, and entry ids are never reused within
+        // their owning identity — so the reinterpreted callback always receives its own
+        // view type.
+        Unsafe.As<Action<ViewBase, TEvent>>(entry.Callback!)((ViewBase)entry.Target!, payload);
     }
 
     internal ulong BindListSelection<TView>(Action<TView, ListSelectionEvent> callback)
-        where TView : ViewBase =>
-        BindDynamicEvent(_owner!, callback, ListSelectionBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     /// <summary>Registers a typed Dock area callback on this mounted View.</summary>
     internal ulong BindDock<TView>(Action<TView, DockEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, DockBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     /// <summary>Registers a typed key-event callback on this mounted View.</summary>
     internal ulong BindKey<TView>(Action<TView, KeyEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, KeyBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     /// <summary>Registers a typed mouse-event callback on this mounted View.</summary>
     internal ulong BindMouse<TView>(Action<TView, MouseEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, MouseBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     /// <summary>Registers a typed modifier-key callback on this mounted View.</summary>
     internal ulong BindModifiers<TView>(Action<TView, ModifiersEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ModifiersBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     /// <summary>Registers a typed hover-state callback on this mounted View.</summary>
     internal ulong BindHover<TView>(Action<TView, HoverEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, HoverBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     /// <summary>Registers a typed mouse-move callback on this mounted View.</summary>
     internal ulong BindMouseMove<TView>(Action<TView, MouseMoveEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, MouseMoveBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     /// <summary>Registers a typed scroll-wheel callback on this mounted View.</summary>
     internal ulong BindScrollWheel<TView>(Action<TView, ScrollWheelEvent> callback)
-        where TView : ViewBase =>
-        BindDynamicEvent(_owner!, callback, ScrollWheelBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     /// <summary>Registers a typed file-drop callback on this mounted View.</summary>
     internal ulong BindFileDrop<TView>(Action<TView, FileDropEvent> callback)
-        where TView : ViewBase => BindDynamicEvent(_owner!, callback, FileDropBinder<TView>.Index);
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback);
 
     internal ulong BindNativeExtensionEvent<TView, TEvent>(Action<TView, TEvent> callback)
         where TView : ViewBase
         where TEvent : INativeExtensionEvent<TEvent> =>
-        BindDynamicEvent(_owner!, callback, NativeExtensionBinder<TView, TEvent>.Index);
+        BindDynamicEvent(_owner!, callback, NativeExtensionInvoker<TEvent>.Index);
 
-    private ulong BindDynamicEvent(ViewBase target, Delegate callback, int binderIndex)
+    private ulong BindDynamicEvent(ViewBase target, Delegate callback, int extensionIndex = 0)
     {
         return (_currentEventBindingOwner ?? _owner!).Runtime.Events.BindDynamicEventCore(
             target,
             callback,
-            binderIndex
+            extensionIndex
         );
     }
 
-    private ulong BindDynamicEventCore(ViewBase target, Delegate callback, int binderIndex)
+    private ulong BindDynamicEventCore(ViewBase target, Delegate callback, int extensionIndex)
     {
         var attachment = RequireActive(
             "Event callbacks can only be bound while the View is mounted and rendering."
@@ -488,7 +237,7 @@ internal sealed class ViewEventRegistry
         {
             var current = entries[index];
             if (
-                current.BinderIndex == binderIndex
+                current.ExtensionIndex == extensionIndex
                 && IsEntryInScope(current.LastPass, scope)
                 && current.Artifact == attachment.EventBindingArtifact
                 && ReferenceEquals(current.Target, target)
@@ -521,7 +270,7 @@ internal sealed class ViewEventRegistry
         {
             Target = target,
             Callback = callback,
-            BinderIndex = binderIndex,
+            ExtensionIndex = extensionIndex,
             NextArtifactSlot = artifactHead,
             LastPass = pass,
             Id = id,
@@ -596,7 +345,7 @@ internal sealed class ViewEventRegistry
                 var index = slots[candidate];
                 var entry = entries[index];
                 if (
-                    entry.BinderIndex != 0
+                    entry.Id != 0
                     && IsEntryInScope(entry.LastPass, scope)
                     && entry.LastPass != attachment.EventBindingPass
                 )
@@ -644,138 +393,6 @@ internal sealed class ViewEventRegistry
     private static ulong DynamicEventToken(uint viewHandle, uint id) =>
         ((ulong)viewHandle << 32) | DynamicEventBit | id;
 
-    private void DispatchDynamicClick(uint eventId, ClickEvent clickEvent)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "click");
-            return;
-        }
-
-        var dispatch = new EventDispatch(clickEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
-
-    private void DispatchDynamicInput(uint eventId, InputEvent inputEvent)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "input");
-            return;
-        }
-
-        var dispatch = new EventDispatch(inputEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
-
-    private void DispatchDynamicSlider(uint eventId, SliderEvent sliderEvent)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "slider");
-            return;
-        }
-
-        var dispatch = new EventDispatch(sliderEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
-
-    private void DispatchDynamicDock(uint eventId, DockEvent dockEvent)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "dock");
-            return;
-        }
-
-        var dispatch = new EventDispatch(dockEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
-
-    private void DispatchDynamicKey(uint eventId, KeyEvent keyEvent)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "key");
-            return;
-        }
-
-        var dispatch = new EventDispatch(keyEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
-
-    private void DispatchDynamicMouse(uint eventId, MouseEvent mouseEvent)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "mouse");
-            return;
-        }
-
-        var dispatch = new EventDispatch(mouseEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
-
-    private void DispatchDynamicModifiers(uint eventId, ModifiersEvent modifiersEvent)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "modifiers");
-            return;
-        }
-
-        var dispatch = new EventDispatch(modifiersEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
-
-    private void DispatchDynamicHover(uint eventId, HoverEvent hoverEvent)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "hover");
-            return;
-        }
-
-        var dispatch = new EventDispatch(hoverEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
-
-    private void DispatchDynamicMouseMove(uint eventId, MouseMoveEvent mouseMoveEvent)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "mouse move");
-            return;
-        }
-
-        var dispatch = new EventDispatch(mouseMoveEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
-
-    private void DispatchDynamicScrollWheel(uint eventId, ScrollWheelEvent scrollWheelEvent)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "scroll wheel");
-            return;
-        }
-
-        var dispatch = new EventDispatch(scrollWheelEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
-
-    private void DispatchDynamicFileDrop(uint eventId, FileDropEvent fileDropEvent)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "file drop");
-            return;
-        }
-
-        var dispatch = new EventDispatch(fileDropEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
-
     private bool TryGetDynamicEvent(uint eventId, out EventEntry entry)
     {
         if ((eventId & DynamicEventBit) == 0)
@@ -812,7 +429,7 @@ internal sealed class ViewEventRegistry
         }
 
         entry = entries[index];
-        return entry.BinderIndex != 0 && entry.Target is ViewBase { Runtime.IsMounted: true };
+        return entry.Id != 0 && entry.Target is ViewBase { Runtime.IsMounted: true };
     }
 
     private void MissingDynamicEvent(uint eventId, string eventType)
@@ -839,551 +456,115 @@ internal sealed class ViewEventRegistry
         };
 
     internal void DispatchClickCore(uint eventId, ClickEvent clickEvent) =>
-        DispatchDynamicClick(eventId, clickEvent);
+        DispatchPayloadCore(eventId, clickEvent, "click");
 
     internal void DispatchInputCore(uint eventId, InputEvent inputEvent) =>
-        DispatchDynamicInput(eventId, inputEvent);
+        DispatchPayloadCore(eventId, inputEvent, "input");
 
-    internal void DispatchInputWriteCore(uint eventId, InputWriteResult result)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "input write");
-            return;
-        }
-        var dispatch = new EventDispatch(result);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
+    internal void DispatchInputWriteCore(uint eventId, InputWriteResult result) =>
+        DispatchPayloadCore(eventId, result, "input write");
 
-    internal void DispatchListActivationCore(uint eventId, ListActivationEvent activation)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "list activation");
-            return;
-        }
-        var dispatch = new EventDispatch(activation);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
+    internal void DispatchListActivationCore(uint eventId, ListActivationEvent activation) =>
+        DispatchPayloadCore(eventId, activation, "list activation");
 
-    internal void DispatchListTooltipCore(uint eventId, ListTooltipEvent request)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "list tooltip");
-            return;
-        }
-        var dispatch = new EventDispatch(request);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
+    internal void DispatchListTooltipCore(uint eventId, ListTooltipEvent request) =>
+        DispatchPayloadCore(eventId, request, "list tooltip");
 
-    internal void DispatchListContextMenuCore(uint eventId, ListContextMenuEvent request)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "list context menu");
-            return;
-        }
-        var dispatch = new EventDispatch(request);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
+    internal void DispatchListContextMenuCore(uint eventId, ListContextMenuEvent request) =>
+        DispatchPayloadCore(eventId, request, "list context menu");
 
-    internal void DispatchListSelectionCore(uint eventId, ListSelectionEvent selection)
-    {
-        if (!TryGetDynamicEvent(eventId, out var entry))
-        {
-            MissingDynamicEvent(eventId, "list selection");
-            return;
-        }
-        var dispatch = new EventDispatch(selection);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
-    }
+    internal void DispatchListSelectionCore(uint eventId, ListSelectionEvent selection) =>
+        DispatchPayloadCore(eventId, selection, "list selection");
 
     internal void DispatchSliderCore(uint eventId, SliderEvent sliderEvent) =>
-        DispatchDynamicSlider(eventId, sliderEvent);
+        DispatchPayloadCore(eventId, sliderEvent, "slider");
 
     internal void DispatchDockCore(uint eventId, DockEvent dockEvent) =>
-        DispatchDynamicDock(eventId, dockEvent);
+        DispatchPayloadCore(eventId, dockEvent, "dock");
 
     internal void DispatchKeyCore(uint eventId, KeyEvent keyEvent) =>
-        DispatchDynamicKey(eventId, keyEvent);
+        DispatchPayloadCore(eventId, keyEvent, "key");
 
     internal void DispatchMouseCore(uint eventId, MouseEvent mouseEvent) =>
-        DispatchDynamicMouse(eventId, mouseEvent);
+        DispatchPayloadCore(eventId, mouseEvent, "mouse");
 
     internal void DispatchModifiersCore(uint eventId, ModifiersEvent modifiersEvent) =>
-        DispatchDynamicModifiers(eventId, modifiersEvent);
+        DispatchPayloadCore(eventId, modifiersEvent, "modifiers");
 
     internal void DispatchHoverCore(uint eventId, HoverEvent hoverEvent) =>
-        DispatchDynamicHover(eventId, hoverEvent);
+        DispatchPayloadCore(eventId, hoverEvent, "hover");
 
     internal void DispatchMouseMoveCore(uint eventId, MouseMoveEvent mouseMoveEvent) =>
-        DispatchDynamicMouseMove(eventId, mouseMoveEvent);
+        DispatchPayloadCore(eventId, mouseMoveEvent, "mouse move");
 
     internal void DispatchScrollWheelCore(uint eventId, ScrollWheelEvent scrollWheelEvent) =>
-        DispatchDynamicScrollWheel(eventId, scrollWheelEvent);
+        DispatchPayloadCore(eventId, scrollWheelEvent, "scroll wheel");
 
     internal void DispatchFileDropCore(uint eventId, FileDropEvent fileDropEvent) =>
-        DispatchDynamicFileDrop(eventId, fileDropEvent);
+        DispatchPayloadCore(eventId, fileDropEvent, "file drop");
 
-    internal void DispatchNativeExtensionCore(
-        uint eventId,
-        NativeExtensionEvent nativeExtensionEvent
-    )
+    internal void DispatchNativeExtensionCore(uint eventId, NativeExtensionEvent packet) =>
+        DispatchExtensionCore(eventId, packet, "native extension");
+
+    private void DispatchExtensionCore(uint eventId, NativeExtensionEvent packet, string eventType)
     {
         if (!TryGetDynamicEvent(eventId, out var entry))
         {
-            MissingDynamicEvent(eventId, "native extension");
+            MissingDynamicEvent(eventId, eventType);
             return;
         }
-
-        var dispatch = new EventDispatch(nativeExtensionEvent);
-        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
+        ExtensionInvokerRegistry.GetExtensionInvoker(entry.ExtensionIndex)(
+            entry.Target!,
+            entry.Callback!,
+            packet
+        );
     }
 
-    private static class EventBinderRegistry
+    private static class ExtensionInvokerRegistry
     {
-        private const int SegmentShift = 8;
-        private const int SegmentSize = 1 << SegmentShift;
-        private const int SegmentMask = SegmentSize - 1;
-        private const int MaxSegments = 256;
-        private static readonly EventBinder[]?[] Segments = new EventBinder[]?[MaxSegments];
+        // Extension event types form an open universe, so decode routing stays dynamic.
+        // Built-in families dispatch statically and never enter this registry.
+        private static readonly object ExtensionLock = new();
+        private static Action<object, Delegate, NativeExtensionEvent>[] _invokers = [];
         private static int _count;
 
-        internal static int Add(EventBinder binder)
+        internal static int AddExtension(Action<object, Delegate, NativeExtensionEvent> invoker)
         {
-            var index = Interlocked.Increment(ref _count);
-            var segmentIndex = index >> SegmentShift;
-            if ((uint)segmentIndex >= MaxSegments)
+            lock (ExtensionLock)
             {
-                throw new InvalidOperationException("The event binder registry is exhausted.");
+                if (_count == _invokers.Length)
+                {
+                    Array.Resize(ref _invokers, _invokers.Length == 0 ? 4 : _invokers.Length * 2);
+                }
+                _invokers[_count] = invoker;
+                return ++_count;
             }
-
-            var segment = Volatile.Read(ref Segments[segmentIndex]);
-            if (segment is null)
-            {
-                var created = new EventBinder[SegmentSize];
-                segment =
-                    Interlocked.CompareExchange(ref Segments[segmentIndex], created, null)
-                    ?? created;
-            }
-
-            Volatile.Write(ref segment[index & SegmentMask], binder);
-            return index;
         }
 
-        internal static EventBinder Get(int index)
+        internal static Action<object, Delegate, NativeExtensionEvent> GetExtensionInvoker(
+            int index
+        )
         {
-            if (index <= 0)
+            // Registration happens during binding; dispatch only reads. Snapshotting the
+            // current table keeps the event path lock-free; bounds and null checks cover a
+            // stale snapshot.
+            var invokers = Volatile.Read(ref _invokers);
+            if ((uint)(index - 1) < (uint)invokers.Length && invokers[index - 1] is { } invoker)
             {
-                throw new InvalidOperationException("The event binder index is invalid.");
+                return invoker;
             }
-
-            var segmentIndex = index >> SegmentShift;
-            if ((uint)segmentIndex >= MaxSegments)
-            {
-                throw new InvalidOperationException("The event binder index is invalid.");
-            }
-
-            var segment = Volatile.Read(ref Segments[segmentIndex]);
-            var binder = segment is null ? null : Volatile.Read(ref segment[index & SegmentMask]);
-            return binder
-                ?? throw new InvalidOperationException("The event binder is not registered.");
+            throw new InvalidOperationException("The event binder index is invalid.");
         }
     }
 
-    private static class ClickEventBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Click)
-            {
-                throw WrongDispatchKind("click");
-            }
-            if (target is not TView typedTarget)
-            {
-                throw WrongTarget<TView>(target, "click");
-            }
-            if (callback is not Action<TView, ClickEvent> typedCallback)
-            {
-                throw WrongCallback("Action<TView, ClickEvent>", "click");
-            }
-
-            typedCallback(typedTarget, dispatch.Click);
-        }
-    }
-
-    private static class InputBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Input || dispatch.Input is not { } input)
-            {
-                throw WrongDispatchKind("input");
-            }
-            if (target is not TView typedTarget)
-            {
-                throw WrongTarget<TView>(target, "input");
-            }
-            if (callback is not Action<TView, InputEvent> typedCallback)
-            {
-                throw WrongCallback("Action<TView, InputEvent>", "input");
-            }
-
-            typedCallback(typedTarget, input);
-        }
-    }
-
-    private static class InputWriteBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.InputWrite)
-                throw WrongDispatchKind("input write");
-            if (target is not TView typedTarget)
-                throw WrongTarget<TView>(target, "input write");
-            if (callback is not Action<TView, InputWriteResult> typedCallback)
-                throw WrongCallback("Action<TView, InputWriteResult>", "input write");
-            typedCallback(typedTarget, dispatch.InputWrite);
-        }
-    }
-
-    private static class ListTooltipBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.ListTooltip)
-                throw WrongDispatchKind("list tooltip");
-            if (target is not TView typedTarget)
-                throw WrongTarget<TView>(target, "list tooltip");
-            if (callback is not Action<TView, ListTooltipEvent> typedCallback)
-                throw WrongCallback("Action<TView, ListTooltipEvent>", "list tooltip");
-            typedCallback(typedTarget, dispatch.ListTooltip);
-        }
-    }
-
-    private static class ListContextMenuBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.ListContextMenu)
-                throw WrongDispatchKind("list context menu");
-            if (target is not TView typedTarget)
-                throw WrongTarget<TView>(target, "list context menu");
-            if (callback is not Action<TView, ListContextMenuEvent> typedCallback)
-                throw WrongCallback("Action<TView, ListContextMenuEvent>", "list context menu");
-            typedCallback(typedTarget, dispatch.ListContextMenu);
-        }
-    }
-
-    private static class ListSelectionBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.ListSelection)
-                throw WrongDispatchKind("list selection");
-            if (target is not TView typedTarget)
-                throw WrongTarget<TView>(target, "list selection");
-            if (callback is not Action<TView, ListSelectionEvent> typedCallback)
-                throw WrongCallback("Action<TView, ListSelectionEvent>", "list selection");
-            typedCallback(typedTarget, dispatch.ListSelection);
-        }
-    }
-
-    private static class ListActivationBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.ListActivation)
-                throw WrongDispatchKind("list activation");
-            if (target is not TView typedTarget)
-                throw WrongTarget<TView>(target, "list activation");
-            if (callback is not Action<TView, ListActivationEvent> typedCallback)
-                throw WrongCallback("Action<TView, ListActivationEvent>", "list activation");
-            typedCallback(typedTarget, dispatch.ListActivation);
-        }
-    }
-
-    private static class SliderBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Slider)
-            {
-                throw WrongDispatchKind("slider");
-            }
-            if (target is not TView typedTarget)
-            {
-                throw WrongTarget<TView>(target, "slider");
-            }
-            if (callback is not Action<TView, SliderEvent> typedCallback)
-            {
-                throw WrongCallback("Action<TView, SliderEvent>", "slider");
-            }
-
-            typedCallback(typedTarget, dispatch.Slider);
-        }
-    }
-
-    private static class DockBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Dock)
-            {
-                throw WrongDispatchKind("dock");
-            }
-            if (target is not TView typedTarget)
-            {
-                throw WrongTarget<TView>(target, "dock");
-            }
-            if (callback is not Action<TView, DockEvent> typedCallback)
-            {
-                throw WrongCallback("Action<TView, DockEvent>", "dock");
-            }
-
-            typedCallback(typedTarget, dispatch.Dock);
-        }
-    }
-
-    private static class KeyBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Key || dispatch.Key is not { } key)
-            {
-                throw WrongDispatchKind("key");
-            }
-            if (target is not TView typedTarget)
-            {
-                throw WrongTarget<TView>(target, "key");
-            }
-            if (callback is not Action<TView, KeyEvent> typedCallback)
-            {
-                throw WrongCallback("Action<TView, KeyEvent>", "key");
-            }
-
-            typedCallback(typedTarget, key);
-        }
-    }
-
-    private static class MouseBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Mouse)
-            {
-                throw WrongDispatchKind("mouse");
-            }
-            if (target is not TView typedTarget)
-            {
-                throw WrongTarget<TView>(target, "mouse");
-            }
-            if (callback is not Action<TView, MouseEvent> typedCallback)
-            {
-                throw WrongCallback("Action<TView, MouseEvent>", "mouse");
-            }
-
-            typedCallback(typedTarget, dispatch.Mouse);
-        }
-    }
-
-    private static class ModifiersBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Modifiers)
-            {
-                throw WrongDispatchKind("modifiers");
-            }
-            if (target is not TView typedTarget)
-            {
-                throw WrongTarget<TView>(target, "modifiers");
-            }
-            if (callback is not Action<TView, ModifiersEvent> typedCallback)
-            {
-                throw WrongCallback("Action<TView, ModifiersEvent>", "modifiers");
-            }
-
-            typedCallback(typedTarget, dispatch.Modifiers);
-        }
-    }
-
-    private static class HoverBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.Hover)
-            {
-                throw WrongDispatchKind("hover");
-            }
-            if (target is not TView typedTarget)
-            {
-                throw WrongTarget<TView>(target, "hover");
-            }
-            if (callback is not Action<TView, HoverEvent> typedCallback)
-            {
-                throw WrongCallback("Action<TView, HoverEvent>", "hover");
-            }
-
-            typedCallback(typedTarget, dispatch.Hover);
-        }
-    }
-
-    private static class MouseMoveBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.MouseMove)
-            {
-                throw WrongDispatchKind("mouse move");
-            }
-            if (target is not TView typedTarget)
-            {
-                throw WrongTarget<TView>(target, "mouse move");
-            }
-            if (callback is not Action<TView, MouseMoveEvent> typedCallback)
-            {
-                throw WrongCallback("Action<TView, MouseMoveEvent>", "mouse move");
-            }
-
-            typedCallback(typedTarget, dispatch.MouseMove);
-        }
-    }
-
-    private static class ScrollWheelBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (dispatch.Kind != EventDispatchKind.ScrollWheel)
-            {
-                throw WrongDispatchKind("scroll wheel");
-            }
-            if (target is not TView typedTarget)
-            {
-                throw WrongTarget<TView>(target, "scroll wheel");
-            }
-            if (callback is not Action<TView, ScrollWheelEvent> typedCallback)
-            {
-                throw WrongCallback("Action<TView, ScrollWheelEvent>", "scroll wheel");
-            }
-
-            typedCallback(typedTarget, dispatch.ScrollWheel);
-        }
-    }
-
-    private static class FileDropBinder<TView>
-        where TView : ViewBase
-    {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
-
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
-        {
-            if (
-                dispatch.Kind != EventDispatchKind.FileDrop
-                || dispatch.FileDrop is not { } fileDrop
-            )
-            {
-                throw WrongDispatchKind("file drop");
-            }
-            if (target is not TView typedTarget)
-            {
-                throw WrongTarget<TView>(target, "file drop");
-            }
-            if (callback is not Action<TView, FileDropEvent> typedCallback)
-            {
-                throw WrongCallback("Action<TView, FileDropEvent>", "file drop");
-            }
-
-            typedCallback(typedTarget, fileDrop);
-        }
-    }
-
-    private static class NativeExtensionBinder<TView, TEvent>
-        where TView : ViewBase
+    private static class NativeExtensionInvoker<TEvent>
         where TEvent : INativeExtensionEvent<TEvent>
     {
-        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+        internal static readonly int Index = ExtensionInvokerRegistry.AddExtension(Invoke);
 
-        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        internal static void Invoke(object target, Delegate callback, NativeExtensionEvent packet)
         {
-            if (
-                dispatch.Kind != EventDispatchKind.NativeExtension
-                || dispatch.NativeExtension is not { } nativeExtensionEvent
-            )
-            {
-                throw WrongDispatchKind("native extension");
-            }
-            if (target is not TView typedTarget)
-            {
-                throw WrongTarget<TView>(target, "native extension");
-            }
-            if (callback is not Action<TView, TEvent> typedCallback)
-            {
-                throw WrongCallback($"Action<TView, {typeof(TEvent).Name}>", "native extension");
-            }
-
-            typedCallback(typedTarget, TEvent.Decode(nativeExtensionEvent));
+            Unsafe.As<Action<ViewBase, TEvent>>(callback)((ViewBase)target, TEvent.Decode(packet));
         }
     }
-
-    private static Exception WrongDispatchKind(string eventType) =>
-        new InvalidOperationException($"The event binder cannot dispatch a {eventType} event.");
-
-    private static Exception WrongTarget<TView>(object target, string eventType)
-        where TView : ViewBase =>
-        new InvalidOperationException(
-            $"The {eventType} callback requires target type {typeof(TView).FullName}, "
-                + $"but received {target.GetType().FullName}."
-        );
-
-    private static Exception WrongCallback(string callbackType, string eventType) =>
-        new InvalidOperationException(
-            $"The {eventType} callback has an incompatible delegate type; expected {callbackType}."
-        );
 }
