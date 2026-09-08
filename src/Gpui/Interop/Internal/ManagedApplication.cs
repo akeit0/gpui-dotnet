@@ -72,6 +72,10 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
         // Theme precedes every initial Open command, so native defaults are correct on the first
         // materialized frame instead of flashing the fallback light palette.
         SetTheme(_application.Theme);
+        if (_application.ImageCacheBudgetSnapshot() is { } budget)
+        {
+            SetImageCacheBudget(budget.MaxBytes, budget.MaxEntries);
+        }
 
         if (_application.MenuBarSnapshot() is { } menus)
         {
@@ -164,6 +168,44 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
         foreach (var session in _sessions.Values)
         {
             session.InvalidateAllViews();
+        }
+    }
+
+    public void SetImageCacheBudget(ulong maxBytes, ulong maxEntries)
+    {
+        ApplicationExecution.AssertEffectsAllowed();
+        var payload = new NativeImageCacheBudget
+        {
+            Version = NativeImageCacheBudget.CurrentVersion,
+            Reserved = 0,
+            MaxBytes = maxBytes,
+            MaxEntries = maxEntries,
+        };
+        unsafe
+        {
+            var payloadPointer = &payload;
+            var native = new NativeApplicationCommand
+            {
+                window_id = 0,
+                command = 10,
+                flags = 0,
+                reserved = 0,
+                title = (byte*)payloadPointer,
+                title_length = sizeof(NativeImageCacheBudget),
+                reserved2 = 0,
+                left = 0,
+                top = 0,
+                width = 0,
+                height = 0,
+            };
+            var status = _runtime.Api->dispatch_application_command(_applicationId, &native);
+            GC.KeepAlive(_runtime);
+            if (status != 0)
+            {
+                throw new InvalidOperationException(
+                    $"Native image cache budget update failed for application {_applicationId}: {NativeStatus.Describe(NativeStatusDomain.ApplicationCommand, status)}."
+                );
+            }
         }
     }
 

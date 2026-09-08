@@ -306,6 +306,7 @@ Current commands are:
 | SetTitle | non-empty UTF-8 title |
 | Resize | positive finite width and height |
 | SetTheme | versioned appearance and resolved semantic palette, application-scoped |
+| SetImageCacheBudget | versioned spill budget (bytes, entries), application-scoped |
 | ManagedCodeUpdated | empty application-scoped Hot Reload invalidation |
 
 Open flags encode optional position, activation, and `System`, `Custom`, or `Hidden` title-bar
@@ -319,6 +320,12 @@ rejects unsupported versions or appearance values. Resolved roles feed GPUI.NET 
 the global `gpui-base` theme; application style variants and Rust foundation types do not cross the
 ABI. The managed-code update command clears native List/Table item snapshots and dirties each managed
 window without resetting retained control or Dock identity and interaction state.
+
+The budget command (id 10) uses the byte pointer as a private fixed-size payload. Payload
+version 1 is sequential little-endian `u32` version, `u32` reserved (zero), `u64` maximum spill
+bytes, and `u64` maximum spill entries. The native entry point requires the exact payload size
+and rejects unsupported versions. A zero byte budget disables the spill tier; a zero entry
+count leaves the entry count uncapped. No ABI layout changes: the command record is unchanged.
 
 ## Application menus
 

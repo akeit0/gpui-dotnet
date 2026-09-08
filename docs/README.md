@@ -34,6 +34,7 @@ Start with the repository [README](../README.md) for setup and a small applicati
 | [Editor](EDITOR.md) | Optional editor integration |
 | [Packaging](PACKAGING.md) | Package graph and native assets |
 | [Performance](PERFORMANCE.md) | Measurement tools and recorded evidence |
+| [Image cache](IMAGE_CACHE.md) | Image decoding, budgets, eviction, framework comparison |
 | [Upstream baseline](UPSTREAM_BASELINE.md) | Pinned upstream dependencies |
 | [Foundation integration](GPUI_BASE_MIGRATION.md) | gpui-base boundary and host-size analysis |
 | [Roadmap](NEXT_STEPS.md) | Open work only |

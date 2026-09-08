@@ -153,6 +153,7 @@ public sealed class GpuiApplication
     private readonly NativeRuntimeOptions? _runtimeOptions;
     private GpuiMenu[]? _menuBar;
     private GpuiTheme _theme = GpuiTheme.Default;
+    private (ulong MaxBytes, ulong MaxEntries)? _imageCacheBudget;
     private IGpuiApplicationHost? _host;
     private ApplicationState _state;
 
@@ -202,6 +203,39 @@ public sealed class GpuiApplication
         }
 
         host?.SetTheme(theme);
+    }
+
+    /// <summary>
+    /// Overrides the native image-cache spill budget: recently-visible images kept decoded
+    /// past their live range. A zero <paramref name="maxBytes"/> disables the spill tier
+    /// (pure live-set, minimal memory); a zero <paramref name="maxEntries"/> leaves the entry
+    /// count uncapped. Omitting this call keeps the native defaults (100 MiB, 64 entries).
+    /// Existing windows reconcile on their next render so a shrunken budget trims promptly.
+    /// </summary>
+    public void SetImageCacheBudget(ulong maxBytes, ulong maxEntries)
+    {
+        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+        IGpuiApplicationHost? host;
+        lock (_gate)
+        {
+            if (_state == ApplicationState.Stopped)
+            {
+                throw new InvalidOperationException("The GPUI application has already stopped.");
+            }
+
+            _imageCacheBudget = (maxBytes, maxEntries);
+            host = _host;
+        }
+
+        host?.SetImageCacheBudget(maxBytes, maxEntries);
+    }
+
+    internal (ulong MaxBytes, ulong MaxEntries)? ImageCacheBudgetSnapshot()
+    {
+        lock (_gate)
+        {
+            return _imageCacheBudget;
+        }
     }
 
     /// <summary>
@@ -613,6 +647,7 @@ internal interface IGpuiApplicationHost
 {
     void SetMenuBar(IReadOnlyList<GpuiMenu> menus);
     void SetTheme(GpuiTheme theme);
+    void SetImageCacheBudget(ulong maxBytes, ulong maxEntries);
     void OpenWindow(GpuiWindow window, GpuiWindowSnapshot snapshot);
     void CloseWindow(ulong windowId);
     void ActivateWindow(ulong windowId);

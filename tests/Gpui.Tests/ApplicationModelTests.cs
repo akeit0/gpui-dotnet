@@ -167,6 +167,40 @@ public sealed class ApplicationModelTests
         Assert.NotEqual(first.Id, reopened.Id);
     }
 
+    [Fact]
+    public unsafe void ImageCacheBudgetPayloadMatchesNativeLayout()
+    {
+        Assert.Equal(24, sizeof(NativeImageCacheBudget));
+        Assert.Equal(
+            0,
+            (int)Marshal.OffsetOf<NativeImageCacheBudget>(nameof(NativeImageCacheBudget.Version))
+        );
+        Assert.Equal(
+            4,
+            (int)Marshal.OffsetOf<NativeImageCacheBudget>(nameof(NativeImageCacheBudget.Reserved))
+        );
+        Assert.Equal(
+            8,
+            (int)Marshal.OffsetOf<NativeImageCacheBudget>(nameof(NativeImageCacheBudget.MaxBytes))
+        );
+        Assert.Equal(
+            16,
+            (int)Marshal.OffsetOf<NativeImageCacheBudget>(nameof(NativeImageCacheBudget.MaxEntries))
+        );
+    }
+
+    [Fact]
+    public void ImageCacheBudgetIsStoredUntilHostAttaches()
+    {
+        var application = new GpuiApplication();
+
+        Assert.Null(application.ImageCacheBudgetSnapshot());
+
+        application.SetImageCacheBudget(1024, 8);
+
+        Assert.Equal((1024UL, 8UL), application.ImageCacheBudgetSnapshot());
+    }
+
     private sealed class ProbeView : View, IGeneratedViewFactory<ProbeView>
     {
         internal static int Constructions;

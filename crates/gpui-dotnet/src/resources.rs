@@ -177,6 +177,12 @@ impl ResourceStore {
         self.images.borrow().clone()
     }
 
+    /// Forces the next render to reconcile image retention even when the snapshot revision
+    /// is unchanged. Used after a budget change so a shrunken tier trims promptly.
+    pub(crate) fn note_image_budget_changed(&self) {
+        self.image_revision.set(u64::MAX);
+    }
+
     /// Drops cached images the latest snapshot no longer declares: mounted nodes plus
     /// virtual-item batches. Runs at most once per snapshot revision; re-renders of the same
     /// revision describe the same live set.

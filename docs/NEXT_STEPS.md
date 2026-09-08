@@ -143,6 +143,13 @@ interaction ownership separate from item-batch eviction; do not introduce mounte
 Keep pointer motion, focus mechanics, and state-style evaluation native. Submit presentation as
 retained descriptions rather than invoking managed callbacks during interaction.
 
+## Image cache
+
+- path invalidation for changed files: the cache keys by filesystem path, so an externally
+  edited file keeps serving stale bytes. Decide between an explicit managed evict-path command
+  and native mtime/size revalidation on load, with measurements for viewer navigation before
+  choosing.
+
 ## Runtime
 
 The current runtime contracts are described in [Runtime design](RUNTIME_DESIGN.md).

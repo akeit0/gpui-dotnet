@@ -406,7 +406,8 @@ unsafe fn dispatch_application_command_inner(
     };
     let is_theme = command.command == 8;
     let is_managed_code_update = command.command == 9;
-    let is_application_scoped = is_theme || is_managed_code_update;
+    let is_image_budget = command.command == crate::abi::IMAGE_CACHE_BUDGET_COMMAND;
+    let is_application_scoped = is_theme || is_managed_code_update || is_image_budget;
     if application_id == 0
         || (!is_application_scoped && command.window_id == 0)
         || command.reserved != 0
@@ -447,6 +448,18 @@ unsafe fn dispatch_application_command_inner(
         return app_host::dispatch_application_command(
             application_id,
             app_host::ApplicationCommand::ManagedCodeUpdated,
+        );
+    }
+    if is_image_budget {
+        let Ok((max_bytes, max_entries)) = crate::abi::parse_image_cache_budget(command) else {
+            return -62;
+        };
+        return app_host::dispatch_application_command(
+            application_id,
+            app_host::ApplicationCommand::SetImageCacheBudget {
+                max_bytes,
+                max_entries,
+            },
         );
     }
 

@@ -93,6 +93,10 @@ impl Drop for ViewRegistration {
 pub(crate) enum ApplicationCommand {
     SetMenuBar(Vec<ManagedMenu>),
     SetTheme(NativeTheme),
+    SetImageCacheBudget {
+        max_bytes: u64,
+        max_entries: u64,
+    },
     ManagedCodeUpdated,
     Open {
         window_id: u64,
@@ -837,6 +841,24 @@ fn apply_application_command(
                 };
                 let _ = handle.update(cx, |view, window, cx| {
                     view.resources.invalidate_managed_rendered_items();
+                    view.invalidate(cx);
+                    window.refresh();
+                });
+            }
+        }
+        ApplicationCommand::SetImageCacheBudget {
+            max_bytes,
+            max_entries,
+        } => {
+            crate::images::set_global_budget(max_bytes, max_entries);
+            // The new budget applies lazily to every view's cache; force the next render to
+            // reconcile so a shrunken budget trims promptly instead of waiting for a snapshot.
+            for entry in windows.borrow().values() {
+                let Some(handle) = entry.handle.downcast::<ManagedView>() else {
+                    continue;
+                };
+                let _ = handle.update(cx, |view, window, cx| {
+                    view.resources.note_image_budget_changed();
                     view.invalidate(cx);
                     window.refresh();
                 });
