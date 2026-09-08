@@ -285,6 +285,23 @@ internal static unsafe class ManagedValidator
                 nodes[(int)operation.Node].ComponentValue = (uint)operation.A;
             else if (code == OpCode.TableColumn)
                 nodes[(int)operation.Node].ComponentValue++;
+            if (code == OpCode.ResourceOwner)
+                nodes[(int)operation.Node].ResourceOwner = (uint)operation.A;
+            if (code == OpCode.FocusTarget)
+            {
+                ref var info = ref nodes[(int)operation.Node];
+                if (info.HasFocusTarget)
+                    throw new InvalidOperationException("A container can declare only one focus target.");
+                info.HasFocusTarget = true;
+            }
+            if (code == OpCode.FocusTabStop)
+                nodes[(int)operation.Node].HasFocusTabStop = true;
+        }
+
+        foreach (ref readonly var info in nodes)
+        {
+            if ((info.HasFocusTabStop && !info.HasFocusTarget) || (info.HasFocusTarget && info.ResourceOwner == 0))
+                throw new InvalidOperationException("Focus targets require an owner and a target key.");
         }
 
         for (var i = 0; i < arena->ChildLength; i++)
@@ -390,6 +407,9 @@ internal static unsafe class ManagedValidator
 
     private struct NodeInfo
     {
+        internal uint ResourceOwner;
+        internal bool HasFocusTarget;
+        internal bool HasFocusTabStop;
         internal int Parent;
         internal int ChildCount;
         // Dock active index/region side, or Table column count; component kinds are exclusive.

@@ -92,6 +92,7 @@ internal sealed partial class SampleShellView : View
             SamplePage.Grid => ui.Child("content", GridView.Spec()),
             SamplePage.Inputs => ui.Child("content", InputGalleryView.Spec()),
             SamplePage.Observers => ui.Child("content", ObserverView.Spec()),
+            SamplePage.Focus => ui.Child("content", FocusGalleryView.Spec()),
             SamplePage.Overlays => ui.Child("content", OverlayGalleryView.Spec()),
             SamplePage.Windows => RenderWindowGallery(ref ui),
             _ => throw new InvalidOperationException("Unknown sample page."),
@@ -112,6 +113,7 @@ internal sealed partial class SampleShellView : View
                 SamplePage.Grid => "Grid",
                 SamplePage.Inputs => "Inputs",
                 SamplePage.Observers => "Observers",
+                SamplePage.Focus => "Keyboard focus",
                 SamplePage.Overlays => "Overlays",
                 SamplePage.Windows => "Windows",
                 _ => throw new InvalidOperationException("Unknown sample page."),
@@ -130,6 +132,7 @@ internal sealed partial class SampleShellView : View
                 SamplePage.Images => "GPUI-native decoding, caching, fitting, and grayscale",
                 SamplePage.Text => "weight, style, decorations, and line height without a web view",
                 SamplePage.Grid => "grid containers, templates, spans, and line placement",
+                SamplePage.Focus => "focus a custom preview with the keyboard, pointer, or a command",
                 SamplePage.Inputs =>
                     "retained native editing, IME, selection, focus, and UTF-8 events",
                 SamplePage.Observers =>
@@ -205,6 +208,7 @@ internal sealed partial class SampleShellView : View
                 GpuiMenuItem.Command("Grid", scope.Bind(this, static view => view.ShowPage(SamplePage.Grid))),
                 GpuiMenuItem.Command("Inputs", scope.Bind(this, static view => view.ShowPage(SamplePage.Inputs))),
                 GpuiMenuItem.Command("Observers", scope.Bind(this, static view => view.ShowPage(SamplePage.Observers))),
+                GpuiMenuItem.Command("Keyboard focus", scope.Bind(this, static view => view.ShowPage(SamplePage.Focus))),
                 GpuiMenuItem.Command("Overlays + tooltips", scope.Bind(this, static view => view.ShowPage(SamplePage.Overlays))),
                 GpuiMenuItem.Command("Windows", scope.Bind(this, static view => view.ShowPage(SamplePage.Windows)))
             ),
@@ -240,6 +244,7 @@ internal sealed partial class SampleShellView : View
                 NavigationButton(ref ui, "show-grid", "Grid", SamplePage.Grid),
                 NavigationButton(ref ui, "show-inputs", "Inputs", SamplePage.Inputs),
                 NavigationButton(ref ui, "show-observers", "Observers", SamplePage.Observers),
+                NavigationButton(ref ui, "show-focus", "Keyboard focus", SamplePage.Focus),
                 NavigationButton(
                     ref ui,
                     "show-overlays",

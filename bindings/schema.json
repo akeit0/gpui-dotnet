@@ -32,7 +32,8 @@
     "key_mouse",
     "accessible",
     "tooltip_options",
-    "shortcut_scope"
+    "shortcut_scope",
+    "focus_target"
   ],
   "enums": [
     {
@@ -276,7 +277,9 @@
         "layout",
         "window_control",
         "key_mouse",
-        "shortcut_scope"
+        "shortcut_scope",
+        "focus_target",
+        "native_state"
       ],
       "nativeAdapter": "div"
     },
@@ -689,6 +692,23 @@
     }
   ],
   "operations": [
+    {
+      "id": 912,
+      "name": "focus_target",
+      "csharp": "FocusTarget",
+      "value": "data",
+      "requires": "focus_target",
+      "managedApi": null
+    },
+    {
+      "id": 913,
+      "name": "focus_tab_stop",
+      "csharp": "FocusTabStop",
+      "value": "u32",
+      "requires": "focus_target",
+      "managedApi": null,
+      "validation": { "kind": "bool", "status": -21 }
+    },
     { "id": 910, "name": "on_shortcut", "csharp": "OnShortcut", "value": "callback", "requires": "shortcut_scope", "managedApi": null, "payload": "event", "validation": { "kind": "packedCommandShortcut", "status": -66 } },
     { "id": 911, "name": "isolate_shortcuts", "csharp": "IsolateShortcuts", "value": "u32", "requires": "shortcut_scope", "managedApi": "bool", "validation": { "kind": "bool", "status": -21 } },
     {
@@ -3194,6 +3214,15 @@
     }
   ],
   "resources": [
+    {
+      "id": 7,
+      "name": "focus",
+      "csharp": "Focus",
+      "commands": [
+        { "id": 50, "name": "focus", "csharp": "FocusTargetFocus", "doc": "Moves native keyboard focus to the declared container." },
+        { "id": 51, "name": "blur", "csharp": "FocusTargetBlur", "doc": "Releases focus only when this target itself is focused." }
+      ]
+    },
     {
       "id": 1,
       "name": "scroll",

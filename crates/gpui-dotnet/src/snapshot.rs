@@ -352,11 +352,31 @@ fn validate_resource_key_uniqueness(
             let node = op.node as usize;
             owners[node].0 = op.a as u32;
         }
+        if op.code == crate::semantic::OP_FOCUS_TARGET {
+            let entry = &mut owners[op.node as usize];
+            if entry.2 != 0 {
+                return Err(-67);
+            }
+            entry.1 = op.a as u32;
+            entry.2 = op.b as u32;
+            entry.3 = crate::semantic::RESOURCE_FOCUS;
+        }
+        if op.code == crate::semantic::OP_FOCUS_TAB_STOP && owners[op.node as usize].3 == 0 {
+            owners[op.node as usize].3 = crate::semantic::RESOURCE_FOCUS;
+        }
     }
 
     let mut count = 0usize;
     for index in 0..nodes.len() {
         let node = &nodes[index];
+        if owners[index].3 == crate::semantic::RESOURCE_FOCUS {
+            if owners[index].0 == 0 || owners[index].2 == 0 {
+                return Err(-67);
+            }
+            owners[count] = owners[index];
+            count += 1;
+            continue;
+        }
         // A table's row-engine key is the first NUL-separated field of its data blob; a list's
         // key is the whole payload. The kind keeps Slider's separate resource namespace apart.
         let (kind, key_length) = match node.component {

@@ -36,8 +36,9 @@ namespace Gpui
     public interface IAccessibleElementTag { }
     public interface ITooltipOptionsElementTag { }
     public interface IShortcutScopeElementTag { }
+    public interface IFocusTargetElementTag { }
 
-    public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag, IKeyMouseElementTag, IShortcutScopeElementTag { }
+    public readonly struct DivTag : IStyledElementTag, IParentElementTag, ILayoutElementTag, IWindowControlElementTag, IKeyMouseElementTag, IShortcutScopeElementTag, IFocusTargetElementTag, INativeStateElementTag { }
     public readonly struct TextTag : IStyledElementTag { }
     public readonly struct ButtonTag : IAccessibleElementTag, IStyledElementTag, IParentElementTag, IInteractiveElementTag, IDisableableElementTag, IWindowControlElementTag, IKeyMouseElementTag { }
     public readonly struct CheckboxTag : IAccessibleElementTag, IStyledElementTag, IParentElementTag, IInteractiveElementTag, ICheckableElementTag, IDisableableElementTag, IKeyMouseElementTag { }

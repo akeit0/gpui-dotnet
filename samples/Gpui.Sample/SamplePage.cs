@@ -11,6 +11,7 @@ internal enum SamplePage
     Grid,
     Inputs,
     Observers,
+    Focus,
     Overlays,
     Windows,
 }

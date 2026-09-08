@@ -10,7 +10,7 @@ documents.
    replacement without losing native state. Prioritize coherent behavior over additional part-color
    methods or sample variants.
 2. Input and focus foundations: word navigation, undo/redo, richer pointer selection, platform IME
-   tests, controlled-binding helpers, and general focus targets for custom composites.
+   tests, controlled-binding helpers, and composite focus entry/restoration where applications need it.
 3. Performance: optimize a measured application bottleneck. Evaluate GPUI tessellation/scene-buffer
    APIs only when workloads justify the work; its current public API consumes these buffers.
 
@@ -60,7 +60,7 @@ Remaining work is focused coverage, authoring, and platform verification:
 - platform verification of focus, roles, values, and announcements, with backend limits documented.
 
 Reuse existing foundation and GPUI capabilities. Add missing managed semantics in coarse
-declarations alongside scoped commands and focus targets; do not restart the foundation work.
+declarations that compose with scoped commands and focus targets; do not restart the foundation work.
 
 ## Input
 
@@ -138,7 +138,7 @@ interaction ownership separate from row-batch eviction; do not introduce mounted
 - richer state-rule composition only where the current base/hover/active contract cannot express
   a concrete application need;
 - consistent Input focus indication at the styled-wrapper boundary without duplicating focus ownership;
-- general focus targets, restoration, and composite entry behavior;
+- custom focus restoration and composite entry behavior where concrete components need it;
 - accessible names for icon-only controls and semantic relationships for form fields.
 
 Keep pointer motion, focus mechanics, and state-style evaluation native. Submit presentation as

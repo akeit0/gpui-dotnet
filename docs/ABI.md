@@ -446,6 +446,7 @@ The same rule applies to UTF-8 Input setters and extension commands. Presence is
 | Scroll | ScrollToOffset, ScrollToTop, ScrollToBottom |
 | List/Table row engine | ScrollToItem, Splice, Reset, Refresh |
 | Input | Focus, Blur, SetValue, SetValueIfCurrent, SelectAll |
+| Focus target | Focus, Blur |
 | Slider | SetValue |
 | Dock | ClosePanel, SetRegionOpen, ImportLayout, ExportLayout |
 
@@ -454,6 +455,10 @@ are measurement hints and are reconciled with the next managed snapshot. A hint 
 the declared datasource count falls back to a full reset. Dock commands queue until the next
 committed snapshot materializes the area and apply after the declaration, so imperative intent
 wins ties; unknown panels and malformed documents are consumed without effect.
+
+Focus target resource kind `7` uses commands `50` (Focus) and `51` (Blur), both with zero words and
+empty data. Blur acts only on the target itself, not a focused descendant. Commands follow the same
+accepted-presence generation and pending-materialization rules as other retained resources.
 
 All payloads are canonical: no-payload commands require zero words and empty data, indices/counts
 must fit their documented words, offsets must be finite and non-negative, and Input data must be
@@ -521,6 +526,13 @@ revision carries the current native document revision. Invalid UTF-8 byte ranges
 revisions are rejected without changing native state.
 
 ## Semantic window and interaction operations
+
+Div supports an opt-in `FocusTarget` data operation (`912`) containing a non-empty, NUL-free UTF-8
+resource key and a nonzero `ResourceOwner`. A container may declare one target; keys must be unique
+within the focus resource namespace for that owner. `FocusTabStop` (`913`) is a canonical Boolean
+defaulting to false and requires a target on the same node. Missing ownership, repeated targets,
+or an orphan Tab policy fail with `-67`; duplicate identities use `-56`. Native handles never cross
+the ABI. This semantic addition changes the schema hash and keeps ABI 7 and all C layouts unchanged.
 
 `WindowControlArea` marks Div or Button nodes as native Drag, Minimize, Maximize, or Close hit-test
 regions. These operations stay in the render snapshot and do not create managed pointer callbacks.

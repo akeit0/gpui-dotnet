@@ -292,6 +292,14 @@ impl ManagedView {
 
         let bindings = key_mouse_bindings(node, snapshot);
         let element = attach_key_mouse(element, &bindings, cx);
+        if let Some(key) = crate::resources::focus_target_key(snapshot, node) {
+            let tab_stop = last_op(snapshot, node, crate::semantic::OP_FOCUS_TAB_STOP)
+                .is_some_and(|op| op.a != 0);
+            let focus = self.resources.focus_target(&key, tab_stop, window, cx);
+            let element = element.id(&focus).track_focus(&focus);
+            let element = attach_hover(element, &bindings, cx);
+            return presentation::focus_ring(element, theme.border_focused).into_any_element();
+        }
         if bindings.hover != 0 {
             // Hover tracking needs stable element state, which plain Divs lack:
             // wrap with the deterministic node id for the stateful listener only.
@@ -1263,6 +1271,7 @@ fn materialize_row_node(
     // Observer key/mouse/modifier/hover/move/wheel/drop bindings need focus and bubbling
     // through a mounted View; virtual rows are element-only snapshots without View lifetime.
     if last_op(snapshot, node, OP_ON_KEY_DOWN).is_some_and(|op| op.a != 0)
+        || last_op(snapshot, node, crate::semantic::OP_FOCUS_TARGET).is_some()
         || last_op(snapshot, node, crate::semantic::OP_ON_SHORTCUT).is_some()
         || last_op(snapshot, node, crate::semantic::OP_ISOLATE_SHORTCUTS)
             .is_some_and(|op| op.a != 0)
@@ -1278,7 +1287,7 @@ fn materialize_row_node(
         || last_op(snapshot, node, OP_ON_FILE_DROP).is_some_and(|op| op.a != 0)
     {
         return div()
-            .child("Shortcuts and key/mouse observer events inside a virtualized list row are not supported.")
+            .child("Focus targets, shortcuts, and key/mouse observer events inside a virtualized list row are not supported.")
             .into_any_element();
     }
 
@@ -3319,6 +3328,7 @@ fn last_op<'a>(
 
 #[cfg(test)]
 mod tests {
+    mod focus;
     mod shortcuts;
     use super::*;
     use crate::{

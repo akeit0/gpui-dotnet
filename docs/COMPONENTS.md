@@ -559,6 +559,39 @@ enabled command crosses the ABI. Unmatched keys, matching, precedence, and consu
 Declare shortcuts in ordinary View renders, outside virtual item batches. TaskBoard demonstrates
 Primary+N/F/S/D page commands and Primary+Enter in its New Task dialog.
 
+## Custom focus targets
+
+`ui.FocusTarget(ref controller, container, tabStop: true)` makes an existing `Element<DivTag>`
+(including VStack/HStack) a native focus target. It returns the same element, adding no wrapper.
+Store a `FocusController` field in the owning View; its first declaration assigns a stable key.
+Declare it on exactly one container per accepted snapshot and never share it between Views.
+
+```csharp
+private FocusController _preview;
+
+// Inside Render:
+var preview = ui.FocusTarget(ref _preview,
+    ui.VStack(ui.Text("Preview")).Padding(Px(16)), tabStop: true)
+    .OnShortcut(this, new(ShortcutKey.Right), static view => view.NextPreview());
+```
+
+Call `Focus()` from an event or accepted effect to move focus to the container itself. `Blur()`
+releases focus only if that container is focused; it leaves a focused descendant alone. Commands
+use the normal any-thread resource route and require an accepted declaration. Removing the
+declaration retires its native identity and pending commands; reintroducing the same controller
+creates a fresh target. Content changes, node reordering, and theme changes preserve identity.
+
+Tab participation defaults to false and can change declaratively without moving current focus.
+Pointer and programmatic focus remain available when Tab skips the target. GPUI handles pointer
+focus natively, allowing child controls to take focus first. Keyboard focus uses the existing
+theme focus ring without changing layout or application borders. Scoped shortcuts on the container
+are reachable when it or its descendants hold focus, subject to native control key handling.
+
+Use this declaration for custom containers. Existing native controls retain their own focus
+ownership. Focus targets are unavailable in virtual row snapshots. Focus groups, roving selection,
+and custom restoration policies are not exposed by this API. The sample's Keyboard focus page
+demonstrates direct focus, Tab participation, scoped preview navigation, and returning to an Input.
+
 ## Deferred layers
 
 Deferred layers paint relative to the window rather than the local layout tree:
