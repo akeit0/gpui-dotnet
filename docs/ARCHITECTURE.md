@@ -235,6 +235,15 @@ See [Deferred layers](COMPONENTS.md#deferred-layers).
 
 ## Applications, windows, and threading
 
+Shortcut bindings are native descriptions attached to Div/Overlay scopes in the focus ancestry.
+Native bubbling resolves descendant precedence, exact modifiers, isolation, and consumption before
+emitting a matched command. A window-local dispatch marker prevents isolated descendants from
+activating ancestor shortcuts without swallowing unrelated native key handling. The root clears
+that marker at the start of each key dispatch; callbacks retain ordinary managed View binding lifetime.
+Modal overlays isolate page shortcuts. Text-producing shortcuts require a command modifier, and
+the router yields to platform character-input events, without per-control protection hooks.
+No focus handles or per-key matching decisions cross the ABI.
+
 One `GpuiApplication` maps to one native `gpui::Application`. Every `GpuiWindow` maps to an
 independent managed session and native root view. Window IDs are stable 64-bit values and also serve
 as render-session IDs.

@@ -555,30 +555,6 @@ internal sealed partial class TaskBoardShellView : View
         }
     }
 
-    private void OnHotKey(KeyEvent key)
-    {
-        if (key.IsHeld)
-        {
-            return;
-        }
-        if (key.Matches("n", control: true))
-        {
-            OpenNewDialog();
-        }
-        else if (key.Matches("f", control: true))
-        {
-            FocusSearch();
-        }
-        else if (key.Matches("s", control: true))
-        {
-            SyncNow();
-        }
-        else if (key.Matches("d", control: true))
-        {
-            DeleteSelected();
-        }
-    }
-
     // ----- virtual rows (element-only snapshots; no retained resources) -----
 
     [GpuiListItem]
@@ -705,7 +681,10 @@ internal sealed partial class TaskBoardShellView : View
             .Height(Percent(100))
             .Background(theme.Colors.Background)
             .TextColor(theme.Colors.Text)
-            .OnKeyDown(this, static (view, key) => view.OnHotKey(key));
+            .OnShortcut(this, new(ShortcutKey.N, ShortcutModifiers.Primary), static view => view.OpenNewDialog())
+            .OnShortcut(this, new(ShortcutKey.F, ShortcutModifiers.Primary), static view => view.FocusSearch())
+            .OnShortcut(this, new(ShortcutKey.S, ShortcutModifiers.Primary), static view => view.SyncNow(), new(enabled: !_syncing))
+            .OnShortcut(this, new(ShortcutKey.D, ShortcutModifiers.Primary), static view => view.DeleteSelected(), new(enabled: _store.Find(_selectedId) is not null));
 
         if (_dialog == BoardDialog.None && _taskTooltip is { } tooltipRequest
             && _store.Find((long)tooltipRequest.ItemId) is { } tooltipTask)
@@ -761,7 +740,7 @@ internal sealed partial class TaskBoardShellView : View
                     ui.Button("new-task", "New task")
                         .OnClick(this, static (view, _) => view.OpenNewDialog())
                         .Style(BoardStyles.Button(theme, BoardButtonVariant.Primary)),
-                    ui.Text("Create a task (Ctrl+N)")
+                    ui.Text("Create a task (Ctrl/⌘+N)")
                         .FontSize(Px(theme.Typography.Caption))
                         .TextColor(theme.Colors.TitleBarText)
                         .Padding(Px(8))
@@ -773,7 +752,7 @@ internal sealed partial class TaskBoardShellView : View
                     ui.Button("sync-now", "Sync")
                         .OnClick(this, static (view, _) => view.SyncNow())
                         .Style(BoardStyles.Button(theme)),
-                    ui.Text("Simulate background sync (Ctrl+S)")
+                    ui.Text("Simulate background sync (Ctrl/⌘+S)")
                         .FontSize(Px(theme.Typography.Caption))
                         .TextColor(theme.Colors.TitleBarText)
                         .Padding(Px(8))
@@ -1255,6 +1234,7 @@ internal sealed partial class TaskBoardShellView : View
                 panel,
                 new OverlayOptions(margin: 24, backdrop: theme.Colors.Background.WithAlpha(150))
             )
+            .OnShortcut(this, new(ShortcutKey.Enter, ShortcutModifiers.Primary), static view => view.CreateTask())
             .OnDismiss(this, static (view, _) => view.CancelDialog());
     }
 

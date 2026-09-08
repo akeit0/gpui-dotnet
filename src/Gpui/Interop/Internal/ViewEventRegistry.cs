@@ -113,11 +113,13 @@ internal sealed class ViewEventRegistry
         ListSelection,
         ListContextMenu,
         ListTooltip,
+        Shortcut,
         InputWrite,
     }
 
     private readonly struct EventDispatch
     {
+        internal EventDispatch(ShortcutEventKind kind) => Kind = EventDispatchKind.Shortcut;
         internal EventDispatch(ListTooltipEvent request)
         {
             Kind = EventDispatchKind.ListTooltip;
@@ -372,6 +374,35 @@ internal sealed class ViewEventRegistry
 
     internal ulong BindListTooltip<TView>(Action<TView, ListTooltipEvent> callback)
         where TView : ViewBase => BindDynamicEvent(_owner!, callback, ListTooltipBinder<TView>.Index);
+
+    internal ulong BindShortcut<TView>(Action<TView> callback)
+        where TView : ViewBase => BindDynamicEvent(_owner!, callback, ShortcutBinder<TView>.Index);
+
+    internal void DispatchShortcutCore(uint eventId)
+    {
+        if (!TryGetDynamicEvent(eventId, out var entry))
+        {
+            MissingDynamicEvent(eventId, "shortcut");
+            return;
+        }
+        var dispatch = new EventDispatch(ShortcutEventKind.Invoked);
+        EventBinderRegistry.Get(entry.BinderIndex)(entry.Target!, entry.Callback!, in dispatch);
+    }
+
+    private static class ShortcutBinder<TView> where TView : ViewBase
+    {
+        internal static readonly int Index = EventBinderRegistry.Add(Invoke);
+        private static void Invoke(object target, Delegate callback, in EventDispatch dispatch)
+        {
+            if (dispatch.Kind != EventDispatchKind.Shortcut)
+                throw WrongDispatchKind("shortcut");
+            if (target is not TView typedTarget)
+                throw WrongTarget<TView>(target, "shortcut");
+            if (callback is not Action<TView> typedCallback)
+                throw WrongCallback("Action<TView>", "shortcut");
+            typedCallback(typedTarget);
+        }
+    }
 
     internal ulong BindListSelection<TView>(Action<TView, ListSelectionEvent> callback)
         where TView : ViewBase => BindDynamicEvent(_owner!, callback, ListSelectionBinder<TView>.Index);

@@ -79,6 +79,7 @@ impl ResourceCommand {
 }
 
 pub(crate) struct ResourceStore {
+    pub(crate) shortcuts: crate::shortcuts::ShortcutDispatch,
     pub(crate) row_menus: Rc<crate::row_menu::RowMenus>,
     pub(crate) row_tooltips: Rc<crate::row_tooltip::RowTooltips>,
     session_id: u64,
@@ -145,6 +146,7 @@ impl ResourceStore {
     pub(crate) fn new(session_id: u64, callbacks: ManagedCallbacks, theme: SharedTheme) -> Self {
         Self {
             row_menus: Rc::new(crate::row_menu::RowMenus::default()),
+            shortcuts: Default::default(),
             row_tooltips: Rc::new(crate::row_tooltip::RowTooltips::default()),
             session_id,
             callbacks,

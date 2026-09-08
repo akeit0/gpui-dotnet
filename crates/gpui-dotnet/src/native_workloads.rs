@@ -58,6 +58,11 @@ impl WorkloadArena {
         );
     }
 
+    pub(crate) fn callback(&mut self, node: u32, code: u16, token: u64, payload: u64) {
+        self.op(node, code, token);
+        self.ops.last_mut().unwrap().b = payload;
+    }
+
     pub(crate) fn data_op(&mut self, node: u32, code: u16, data: &str) {
         let offset = self.utf8.len();
         self.utf8.extend_from_slice(data.as_bytes());

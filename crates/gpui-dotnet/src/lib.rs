@@ -28,6 +28,7 @@ mod row_tooltip;
 mod scrolling;
 #[path = "semantic.g.rs"]
 mod semantic;
+mod shortcuts;
 mod slider;
 mod snapshot;
 mod theme;

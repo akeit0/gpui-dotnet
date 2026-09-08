@@ -10,7 +10,7 @@ documents.
    replacement without losing native state. Prioritize coherent behavior over additional part-color
    methods or sample variants.
 2. Input and focus foundations: word navigation, undo/redo, richer pointer selection, platform IME
-   tests, controlled-binding helpers, and scoped key consumption/focus targets for custom composites.
+   tests, controlled-binding helpers, and general focus targets for custom composites.
 3. Performance: optimize a measured application bottleneck. Evaluate GPUI tessellation/scene-buffer
    APIs only when workloads justify the work; its current public API consumes these buffers.
 
@@ -138,7 +138,6 @@ interaction ownership separate from row-batch eviction; do not introduce mounted
 - richer state-rule composition only where the current base/hover/active contract cannot express
   a concrete application need;
 - consistent Input focus indication at the styled-wrapper boundary without duplicating focus ownership;
-- scoped native key bindings with explicit consumption, separate from observer events;
 - general focus targets, restoration, and composite entry behavior;
 - accessible names for icon-only controls and semantic relationships for form fields.
 

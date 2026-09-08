@@ -582,7 +582,7 @@ fn validate_with_scratch(
         if metadata.value_kind == ValueKind::Callback && op.a == 0 {
             return Err(-19);
         }
-        let payload_error = payload_error(op.code, op.a);
+        let payload_error = payload_error(op.code, op.a, op.b);
         if payload_error != 0 {
             return Err(payload_error);
         }

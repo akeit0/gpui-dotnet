@@ -524,6 +524,41 @@ so an import never silently drops live content; lock state always comes from the
 Tiles subtrees have no managed declaration and are skipped on import. Tab chrome carries no
 accessibility roles yet; that belongs to the planned accessibility pass.
 
+## Scoped keyboard shortcuts
+
+`OnKeyDown` and `OnKeyUp` are observers. Use `OnShortcut` on a Div container or Overlay when an
+application command needs native matching and consumption:
+
+```csharp
+ui.VStack(content)
+    .OnShortcut(this, new(ShortcutKey.S, ShortcutModifiers.Primary),
+        static view => view.Save(), new ShortcutOptions(enabled: canSave));
+```
+
+`Primary` resolves to Command on macOS and Control on Windows/Linux. Modifiers match exactly;
+Primary cannot be combined with explicit Control or Platform. The initial API supports a single
+key (letters, digits, navigation/editing keys, F1–F24, or common punctuation), not multi-key chords.
+Letters, digits, Space, and punctuation require Control, Platform, or Primary. Bare characters and
+Shift/Alt-only text shortcuts are deliberately excluded until explicit mode/focus semantics exist.
+
+Scopes follow native focus ancestry and do not create focus targets. Descendant bindings run first;
+the last matching declaration on the same element wins. By default, an enabled match consumes the
+key and invokes one managed `Action<TView>`. Disabled bindings reserve their gesture without invoking;
+held-key repeats likewise reserve it unless `allowRepeat: true`. `consume: false` allows native
+propagation and, for an enabled command, matching ancestor shortcuts to run as well.
+
+`.IsolateShortcuts(true)` prevents ancestor shortcut commands while leaving unmatched keys available
+to native controls, observers, and Tab traversal. Modal Dialog/Sheet/Overlay hosts isolate shortcuts
+automatically. They retain their existing Escape dismissal and focus restoration. GPUI native
+keybindings run before shortcut listeners. Ordinary text is outside the supported shortcut set;
+events marked as character input by the platform (such as AltGr) do not invoke shortcuts.
+Controls and editor providers do not need shortcut-specific text-protection hooks.
+
+Bindings are part of accepted snapshots and use normal View-bound callback lifetime. Only a matched,
+enabled command crosses the ABI. Unmatched keys, matching, precedence, and consumption stay native.
+Declare shortcuts in ordinary View renders, outside virtual item batches. TaskBoard demonstrates
+Primary+N/F/S/D page commands and Primary+Enter in its New Task dialog.
+
 ## Deferred layers
 
 Deferred layers paint relative to the window rather than the local layout tree:

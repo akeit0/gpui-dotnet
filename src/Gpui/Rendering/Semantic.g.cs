@@ -35,6 +35,8 @@ namespace Gpui.Interop
 
     internal enum OpCode : ushort
     {
+        OnShortcut = 910,
+        IsolateShortcuts = 911,
         AccessibleName = 900,
         AccessibleDescription = 901,
         Flex = 1,
@@ -374,7 +376,7 @@ namespace Gpui.Interop
     internal static class SemanticRegistry
     {
         internal const uint SchemaVersion = 1;
-        internal const ulong SchemaHash = 0xDEB1350478846E56UL;
+        internal const ulong SchemaHash = 0x7ADFD734987DA90DUL;
 
         internal static bool IsKnownComponent(ComponentId component) => component switch
         {
@@ -431,6 +433,8 @@ namespace Gpui.Interop
 
         internal static ValueKind? ExpectedValueKind(OpCode operation) => operation switch
         {
+            OpCode.OnShortcut => ValueKind.Callback,
+            OpCode.IsolateShortcuts => ValueKind.U32,
             OpCode.AccessibleName => ValueKind.Data,
             OpCode.AccessibleDescription => ValueKind.Data,
             OpCode.Flex => ValueKind.None,
@@ -710,7 +714,7 @@ namespace Gpui.Interop
 
         private static ulong Capabilities(ComponentId component) => component switch
         {
-            ComponentId.Div => 0x0000000010002007UL,
+            ComponentId.Div => 0x0000000090002007UL,
             ComponentId.Text => 0x0000000000000001UL,
             ComponentId.Button => 0x000000003000202BUL,
             ComponentId.Checkbox => 0x000000003000003BUL,
@@ -722,7 +726,7 @@ namespace Gpui.Interop
             ComponentId.List => 0x0000000040000141UL,
             ComponentId.Image => 0x0000000000000201UL,
             ComponentId.Input => 0x0000000020000441UL,
-            ComponentId.Overlay => 0x0000000000000842UL,
+            ComponentId.Overlay => 0x0000000080000842UL,
             ComponentId.Tooltip => 0x0000000040001042UL,
             ComponentId.ContextMenu => 0x0000000000004043UL,
             ComponentId.PopoverMenu => 0x0000000000008043UL,
@@ -742,6 +746,8 @@ namespace Gpui.Interop
 
         private static ulong RequiredCapability(OpCode operation) => operation switch
         {
+            OpCode.OnShortcut => 0x0000000080000000UL,
+            OpCode.IsolateShortcuts => 0x0000000080000000UL,
             OpCode.AccessibleName => 0x0000000020000000UL,
             OpCode.AccessibleDescription => 0x0000000020000000UL,
             OpCode.Flex => 0x0000000000000004UL,
@@ -1027,13 +1033,16 @@ namespace Gpui.Interop
 
         internal static bool AllowsPayload(OpCode operation) => operation switch
         {
+            OpCode.OnShortcut => true,
             OpCode.OnClick => true,
             OpCode.OverlayOnDismiss => true,
             _ => false,
         };
 
-        internal static int PayloadError(OpCode operation, ulong a) => operation switch
+        internal static int PayloadError(OpCode operation, ulong a, ulong b) => operation switch
         {
+            OpCode.OnShortcut when !((b >> 27) == 0 && (b & 0xffff) >= 1 && (b & 0xffff) <= 86 && ((b >> 16) & 0xff) <= 63 && (((b & 0xffff) > 36 && (b & 0xffff) < 76 && (b & 0xffff) != 42) || (b & (41UL << 16)) != 0) && ((b & (32UL << 16)) == 0 || (b & (9UL << 16)) == 0)) => -66,
+            OpCode.IsolateShortcuts when !(a <= 1UL) => -21,
             OpCode.FlexGrow when !(BitConverter.UInt32BitsToSingle((uint)a) >= 0f) => -46,
             OpCode.Checked when !(a <= 1UL) => -21,
             OpCode.Disabled when !(a <= 1UL) => -21,

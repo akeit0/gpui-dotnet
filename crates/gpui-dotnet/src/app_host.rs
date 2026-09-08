@@ -551,6 +551,7 @@ impl Render for ManagedView {
         let row_tooltips = self.resources.row_tooltips.clone();
         div()
             .tab_group()
+            .capture_key_down(cx.listener(|this, _, _, _| this.resources.shortcuts.begin()))
             .on_key_down(move |event, window, cx| {
                 row_tooltips.dismiss(window);
                 let modifiers = event.keystroke.modifiers;
@@ -579,7 +580,7 @@ impl Render for ManagedView {
     }
 }
 
-fn cycle_focus(forward: bool, window: &mut Window, cx: &mut App) {
+pub(crate) fn cycle_focus(forward: bool, window: &mut Window, cx: &mut App) {
     let step = |window: &mut Window, cx: &mut App| {
         if forward {
             window.focus_next(cx);

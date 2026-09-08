@@ -25,6 +25,18 @@ interning apply; last declarations win. They change the semantic schema hash, no
 
 ## Discovery
 
+Shortcut operation 910 (`OnShortcut`) applies to Div and Overlay through `shortcut_scope`.
+Word A is the nonzero callback token. Word B packs the `ShortcutKey` value in bits 0–15, exact
+modifier flags in bits 16–21 (Control, Alt, Shift, Platform, Function, Primary), and options in
+bits 24–26 (do not consume, disabled, allow repeat). Bits 22–23 and 27–63 are reserved zero.
+Primary cannot be combined with Control or Platform. Text-producing key codes (1–36, 42, 76–86)
+require Control, Platform, or Primary. Both validators enforce the schema's
+`packedCommandShortcut` constraint on B and reject invalid descriptors with snapshot status -66.
+Operation 911 (`IsolateShortcuts`) is a Boolean declaration on the same components.
+Control event 25 (`ShortcutEventKind.Invoked`) carries no data; flags and revision must be zero.
+Managed dispatch uses an `Action<TView>` binding. These declarations change the semantic hash,
+without changing ABI 7 layouts or entry points.
+
 List/Table operation 329 (`ListOnContextMenuRequested`) binds a right-click request for rows with
 a nonzero ItemId. Control event 23 carries 24 little-endian bytes: U32 row index, zero U32 reserved,
 nonzero U64 item ID, and nonzero U64 native anchor ID. Flag bit 1 indicates a content revision in
