@@ -428,7 +428,7 @@ Run targeted tests while iterating. Before completing a normal migration slice, 
 ```sh
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
 cargo fmt --manifest-path crates/gpui-dotnet/Cargo.toml -- --check
-cargo tree --locked --manifest-path crates/gpui-dotnet/Cargo.toml --invert gpui
+cargo tree --locked --manifest-path crates/gpui-dotnet/Cargo.toml --invert gpui-pre
 cargo test --locked --manifest-path crates/gpui-dotnet/Cargo.toml
 dotnet test Gpui.slnx --no-restore
 dotnet build samples/Gpui.Sample/Gpui.Sample.csproj --no-restore
@@ -452,7 +452,8 @@ Verified platforms:
 
 - Update the phase table and next development slice in the same change that advances migration.
 - Describe current implementation ownership, not session chronology.
-- Keep exact revisions and downstream patch details in `UPSTREAM_BASELINE.md` and
-  `crates/native-baseline.toml` rather than duplicating them here.
+- Keep exact revisions in `crates/native-baseline.toml` (with the `external/gpui-kit`
+  gitlink and `crates/gpui-dotnet/Cargo.lock` authoritative) and downstream patch details
+  in `UPSTREAM_BASELINE.md` rather than duplicating them here.
 - Put unrelated open product work in `NEXT_STEPS.md`.
 - Remove superseded instructions instead of accumulating compatibility-era notes.

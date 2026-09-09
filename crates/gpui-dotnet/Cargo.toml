@@ -35,9 +35,9 @@ async-channel = "2"
 futures = "0.3"
 # The submodule pins the validated foundation revision. Keep this crate's direct GPUI source
 # identical to gpui-base's workspace dependency so Cargo resolves one GPUI type universe.
-gpui = { git = "https://github.com/zed-industries/zed" }
+gpui = { package = "gpui-pre", version = "0.3.1" }
 gpui-base = { path = "../../external/gpui-kit/crates/base" }
-gpui_platform = { git = "https://github.com/zed-industries/zed" }
+gpui_platform = { package = "gpui-pre-platform", version = "0.3.1" }
 serde_json = "1"
 unicode-segmentation = "1.13.3"
 
@@ -45,7 +45,7 @@ unicode-segmentation = "1.13.3"
 # Compile Metal shaders through Apple's Metal runtime on macOS. This keeps native builds
 # working with the Command Line Tools SDK, which ships the macOS headers/frameworks but not
 # Xcode's standalone `metal` compiler executable.
-gpui_platform = { git = "https://github.com/zed-industries/zed", features = [
+gpui_platform = { package = "gpui-pre-platform", version = "0.3.1", features = [
     "runtime_shaders",
 ] }
 
@@ -54,6 +54,7 @@ raw-window-handle = "0.6"
 windows = { version = "0.61", features = [
     "Wdk_System_SystemServices",
     "Win32_Foundation",
+    "Win32_System_SystemInformation",
     "Win32_UI_WindowsAndMessaging",
 ] }
 
@@ -61,7 +62,7 @@ windows = { version = "0.61", features = [
 csbindgen = "1.9.8"
 
 [dev-dependencies]
-gpui = { git = "https://github.com/zed-industries/zed", features = [
+gpui = { package = "gpui-pre", version = "0.3.1", features = [
     "test-support",
 ] }
 
@@ -75,10 +76,10 @@ debug = "limited"
 split-debuginfo = "unpacked"
 
 [profile.dev.package]
-gpui = { opt-level = 3 }
+gpui-pre = { opt-level = 3 }
 gpui-base = { opt-level = 3 }
-gpui_platform = { opt-level = 3 }
-gpui_macros = { opt-level = 3 }
+gpui-pre-platform = { opt-level = 3 }
+gpui-pre-macros = { opt-level = 3 }
 resvg = { opt-level = 3 }
 rustybuzz = { opt-level = 3 }
 smol = { opt-level = 3 }

@@ -52,7 +52,7 @@ jobs:
         run: cargo test --locked --manifest-path crates/gpui-dotnet/Cargo.toml --workspace
 
       - name: Verify one GPUI dependency
-        run: cargo tree --locked --manifest-path crates/gpui-dotnet/Cargo.toml --invert gpui
+        run: cargo tree --locked --manifest-path crates/gpui-dotnet/Cargo.toml --invert gpui-pre
 
       - name: Build native library
         shell: pwsh

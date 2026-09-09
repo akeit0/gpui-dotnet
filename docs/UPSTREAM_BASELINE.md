@@ -10,26 +10,29 @@ optional editor host.
 
 - Fork: <https://github.com/akeit0/gpui-kit>
 - Upstream: <https://github.com/longbridge/gpui-kit>
-- Validated fork revision: `16f3245792998e7fd72f3535968760dd33dea5ca`
-- Upstream base revision: `384fc6a80ac5fdb4841bf44509524040a3e003a9`
-- Fork delta: four commits (three downstream patches plus the upstream-main sync merge)
 - Integration branch: `codex/gpui-dotnet-integration`
+- Fork delta: three downstream patches plus the upstream-main sync merge
+
+Exact revisions are not duplicated here. The `external/gpui-kit` gitlink is the
+executable pin; `crates/native-baseline.toml` carries the reviewable revision tuple and
+`crates/gpui-dotnet/Cargo.lock` locks the resolved dependency graph.
 
 The submodule uses `origin` for the fork. Add `upstream` for Longbridge when refreshing the
 baseline, measure `origin/main...upstream/main`, and validate the candidate revision before
 updating the parent repository's gitlink.
 
-## Zed / GPUI
+## GPUI (`gpui-pre`)
 
-- Upstream: <https://github.com/zed-industries/zed>
-- Validated revision: `f66ed399cdde86092af8af3dc7b418abf45f37f8`
+- Source: crates-io (`gpui-pre`, matching the `gpui-base` workspace dependency)
 
-The direct `gpui` dependency deliberately uses the same Git source declaration as `gpui-base`.
-`Cargo.lock` selects the validated revision. `cargo tree --locked --manifest-path
-crates/gpui-dotnet/Cargo.toml --invert gpui` must resolve without an ambiguous package error; this
-guards against incompatible GPUI type universes.
+The direct `gpui` dependency deliberately uses the same crates-io `gpui-pre` source
+declaration as `gpui-base`.
+`crates/gpui-dotnet/Cargo.lock` is the source of truth for the validated version.
+`cargo tree --locked --manifest-path
+crates/gpui-dotnet/Cargo.toml --invert gpui-pre` must resolve without an ambiguous package
+error; this guards against incompatible GPUI type universes.
 
-Consume GPUI itself unmodified; this repository does not maintain a Zed/GPUI fork or patch
+Consume GPUI itself unmodified; this repository does not maintain a GPUI fork or patch
 Cargo's cached sources. When a missing GPUI capability has a reusable native use case, document
 the limitation and an upstream proposal, then adopt it only through a validated upstream
 revision. The [content-color proposal](proposals/GPUI_CONTENT_COLORS.md) records the current
@@ -54,7 +57,9 @@ logic remains in this repository.
 2. Run the relevant `gpui-base` tests in the fork.
 3. Commit the fork change, check out that exact commit in the submodule, and resolve the matching
    GPUI revision.
-4. Update `Cargo.lock`, `crates/native-baseline.toml`, and this document together.
+4. Update `crates/gpui-dotnet/Cargo.lock` and `crates/native-baseline.toml` together.
+   Update this document only when fork patches, upstream status, or the update process
+   itself changes; do not copy revision hashes here.
 5. Commit the updated submodule gitlink in GPUI.NET only after the fork commit is available from
    `origin`.
 6. Run the locked dependency-graph check and the GPUI.NET native and managed verification suites.
