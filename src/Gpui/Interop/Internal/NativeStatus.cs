@@ -186,6 +186,7 @@ internal static class NativeStatus
                 -64 => "InvalidFontDataOrMissingArtifact",
                 -66 => "InvalidShortcutBinding",
                 -67 => "InvalidFocusTarget",
+                -68 => "RenderTreeTooDeep",
                 _ => null,
             },
             _ => null,

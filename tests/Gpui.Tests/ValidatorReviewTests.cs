@@ -5,6 +5,26 @@ namespace Gpui.Tests;
 public sealed unsafe class ValidatorReviewTests
 {
     [Theory]
+    [InlineData(128)]
+    [InlineData(129)]
+    public void RenderDepthIsBoundedRegardlessOfEdgeOrder(int depth)
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        Element root = ui.Div();
+        for (var index = 1; index < depth; index++)
+            root = ui.Div(root);
+        ReverseEdges(arena);
+        if (depth <= ManagedValidator.MaxRenderDepth)
+            arena.Validate(root);
+        else
+            Assert.Contains(
+                "maximum depth",
+                Assert.Throws<InvalidOperationException>(() => arena.Validate(root)).Message
+            );
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void UnattachedCyclesAreRejectedForOrdinaryElements(bool twoNodes)

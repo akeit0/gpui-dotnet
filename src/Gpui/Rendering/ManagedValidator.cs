@@ -441,8 +441,14 @@ internal static unsafe class ManagedValidator
             if (current != -1 && nodes[current].DockArea == VisitingArea)
                 throw new InvalidOperationException("The render tree contains a cycle.");
             var area = current == -1 ? -1 : nodes[current].DockArea;
+            var depth = current == -1 ? 0 : nodes[current].Depth;
             while (path != -1)
             {
+                if (++depth > MaxRenderDepth)
+                    throw new InvalidOperationException(
+                        $"The render tree exceeds the maximum depth of {MaxRenderDepth}."
+                    );
+                nodes[path].Depth = depth;
                 if ((ComponentId)arena->Nodes[path].Component == ComponentId.DockArea)
                     area = path;
                 nodes[path].DockArea = area;
@@ -453,6 +459,7 @@ internal static unsafe class ManagedValidator
     }
 
     private const int UnknownArea = -2;
+    internal const int MaxRenderDepth = 128;
     private const int VisitingArea = -3;
 
     private struct NodeInfo
@@ -469,6 +476,7 @@ internal static unsafe class ManagedValidator
         internal uint SideMask;
         internal int DockArea;
         internal int PathPrevious;
+        internal int Depth;
     }
 
     private readonly unsafe struct PanelId(int area, byte* bytes, int length) : IComparable<PanelId>

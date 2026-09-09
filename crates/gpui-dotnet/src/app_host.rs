@@ -29,6 +29,8 @@ use crate::{
     trace,
 };
 
+const INGRESS_CAPACITY: usize = 4096;
+
 pub(crate) struct ManagedView {
     pub(crate) view_id: u64,
     pub(crate) callbacks: ManagedCallbacks,
@@ -730,7 +732,7 @@ fn native_workload_measurements_dynamic_discovery() {
 
 pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
     trace::init_from_env();
-    let (sender, receiver) = async_channel::unbounded();
+    let (sender, receiver) = async_channel::bounded(INGRESS_CAPACITY);
     let Ok(_application_registration) =
         ApplicationRegistration::new(application_id, ApplicationNotifier { sender })
     else {
@@ -1050,7 +1052,7 @@ fn open_managed_window(
         return Err(-44);
     }
 
-    let (sender, receiver) = async_channel::unbounded();
+    let (sender, receiver) = async_channel::bounded(INGRESS_CAPACITY);
     let invalidate_pending = Arc::new(AtomicBool::new(false));
     let presence = Arc::new(Mutex::new(ResourcePresence::default()));
     let view_registration = ViewRegistration::new(
@@ -1432,6 +1434,68 @@ mod tests {
             .unwrap();
 
         assert_eq!(active_dynamic_owners(&snapshot), vec![7]);
+    }
+
+    #[test]
+    fn full_application_queue_rejects_new_commands_and_preserves_fifo() {
+        let application_id = u64::MAX - 10;
+        let (sender, receiver) = async_channel::bounded(INGRESS_CAPACITY);
+        let _registration =
+            ApplicationRegistration::new(application_id, ApplicationNotifier { sender }).unwrap();
+        for id in 0..INGRESS_CAPACITY as u64 {
+            assert_eq!(
+                dispatch_application_command(application_id, ApplicationCommand::Close(id)),
+                0
+            );
+        }
+        assert_eq!(
+            dispatch_application_command(application_id, ApplicationCommand::Close(u64::MAX)),
+            -43
+        );
+        for id in 0..INGRESS_CAPACITY as u64 {
+            assert!(
+                matches!(receiver.try_recv(), Ok(ApplicationCommand::Close(received)) if received == id)
+            );
+        }
+        assert!(receiver.is_empty());
+        assert_eq!(
+            dispatch_application_command(application_id, ApplicationCommand::ManagedCodeUpdated),
+            0
+        );
+    }
+
+    #[test]
+    fn full_window_queue_resets_notification_latch_for_retry() {
+        let view_id = u64::MAX - 10;
+        let (sender, receiver) = async_channel::bounded(INGRESS_CAPACITY);
+        let pending = Arc::new(AtomicBool::new(false));
+        let _registration = ViewRegistration::new(
+            view_id,
+            ViewNotifier {
+                sender,
+                invalidate_pending: pending.clone(),
+                presence: Arc::default(),
+            },
+        )
+        .unwrap();
+        for _ in 0..INGRESS_CAPACITY {
+            assert_eq!(invalidate_artifacts(view_id, vec![]), 0);
+        }
+        assert_eq!(invalidate_artifacts(view_id, vec![]), -33);
+        assert_eq!(notify(view_id), -33);
+        assert!(!pending.load(Ordering::Acquire));
+        for _ in 0..INGRESS_CAPACITY {
+            assert!(matches!(
+                receiver.try_recv(),
+                Ok(ViewMessage::InvalidateArtifacts(_))
+            ));
+        }
+        assert!(receiver.is_empty());
+        assert_eq!(notify(view_id), 0);
+        assert!(pending.load(Ordering::Acquire));
+        assert_eq!(notify(view_id), 0);
+        assert!(matches!(receiver.try_recv(), Ok(ViewMessage::Invalidate)));
+        assert!(receiver.is_empty());
     }
 
     #[test]

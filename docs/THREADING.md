@@ -158,6 +158,11 @@ staged compositions it commits. Requests arriving during rendering or pending ac
 on a later render. Theme and metadata updates likewise enqueue full-tree invalidation. Native
 wakeups coalesce per session.
 
+The native application queue and each native window queue accept up to 4096 pending messages.
+Full queues reject new messages immediately through the existing application (`-43`) or session
+(`-33`) error path; accepted messages remain queued in order. These limits count messages, not
+payload bytes, and do not limit the managed callback/completion queue.
+
 View-bound posted callbacks and owned-work completions recheck their stable command route when
 consumed and are discarded after owner retirement. Event dispatch does not retain pending tasks
 or install task-completion observers.

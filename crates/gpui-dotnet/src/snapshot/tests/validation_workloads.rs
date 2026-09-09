@@ -220,7 +220,10 @@ fn native_workload_measurements_validation() {
         ("resources-1024", resource_input(1024)),
         ("dock-128", dock_input(128, 0)),
         ("dock-512", dock_input(512, 0)),
-        ("dock-128-depth-128", dock_input(128, 128)),
+        (
+            "dock-128-depth-128",
+            dock_input(128, MAX_RENDER_DEPTH as usize - 5),
+        ),
     ] {
         let arena = input.arena();
         let mut scratch = SnapshotScratch::default();

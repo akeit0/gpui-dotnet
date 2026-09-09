@@ -238,6 +238,10 @@ Canonical payload rules:
   authoritative native validation. Full graph connectivity and retained resource-key conflicts
   are enforced at native acceptance without a second managed pass.
 
+Both validators limit each render arena to 128 levels of element nesting, counting its root as
+level one. Native validation returns `-68` for deeper trees. This is a per-arena limit; it does not
+measure composition across managed child Views or deferred content.
+
 The managed validator catches builder/runtime errors before FFI. Native validation remains
 authoritative because a custom or mismatched managed host must not create invalid GPUI state.
 
