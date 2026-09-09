@@ -9,14 +9,23 @@ public sealed class ApplicationModelTests
     [Fact]
     public void UsesExpectedProtocolVersions()
     {
-        Assert.Equal(7u, NativeConstants.AbiVersion);
+        Assert.Equal(8u, NativeConstants.AbiVersion);
         Assert.Equal(1u, SemanticRegistry.SchemaVersion);
     }
 
     [Fact]
     public unsafe void AcceptanceCallbackExtendsTheNativeCallbackTable()
     {
-        Assert.Equal(12 * IntPtr.Size, sizeof(ManagedCallbacks));
+        Assert.Equal(13 * IntPtr.Size, sizeof(ManagedCallbacks));
+        Assert.Equal(
+            12 * IntPtr.Size,
+            (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.menu_applied))
+        );
+        Assert.Equal(32, sizeof(NativeMenuCommand));
+        Assert.Equal(
+            24,
+            (int)Marshal.OffsetOf<NativeMenuCommand>(nameof(NativeMenuCommand.generation))
+        );
         Assert.Equal(
             11 * IntPtr.Size,
             (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.accept_artifact))

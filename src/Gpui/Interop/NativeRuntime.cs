@@ -226,6 +226,7 @@ public sealed unsafe class NativeRuntime
                 application_started = &NativeCallbacks.ApplicationStarted,
                 window_closed = &NativeCallbacks.WindowClosed,
                 menu_action = &NativeCallbacks.MenuAction,
+                menu_applied = &NativeCallbacks.MenuApplied,
             };
             status = _api->run_application(id, &callbacks);
         }

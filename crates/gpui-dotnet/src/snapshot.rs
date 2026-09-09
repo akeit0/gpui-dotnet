@@ -21,6 +21,8 @@ use crate::{
     },
 };
 
+const MAX_RENDER_DEPTH: u8 = 128;
+
 #[derive(Clone)]
 pub struct SnapshotNode {
     pub component: u16,
@@ -784,13 +786,21 @@ fn validate_with_scratch(
 
     scratch.pending.push(root);
     while let Some(parent) = scratch.pending.pop() {
-        let visited = &mut scratch.visited[parent as usize];
-        if *visited != 0 {
+        if scratch.visited[parent as usize] != 0 {
             return Err(-12);
         }
-        *visited = 1;
+        let ancestor = scratch.parents[parent as usize];
+        let depth = if ancestor == u32::MAX {
+            1
+        } else {
+            scratch.visited[ancestor as usize] + 1
+        };
+        if depth > MAX_RENDER_DEPTH {
+            return Err(-68);
+        }
+        // Zero means unvisited; accepted nodes store their one-based depth.
+        scratch.visited[parent as usize] = depth;
         if has_dock {
-            let ancestor = scratch.parents[parent as usize];
             scratch.dock[parent as usize].area =
                 if nodes[parent as usize].component == COMPONENT_DOCK_AREA {
                     parent
@@ -906,6 +916,40 @@ mod tests {
             required_op_capacity: 0,
             required_child_capacity: 0,
             required_utf8_capacity: 0,
+        }
+    }
+
+    #[test]
+    fn render_depth_is_bounded_regardless_of_edge_order() {
+        for depth in [128usize, 129] {
+            let mut nodes: Vec<_> = (0..depth)
+                .map(|_| NodeRecord {
+                    component: COMPONENT_DIV,
+                    ..Default::default()
+                })
+                .collect();
+            let mut children: Vec<_> = (1..depth as u32)
+                .map(|child| ChildRecord {
+                    parent: child - 1,
+                    child,
+                })
+                .collect();
+            children.reverse();
+            let mut arena = arena_with(&mut nodes[0], None);
+            arena.nodes = nodes.as_mut_ptr();
+            arena.node_length = depth as i32;
+            arena.node_capacity = depth as i32;
+            arena.children = children.as_mut_ptr();
+            arena.child_length = children.len() as i32;
+            arena.child_capacity = children.len() as i32;
+            assert_eq!(
+                validate(&arena, 0),
+                if depth <= MAX_RENDER_DEPTH as usize {
+                    Ok(())
+                } else {
+                    Err(-68)
+                }
+            );
         }
     }
 

@@ -1,6 +1,6 @@
 # Runtime design
 
-ABI 7 uses single-pass managed-owned arenas, explicit native acceptance, and cached-range artifact
+The runtime uses single-pass managed-owned arenas, explicit native acceptance, and cached-range artifact
 leases. Arenas grow before writes without repeating user rendering. The authoring and acceptance
 contracts are defined in [View lifecycle](VIEW_LIFECYCLE.md).
 
@@ -90,7 +90,7 @@ Test the production dispatch and cache routes: remove/rebind under one live View
 retain A while rendering B, evict only A, and bind two sources to the same method.
 Tests must establish callback liveness as well as retained-memory release.
 
-The concrete transport uses ABI 7. A native collection engine receives a process-unique, non-reused
+A native collection engine receives a process-unique, non-reused
 64-bit source ID when created. Each range request carries that source ID alongside the renderer
 token and returns a session-unique artifact ID. Managed code owns an artifact's event slots;
 the native cached batch owns the corresponding release obligation. Batch eviction, invalidation,

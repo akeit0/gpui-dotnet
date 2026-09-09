@@ -21,7 +21,9 @@ public static class EditorExtension
 /// <summary>Initial and declarative presentation options for the native editor.</summary>
 public sealed record EditorOptions
 {
-    /// <summary>Optional highlighter language name understood by the native editor.</summary>
+    /// <summary>
+    /// Initial highlighter language name. Changes are ignored while the same keyed editor is retained.
+    /// </summary>
     public string Language { get; init; } = string.Empty;
 
     public bool Disabled { get; init; }

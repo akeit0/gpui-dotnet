@@ -161,6 +161,7 @@ namespace Gpui.Interop
         public int item_length;
         public uint reserved;
         public uint reserved2;
+        public ulong generation;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -190,6 +191,7 @@ namespace Gpui.Interop
         public delegate* unmanaged[Cdecl]<ulong, ulong, int, int> render_completed;
         public delegate* unmanaged[Cdecl]<ulong, ulong, ulong, int, int> release_artifact;
         public delegate* unmanaged[Cdecl]<ulong, ulong, ulong, int> accept_artifact;
+        public delegate* unmanaged[Cdecl]<ulong, ulong, int> menu_applied;
     }
 
     [StructLayout(LayoutKind.Sequential)]

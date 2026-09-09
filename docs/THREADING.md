@@ -92,6 +92,14 @@ chooses when to post; the framework does not move producers to a different threa
 
 ## Allowed calls by thread
 
+Application startup and later window/theme/menu/cache commands share one ingress ordering lock.
+Startup captures current settings and enqueues every initial Open before publishing the host to
+other producers. A concurrent Close therefore either cancels a pending window before attachment
+or follows its Open in native ingress. Title, size, activation and setting changes use the same
+ordering point. Native calls run outside the model lock and enqueue work without waiting for the
+GPUI thread; user callbacks are not part of successful enqueueing. Native closure or open failure
+retires the window and its root, including when a Close was already requested.
+
 | Operation | Thread contract |
 | --- | --- |
 | Constructors, Render, virtual-item renderers, effect setup/cleanup, events | GPUI application thread |
@@ -149,6 +157,11 @@ no locks. Dirty propagation stops at an already-dirty ancestor, and acceptance c
 staged compositions it commits. Requests arriving during rendering or pending acceptance apply
 on a later render. Theme and metadata updates likewise enqueue full-tree invalidation. Native
 wakeups coalesce per session.
+
+The native application queue and each native window queue accept up to 4096 pending messages.
+Full queues reject new messages immediately through the existing application (`-43`) or session
+(`-33`) error path; accepted messages remain queued in order. These limits count messages, not
+payload bytes, and do not limit the managed callback/completion queue.
 
 View-bound posted callbacks and owned-work completions recheck their stable command route when
 consumed and are discarded after owner retirement. Event dispatch does not retain pending tasks

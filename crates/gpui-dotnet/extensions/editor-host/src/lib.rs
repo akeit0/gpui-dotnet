@@ -152,13 +152,10 @@ impl EditorEventState {
             return;
         }
         let payload = encode_change(&previous, current, base_revision);
-        if let Err(status) = self.emitter.emit(
-            token,
-            EDITOR_EVENT_CHANGED,
-            origin,
-            revision,
-            &payload,
-        ) {
+        if let Err(status) =
+            self.emitter
+                .emit(token, EDITOR_EVENT_CHANGED, origin, revision, &payload)
+        {
             self.callback_error.set(Some(status));
         }
     }
@@ -185,7 +182,10 @@ impl EditorEventState {
 
 fn read_u64(payload: &[u8], offset: usize) -> Option<u64> {
     Some(u64::from_le_bytes(
-        payload.get(offset..offset.checked_add(8)?)?.try_into().ok()?,
+        payload
+            .get(offset..offset.checked_add(8)?)?
+            .try_into()
+            .ok()?,
     ))
 }
 
@@ -326,15 +326,12 @@ impl NativeExtension for EditorExtension {
             });
             let dispatch = events.clone();
             let observed_state = state.clone();
-            let subscription = window.subscribe(
-                &state,
-                cx,
-                move |_, emitted: &InputEvent, _, cx| {
+            let subscription =
+                window.subscribe(&state, cx, move |_, emitted: &InputEvent, _, cx| {
                     if matches!(emitted, InputEvent::Change) {
                         dispatch.changed(observed_state.read(cx).text());
                     }
-                },
-            );
+                });
             RetainedEditor {
                 state,
                 flags: Rc::new(Cell::new(configuration.flags)),
@@ -354,7 +351,9 @@ impl NativeExtension for EditorExtension {
             .rejected_token
             .set(configuration.command_rejected_event);
         if let Some(status) = resource.events.callback_error.take() {
-            return Err(format!("The managed editor event callback failed with status {status}.").into());
+            return Err(
+                format!("The managed editor event callback failed with status {status}.").into(),
+            );
         }
 
         for command in request.commands {
@@ -394,13 +393,15 @@ impl NativeExtension for EditorExtension {
             let range = match command.command {
                 EDITOR_COMMAND_SET_SELECTION => read_u64(&command.payload, 0)
                     .zip(read_u64(&command.payload, 8))
-                    .and_then(|(start, end)| byte_range(resource.state.read(cx).text(), start, end)),
+                    .and_then(|(start, end)| {
+                        byte_range(resource.state.read(cx).text(), start, end)
+                    }),
                 EDITOR_COMMAND_APPLY_EDIT => read_u64(&command.payload, 0)
                     .zip(read_u64(&command.payload, 8))
                     .and_then(|(start, deleted)| {
-                        start.checked_add(deleted).and_then(|end| {
-                            byte_range(resource.state.read(cx).text(), start, end)
-                        })
+                        start
+                            .checked_add(deleted)
+                            .and_then(|end| byte_range(resource.state.read(cx).text(), start, end))
                     }),
                 EDITOR_COMMAND_REPLACE_DOCUMENT => Some(0..0),
                 _ => return Err("The editor host received an unknown command.".into()),
@@ -423,10 +424,7 @@ impl NativeExtension for EditorExtension {
                     resource
                         .state
                         .update(cx, |state, cx| state.set_selected_range(range, cx));
-                    resource
-                        .events
-                        .next_origin
-                        .set(EDITOR_CHANGE_ORIGIN_USER);
+                    resource.events.next_origin.set(EDITOR_CHANGE_ORIGIN_USER);
                 }
                 EDITOR_COMMAND_REPLACE_DOCUMENT => {
                     let value = std::str::from_utf8(&command.payload)
@@ -454,7 +452,9 @@ impl NativeExtension for EditorExtension {
         }
 
         if let Some(status) = resource.events.callback_error.take() {
-            return Err(format!("The managed editor event callback failed with status {status}.").into());
+            return Err(
+                format!("The managed editor event callback failed with status {status}.").into(),
+            );
         }
 
         let previous_flags = resource.flags.replace(configuration.flags);
@@ -469,12 +469,9 @@ impl NativeExtension for EditorExtension {
                         cx,
                     );
                 }
-                if previous_flags & EDITOR_FLAG_FOLDING != configuration.flags & EDITOR_FLAG_FOLDING {
-                    state.set_folding(
-                        configuration.flags & EDITOR_FLAG_FOLDING != 0,
-                        window,
-                        cx,
-                    );
+                if previous_flags & EDITOR_FLAG_FOLDING != configuration.flags & EDITOR_FLAG_FOLDING
+                {
+                    state.set_folding(configuration.flags & EDITOR_FLAG_FOLDING != 0, window, cx);
                 }
                 if previous_flags & EDITOR_FLAG_SHOW_WHITESPACE
                     != configuration.flags & EDITOR_FLAG_SHOW_WHITESPACE
@@ -494,11 +491,7 @@ impl NativeExtension for EditorExtension {
             != configuration.line_number_width
         {
             resource.state.update(cx, |state, cx| {
-                state.set_line_number_width(
-                    configuration.line_number_width.map(px),
-                    window,
-                    cx,
-                );
+                state.set_line_number_width(configuration.line_number_width.map(px), window, cx);
             });
         }
 
@@ -631,7 +624,14 @@ mod tests {
             0
         );
         assert_eq!(
-            unsafe { supports(id.as_ptr(), id.len() as i32, SCHEMA_VERSION, SCHEMA_HASH + 1) },
+            unsafe {
+                supports(
+                    id.as_ptr(),
+                    id.len() as i32,
+                    SCHEMA_VERSION,
+                    SCHEMA_HASH + 1,
+                )
+            },
             -82
         );
     }
@@ -702,10 +702,7 @@ mod tests {
             assert_eq!(projected.mode, gpui_component::ThemeMode::Dark);
             assert_eq!(projected.colors.foreground, color(0xF0F4F8FF));
             assert_eq!(projected.colors.caret, color(0xF0F4F8FF));
-            assert_eq!(
-                projected.colors.selection,
-                color(0x4466EEFF).alpha(0.3)
-            );
+            assert_eq!(projected.colors.selection, color(0x4466EEFF).alpha(0.3));
             assert_eq!(
                 projected.highlight_theme.style.editor_background,
                 Some(color(0x182028FF))

@@ -14,7 +14,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
     private readonly ulong _applicationId;
     private readonly GpuiApplication _application;
     private readonly ConcurrentDictionary<ulong, ManagedSession> _sessions = new();
-    private readonly ConcurrentDictionary<ulong, Action> _menuActions = new();
+    private readonly MenuGenerations _menuActions = new();
     private long _nextMenuActionId;
     private Exception? _failure;
     private int _stopped;
@@ -69,69 +69,66 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
     internal void Start()
     {
         _application.Execution.BindThread();
-        // Theme precedes every initial Open command, so native defaults are correct on the first
-        // materialized frame instead of flashing the fallback light palette.
-        SetTheme(_application.Theme);
-        if (_application.ImageCacheBudgetSnapshot() is { } budget)
-        {
-            SetImageCacheBudget(budget.MaxBytes, budget.MaxEntries);
-        }
-
-        if (_application.MenuBarSnapshot() is { } menus)
-        {
-            SetMenuBar(menus);
-        }
-
-        foreach (var request in _application.AttachHost(this))
-        {
-            OpenWindow(request.Window, request.Snapshot);
-        }
+        _application.AttachHost(this);
     }
 
     public void SetMenuBar(IReadOnlyList<GpuiMenu> menus)
     {
         ApplicationExecution.AssertEffectsAllowed();
         ArgumentNullException.ThrowIfNull(menus);
+        GpuiMenu.Validate(menus, nameof(menus));
 
         var records = new List<NativeMenuRecord>();
         var titleBytes = new List<byte>();
         var titleOffsets = new List<int>();
-        _menuActions.Clear();
+        var actions = new Dictionary<ulong, Action>();
 
         foreach (var menu in menus)
         {
-            AddMenu(menu, uint.MaxValue, records, titleBytes, titleOffsets);
+            AddMenu(menu, uint.MaxValue, records, titleBytes, titleOffsets, actions);
         }
 
         var titles = titleBytes.ToArray();
-        unsafe
+        var generation = _menuActions.Stage(actions);
+        try
         {
-            fixed (NativeMenuRecord* nativeRecords = records.ToArray())
-            fixed (byte* nativeTitles = titles)
+            unsafe
             {
-                for (var index = 0; index < records.Count; index++)
+                fixed (NativeMenuRecord* nativeRecords = records.ToArray())
+                fixed (byte* nativeTitles = titles)
                 {
-                    nativeRecords[index].title = nativeTitles + titleOffsets[index];
-                }
+                    for (var index = 0; index < records.Count; index++)
+                    {
+                        nativeRecords[index].title = nativeTitles + titleOffsets[index];
+                    }
 
-                var native = new NativeMenuCommand
-                {
-                    items = nativeRecords,
-                    item_length = records.Count,
-                    reserved = 0,
-                    reserved2 = 0,
-                };
-                var status = _runtime.Api->dispatch_application_menu(_applicationId, &native);
-                GC.KeepAlive(_runtime);
-                if (status != 0)
-                {
-                    throw new InvalidOperationException(
-                        $"Native menu update failed for application {_applicationId}: {NativeStatus.Describe(NativeStatusDomain.ApplicationMenu, status)}."
-                    );
+                    var native = new NativeMenuCommand
+                    {
+                        items = nativeRecords,
+                        item_length = records.Count,
+                        reserved = 0,
+                        reserved2 = 0,
+                        generation = generation,
+                    };
+                    var status = _runtime.Api->dispatch_application_menu(_applicationId, &native);
+                    GC.KeepAlive(_runtime);
+                    if (status != 0)
+                    {
+                        throw new InvalidOperationException(
+                            $"Native menu update failed for application {_applicationId}: {NativeStatus.Describe(NativeStatusDomain.ApplicationMenu, status)}."
+                        );
+                    }
                 }
             }
         }
+        catch
+        {
+            _menuActions.Reject(generation);
+            throw;
+        }
     }
+
+    internal void MenuApplied(ulong generation) => _menuActions.Applied(generation);
 
     public void SetTheme(GpuiTheme theme)
     {
@@ -215,7 +212,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
         {
             return -65;
         }
-        if (!_menuActions.TryGetValue(actionId, out var callback))
+        if (_menuActions.Find(actionId) is not { } callback)
         {
             return -64;
         }
@@ -238,7 +235,8 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
         uint parent,
         List<NativeMenuRecord> records,
         List<byte> titleBytes,
-        List<int> titleOffsets
+        List<int> titleOffsets,
+        Dictionary<ulong, Action> actions
     )
     {
         var menuIndex = checked((uint)records.Count);
@@ -251,12 +249,12 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
             }
             else if (item.NestedMenu is not null)
             {
-                AddMenu(item.NestedMenu, menuIndex, records, titleBytes, titleOffsets);
+                AddMenu(item.NestedMenu, menuIndex, records, titleBytes, titleOffsets, actions);
             }
             else
             {
                 var actionId = checked((ulong)Interlocked.Increment(ref _nextMenuActionId));
-                _menuActions[actionId] = item.Callback!;
+                actions[actionId] = item.Callback!;
                 AddRecord(2, menuIndex, actionId, item.Title, records, titleBytes, titleOffsets);
             }
         }
@@ -387,6 +385,8 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
         {
             return;
         }
+
+        _menuActions.Clear();
 
         foreach (var (windowId, session) in _sessions.ToArray())
         {

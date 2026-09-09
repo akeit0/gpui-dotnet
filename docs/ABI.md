@@ -1,11 +1,15 @@
 # Native ABI
 
 The ABI is the internal C contract between `GPUI.NET.Core` and a native host. Application code uses
-managed declarations and controllers rather than wire records. Startup requires ABI version 7, a
+managed declarations and controllers rather than wire records. Startup requires a matching ABI version, a
 compatible API-table prefix, all required function entries, and an exact semantic schema hash. The
 [generated ID catalog](SEMANTIC_IDS.md) lists current assignments; [Binding
 generation](BINDING_GENERATION.md) describes how to change them. Rebuild managed code and native
 hosts together after schema changes.
+
+Rust [`abi.rs`](../crates/gpui-dotnet/src/abi.rs) defines the protocol version and layouts. The native
+build generates the [managed interop declarations](../src/Gpui/Interop/NativeMethods.g.cs).
+C-style signatures here illustrate the internal protocol.
 
 ## Discovery
 
@@ -52,7 +56,8 @@ callback table provides:
 - retained control events (Input, Slider, Dock, List/Table item events, and observer key/mouse);
 - application-started notification;
 - window-closed notification;
-- application-menu action dispatch.
+- application-menu action dispatch;
+- application-menu installation acknowledgement (`menu_applied(application, generation)`).
 
 The callback table starts with `struct_size`, allowing native code to validate the available prefix.
 Every callback is a Cdecl unmanaged function pointer and returns an `int32_t` status.
@@ -61,6 +66,15 @@ The native application is registered before the application-started callback, so
 enqueue initial windows synchronously. A window ID is also its render-session ID. Closing one window
 detaches only that managed session; the application event loop ends after the last registered window
 closes.
+
+Menu publication is transactional at enqueue time. `NativeMenuCommand` carries a nonzero
+`uint64_t generation`, acknowledged through the required `menu_applied` callback.
+Native installs the generation before acknowledging it and ignores platform actions from older
+generations. Managed code retains pending callback maps until that acknowledgement retires older
+maps; synchronous rejection removes only the candidate and preserves the previous menu snapshot.
+At most 64 installed/pending generations are retained; another replacement throws until native
+acknowledges progress. Shutdown releases all callback maps. Menus permit 4096 records (including
+roots and separators), 32 menu levels, and 1 MiB of aggregate UTF-8 titles on both sides.
 
 ## Render callbacks
 
@@ -97,9 +111,9 @@ Rust must release its borrow of the arena before this callback. Status zero acce
 nonzero validation/decode status faults the session without mounting candidates. Failed render
 callbacks have no publication and receive no acknowledgement. An acknowledgement failure also
 rejects the native snapshot. Missing, zero, mismatched, or duplicate revisions are protocol errors.
-The callback table places this required pointer after `dynamic_frame` (offset 72 on 64-bit targets;
-offset 36 on 32-bit targets). `release_artifact` is at offset 80/40 and `accept_artifact` at offset
-88/44, for a total callback-table size of 96/48 bytes on 64/32-bit targets.
+The callback table layout is defined and tested in [`abi.rs`](../crates/gpui-dotnet/src/abi.rs).
+[Managed contract tests](../tests/Gpui.Tests/ApplicationModelTests.cs) verify the corresponding
+generated sizes and offsets.
 
 Managed acceptance commits the complete reachable tree and props, retires replaced subtrees, then
 activates all new View routes, then starts effects parent-first. New root/range render and event
@@ -117,7 +131,7 @@ The source/artifact acceptance, release, and invalidation protocol is independen
 Its range bounds and direct-child-count rule apply only to that adapter. Shared managed publication
 and native decoding/lease ownership do not impose those rules on other demand shapes. There is
 currently no public custom demand-request entry point. Separating this implementation does not
-change the ABI 7 layouts, callback signatures, or semantic schema hash.
+change the ABI layouts, callback signatures, or semantic schema hash.
 
 Virtual items use:
 
@@ -223,6 +237,10 @@ Canonical payload rules:
 - components, child counts, and operation capabilities receive managed diagnostics and
   authoritative native validation. Full graph connectivity and retained resource-key conflicts
   are enforced at native acceptance without a second managed pass.
+
+Both validators limit each render arena to 128 levels of element nesting, counting its root as
+level one. Native validation returns `-68` for deeper trees. This is a per-arena limit; it does not
+measure composition across managed child Views or deferred content.
 
 The managed validator catches builder/runtime errors before FFI. Native validation remains
 authoritative because a custom or mismatched managed host must not create invalid GPUI state.

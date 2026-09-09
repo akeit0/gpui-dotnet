@@ -1,6 +1,7 @@
 fn main() {
     println!("cargo:rerun-if-changed=src/abi.rs");
     println!("cargo:rerun-if-changed=src/lib.rs");
+    println!("cargo:rerun-if-changed=hosts/default/src/lib.rs");
 
     csbindgen::Builder::default()
         .input_extern_file("src/lib.rs")

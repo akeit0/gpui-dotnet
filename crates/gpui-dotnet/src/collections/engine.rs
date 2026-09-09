@@ -150,12 +150,14 @@ impl CollectionEngine {
             (None, None) => revision_changed,
             _ => true,
         };
-        let layout_changed = self.alignment != configuration.alignment
+        let orientation_changed = self.orientation != configuration.orientation;
+        let layout_changed = orientation_changed
+            || self.alignment != configuration.alignment
             || self.overdraw != configuration.overdraw
             || self.estimated_item_extent != configuration.estimated_item_extent;
         let end_anchored = configuration.alignment == ListAlignment::Bottom;
 
-        if self.orientation != configuration.orientation {
+        if orientation_changed {
             // An axis change discards every axis-specific measurement and hint. Item indices
             // are unchanged, so the cursor survives; scroll restarts at the anchored edge.
             self.orientation = configuration.orientation;

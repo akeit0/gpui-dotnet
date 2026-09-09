@@ -79,6 +79,8 @@ validates reusable extension behavior:
 - optional undo/redo and multi-edit commands if an application needs them;
 - managed reconciliation helpers for applying revisioned UTF-8 edits and handling stale commands;
 - runtime language/highlighter changes and explicit unsupported-language behavior;
+- use native edit deltas for small edits if large-document measurements show full-document
+  comparison dominates; preserve revision checks and UTF-8 boundaries;
 - RID runtime packages and clean-consumer tests that never require Cargo;
 - IME, clipboard, undo, large-document, accessibility, and cross-platform behavior tests.
 
@@ -156,9 +158,35 @@ to select application workloads. Validate any drawing or Dynamic owner cache aga
 replacement, resource lifetime, theme changes, and resize. Extend current-thread Rust allocation
 counts with retained-memory and platform measurements before claiming an end-to-end improvement.
 
+Candidates to evaluate against those measurements:
+
+- incremental image spill-budget accounting and eviction ordering if cache scans dominate churn;
+- cached Dynamic owner discovery per accepted snapshot if repeated tree scans are significant;
+- reuse of decoded retained presentation when clean repaints repeatedly parse the same operations;
+- reduced clean-fragment copying only after measuring its share of a changing-leaf frame.
+
+Managed ingress backpressure remains a lower-priority design task if producer bursts cause sustained
+backlog or retained-memory growth. Define completion delivery and owner-retirement behavior before
+limiting the managed callback queue: accepted owned-work completions must not disappear silently.
+Consider payload-byte budgets and window-command coalescing only with measured pressure, preserving
+structural command ordering and menu acknowledgements. See [Threading](THREADING.md) for current
+native queue limits.
+
+If deeply composed Views or menus expose a stack problem, measure those paths separately before
+extending depth limits across arena boundaries or changing recursive consumers. The current
+per-arena validation contract is described in [ABI](ABI.md).
+
+## Analyzer diagnostics
+
+- Reuse detached-task detection for directly visible synchronous `WorkScope` completion lambdas,
+  covering `complete`, `failed`, and `cancelled` callbacks with positive and false-positive tests.
+- Document which callback forms can be inspected. Delegate-local/field tracking and broader
+  call-graph analysis are lower priority and require a clear false-positive policy; runtime
+  ownership and route checks remain independent of analyzer success.
+
 ## ABI, diagnostics, and CI
-- generate and verify a public C header with `sizeof`/`offsetof` assertions per RID;
+
 - enrich ambiguous render failures with structured node/operation context if a future ABI change
   justifies it; current diagnostics preserve operation-specific symbols and numeric statuses;
-- define coalescing policies for high-frequency window commands;
-- run NativeAOT smoke tests for every supported RID.
+- extend NativeAOT publish smoke coverage from Windows to Linux and both macOS RIDs, using the
+  same SDK and native toolchain selection as release builds.

@@ -313,6 +313,54 @@ public sealed class GeneratorTests
         Assert.Contains("Element Method(int index, ref RenderContext ui)", diagnostic.GetMessage());
     }
 
+    [Fact]
+    public void DistinctQualifiedNamesDoNotCollideAfterHintEscaping()
+    {
+        const string source = """
+            using Gpui;
+            namespace A
+            {
+                [GpuiView]
+                public sealed partial class B_C : View
+                {
+                    protected override Element Render(ref RenderContext ui) => ui.Div();
+                }
+            }
+            namespace A_B
+            {
+                [GpuiView]
+                public sealed partial class C : View
+                {
+                    protected override Element Render(ref RenderContext ui) => ui.Div();
+                }
+            }
+            """;
+        var (result, output) = RunGeneratorAndUpdateCompilation(source);
+        Assert.DoesNotContain(result.Diagnostics, d => d.Severity == DiagnosticSeverity.Error);
+        Assert.Equal(2, result.GeneratedTrees.Length);
+        Assert.DoesNotContain(
+            output.GetDiagnostics(TestContext.Current.CancellationToken),
+            d => d.Severity == DiagnosticSeverity.Error
+        );
+    }
+
+    [Fact]
+    public void ReservedItemsMemberIsDiagnosedWithoutAnyListRenderer()
+    {
+        const string source = """
+            using Gpui;
+            [GpuiView]
+            public sealed partial class OrdinaryItemsView : View
+            {
+                public int Items => 1;
+                protected override Element Render(ref RenderContext ui) => ui.Div();
+            }
+            """;
+        var result = RunGenerator(source);
+        Assert.Single(result.Diagnostics.Where(d => d.Id == "GPUI013"));
+        Assert.Empty(result.GeneratedTrees);
+    }
+
     private static GeneratorDriverRunResult RunGenerator(string source)
     {
         var (result, _) = RunGeneratorAndUpdateCompilation(source);

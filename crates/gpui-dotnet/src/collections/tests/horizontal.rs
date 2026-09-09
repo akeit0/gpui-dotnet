@@ -157,6 +157,53 @@ fn horizontal_orientation_switch_rebuilds_widths() {
     assert!(engine.batches.is_empty());
 }
 
+// Keep all other layout fields equal so only the axis changes.
+#[test]
+fn horizontal_to_vertical_rebuilds_after_committed_splices() {
+    for (removed, inserted, expected_count) in [(0_u64, 50_u64, 150_usize), (50, 0, 50)] {
+        let mut config = horizontal_configuration();
+        let mut engine = CollectionEngine::new(1, callbacks(), &config, 1);
+        engine.apply_command(&command(
+            COMMAND_LIST_SPLICE,
+            50,
+            (removed << 32) | inserted,
+            "",
+        ));
+        config.item_count = expected_count;
+        engine.configure(&config, 2);
+        let active_before_switch = engine.cursor.active();
+
+        config.orientation = ListOrientation::Vertical;
+        engine.configure(&config, 3);
+
+        assert_eq!(engine.item_count, expected_count);
+        assert_eq!(
+            engine.state.max_offset_for_scrollbar().y,
+            px(expected_count as f32 * 160.),
+        );
+        assert_eq!(engine.cursor.active(), active_before_switch);
+        assert!(engine.batches.is_empty());
+    }
+}
+
+#[test]
+fn returning_to_vertical_restarts_at_the_anchored_edge() {
+    let mut config = horizontal_configuration();
+    config.orientation = ListOrientation::Vertical;
+    let mut engine = CollectionEngine::new(1, callbacks(), &config, 1);
+    engine.state.scroll_to(gpui::ListOffset {
+        item_ix: 50,
+        offset_in_item: px(20.),
+    });
+    config.orientation = ListOrientation::Horizontal;
+    engine.configure(&config, 2);
+    config.orientation = ListOrientation::Vertical;
+    engine.configure(&config, 3);
+
+    assert_eq!(engine.state.logical_scroll_top().item_ix, 0);
+    assert_eq!(engine.state.scroll_px_offset_for_scrollbar().y, px(0.));
+}
+
 #[test]
 fn horizontal_configuration_parses_orientation_and_width_ops() {
     static KEY: &[u8] = b"rows";

@@ -565,6 +565,7 @@ unsafe fn dispatch_application_menu_inner(
     if application_id == 0
         || command.reserved != 0
         || command.reserved2 != 0
+        || command.generation == 0
         || command.item_length < 0
         || command.item_length as usize > MAX_MENU_RECORDS
         || (command.item_length != 0 && command.items.is_null())
@@ -580,6 +581,8 @@ unsafe fn dispatch_application_menu_inner(
     let mut children = vec![Vec::new(); records.len()];
     let mut roots = Vec::new();
     let mut titles = Vec::with_capacity(records.len());
+    let mut depths = vec![1usize; records.len()];
+    let mut title_bytes = 0usize;
     for (index, record) in records.iter().enumerate() {
         if record.flags != 0
             || record.reserved != 0
@@ -591,6 +594,16 @@ unsafe fn dispatch_application_menu_inner(
             return -66;
         }
 
+        title_bytes += record.title_length as usize;
+        if title_bytes > 1024 * 1024 {
+            return -66;
+        }
+        if record.parent != NO_PARENT && (record.parent as usize) < index {
+            depths[index] = depths[record.parent as usize] + 1;
+        }
+        if depths[index] > 33 || (record.kind == MENU && depths[index] > 32) {
+            return -68;
+        }
         let title = if record.title_length == 0 {
             String::new()
         } else {
@@ -653,7 +666,10 @@ unsafe fn dispatch_application_menu_inner(
         .collect();
     app_host::dispatch_application_command(
         application_id,
-        app_host::ApplicationCommand::SetMenuBar(menus),
+        app_host::ApplicationCommand::SetMenuBar {
+            menus,
+            generation: command.generation,
+        },
     )
 }
 
@@ -682,6 +698,7 @@ unsafe extern "C" fn run_application(
         || callbacks.application_started.is_none()
         || callbacks.window_closed.is_none()
         || callbacks.menu_action.is_none()
+        || callbacks.menu_applied.is_none()
         || callbacks.render_completed.is_none()
         || callbacks.release_artifact.is_none()
         || callbacks.accept_artifact.is_none()
@@ -697,6 +714,50 @@ unsafe extern "C" fn run_application(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn menu_validation_bounds_records_depth_bytes_and_generation() {
+        let mut command = NativeMenuCommand {
+            items: std::ptr::null(),
+            item_length: 0,
+            reserved: 0,
+            reserved2: 0,
+            generation: 0,
+        };
+        assert_eq!(
+            unsafe { dispatch_application_menu_inner(u64::MAX, &command) },
+            -65
+        );
+        command.generation = 1;
+        command.item_length = 4097;
+        assert_eq!(
+            unsafe { dispatch_application_menu_inner(u64::MAX, &command) },
+            -65
+        );
+        let mut records: Vec<_> = (0..33)
+            .map(|index| NativeMenuRecord {
+                parent: if index == 0 { u32::MAX } else { index - 1 },
+                kind: 1,
+                flags: 0,
+                action_id: 0,
+                title: b"x".as_ptr(),
+                title_length: 1,
+                reserved: 0,
+            })
+            .collect();
+        command.items = records.as_ptr();
+        command.item_length = records.len() as i32;
+        assert_eq!(
+            unsafe { dispatch_application_menu_inner(u64::MAX, &command) },
+            -68
+        );
+        command.item_length = 1;
+        // The byte limit must reject before attempting to read this deliberately short buffer.
+        records[0].title_length = 1024 * 1024 + 1;
+        assert_eq!(
+            unsafe { dispatch_application_menu_inner(u64::MAX, &command) },
+            -66
+        );
+    }
     #[test]
     fn artifact_invalidation_validates_pointer_count_and_identities() {
         let zero = super::abi::NativeArtifactKey {

@@ -1264,6 +1264,7 @@ mod tests {
             application_started: None,
             window_closed: None,
             menu_action: None,
+            menu_applied: None,
         }
     }
 
