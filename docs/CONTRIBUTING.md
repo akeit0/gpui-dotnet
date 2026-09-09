@@ -126,6 +126,11 @@ bindings, the native workspace (including the editor host), solution builds, and
 Windows also checks NativeAOT publishing. Builds must leave tracked generated files unchanged.
 Manual runs additionally stage and upload native release assets.
 
+Validation installs `eng/cargo-validation.toml` into Cargo's CI configuration to reduce native
+development/test optimization and debug information. Local interactive builds retain their normal
+profiles. The Windows NativeAOT publish check uses the Debug native library with Release managed
+code; native Release compilation remains part of manual validation and release builds.
+
 Use the smallest relevant tests while iterating, then run the full local checks:
 
 ```sh

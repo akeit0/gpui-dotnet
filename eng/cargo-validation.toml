@@ -1,0 +1,15 @@
+# Installed into CARGO_HOME only by validation CI. Keep local interactive builds
+# optimized and leave release profiles unchanged.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package]
+gpui = { opt-level = 1 }
+gpui-base = { opt-level = 1 }
+gpui_platform = { opt-level = 1 }
+gpui_macros = { opt-level = 1 }
+resvg = { opt-level = 1 }
+rustybuzz = { opt-level = 1 }
+smol = { opt-level = 1 }
+taffy = { opt-level = 1 }
+ttf-parser = { opt-level = 1 }

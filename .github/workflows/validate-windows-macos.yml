@@ -42,6 +42,14 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Configure faster native validation builds
+        shell: pwsh
+        run: |
+          $cargoDirectory = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $HOME '.cargo' }
+          New-Item -ItemType Directory -Force -Path $cargoDirectory | Out-Null
+          $cargoConfig = Join-Path $cargoDirectory 'config.toml'
+          Get-Content eng/cargo-validation.toml -Raw | Add-Content -LiteralPath $cargoConfig
+
       - uses: ./.github/actions/setup-native
 
       - name: Restore formatting tool
@@ -77,10 +85,10 @@ jobs:
 
       - name: NativeAOT publish smoke test
         if: runner.os == 'Windows'
-        run: dotnet publish samples/Gpui.Sample/Gpui.Sample.csproj -c Release -r win-x64 -p:PublishAot=true
+        run: dotnet publish samples/Gpui.Sample/Gpui.Sample.csproj -c Release -r win-x64 -p:PublishAot=true -p:NativeCargoProfile=debug
 
       - name: Build release native asset
-        if: github.event_name == 'workflow_dispatch' && runner.os != 'Windows'
+        if: github.event_name == 'workflow_dispatch'
         shell: pwsh
         run: ./eng/build-native.ps1 -ManifestPath crates/gpui-dotnet/Cargo.toml -Configuration release
 
