@@ -10,7 +10,7 @@ default-members = [".", "hosts/default"]
 resolver = "3"
 
 [workspace.package]
-version = "0.2.0-preview.1"
+version = "0.3.0-preview.1"
 # Deny the lint groups that silently change behavior when missed: an unresolved
 # constant in pattern position becomes a catch-all binding, and dead code hides
 # untested paths. Scoped to groups rather than `warnings` so toolchain upgrades
