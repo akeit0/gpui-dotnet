@@ -73,7 +73,7 @@
         BeforeTargets="CoreCompile"
         Condition="'$(BuildGpuiNative)' == 'true'"
     >
-        <Exec Command="$(NativeBuildCommand)" />
+        <Exec Command="$(NativeBuildCommand)" Condition="'$(GpuiNativePrebuilt)' != 'true'" />
         <Touch Files="$(NativeBuildStamp)" AlwaysCreate="true" />
     </Target>
 </Project>

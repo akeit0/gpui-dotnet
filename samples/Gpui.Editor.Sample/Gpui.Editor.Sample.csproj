@@ -31,7 +31,10 @@
     </ItemGroup>
 
     <Target Name="BuildEditorNativeHost" BeforeTargets="CoreCompile">
-        <Exec Command="cargo build --manifest-path &quot;$(EditorHostManifest)&quot; --package gpui-dotnet-editor-host $(EditorHostCargoArgument)" />
+        <Exec
+            Command="cargo build --manifest-path &quot;$(EditorHostManifest)&quot; --package gpui-dotnet-editor-host $(EditorHostCargoArgument)"
+            Condition="'$(GpuiNativePrebuilt)' != 'true'"
+        />
         <Copy
             SourceFiles="$(EditorHostPath)"
             DestinationFolder="$(OutDir)"
