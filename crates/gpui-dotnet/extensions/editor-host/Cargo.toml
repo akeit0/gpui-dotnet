@@ -9,13 +9,13 @@ name = "gpui_dotnet_editor"
 crate-type = ["cdylib"]
 
 [dependencies]
-gpui = { git = "https://github.com/zed-industries/zed" }
-gpui-component = { path = "../../../../external/gpui-kit/crates/ui", features = ["tree-sitter-rust"] }
+gpui = { package = "gpui-pre", version = "0.3.1" }
+gpui-component = { path = "../../../../external/gpui-kit/crates/component", features = ["tree-sitter-rust"] }
 gpui-dotnet = { path = "../.." }
 ropey = "=2.0.0-beta.1"
 
 [dev-dependencies]
-gpui = { git = "https://github.com/zed-industries/zed", features = ["test-support"] }
+gpui = { package = "gpui-pre", version = "0.3.1", features = ["test-support"] }
 
 [lints]
 workspace = true
