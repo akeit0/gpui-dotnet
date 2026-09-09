@@ -91,7 +91,10 @@ impl Drop for ViewRegistration {
 
 #[derive(Debug)]
 pub(crate) enum ApplicationCommand {
-    SetMenuBar(Vec<ManagedMenu>),
+    SetMenuBar {
+        menus: Vec<ManagedMenu>,
+        generation: u64,
+    },
     SetTheme(NativeTheme),
     SetImageCacheBudget {
         max_bytes: u64,
@@ -143,6 +146,27 @@ pub(crate) enum ManagedMenuItem {
 #[action(no_json, no_register)]
 struct ManagedMenuAction {
     id: u64,
+    generation: u64,
+}
+
+#[derive(Default)]
+struct MenuGeneration(u64);
+impl gpui::Global for MenuGeneration {}
+
+fn dispatch_menu_action(
+    action: &ManagedMenuAction,
+    application_id: u64,
+    callbacks: ManagedCallbacks,
+    cx: &App,
+) -> i32 {
+    if action.generation != cx.global::<MenuGeneration>().0 {
+        return 0;
+    }
+    unsafe {
+        callbacks
+            .menu_action
+            .expect("validated menu action callback")(application_id, action.id)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -739,15 +763,9 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
             let theme: SharedTheme = Rc::new(RefCell::new(initial_theme));
 
             let menu_status = Arc::clone(&application_status_in_app);
-            cx.on_action(move |action: &ManagedMenuAction, _cx| {
-                let status = unsafe {
-                    callbacks
-                        .menu_action
-                        .expect("callbacks were validated before application startup")(
-                        application_id,
-                        action.id,
-                    )
-                };
+            cx.set_global(MenuGeneration::default());
+            cx.on_action(move |action: &ManagedMenuAction, cx| {
+                let status = dispatch_menu_action(action, application_id, callbacks, cx);
                 record_status(&menu_status, status);
             });
 
@@ -818,8 +836,17 @@ fn apply_application_command(
     application_status: &AtomicI32,
 ) {
     match command {
-        ApplicationCommand::SetMenuBar(menus) => {
-            cx.set_menus(menus.into_iter().map(convert_menu));
+        ApplicationCommand::SetMenuBar { menus, generation } => {
+            cx.set_menus(menus.into_iter().map(|menu| convert_menu(menu, generation)));
+            cx.set_global(MenuGeneration(generation));
+            let status = unsafe {
+                callbacks
+                    .menu_applied
+                    .expect("validated menu acknowledgement")(
+                    application_id, generation
+                )
+            };
+            record_status(application_status, status);
         }
         ApplicationCommand::SetTheme(next) => {
             next.apply(cx);
@@ -956,19 +983,25 @@ fn apply_application_command(
     }
 }
 
-fn convert_menu(menu: ManagedMenu) -> Menu {
+fn convert_menu(menu: ManagedMenu, generation: u64) -> Menu {
     Menu {
         name: menu.title.into(),
-        items: menu.items.into_iter().map(convert_menu_item).collect(),
+        items: menu
+            .items
+            .into_iter()
+            .map(|item| convert_menu_item(item, generation))
+            .collect(),
         disabled: false,
     }
 }
 
-fn convert_menu_item(item: ManagedMenuItem) -> MenuItem {
+fn convert_menu_item(item: ManagedMenuItem, generation: u64) -> MenuItem {
     match item {
         ManagedMenuItem::Separator => MenuItem::separator(),
-        ManagedMenuItem::Action { id, title } => MenuItem::action(title, ManagedMenuAction { id }),
-        ManagedMenuItem::Submenu(menu) => MenuItem::submenu(convert_menu(menu)),
+        ManagedMenuItem::Action { id, title } => {
+            MenuItem::action(title, ManagedMenuAction { id, generation })
+        }
+        ManagedMenuItem::Submenu(menu) => MenuItem::submenu(convert_menu(menu, generation)),
     }
 }
 
@@ -1185,6 +1218,54 @@ fn create_managed_view(
 
 #[cfg(test)]
 mod tests {
+    #[gpui::test]
+    fn menu_replacement_acknowledges_and_filters_queued_old_actions(cx: &mut gpui::TestAppContext) {
+        unsafe extern "C" fn applied(_: u64, generation: u64) -> i32 {
+            if generation == 2 { 0 } else { -1 }
+        }
+        unsafe extern "C" fn action(_: u64, _: u64) -> i32 {
+            17
+        }
+        cx.update(|cx| {
+            let mut callbacks: ManagedCallbacks = unsafe { std::mem::zeroed() };
+            callbacks.menu_applied = Some(applied);
+            callbacks.menu_action = Some(action);
+            cx.set_global(MenuGeneration(1));
+            let old = ManagedMenuAction {
+                id: 1,
+                generation: 1,
+            };
+            assert_eq!(dispatch_menu_action(&old, 1, callbacks, cx), 17);
+            let status = AtomicI32::new(0);
+            apply_application_command(
+                ApplicationCommand::SetMenuBar {
+                    menus: vec![],
+                    generation: 2,
+                },
+                cx,
+                1,
+                callbacks,
+                &Rc::default(),
+                &Rc::new(RefCell::new(NativeTheme::default())),
+                &status,
+            );
+            assert_eq!(status.load(Ordering::Acquire), 0);
+            assert_eq!(cx.global::<MenuGeneration>().0, 2);
+            assert_eq!(dispatch_menu_action(&old, 1, callbacks, cx), 0);
+            assert_eq!(
+                dispatch_menu_action(
+                    &ManagedMenuAction {
+                        id: 2,
+                        generation: 2
+                    },
+                    1,
+                    callbacks,
+                    cx
+                ),
+                17
+            );
+        });
+    }
     use super::*;
     use gpui::FocusHandle;
     use gpui_base::FocusTrapElement as _;
@@ -1498,6 +1579,7 @@ mod tests {
             application_started: None,
             window_closed: None,
             menu_action: None,
+            menu_applied: None,
             dynamic_frame: None,
             render_completed: None,
             release_artifact: None,

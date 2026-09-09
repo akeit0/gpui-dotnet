@@ -195,26 +195,53 @@ impl ManagedSlider {
     }
 
     fn percentage_to_value(&self, percentage: f32) -> f32 {
-        if self.logarithmic {
-            let base = self.max / self.min;
-            (base.powf(percentage) * self.min).clamp(self.min, self.max)
-        } else {
-            self.min + (self.max - self.min) * percentage
+        // Valid finite f32 endpoints can still overflow their f32 difference or ratio.
+        // Preserve authored endpoints exactly and widen every intermediate calculation.
+        if percentage <= 0.0 {
+            return self.min;
         }
+        if percentage >= 1.0 {
+            return self.max;
+        }
+        let min = f64::from(self.min);
+        let max = f64::from(self.max);
+        let percentage = f64::from(percentage);
+        let value = if self.logarithmic {
+            (min.ln() + (max.ln() - min.ln()) * percentage).exp()
+        } else {
+            min + (max - min) * percentage
+        };
+        value.clamp(min, max) as f32
     }
 
     fn value_to_percentage(&self, value: f32) -> f32 {
-        if self.logarithmic {
-            let base = self.max / self.min;
-            (value / self.min).log(base).clamp(0.0, 1.0)
+        let min = f64::from(self.min);
+        let max = f64::from(self.max);
+        let value = f64::from(value).clamp(min, max);
+        let percentage = if self.logarithmic {
+            (value.ln() - min.ln()) / (max.ln() - min.ln())
         } else {
-            let range = self.max - self.min;
+            let range = max - min;
             if range <= 0.0 {
                 0.0
             } else {
-                ((value - self.min) / range).clamp(0.0, 1.0)
+                (value - min) / range
             }
+        };
+        percentage.clamp(0.0, 1.0) as f32
+    }
+
+    fn quantize_value(&self, value: f32) -> f32 {
+        if value <= self.min {
+            return self.min;
         }
+        if value >= self.max {
+            return self.max;
+        }
+        let min = f64::from(self.min);
+        let step = f64::from(self.step);
+        let quantized = min + ((f64::from(value) - min) / step).round() * step;
+        quantized.clamp(min, f64::from(self.max)) as f32
     }
 
     fn percentages(&self) -> (f32, f32) {
@@ -255,8 +282,7 @@ impl ManagedSlider {
         } else {
             percentage.max(current_start)
         };
-        let value = self.min
-            + ((self.percentage_to_value(percentage) - self.min) / self.step).round() * self.step;
+        let value = self.quantize_value(self.percentage_to_value(percentage));
         self.update_value(value, is_start, cx);
     }
 
@@ -293,21 +319,27 @@ impl ManagedSlider {
         } else {
             self.value.end()
         };
+        let current = f64::from(current);
+        let step = f64::from(self.step);
         let next = match event.keystroke.key.as_str() {
-            "home" => self.min,
-            "end" => self.max,
-            "left" if self.axis == Axis::Horizontal => current - self.step,
-            "right" if self.axis == Axis::Horizontal => current + self.step,
-            "up" if self.axis == Axis::Vertical => current + self.step,
-            "down" if self.axis == Axis::Vertical => current - self.step,
-            "pageup" => current + self.step * 10.,
-            "pagedown" => current - self.step * 10.,
+            "home" => f64::from(self.min),
+            "end" => f64::from(self.max),
+            "left" if self.axis == Axis::Horizontal => current - step,
+            "right" if self.axis == Axis::Horizontal => current + step,
+            "up" if self.axis == Axis::Vertical => current + step,
+            "down" if self.axis == Axis::Vertical => current - step,
+            "pageup" => current + step * 10.,
+            "pagedown" => current - step * 10.,
             _ => return,
         };
 
         self.keyboard_active = true;
         self.dragging = false;
-        self.update_value(next, is_start, cx);
+        self.update_value(
+            next.clamp(f64::from(self.min), f64::from(self.max)) as f32,
+            is_start,
+            cx,
+        );
         cx.stop_propagation();
     }
 
@@ -781,6 +813,52 @@ mod tests {
     }
 
     #[gpui::test]
+    fn finite_extreme_linear_ranges_do_not_overflow(cx: &mut TestAppContext) {
+        let mut configuration = configuration(SliderValue::Single(0.));
+        configuration.min = -3.0e38;
+        configuration.max = 3.0e38;
+        let (slider, _) = cx.add_window_view(|_, cx| {
+            ManagedSlider::new(1, callbacks(), &configuration, theme(), cx)
+        });
+        slider.update(cx, |slider, _| {
+            assert_eq!(slider.percentage_to_value(0.), configuration.min);
+            assert_eq!(slider.percentage_to_value(1.), configuration.max);
+            assert_eq!(slider.percentage_to_value(0.5), 0.);
+            assert_eq!(slider.value_to_percentage(0.), 0.5);
+        });
+    }
+
+    #[gpui::test]
+    fn wide_logarithmic_ranges_use_finite_intermediates(cx: &mut TestAppContext) {
+        let mut configuration = configuration(SliderValue::Single(1.));
+        configuration.min = 1.0e-30;
+        configuration.max = 1.0e30;
+        configuration.logarithmic = true;
+        let (slider, _) = cx.add_window_view(|_, cx| {
+            ManagedSlider::new(1, callbacks(), &configuration, theme(), cx)
+        });
+        slider.update(cx, |slider, _| {
+            assert!((slider.percentage_to_value(0.5) - 1.).abs() < 1.0e-4);
+            assert!((slider.value_to_percentage(1.) - 0.5).abs() < 1.0e-6);
+            assert_eq!(slider.value_to_percentage(configuration.max), 1.);
+        });
+    }
+
+    #[gpui::test]
+    fn tiny_positive_steps_do_not_overflow_quantization(cx: &mut TestAppContext) {
+        let mut configuration = configuration(SliderValue::Single(0.5));
+        configuration.min = 0.;
+        configuration.max = 1.;
+        configuration.step = 1.0e-40;
+        let (slider, _) = cx.add_window_view(|_, cx| {
+            ManagedSlider::new(1, callbacks(), &configuration, theme(), cx)
+        });
+        slider.update(cx, |slider, _| {
+            assert_eq!(slider.quantize_value(0.5), 0.5);
+        });
+    }
+
+    #[gpui::test]
     fn track_click_emits_changed_and_release_events(cx: &mut TestAppContext) {
         clear_events();
         let configuration = configuration(SliderValue::Single(0.));
@@ -963,6 +1041,29 @@ mod tests {
     }
 
     #[gpui::test]
+    fn wide_range_keyboard_paging_does_not_overflow_before_cancellation(cx: &mut TestAppContext) {
+        for axis in [Axis::Horizontal, Axis::Vertical] {
+            let mut configuration = configuration(SliderValue::Single(-3.0e38));
+            configuration.min = -3.0e38;
+            configuration.max = 3.0e38;
+            configuration.step = 4.0e37;
+            configuration.axis = axis;
+            let (slider, cx) = cx.add_window_view(|_, cx| {
+                ManagedSlider::new(11, callbacks(), &configuration, theme(), cx)
+            });
+            cx.update(|window, app| {
+                slider.update(app, |slider, cx| slider.focus_handle.focus(window, cx));
+            });
+            cx.simulate_keystrokes("pageup");
+            slider.update(cx, |slider, _| {
+                let value = slider.value.end();
+                assert!(value.is_finite());
+                assert!((value / 1.0e38 - 1.0).abs() < 1.0e-5);
+            });
+        }
+    }
+
+    #[gpui::test]
     fn thumb_drag_emits_changed_and_released(cx: &mut TestAppContext) {
         clear_events();
         let configuration = configuration(SliderValue::Single(25.));
@@ -1055,6 +1156,7 @@ mod tests {
             application_started: None,
             window_closed: None,
             menu_action: None,
+            menu_applied: None,
         }
     }
 }

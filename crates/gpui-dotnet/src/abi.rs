@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-pub const ABI_VERSION: u32 = 7;
+pub const ABI_VERSION: u32 = 8;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -207,6 +207,7 @@ pub struct NativeMenuCommand {
     pub item_length: i32,
     pub reserved: u32,
     pub reserved2: u32,
+    pub generation: u64,
 }
 
 #[repr(C)]
@@ -233,6 +234,7 @@ pub type ManagedControlEventFn = unsafe extern "C" fn(u64, u64, *const NativeCon
 pub type ManagedApplicationStartedFn = unsafe extern "C" fn(u64) -> i32;
 pub type ManagedWindowClosedFn = unsafe extern "C" fn(u64, u64, i32) -> i32;
 pub type ManagedMenuActionFn = unsafe extern "C" fn(u64, u64) -> i32;
+pub type ManagedMenuAppliedFn = unsafe extern "C" fn(u64, u64) -> i32;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -249,6 +251,7 @@ pub struct ManagedCallbacks {
     pub render_completed: Option<ManagedRenderCompletedFn>,
     pub release_artifact: Option<ManagedReleaseArtifactFn>,
     pub accept_artifact: Option<ManagedAcceptArtifactFn>,
+    pub menu_applied: Option<ManagedMenuAppliedFn>,
 }
 
 #[cfg(test)]
@@ -258,7 +261,13 @@ mod tests {
     #[test]
     fn acceptance_callback_extends_the_callback_table() {
         let pointer_size = std::mem::size_of::<usize>();
-        assert_eq!(std::mem::size_of::<ManagedCallbacks>(), 12 * pointer_size);
+        assert_eq!(std::mem::size_of::<ManagedCallbacks>(), 13 * pointer_size);
+        assert_eq!(
+            std::mem::offset_of!(ManagedCallbacks, menu_applied),
+            12 * pointer_size
+        );
+        assert_eq!(std::mem::size_of::<NativeMenuCommand>(), 32);
+        assert_eq!(std::mem::offset_of!(NativeMenuCommand, generation), 24);
         assert_eq!(
             std::mem::offset_of!(ManagedCallbacks, render_completed),
             9 * pointer_size
@@ -277,7 +286,7 @@ mod tests {
             std::mem::offset_of!(GpuiDotnetApiV3, invalidate_artifacts),
             16 + 8 * pointer_size
         );
-        assert_eq!(ABI_VERSION, 7);
+        assert_eq!(ABI_VERSION, 8);
     }
 
     #[test]

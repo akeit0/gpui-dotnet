@@ -46,35 +46,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes \
-            clang \
-            cmake \
-            gcc \
-            g++ \
-            libasound2-dev \
-            libfontconfig-dev \
-            libssl-dev \
-            libstdc++-14-dev \
-            libvulkan1 \
-            libwayland-dev \
-            libx11-xcb-dev \
-            libxkbcommon-x11-dev \
-            libzstd-dev
+      - uses: ./.github/actions/setup-native
 
-      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
-        with:
-          toolchain: 1.98.0
-
-      - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
-        with:
-          workspaces: crates/gpui-dotnet
-
-      - name: Test native library
-        run: cargo test --locked --manifest-path crates/gpui-dotnet/Cargo.toml
+      - name: Test native workspace
+        run: cargo test --locked --manifest-path crates/gpui-dotnet/Cargo.toml --workspace
 
       - name: Verify one GPUI dependency
         run: cargo tree --locked --manifest-path crates/gpui-dotnet/Cargo.toml --invert gpui
@@ -82,6 +57,9 @@ jobs:
       - name: Build native library
         shell: pwsh
         run: ./eng/build-native.ps1 -ManifestPath crates/gpui-dotnet/Cargo.toml -Configuration release
+
+      - name: Check native bindings are unchanged
+        run: git diff --exit-code
 
       - name: Stage native library
         shell: pwsh
@@ -139,7 +117,7 @@ jobs:
 
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
-          dotnet-version: 10.0.400
+          global-json-file: global.json
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -234,7 +212,7 @@ jobs:
 
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
-          dotnet-version: 10.0.400
+          global-json-file: global.json
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -293,6 +271,7 @@ jobs:
           $fileSmoke = 'artifacts/file-smoke'
           if (Test-Path $fileSmoke) { Remove-Item $fileSmoke -Recurse -Force }
           New-Item -ItemType Directory -Path $fileSmoke | Out-Null
+          $env:NUGET_PACKAGES = Join-Path (Resolve-Path -LiteralPath $fileSmoke).Path 'packages'
           $packageSource = (Resolve-Path -LiteralPath 'artifacts/packages').Path
           $nugetSource = 'https://api.nuget.org/v3/index.json'
           @"
@@ -344,7 +323,7 @@ jobs:
 
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
-          dotnet-version: 10.0.400
+          global-json-file: global.json
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -419,7 +398,7 @@ jobs:
 
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
-          dotnet-version: 10.0.400
+          global-json-file: global.json
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:

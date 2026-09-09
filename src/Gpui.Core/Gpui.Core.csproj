@@ -38,18 +38,6 @@
         <PackageReference Include="Utf8StringInterpolation" Version="1.3.2" />
         <InternalsVisibleTo Include="Gpui.Tests" />
 
-        <_GpuiNativeInput Include="$(NativeCrateDir)/src/**/*.rs" />
-        <_GpuiNativeInput Include="$(NativeCrateDir)/Cargo.toml" />
-        <_GpuiNativeInput Include="$(NativeCrateDir)/Cargo.lock" />
-        <_GpuiNativeInput Include="$(NativeCrateDir)/build.rs" />
-        <_GpuiNativeInput Include="$(NativeBuildScript)" />
-        <_GpuiNativeInput Include="$(RepositoryRoot)/eng/build-native.sh" />
-        <_GpuiBindingInput Include="$(NativeCrateDir)/src/abi.rs" />
-        <_GpuiBindingInput Include="$(NativeCrateDir)/src/lib.rs" />
-        <_GpuiBindingInput Include="$(NativeCrateDir)/Cargo.toml" />
-        <_GpuiBindingInput Include="$(NativeCrateDir)/Cargo.lock" />
-        <_GpuiBindingInput Include="$(NativeCrateDir)/build.rs" />
-
         <None
             Include="$(NativeLibraryPath)"
             Condition="'$(BuildGpuiNative)' == 'true'"
@@ -72,23 +60,18 @@
         <Exec Command="dotnet run --project &quot;$(BindingsGeneratorProject)&quot; --configuration $(Configuration) --no-launch-profile -- verify --root &quot;$(RepositoryRoot)&quot;" />
     </Target>
 
+    <!-- Cargo owns dependency freshness across the workspace and path dependencies. An
+         outer timestamp stamp can miss host/submodule changes or a deleted native binary. -->
     <Target
         Name="GenerateGpuiBindings"
+        DependsOnTargets="BuildGpuiNative"
         Condition="'$(BuildGpuiNative)' == 'true'"
-        Inputs="@(_GpuiBindingInput)"
-        Outputs="$(NativeBindingsPath)"
-    >
-        <Exec Command="$(NativeBuildCommand)" />
-        <Touch Files="$(NativeBuildStamp)" AlwaysCreate="true" />
-    </Target>
+    />
 
     <Target
         Name="BuildGpuiNative"
         BeforeTargets="CoreCompile"
-        DependsOnTargets="GenerateGpuiBindings"
         Condition="'$(BuildGpuiNative)' == 'true'"
-        Inputs="@(_GpuiNativeInput)"
-        Outputs="$(NativeBuildStamp)"
     >
         <Exec Command="$(NativeBuildCommand)" />
         <Touch Files="$(NativeBuildStamp)" AlwaysCreate="true" />

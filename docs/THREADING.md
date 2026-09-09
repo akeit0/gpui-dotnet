@@ -92,6 +92,14 @@ chooses when to post; the framework does not move producers to a different threa
 
 ## Allowed calls by thread
 
+Application startup and later window/theme/menu/cache commands share one ingress ordering lock.
+Startup captures current settings and enqueues every initial Open before publishing the host to
+other producers. A concurrent Close therefore either cancels a pending window before attachment
+or follows its Open in native ingress. Title, size, activation and setting changes use the same
+ordering point. Native calls run outside the model lock and enqueue work without waiting for the
+GPUI thread; user callbacks are not part of successful enqueueing. Native closure or open failure
+retires the window and its root, including when a Close was already requested.
+
 | Operation | Thread contract |
 | --- | --- |
 | Constructors, Render, virtual-item renderers, effect setup/cleanup, events | GPUI application thread |

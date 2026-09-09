@@ -223,7 +223,9 @@ impl ManagedImageCache {
         }
         // Evict oldest-first while over budget. Live entries are pinned unconditionally: a
         // displayed image must never be dropped, or every frame would reload it.
-        while (self.max_spill_entries > 0 && self.spill_count(live) > self.max_spill_entries)
+        // Zero bytes disables the tier even for pending/failed entries with no decoded bytes.
+        while (self.max_spill_bytes == 0 && self.spill_count(live) != 0)
+            || (self.max_spill_entries > 0 && self.spill_count(live) > self.max_spill_entries)
             || self.spill_bytes(live) > self.max_spill_bytes
         {
             let Some(key) = self.oldest_spilled(live) else {
@@ -547,6 +549,41 @@ mod tests {
             let cache = cache.read(cx);
             assert_eq!(cache.len(), 2);
             assert!(cache.contains(&first));
+        });
+    }
+
+    #[gpui::test]
+    fn zero_byte_budget_evicts_pending_spills_but_keeps_live_entries(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let _serial = serial();
+        reset_global_budget();
+        let cache = cx.update(ManagedImageCache::new);
+        let (_view, window) = cx.add_window_view(|_, _| ImageProbe {
+            cache: Some(cache.clone()),
+            sources: vec![],
+        });
+        window.update(|window, cx| {
+            cache.update(cx, |cache, cx| {
+                for max_entries in [0, 64] {
+                    cache.set_budget(0, max_entries);
+                    for key in [11_u64, 22] {
+                        let task = cx
+                            .background_executor()
+                            .spawn(futures::future::pending::<
+                                Result<Arc<RenderImage>, ImageCacheError>,
+                            >())
+                            .shared();
+                        cache.entries.insert(key, ImageCacheItem::Loading(task));
+                        cache.touch(key);
+                    }
+                    let live = [11_u64].into_iter().collect();
+                    cache.retain_live(&live, window, cx);
+                    assert!(cache.entries.contains_key(&11));
+                    assert!(!cache.entries.contains_key(&22));
+                    assert_eq!(cache.order.iter().copied().collect::<Vec<_>>(), vec![11]);
+                }
+            });
         });
     }
 

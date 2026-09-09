@@ -66,7 +66,7 @@ reactive scheduler or per-View epoch is needed.
 
 ## Demand artifacts and native transport
 
-ABI 7 requires `accept_artifact(session, source, artifact)` after native range decoding and
+The ABI requires `accept_artifact(session, source, artifact)` after native range decoding and
 item-count validation, after the output borrow ends. Root dependencies commit at the existing root
 acknowledgement. Range dependencies commit only at artifact acknowledgement. Decode or acceptance
 failure releases the artifact; duplicate or mismatched acceptance is a protocol fault.

@@ -149,6 +149,9 @@ public sealed class GpuiApplication
     private static long _nextWindowId;
 
     private readonly object _gate = new();
+
+    // Orders model updates with native enqueueing without holding the model lock across FFI.
+    private readonly object _ingressGate = new();
     private readonly Dictionary<ulong, GpuiWindow> _windows = [];
     private readonly NativeRuntimeOptions? _runtimeOptions;
     private GpuiMenu[]? _menuBar;
@@ -188,21 +191,26 @@ public sealed class GpuiApplication
     /// </summary>
     public void SetTheme(GpuiTheme theme)
     {
-        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
-        ArgumentNullException.ThrowIfNull(theme);
-        IGpuiApplicationHost? host;
-        lock (_gate)
+        lock (_ingressGate)
         {
-            if (_state == ApplicationState.Stopped)
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            ArgumentNullException.ThrowIfNull(theme);
+            IGpuiApplicationHost? host;
+            lock (_gate)
             {
-                throw new InvalidOperationException("The GPUI application has already stopped.");
+                if (_state == ApplicationState.Stopped)
+                {
+                    throw new InvalidOperationException(
+                        "The GPUI application has already stopped."
+                    );
+                }
+
+                _theme = theme;
+                host = _host;
             }
 
-            _theme = theme;
-            host = _host;
+            host?.SetTheme(theme);
         }
-
-        host?.SetTheme(theme);
     }
 
     /// <summary>
@@ -214,20 +222,25 @@ public sealed class GpuiApplication
     /// </summary>
     public void SetImageCacheBudget(ulong maxBytes, ulong maxEntries)
     {
-        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
-        IGpuiApplicationHost? host;
-        lock (_gate)
+        lock (_ingressGate)
         {
-            if (_state == ApplicationState.Stopped)
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            IGpuiApplicationHost? host;
+            lock (_gate)
             {
-                throw new InvalidOperationException("The GPUI application has already stopped.");
+                if (_state == ApplicationState.Stopped)
+                {
+                    throw new InvalidOperationException(
+                        "The GPUI application has already stopped."
+                    );
+                }
+
+                _imageCacheBudget = (maxBytes, maxEntries);
+                host = _host;
             }
 
-            _imageCacheBudget = (maxBytes, maxEntries);
-            host = _host;
+            host?.SetImageCacheBudget(maxBytes, maxEntries);
         }
-
-        host?.SetImageCacheBudget(maxBytes, maxEntries);
     }
 
     /// <summary>
@@ -239,20 +252,25 @@ public sealed class GpuiApplication
     /// </summary>
     public void EvictImage(string path)
     {
-        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        IGpuiApplicationHost? host;
-        lock (_gate)
+        lock (_ingressGate)
         {
-            if (_state == ApplicationState.Stopped)
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            ArgumentException.ThrowIfNullOrWhiteSpace(path);
+            IGpuiApplicationHost? host;
+            lock (_gate)
             {
-                throw new InvalidOperationException("The GPUI application has already stopped.");
+                if (_state == ApplicationState.Stopped)
+                {
+                    throw new InvalidOperationException(
+                        "The GPUI application has already stopped."
+                    );
+                }
+
+                host = _host;
             }
 
-            host = _host;
+            host?.EvictImage(path);
         }
-
-        host?.EvictImage(path);
     }
 
     internal (ulong MaxBytes, ulong MaxEntries)? ImageCacheBudgetSnapshot()
@@ -267,37 +285,47 @@ public sealed class GpuiApplication
     /// Installs the application's platform menu. On macOS this is the native global menu bar;
     /// other platforms may use the definitions for their own app-side menu presentation.
     /// </summary>
+    /// <remarks>
+    /// Menus support 4096 records, 32 menu levels, and 1 MiB of UTF-8 titles. A rejected
+    /// replacement preserves the previous menu. Updates enqueue native work; at most 64
+    /// installed or pending callback generations are retained before further updates throw.
+    /// </remarks>
     public void SetMenuBar(params GpuiMenu[] menus)
     {
-        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
-        ArgumentNullException.ThrowIfNull(menus);
-        if (menus.Any(menu => menu is null))
+        lock (_ingressGate)
         {
-            throw new ArgumentException(
-                "Menu definitions cannot contain null entries.",
-                nameof(menus)
-            );
-        }
-
-        var copy = menus.ToArray();
-        foreach (var menu in copy)
-        {
-            GpuiMenu.Validate(menu, "menu");
-        }
-
-        IGpuiApplicationHost? host;
-        lock (_gate)
-        {
-            if (_state == ApplicationState.Stopped)
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            ArgumentNullException.ThrowIfNull(menus);
+            if (menus.Any(menu => menu is null))
             {
-                throw new InvalidOperationException("The GPUI application has already stopped.");
+                throw new ArgumentException(
+                    "Menu definitions cannot contain null entries.",
+                    nameof(menus)
+                );
             }
 
-            _menuBar = copy;
-            host = _host;
-        }
+            var copy = menus.ToArray();
+            GpuiMenu.Validate(copy, nameof(menus));
 
-        host?.SetMenuBar(copy);
+            IGpuiApplicationHost? host;
+            lock (_gate)
+            {
+                if (_state == ApplicationState.Stopped)
+                {
+                    throw new InvalidOperationException(
+                        "The GPUI application has already stopped."
+                    );
+                }
+
+                host = _host;
+            }
+
+            host?.SetMenuBar(copy);
+            lock (_gate)
+            {
+                _menuBar = copy;
+            }
+        }
     }
 
     /// <summary>
@@ -319,39 +347,44 @@ public sealed class GpuiApplication
 
     private GpuiWindow OpenWindowCore(RootViewDeclaration rootView, GpuiWindowOptions? options)
     {
-        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
-        var snapshot = (options ?? new GpuiWindowOptions()).ValidateAndSnapshot();
-        var id = checked((ulong)Interlocked.Increment(ref _nextWindowId));
-        var window = new GpuiWindow(this, id, rootView, snapshot);
-        IGpuiApplicationHost? host;
-
-        lock (_gate)
+        lock (_ingressGate)
         {
-            if (_state == ApplicationState.Stopped)
-            {
-                throw new InvalidOperationException("The GPUI application has already stopped.");
-            }
-            if (snapshot.Activate)
-            {
-                ClearPendingActivation();
-            }
-            _windows.Add(id, window);
-            host = _host;
-        }
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            var snapshot = (options ?? new GpuiWindowOptions()).ValidateAndSnapshot();
+            var id = checked((ulong)Interlocked.Increment(ref _nextWindowId));
+            var window = new GpuiWindow(this, id, rootView, snapshot);
+            IGpuiApplicationHost? host;
 
-        if (host is not null)
-        {
-            try
+            lock (_gate)
             {
-                host.OpenWindow(window, snapshot);
+                if (_state == ApplicationState.Stopped)
+                {
+                    throw new InvalidOperationException(
+                        "The GPUI application has already stopped."
+                    );
+                }
+                if (snapshot.Activate)
+                {
+                    ClearPendingActivation();
+                }
+                _windows.Add(id, window);
+                host = _host;
             }
-            catch
+
+            if (host is not null)
             {
-                NativeWindowClosed(id);
-                throw;
+                try
+                {
+                    host.OpenWindow(window, snapshot);
+                }
+                catch
+                {
+                    NativeWindowClosed(id);
+                    throw;
+                }
             }
+            return window;
         }
-        return window;
     }
 
     /// <summary>Runs until the last application-owned window closes.</summary>
@@ -387,13 +420,16 @@ public sealed class GpuiApplication
 
     private void FinishRun()
     {
-        lock (_gate)
+        lock (_ingressGate)
         {
-            _state = ApplicationState.Stopped;
-            _host = null;
-            foreach (var window in _windows.Values)
-                window.MarkClosed();
-            _windows.Clear();
+            lock (_gate)
+            {
+                _state = ApplicationState.Stopped;
+                _host = null;
+                foreach (var window in _windows.Values)
+                    window.MarkClosed();
+                _windows.Clear();
+            }
         }
     }
 
@@ -423,22 +459,34 @@ public sealed class GpuiApplication
         application.Run();
     }
 
-    internal GpuiWindowOpenRequest[] AttachHost(IGpuiApplicationHost host)
+    internal void AttachHost(IGpuiApplicationHost host)
     {
         ArgumentNullException.ThrowIfNull(host);
-        lock (_gate)
+        lock (_ingressGate)
         {
-            if (_state != ApplicationState.Running || _host is not null)
+            GpuiWindowOpenRequest[] requests;
+            lock (_gate)
             {
-                throw new InvalidOperationException(
-                    "The GPUI application runtime is already attached."
-                );
+                if (_state != ApplicationState.Running || _host is not null)
+                {
+                    throw new InvalidOperationException(
+                        "The GPUI application runtime is already attached."
+                    );
+                }
+                requests = _windows
+                    .Values.Where(window => !window.IsClosed && !window.CloseRequested)
+                    .Select(window => new GpuiWindowOpenRequest(window, window.Snapshot))
+                    .ToArray();
             }
-            _host = host;
-            return _windows
-                .Values.Where(window => !window.IsClosed && !window.CloseRequested)
-                .Select(window => new GpuiWindowOpenRequest(window, window.Snapshot))
-                .ToArray();
+            host.SetTheme(Theme);
+            if (ImageCacheBudgetSnapshot() is { } budget)
+                host.SetImageCacheBudget(budget.MaxBytes, budget.MaxEntries);
+            if (MenuBarSnapshot() is { } menus)
+                host.SetMenuBar(menus);
+            foreach (var request in requests)
+                host.OpenWindow(request.Window, request.Snapshot);
+            lock (_gate)
+                _host = host;
         }
     }
 
@@ -464,119 +512,137 @@ public sealed class GpuiApplication
 
     internal void CloseWindow(GpuiWindow window)
     {
-        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
-        IGpuiApplicationHost? host;
-        lock (_gate)
+        lock (_ingressGate)
         {
-            ValidateOwnedWindow(window);
-            if (window.IsClosed || window.CloseRequested)
-            {
-                return;
-            }
-            host = _host;
-            if (host is null)
-            {
-                _windows.Remove(window.Id);
-                window.MarkClosed();
-            }
-            else
-            {
-                window.CloseRequested = true;
-            }
-        }
-
-        if (host is null)
-            return;
-
-        try
-        {
-            host!.CloseWindow(window.Id);
-        }
-        catch
-        {
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            IGpuiApplicationHost? host;
             lock (_gate)
             {
-                if (!window.IsClosed)
+                ValidateOwnedWindow(window);
+                if (window.IsClosed || window.CloseRequested)
                 {
-                    window.CloseRequested = false;
+                    return;
+                }
+                host = _host;
+                if (host is null)
+                {
+                    _windows.Remove(window.Id);
+                    window.MarkClosed();
+                }
+                else
+                {
+                    window.CloseRequested = true;
                 }
             }
-            throw;
+
+            if (host is null)
+                return;
+
+            try
+            {
+                host!.CloseWindow(window.Id);
+            }
+            catch
+            {
+                lock (_gate)
+                {
+                    if (!window.IsClosed)
+                    {
+                        window.CloseRequested = false;
+                    }
+                }
+                throw;
+            }
         }
     }
 
     internal void ActivateWindow(GpuiWindow window)
     {
-        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
-        IGpuiApplicationHost? host;
-        lock (_gate)
+        lock (_ingressGate)
         {
-            ValidateOpenWindow(window);
-            host = _host;
-            if (host is null)
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            IGpuiApplicationHost? host;
+            lock (_gate)
             {
-                ClearPendingActivation();
-                window.Snapshot = window.Snapshot with { Activate = true };
-                return;
+                ValidateOpenWindow(window);
+                host = _host;
+                if (host is null)
+                {
+                    ClearPendingActivation();
+                    window.Snapshot = window.Snapshot with { Activate = true };
+                    return;
+                }
             }
+            host.ActivateWindow(window.Id);
         }
-        host.ActivateWindow(window.Id);
     }
 
     internal void MinimizeWindow(GpuiWindow window)
     {
-        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
-        IGpuiApplicationHost host;
-        lock (_gate)
+        lock (_ingressGate)
         {
-            ValidateOpenWindow(window);
-            host =
-                _host
-                ?? throw new InvalidOperationException("The native window has not opened yet.");
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            IGpuiApplicationHost host;
+            lock (_gate)
+            {
+                ValidateOpenWindow(window);
+                host =
+                    _host
+                    ?? throw new InvalidOperationException("The native window has not opened yet.");
+            }
+            host.MinimizeWindow(window.Id);
         }
-        host.MinimizeWindow(window.Id);
     }
 
     internal void ToggleMaximizeWindow(GpuiWindow window)
     {
-        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
-        IGpuiApplicationHost host;
-        lock (_gate)
+        lock (_ingressGate)
         {
-            ValidateOpenWindow(window);
-            host =
-                _host
-                ?? throw new InvalidOperationException("The native window has not opened yet.");
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            IGpuiApplicationHost host;
+            lock (_gate)
+            {
+                ValidateOpenWindow(window);
+                host =
+                    _host
+                    ?? throw new InvalidOperationException("The native window has not opened yet.");
+            }
+            host.ToggleMaximizeWindow(window.Id);
         }
-        host.ToggleMaximizeWindow(window.Id);
     }
 
     internal void SetWindowTitle(GpuiWindow window, string title)
     {
-        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
-        ArgumentException.ThrowIfNullOrWhiteSpace(title);
-        IGpuiApplicationHost? host;
-        lock (_gate)
+        lock (_ingressGate)
         {
-            ValidateOpenWindow(window);
-            window.Snapshot = window.Snapshot with { Title = title };
-            host = _host;
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            ArgumentException.ThrowIfNullOrWhiteSpace(title);
+            IGpuiApplicationHost? host;
+            lock (_gate)
+            {
+                ValidateOpenWindow(window);
+                window.Snapshot = window.Snapshot with { Title = title };
+                host = _host;
+            }
+            host?.SetWindowTitle(window.Id, title);
         }
-        host?.SetWindowTitle(window.Id, title);
     }
 
     internal void ResizeWindow(GpuiWindow window, float width, float height)
     {
-        Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
-        GpuiWindowOptions.ValidateSize(width, height);
-        IGpuiApplicationHost? host;
-        lock (_gate)
+        lock (_ingressGate)
         {
-            ValidateOpenWindow(window);
-            window.Snapshot = window.Snapshot with { Width = width, Height = height };
-            host = _host;
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            GpuiWindowOptions.ValidateSize(width, height);
+            IGpuiApplicationHost? host;
+            lock (_gate)
+            {
+                ValidateOpenWindow(window);
+                window.Snapshot = window.Snapshot with { Width = width, Height = height };
+                host = _host;
+            }
+            host?.ResizeWindow(window.Id, width, height);
         }
-        host?.ResizeWindow(window.Id, width, height);
     }
 
     private void ValidateOwnedWindow(GpuiWindow window)

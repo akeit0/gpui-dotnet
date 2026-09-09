@@ -95,7 +95,7 @@ owner/key identity model. It does not justify typed foundation nodes, a general 
 registry, a new event envelope, new retained commands, or an API-table change.
 
 One schema change is justified: a `disableable` capability scopes the Boolean `Disabled` operation
-to Button, Checkbox, and Radio. This changes the generated schema hash but not ABI version 1 or C
+to Button, Checkbox, and Radio. This changes the generated schema hash but not the ABI version or C
 record layouts. Foundation Checkbox/Radio change requests map to the existing click callback because
 the managed handler already owns the state transition and publishes the authoritative snapshot.
 
@@ -306,7 +306,7 @@ merge that touches its area reopens that row.
 | Commands | **Keep the two existing envelopes.** `ResourceCommand` already is the common validated envelope for core (it absorbed resource kind 5 and Dock commands with no API-table change); the extension envelope covers providers. No third shape needed. |
 | Schema | **Partial: identities unified, payloads code-owned.** Resource/command/event IDs now generate from `bindings/schema.json` under the single schema hash; payload layouts, routing, and queueing stay hand-written until a drift incident or a new family requires more. |
 | API table | **Keep the current split.** The Dock slice added no entry points (kind 5 commands and kinds 6-8 events fit `dispatch_command`/`control_event`); extension negotiation fits `supports_extension`. No misplaced operation surfaced during migration. |
-| Versioning | **Keep ABI version + schema hash + per-extension versions.** ABI v3 covers the table, the hash covers render IR plus command/event identities, editor negotiates its own version/hash, and feature formats (e.g. layout envelope 1) version themselves. Split further only on demonstrated need. |
+| Versioning | **Keep ABI version + schema hash + per-extension versions.** The ABI version covers the table, the hash covers render IR plus command/event identities, editor negotiates its own version/hash, and feature formats version themselves. Split further only on demonstrated need. |
 
 Preserve these invariants through any redesign:
 

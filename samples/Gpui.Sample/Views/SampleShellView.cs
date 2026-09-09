@@ -161,12 +161,7 @@ internal sealed partial class SampleShellView : View
                         theme.Appearance == GpuiThemeAppearance.Dark ? "Light theme" : "Dark theme"
                     )
                     .OnClick(this, (view, _) => view.ToggleTheme())
-                    .Style(SampleStyles.Button(theme, SampleButtonVariant.Primary)),
-                ui.Badge(ui.Text("ABI v7"u8))
-                    .FontSize(Px(theme.Typography.Caption))
-                    .Background(theme.Colors.InfoBackground)
-                    .TextColor(theme.Colors.Info)
-                    .Padding(Px(7))
+                    .Style(SampleStyles.Button(theme, SampleButtonVariant.Primary))
             )
             .Gap(Px(6))
             .ItemsCenter();

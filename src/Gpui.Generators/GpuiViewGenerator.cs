@@ -158,7 +158,7 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
             }
         }
 
-        if (listRenderers.Count != 0 && view.GetMembers("Items").Length != 0)
+        if (view.GetMembers("Items").Length != 0)
         {
             context.ReportDiagnostic(Diagnostic.Create(ReservedItemsMember, location, view.Name));
             return;
@@ -496,8 +496,21 @@ public sealed class GpuiViewGenerator : IIncrementalGenerator
     private static string Sanitize(string value)
     {
         var builder = new StringBuilder(value.Length);
+        // Escape the escape marker too: A.B_C and A_B.C must not share a hint name.
         foreach (var character in value)
-            builder.Append(char.IsLetterOrDigit(character) ? character : '_');
+        {
+            if (char.IsLetterOrDigit(character))
+                builder.Append(character);
+            else
+                builder
+                    .Append('_')
+                    .Append(
+                        ((int)character).ToString(
+                            "X4",
+                            System.Globalization.CultureInfo.InvariantCulture
+                        )
+                    );
+        }
         return builder.ToString();
     }
 

@@ -10,7 +10,7 @@ single-line Input keeps its independent contract.
 references `GPUI.NET.Core`; it carries no native asset. `gpui-dotnet-editor-host` is a custom native
 host that links the base runtime with a retained `gpui-component` Editor provider.
 
-The current probe supports a one-shot UTF-8 document bootstrap, a language identifier,
+The current probe supports a one-shot UTF-8 document bootstrap, an initial language identifier,
 disabled/read-only state, line numbers, an optional fixed line-number column width, folding,
 whitespace visibility, and opt-in typed callbacks. The optional native host currently bundles the
 Rust Tree-sitter grammar; other language identifiers degrade to plain text. Without a fixed width,
@@ -20,6 +20,11 @@ managed editing transaction increments the document revision and reports one min
 UTF-8 replacement. The controller proves focus, revision-checked selection, whole-document
 replacement, and one contiguous edit; stale revisions and invalid UTF-8 byte ranges produce an
 explicit rejection event.
+
+`EditorOptions.Language` is consumed only when the keyed editor is created. Changing it on a
+retained editor does not change the highlighter. A new resource identity creates a new editor
+and loses the previous editor's selection and undo history; runtime language switching is not
+supported by this slice.
 
 The extension ID, protocol version, component kinds, flags, and schema hash come from
 `src/Gpui.Editor/schema.json`. The normal binding generator emits matching C# and Rust constants,
@@ -52,7 +57,7 @@ The complete contract uses four channels with different costs:
 
 | Channel | Purpose | Frequency |
 |---|---|---|
-| Snapshot | Cheap presentation and policy such as read-only, gutters, and language | Dirty managed renders |
+| Snapshot | Cheap presentation and policy such as read-only and gutters; language is initial-only | Dirty managed renders |
 | Bootstrap | One owned UTF-8 document payload, buffered until the keyed resource exists | Once per opened document |
 | Commands | Focus plus revision-checked selection, edit, and replacement operations | Application initiated |
 | Events | Revisioned edit batches and coarse focus/selection/document status | Opt-in and transaction based |

@@ -9,6 +9,24 @@ namespace Gpui.Interop.Internal;
 internal static unsafe class NativeCallbacks
 {
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    internal static int MenuApplied(ulong applicationId, ulong generation)
+    {
+        try
+        {
+            if (!NativeRegistry.Applications.TryGetValue(applicationId, out var application))
+                return -64;
+            application.MenuApplied(generation);
+            return 0;
+        }
+        catch (Exception exception)
+        {
+            if (NativeRegistry.Applications.TryGetValue(applicationId, out var application))
+                application.RecordFailure(exception);
+            return -65;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     internal static int Render(ulong sessionId, RenderArena* arena, uint* root, ulong* revision)
     {
         try
