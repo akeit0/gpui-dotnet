@@ -126,6 +126,20 @@ bindings, the native workspace (including the editor host), solution builds, and
 Windows also checks NativeAOT publishing. Builds must leave tracked generated files unchanged.
 Manual runs additionally stage and upload native release assets.
 
+Validation installs `eng/cargo-validation.toml` into Cargo's CI configuration to reduce native
+development/test optimization and debug information. Local interactive builds retain their normal
+profiles. The Windows NativeAOT publish check uses the Debug native library with Release managed
+code; native Release compilation remains part of manual validation and release builds.
+
+Validation builds native hosts in one Cargo workspace invocation before building managed
+projects with `GpuiNativePrebuilt=true`. That property skips native compilation while preserving
+native library copying; it requires current generated bindings and host libraries for the selected
+native profile. Ordinary builds continue to invoke Cargo for dependency freshness.
+
+Intel macOS validates the core/default native host and builds the managed test project, including
+its referenced application samples. It skips the optional editor native host and editor sample;
+Windows, Linux, and ARM macOS retain full workspace and solution coverage.
+
 Use the smallest relevant tests while iterating, then run the full local checks:
 
 ```sh

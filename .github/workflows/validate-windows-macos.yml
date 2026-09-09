@@ -26,6 +26,7 @@ jobs:
             library: crates/gpui-dotnet/target/release/libgpui_dotnet.so
           - runner: macos-15-intel
             rid: osx-x64
+            native-exclusions: --exclude gpui-dotnet-editor-host
             library: crates/gpui-dotnet/target/release/libgpui_dotnet.dylib
           - runner: macos-14
             rid: osx-arm64
@@ -41,6 +42,14 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           global-json-file: global.json
+
+      - name: Configure faster native validation builds
+        shell: pwsh
+        run: |
+          $cargoDirectory = if ($env:CARGO_HOME) { $env:CARGO_HOME } else { Join-Path $HOME '.cargo' }
+          New-Item -ItemType Directory -Force -Path $cargoDirectory | Out-Null
+          $cargoConfig = Join-Path $cargoDirectory 'config.toml'
+          Get-Content eng/cargo-validation.toml -Raw | Add-Content -LiteralPath $cargoConfig
 
       - uses: ./.github/actions/setup-native
 
@@ -64,23 +73,31 @@ jobs:
         run: dotnet run --project tools/Gpui.Bindings.Generator -- verify
 
       - name: Test native workspace
-        run: cargo test --locked --manifest-path crates/gpui-dotnet/Cargo.toml --workspace
+        run: cargo test --locked --manifest-path crates/gpui-dotnet/Cargo.toml --workspace ${{ matrix.native-exclusions }}
 
       - name: Verify one GPUI dependency
         run: cargo tree --locked --manifest-path crates/gpui-dotnet/Cargo.toml --invert gpui
 
+      - name: Build native hosts together
+        run: cargo build --locked --manifest-path crates/gpui-dotnet/Cargo.toml --workspace ${{ matrix.native-exclusions }}
+
       - name: Build solution
-        run: dotnet build Gpui.slnx --no-incremental -m:1
+        if: matrix.rid != 'osx-x64'
+        run: dotnet build Gpui.slnx --no-incremental -m:1 -p:GpuiNativePrebuilt=true
+
+      - name: Build managed tests and referenced samples
+        if: matrix.rid == 'osx-x64'
+        run: dotnet build tests/Gpui.Tests/Gpui.Tests.csproj --no-incremental -m:1 -p:GpuiNativePrebuilt=true
 
       - name: Test managed contract and generator
         run: dotnet test tests/Gpui.Tests/Gpui.Tests.csproj --no-build --no-restore
 
       - name: NativeAOT publish smoke test
         if: runner.os == 'Windows'
-        run: dotnet publish samples/Gpui.Sample/Gpui.Sample.csproj -c Release -r win-x64 -p:PublishAot=true
+        run: dotnet publish samples/Gpui.Sample/Gpui.Sample.csproj -c Release -r win-x64 -p:PublishAot=true -p:NativeCargoProfile=debug -p:GpuiNativePrebuilt=true
 
       - name: Build release native asset
-        if: github.event_name == 'workflow_dispatch' && runner.os != 'Windows'
+        if: github.event_name == 'workflow_dispatch'
         shell: pwsh
         run: ./eng/build-native.ps1 -ManifestPath crates/gpui-dotnet/Cargo.toml -Configuration release
 
