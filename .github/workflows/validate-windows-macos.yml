@@ -76,7 +76,7 @@ jobs:
         run: cargo test --locked --manifest-path crates/gpui-dotnet/Cargo.toml --workspace ${{ matrix.native-exclusions }}
 
       - name: Verify one GPUI dependency
-        run: cargo tree --locked --manifest-path crates/gpui-dotnet/Cargo.toml --invert gpui
+        run: cargo tree --locked --manifest-path crates/gpui-dotnet/Cargo.toml --invert gpui-pre
 
       - name: Build native hosts together
         run: cargo build --locked --manifest-path crates/gpui-dotnet/Cargo.toml --workspace ${{ matrix.native-exclusions }}
