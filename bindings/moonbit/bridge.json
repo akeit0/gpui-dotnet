@@ -1,0 +1,477 @@
+{
+  "version": 1,
+  "constants": {
+    "CB_STARTED": 1,
+    "CB_RENDER": 2,
+    "CB_RENDER_COMPLETED": 3,
+    "CB_CLICK": 4,
+    "CB_RANGE": 5,
+    "CB_ACCEPT_ARTIFACT": 6,
+    "CB_RELEASE_ARTIFACT": 7,
+    "CB_CONTROL": 8,
+    "CB_DYNAMIC": 9,
+    "CB_WINDOW_CLOSED": 10,
+    "CB_MENU_ACTION": 11,
+    "CB_MENU_APPLIED": 12,
+    "ERR_ARGUMENT": -2000,
+    "ERR_MEMORY": -2001,
+    "ERR_ABI": -2002,
+    "ERR_SCHEMA": -2003,
+    "ERR_SYMBOL": -2004,
+    "ERR_LOAD": -2005,
+    "ERR_THREAD": -2006,
+    "ERR_PUBLICATION": -2007,
+    "ERR_PACKET": -2008,
+    "ERR_CALLBACK": -2009,
+    "ERR_LIMIT": -2010,
+    "ERR_STATE": -2011,
+    "ERR_RETIRED": -2012,
+    "ERR_RENDER_EFFECT": -2013,
+    "ERR_ELEMENT": -2014,
+    "PACKET_MAGIC": 826428743,
+    "PACKET_HEADER_SIZE": 32
+  },
+  "functions": [
+    {
+      "name": "host_new",
+      "result": "host",
+      "parameters": []
+    },
+    {
+      "name": "host_is_null",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "host",
+          "type": "host"
+        }
+      ]
+    },
+    {
+      "name": "host_load",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "host",
+          "type": "host"
+        },
+        {
+          "name": "path",
+          "type": "bytes"
+        },
+        {
+          "name": "length",
+          "type": "i32"
+        },
+        {
+          "name": "schema_hash",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "host_run",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "host",
+          "type": "host"
+        },
+        {
+          "name": "application",
+          "type": "u64"
+        },
+        {
+          "name": "dispatch",
+          "type": "dispatch"
+        }
+      ]
+    },
+    {
+      "name": "host_free",
+      "result": "void",
+      "parameters": [
+        {
+          "name": "host",
+          "type": "host"
+        }
+      ]
+    },
+    {
+      "name": "host_error_length",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "host",
+          "type": "host"
+        }
+      ]
+    },
+    {
+      "name": "host_error_copy",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "host",
+          "type": "host"
+        },
+        {
+          "name": "buffer",
+          "type": "buffer"
+        },
+        {
+          "name": "length",
+          "type": "i32"
+        }
+      ]
+    },
+    {
+      "name": "reply",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "request"
+        },
+        {
+          "name": "packet",
+          "type": "bytes"
+        },
+        {
+          "name": "length",
+          "type": "i32"
+        },
+        {
+          "name": "publication",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "event_x",
+      "result": "f32",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "request"
+        }
+      ]
+    },
+    {
+      "name": "event_y",
+      "result": "f32",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "request"
+        }
+      ]
+    },
+    {
+      "name": "event_buttons",
+      "result": "u32",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "request"
+        }
+      ]
+    },
+    {
+      "name": "event_modifiers",
+      "result": "u32",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "request"
+        }
+      ]
+    },
+    {
+      "name": "event_data_length",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "request"
+        }
+      ]
+    },
+    {
+      "name": "event_data_copy",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "request",
+          "type": "request"
+        },
+        {
+          "name": "buffer",
+          "type": "buffer"
+        },
+        {
+          "name": "length",
+          "type": "i32"
+        }
+      ]
+    },
+    {
+      "name": "notify",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "host",
+          "type": "host"
+        },
+        {
+          "name": "session",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "application_command",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "host",
+          "type": "host"
+        },
+        {
+          "name": "application",
+          "type": "u64"
+        },
+        {
+          "name": "window",
+          "type": "u64"
+        },
+        {
+          "name": "command",
+          "type": "i32"
+        },
+        {
+          "name": "flags",
+          "type": "i32"
+        },
+        {
+          "name": "data",
+          "type": "bytes"
+        },
+        {
+          "name": "length",
+          "type": "i32"
+        },
+        {
+          "name": "left",
+          "type": "f32"
+        },
+        {
+          "name": "top",
+          "type": "f32"
+        },
+        {
+          "name": "width",
+          "type": "f32"
+        },
+        {
+          "name": "height",
+          "type": "f32"
+        }
+      ]
+    },
+    {
+      "name": "resource_command",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "host",
+          "type": "host"
+        },
+        {
+          "name": "session",
+          "type": "u64"
+        },
+        {
+          "name": "owner",
+          "type": "u32"
+        },
+        {
+          "name": "resource",
+          "type": "i32"
+        },
+        {
+          "name": "command",
+          "type": "i32"
+        },
+        {
+          "name": "key",
+          "type": "bytes"
+        },
+        {
+          "name": "key_length",
+          "type": "i32"
+        },
+        {
+          "name": "data",
+          "type": "bytes"
+        },
+        {
+          "name": "data_length",
+          "type": "i32"
+        },
+        {
+          "name": "a",
+          "type": "u64"
+        },
+        {
+          "name": "b",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "supports_extension",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "host",
+          "type": "host"
+        },
+        {
+          "name": "id",
+          "type": "bytes"
+        },
+        {
+          "name": "length",
+          "type": "i32"
+        },
+        {
+          "name": "version",
+          "type": "u32"
+        },
+        {
+          "name": "schema_hash",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "extension_command",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "host",
+          "type": "host"
+        },
+        {
+          "name": "session",
+          "type": "u64"
+        },
+        {
+          "name": "owner",
+          "type": "u32"
+        },
+        {
+          "name": "command",
+          "type": "i32"
+        },
+        {
+          "name": "flags",
+          "type": "i32"
+        },
+        {
+          "name": "version",
+          "type": "u32"
+        },
+        {
+          "name": "schema_hash",
+          "type": "u64"
+        },
+        {
+          "name": "revision",
+          "type": "u64"
+        },
+        {
+          "name": "extension",
+          "type": "bytes"
+        },
+        {
+          "name": "extension_length",
+          "type": "i32"
+        },
+        {
+          "name": "component",
+          "type": "bytes"
+        },
+        {
+          "name": "component_length",
+          "type": "i32"
+        },
+        {
+          "name": "key",
+          "type": "bytes"
+        },
+        {
+          "name": "key_length",
+          "type": "i32"
+        },
+        {
+          "name": "data",
+          "type": "bytes"
+        },
+        {
+          "name": "data_length",
+          "type": "i32"
+        }
+      ]
+    },
+    {
+      "name": "invalidate_artifacts",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "host",
+          "type": "host"
+        },
+        {
+          "name": "session",
+          "type": "u64"
+        },
+        {
+          "name": "keys",
+          "type": "bytes"
+        },
+        {
+          "name": "length",
+          "type": "i32"
+        }
+      ]
+    },
+    {
+      "name": "menu",
+      "result": "i32",
+      "parameters": [
+        {
+          "name": "host",
+          "type": "host"
+        },
+        {
+          "name": "application",
+          "type": "u64"
+        },
+        {
+          "name": "generation",
+          "type": "u64"
+        },
+        {
+          "name": "packet",
+          "type": "bytes"
+        },
+        {
+          "name": "length",
+          "type": "i32"
+        }
+      ]
+    }
+  ]
+}

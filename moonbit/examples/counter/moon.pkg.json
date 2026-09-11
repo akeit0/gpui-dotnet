@@ -1,0 +1,5 @@
+{
+  "is-main": true,
+  "import": ["akeit0/gpui", "moonbitlang/core/encoding/utf8"],
+  "native-stub": ["environment.c"]
+}

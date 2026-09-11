@@ -1,6 +1,7 @@
 # Binding generation
 
-The repository has two generators with separate responsibilities.
+Semantic generation, ABI-layout generation, and application source generation have separate
+responsibilities. The MoonBit frontend does not run the .NET application source generator.
 
 ## Semantic protocol generator
 
@@ -10,6 +11,8 @@ The repository has two generators with separate responsibilities.
 - `src/Gpui/Rendering/SemanticElements.g.cs` (managed API: tags, style enums, factories, styling);
 - `crates/gpui-dotnet/src/semantic.g.rs`;
 - `docs/SEMANTIC_IDS.md` (the numeric protocol reference);
+- `moonbit/protocol/semantic.g.mbt` (IDs, hashes, and capability metadata);
+- `moonbit/elements.g.mbt` (semantic fluent operations);
 - matching component IDs, operation IDs, capabilities, adapters, value constraints, and schema
   hash on both sides.
 
@@ -18,15 +21,39 @@ file in its managed schema assembly and a matching Rust constants file in its na
 Extension IDs, versions, component kinds, flags, commands, and hashes therefore have one source of
 truth.
 
+An extension registration may also specify `moonbitOutput`; the editor registration generates
+`moonbit/extensions/editor/schema.g.mbt`. This is protocol metadata, not an editor widget or a
+provider implementation. Extension commands/configuration codecs remain package-owned.
+
+`bindings/moonbit/bridge.json` is the source of truth for the flat C/MoonBit bridge signatures,
+callback dispatch IDs, and bridge-local errors. It generates `moonbit/internal/ffi/bridge.g.h`
+and `ffi.g.mbt`, including explicit borrows and mutable byte-buffer types. This private bridge
+manifest does not change the native semantic hash or ABI version.
+
 Run:
 
 ```sh
 dotnet run --project tools/Gpui.Bindings.Generator -- generate
 dotnet run --project tools/Gpui.Bindings.Generator -- verify
+dotnet run --project tools/Gpui.Bindings.Generator -- list --target moonbit
+dotnet run --project tools/Gpui.Bindings.Generator -- generate --target moonbit
+dotnet run --project tools/Gpui.Bindings.Generator -- verify --target csharp,rust
 ```
 
 `verify` fails when any committed base or extension output does not match its schema. Never edit a
 generated semantic or extension file by hand.
+
+Targets are `csharp`, `rust`, `moonbit`, and `reference`; the default is all targets. Repeat
+`--target` or use comma-separated names. A target limits output writes/checks, not schema validation
+or hashing. All destinations are validated before any write, duplicate/case-colliding paths are
+rejected, and changed semantic files are replaced through sibling temporary files. Up-to-date
+files retain timestamps. Generated content uses UTF-8 without BOM and LF on every platform.
+
+The combined frontend command `python tools/moonbit.py generate` also runs the standalone Rust
+ABI header generator. Use `python tools/moonbit.py verify` for the corresponding non-writing check.
+`python tools/moonbit.py generator-test` runs isolated black-box tests of target selection, stale
+outputs, schema compatibility, duplicate names, path safety, and deterministic generation. It
+requires .NET 10 but neither a native build nor the GPUI submodule.
 
 ## Schema organization and IDs
 
@@ -52,6 +79,8 @@ The semantic generator is split by responsibility:
 - `Program.cs` is the entry point; `BindingGenerator.Runner.cs` loads, hashes, and writes or verifies outputs.
 - `Schema.cs` models source data; `BindingGenerator.Validation.cs` validates core declarations.
 - `BindingGenerator.CSharp.cs` and `BindingGenerator.Rust.cs` emit language-specific code.
+- `BindingGenerator.MoonBit.cs` emits semantic MoonBit code; `BindingGenerator.MoonBitBridge.cs`
+  emits the private bridge surface. `BindingGenerator.Targets.cs` owns CLI targeting and safe writes.
 - `BindingGenerator.Extensions.cs` handles independent extension schemas.
 - `BindingGenerator.Reference.cs` emits the ID catalog; `BindingGenerator.Names.cs` contains naming and capability helpers.
 
@@ -140,3 +169,19 @@ C-layout records and API table. Treat that file as generated. If `abi.rs` change
 build and include the regenerated managed output in the same change.
 
 ABI changes also require managed/native size checks, tests, and [ABI.md](ABI.md) updates.
+
+The standalone `tools/gpui-abi-gen` tool parses the same Rust declarations with `syn` and produces
+`moonbit/internal/ffi/gpui_native.g.h`. Its independent Cargo workspace avoids GPUI build scripts
+and submodules. It admits explicit fixed-width C scalars, raw pointers, ordinary public
+`#[repr(C)]` records, and nullable `extern "C"` function aliases. Conditional layouts, packing,
+unrepresented enums/unions, Rust references, and unknown types fail rather than being guessed.
+
+```sh
+cargo run --locked --manifest-path tools/gpui-abi-gen/Cargo.toml -- generate
+cargo run --locked --manifest-path tools/gpui-abi-gen/Cargo.toml -- verify
+cargo test --locked --manifest-path tools/gpui-abi-gen/Cargo.toml
+```
+
+Do not pass the entire API-table ABI to a generic FFI generator and assume callback ownership is
+solved. Generated layouts and the handwritten publication lifecycle serve different purposes.
+See [MoonBit](MOONBIT.md) for the adapter design and the role of `moon-bindgen`.

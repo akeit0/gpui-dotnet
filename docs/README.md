@@ -6,6 +6,7 @@ Start with the repository [README](../README.md) for setup and a small applicati
 
 | Reference | Scope |
 | --- | --- |
+| [MoonBit frontend](MOONBIT.md) | C-backend setup, closure APIs, callbacks, ownership, and verification |
 | [Components](COMPONENTS.md) | Component classes, snapshot elements, adding a component |
 | [Styling](STYLING.md) | Themes, recipes, inheritance, native presentation |
 | [Collections](COLLECTIONS.md) | Scroll, List, Table, virtual items |

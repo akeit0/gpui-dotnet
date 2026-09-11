@@ -29,15 +29,9 @@ internal static partial class BindingGenerator
     {
         try
         {
-            var command = args.FirstOrDefault() ?? "generate";
-            if (command is not ("generate" or "verify"))
-            {
-                throw new InvalidOperationException(
-                    "Usage: Gpui.Bindings.Generator [generate|verify] [--root <repository>]"
-                );
-            }
-
-            var root = GetRoot(args);
+            var options = ParseOptions(args);
+            var command = options.Command;
+            var root = options.Root;
             var source = File.ReadAllText(Path.Combine(root, SchemaPath), Encoding.UTF8);
             var schema =
                 JsonSerializer.Deserialize<BindingSchema>(source, JsonOptions)
@@ -54,7 +48,11 @@ internal static partial class BindingGenerator
                 [CSharpElementsOutputPath] = GenerateCSharpElements(schema),
                 [RustOutputPath] = GenerateRust(schema, hash),
                 ["docs/SEMANTIC_IDS.md"] = GenerateIdReference(schema),
+                ["moonbit/protocol/semantic.g.mbt"] = GenerateMoonBitProtocol(schema, hash),
+                ["moonbit/elements.g.mbt"] = GenerateMoonBitElements(schema),
             };
+
+            AddMoonBitBridgeOutputs(root, outputs);
 
             var extensionManifestSource = File.ReadAllText(
                 Path.Combine(root, ExtensionManifestPath),
@@ -121,6 +119,32 @@ internal static partial class BindingGenerator
                         $"Extension generation for '{generation.Schema}' has a duplicate output path."
                     );
                 }
+                if (generation.MoonbitOutput is { } moonbitOutput)
+                {
+                    if (!moonbitOutput.StartsWith("moonbit/", StringComparison.Ordinal)
+                        || !moonbitOutput.EndsWith(".g.mbt", StringComparison.Ordinal)
+                        || !outputs.TryAdd(moonbitOutput, GenerateMoonBitExtension(extensionSchema, extensionHash)))
+                    {
+                        throw new InvalidOperationException($"Invalid or duplicate MoonBit extension output '{moonbitOutput}'.");
+                    }
+                }
+            }
+
+            // Validate every destination before filtering or writing any output. A target selection
+            // limits writes, never validation or the schema/hash used by another frontend.
+            foreach (var path in outputs.Keys)
+            {
+                _ = SafeOutputPath(root, path);
+            }
+            outputs = outputs.Where(output => options.Targets.Contains(OutputTarget(output.Key)))
+                .ToDictionary(output => output.Key, output => output.Value, StringComparer.OrdinalIgnoreCase);
+            if (command == "list")
+            {
+                foreach (var path in outputs.Keys.Order(StringComparer.Ordinal))
+                {
+                    Console.WriteLine($"{OutputTarget(path)}\t{path}");
+                }
+                return 0;
             }
 
             // Generated outputs use explicit LF line endings on every platform:
@@ -160,8 +184,7 @@ internal static partial class BindingGenerator
             foreach (var path in stale)
             {
                 var absolutePath = Path.Combine(root, path);
-                Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
-                File.WriteAllText(absolutePath, outputs[path], new UTF8Encoding(false));
+                WriteGeneratedFile(absolutePath, outputs[path]);
                 Console.WriteLine($"Generated {path}");
             }
 

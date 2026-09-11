@@ -13,6 +13,14 @@ code platform-neutral and lets the native implementation evolve behind a version
 This is a preview release: public APIs, the semantic
 schema, and the native ABI may change before a stable release.
 
+## MoonBit frontend
+
+The experimental [MoonBit C-backend frontend](docs/MOONBIT.md) reuses the same native Rust host
+without a .NET runtime dependency in the application. It has a closure-based application API,
+transactional render/event ownership, virtual list ranges, and an independently generated C bridge.
+Start with [moonbit/README.md](moonbit/README.md) and the counter/input/list sample. The platform
+validation table below describes the existing .NET release, not MoonBit platform certification.
+
 ## Features at a glance
 
 ### UI features

@@ -1,0 +1,4 @@
+{
+  "native-stub": ["bridge.c", "arena.c", "commands.c"],
+  "formatter": { "ignore": ["ffi.g.mbt"] }
+}

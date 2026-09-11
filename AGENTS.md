@@ -29,6 +29,7 @@ Read the relevant focused document before changing a subsystem:
 - `docs/HOT_RELOAD.md`: managed metadata-update and renderer refresh contract
 - `docs/ABI.md`: C layouts, validation, commands, and callbacks
 - `docs/BINDING_GENERATION.md`: generated code ownership
+- `docs/MOONBIT.md`: MoonBit C-backend frontend, callback ownership, and independent verification
 - `docs/PERFORMANCE.md`: crossing and allocation constraints
 - `docs/PACKAGING.md`: package graph and native assets
 
@@ -51,9 +52,20 @@ Never hand-edit:
 - `crates/gpui-dotnet/src/semantic.g.rs`
 - `src/Gpui/Interop/NativeMethods.g.cs`
 - `docs/SEMANTIC_IDS.md`
+- `moonbit/protocol/semantic.g.mbt`
+- `moonbit/elements.g.mbt`
+- `moonbit/extensions/editor/schema.g.mbt`
+- `moonbit/internal/ffi/ffi.g.mbt`
+- `moonbit/internal/ffi/bridge.g.h`
+- `moonbit/internal/ffi/gpui_native.g.h`
 
 The native Cargo build generates `NativeMethods.g.cs` from Rust C-layout definitions through
 `csbindgen`. Include that generated change whenever `crates/gpui-dotnet/src/abi.rs` changes.
+
+Run `python tools/moonbit.py generate` / `verify` for the combined MoonBit semantic and native
+header generators. Keep MoonBit heap references inside MoonBit: C stores only closed trampolines,
+numeric identities, and C-owned buffers. Render acknowledgements and artifact releases are distinct
+lifetimes. Never expose stack callback requests or root/event maps to application code.
 
 ## Cross-platform behavior
 

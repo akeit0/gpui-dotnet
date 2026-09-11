@@ -1,0 +1,9 @@
+{
+  "import": [
+    "moonbitlang/core/encoding/utf8",
+    "akeit0/gpui/protocol",
+    "akeit0/gpui/internal/ffi"
+  ],
+  "formatter": { "ignore": ["elements.g.mbt"] },
+  "max-concurrent-tests": 1
+}

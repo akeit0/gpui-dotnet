@@ -30,7 +30,8 @@ internal sealed record ExtensionGeneration(
     [property: JsonPropertyName("csharpOutput")] string CSharpOutput,
     string RustOutput,
     [property: JsonPropertyName("csharpNamespace")] string CSharpNamespace,
-    [property: JsonPropertyName("csharpClass")] string CSharpClass
+    [property: JsonPropertyName("csharpClass")] string CSharpClass,
+    string? MoonbitOutput = null
 );
 
 internal sealed record ExtensionSchema(
