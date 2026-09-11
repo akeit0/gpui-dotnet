@@ -20,7 +20,7 @@ fn new_session(id : UInt64, title : String, width : Float, height : Float, title
     dynamic: Some(dynamic), open: false, closing: false, fault: None,
     next_event: 1UL, next_renderer: 1UL, next_publication: 1UL,
     renderer_keys: Map([]), pending: None, events: Map([]), ranges: Map([]),
-    artifacts: Map([]), artifact_events: Map([]),
+    sections: Map([]), artifacts: Map([]), artifact_events: Map([]),
   }
 }
 
@@ -93,6 +93,7 @@ fn App::retire_session(self : App, session : Session, status : Int) -> Unit {
   session.pending = None
   session.events.clear()
   session.ranges.clear()
+  session.sections.clear()
   session.artifacts.clear()
   session.artifact_events.clear()
   session.renderer_keys.clear()

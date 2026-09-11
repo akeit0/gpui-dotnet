@@ -187,6 +187,13 @@ at most 128. Raw data is copied. `Frame::fail` records an explicit declaration e
 The generic `node_bytes`, scalar/data operations, and `on` are escape hatches within semantic checks,
 not permission to bypass the ownership protocol. Owner identifiers are runtime-reserved to root 1.
 
+`Frame::section(key, revision, render)` declares a retained subtree: a clean section (same
+revision) skips its render closure and reuses cached rows, so only dirty sections execute user
+code during root assembly. Sections are single-use per key per publication, forbidden inside
+list items, and pruned when absent from the accepted publication. `SectionHandle::invalidate`
+drops one entry and notifies. The assembled packet is still a full tree; see the retained-tree
+proposal for scope and limits.
+
 Use generated fluent methods for ordinary styling. The schema supplies all 279 operation identities;
 five ownership/callback-sensitive operations use handwritten handling instead of ordinary generated
 methods. Some complex `data` operations deliberately accept `Bytes`; those bytes must follow the
@@ -279,11 +286,14 @@ For scoped batch invalidation without changing count, use `window.list_controlle
 measurements, `splice(start, removed, inserted)` preserves unaffected measurements across
 structural edits, `reset(count)` covers arbitrary reorder, and `scroll_to_item(index)` moves
 without content change. Queue the command, then invalidate the root; native commits the queued
-sequence in one pass. This mirrors the C# `ListController` resource-command packing. There is
+sequence in one pass. This mirrors the C# `ListController` resource-command packing. When the
+target list lives inside a retained `section`, also bump that section's revision (or invalidate
+its handle): structural commands and refreshes re-request ranges, and a skipped section would
+otherwise serve range closures capturing stale snapshots. There is
 no per-View subtree dirty tracking: `ctx.invalidate()` always re-runs the whole root render,
 so partition independent content across windows when full-root cost matters. Invalidation is
 per-window session: `ctx.invalidate()` re-renders only the event's window, and any retained
-`Window` handle can be invalidated directly (see the counter sample's cross-window bump).
+`Window` handle can be invalidated directly.
 
 ## Menus and extensions
 

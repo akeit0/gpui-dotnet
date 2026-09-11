@@ -30,7 +30,9 @@ fn App::render_root(self : App, session : Session, request : @ffi.Request) -> In
       if status != 0 {
         self.fault_session(session, ui_error(status, "Native rejected the root declaration"))
       } else {
-        session.pending = Some({ id, events: frame.events, ranges: frame.ranges })
+        session.pending = Some({
+          id, events: frame.events, ranges: frame.ranges, sections: frame.used_sections,
+        })
         0
       }
     }
@@ -54,6 +56,11 @@ fn App::complete_root(self : App, session : Session, id : UInt64, status : Int) 
   // Reintroducing a removed list allocates a fresh token, never a retired identity.
   for (key, token) in session.renderer_keys.iter().to_array() {
     if !session.ranges.contains(token) { session.renderer_keys.remove(key) }
+  }
+  // Retained sections absent from the accepted publication are pruned with their bindings.
+  // A reintroduced key re-renders from scratch under its new revision.
+  for key in session.sections.keys().to_array() {
+    if !pending.sections.contains(key) { session.sections.remove(key) }
   }
   0
 }

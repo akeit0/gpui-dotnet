@@ -30,6 +30,7 @@ struct Frame {
   mut edges : Int
   mut finished : Bool
   mut failure : UiError?
+  used_sections : Array[String]
 }
 
 ///|
@@ -48,6 +49,7 @@ fn new_frame(session : Session, item_batch : Bool) -> Frame {
   let frame : Frame = {
     identity, session, item_batch, nodes: [], ops: [], data: [],
     events: Map([]), ranges: Map([]), edges: 0, finished: false, failure: None,
+    used_sections: [],
   }
   if identity == 0xffffffffffffffffUL {
     frame.fail("Frame identities exhausted")

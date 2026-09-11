@@ -14,66 +14,70 @@ fn run_sample(path : String) -> Result[Unit, @gpui.UiError] {
   let count : Ref[Int] = { val: 0 }
   let name : Ref[String] = { val: "MoonBit" }
   let revision : Ref[UInt64] = { val: 1UL }
-  let scratch : Ref[Int] = { val: 0 }
-  // Second session with independent state: invalidating one window never re-renders the other.
-  let scratch_window = match app.window("Scratch", fn(ui) {
-    let current = scratch.val
-    ui.div().v_stack().gap_px(8.0).padding_px(24.0)
-      .width_percent(100.0).height_percent(100.0)
-      .child(ui.text("Scratch: \{current}"))
-      .child(ui.button("scratch-bump", "+1").on_click(fn(ctx, _) {
-        scratch.val = scratch.val + 1
-        ctx.invalidate()
-      }))
-  }) {
-    Ok(window) => window
-    Err(error) => return Err(error)
-  }
   let window = match app.window("MoonBit + GPUI", fn(ui) {
+    println("[root render]")
     // Snapshot values belong to this render, not to a native C closure.
     let current = count.val
     let greeting = name.val
     let snapshot_revision = revision.val
-    let header = ui.div().v_stack().gap_px(4.0)
-      .child(ui.text("MoonBit + GPUI"))
-      .child(ui.text("Hello, \{greeting}! Count: \{current}"))
-    let controls = ui.div().v_stack().gap_px(8.0).padding_px(12.0)
-      .child(ui.button("increment", "+1").on_click(fn(ctx, _) {
-        count.val = count.val + 1
-        revision.val = revision.val + 1UL
-        ctx.invalidate()
-      }))
-      .child(ui.button("reset", "Reset").on_click(fn(ctx, _) {
-        count.val = 0
-        revision.val = revision.val + 1UL
-        ctx.invalidate()
-      }))
-      // Scoped cross-window update: only the scratch session re-renders.
-      .child(ui.button("bump-scratch", "Bump scratch").on_click(fn(ctx, _) {
-        scratch.val = scratch.val + 1
-        ctx.check(scratch_window.invalidate())
-      }))
-      .child(ui.input("name", initial="MoonBit", placeholder="Name")
-        .on_input_changed(fn(ctx, value, _) {
-          name.val = value
+    // Static chrome renders once per window; handlers stay live through retained bindings.
+    let header = ui.section("header", 1UL, fn(sub) {
+      sub.div().v_stack().gap_px(4.0)
+        .child(sub.text("MoonBit + GPUI"))
+        .child(sub.text("Static section: renders once per window"))
+    })
+    let status = ui.text("Hello, \{greeting}! Count: \{current}")
+    let controls = ui.section("controls", 1UL, fn(sub) {
+      sub.div().v_stack().gap_px(8.0).padding_px(12.0)
+        .child(sub.button("increment", "+1").on_click(fn(ctx, _) {
+          count.val = count.val + 1
+          revision.val = revision.val + 1UL
           ctx.invalidate()
         }))
-    let rows = ui.list("rows", 10000, snapshot_revision, fn(items, start, length) {
-      Array::makei(length, fn(offset) {
-        let index = start + offset
-        items.div().v_stack().gap_px(4.0).padding_px(8.0)
-          .child(items.text("Row \{index} / count \{current}"))
-          .child(items.button("row-\{index}", "Select").height_px(30.0).on_click(fn(ctx, _) {
-            count.val = index
-            revision.val = revision.val + 1UL
-            ctx.invalidate()
-          }))
+        .child(sub.button("reset", "Reset").on_click(fn(ctx, _) {
+          count.val = 0
+          revision.val = revision.val + 1UL
+          ctx.invalidate()
+        }))
+        // Scoped native refresh plus a section revision bump so range closures re-capture.
+        .child(sub.button("refresh-top", "Refresh top").on_click(fn(ctx, _) {
+          match ctx.window().list_controller("rows") {
+            Err(_) => ctx.fail("Missing rows list")
+            Ok(ctl) => {
+              ctx.check(ctl.refresh(0, 10))
+              revision.val = revision.val + 1UL
+              ctx.invalidate()
+            }
+          }
+        }))
+    })
+    // Retained controls stay root-level: native control state follows per-frame declaration.
+    let name_field = ui.input("name", initial="MoonBit", placeholder="Name")
+      .on_input_changed(fn(ctx, value, _) {
+        name.val = value
+        ctx.invalidate()
       })
-    }).height_px(300.0).width_percent(100.0).list_estimated_item_extent_px(30.0)
+    // List data re-renders only when its revision advances; batches stay native-cached otherwise.
+    let rows = ui.section("row-list", snapshot_revision, fn(sub) {
+      sub.list("rows", 10000, snapshot_revision, fn(items, start, length) {
+        Array::makei(length, fn(offset) {
+          let index = start + offset
+          items.div().v_stack().gap_px(4.0).padding_px(8.0)
+            .child(items.text("Row \{index} / count \{current}"))
+            .child(items.button("row-\{index}", "Select").height_px(30.0).on_click(fn(ctx, _) {
+              count.val = index
+              revision.val = revision.val + 1UL
+              ctx.invalidate()
+            }))
+        })
+      }).height_px(300.0).width_percent(100.0).list_estimated_item_extent_px(30.0)
+    })
     ui.div().v_stack().gap_px(12.0).padding_px(24.0)
       .width_percent(100.0).height_percent(100.0)
       .child(header)
+      .child(status)
       .child(controls)
+      .child(name_field)
       .child(rows)
   }) {
     Ok(window) => window

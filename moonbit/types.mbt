@@ -67,6 +67,21 @@ priv struct Publication {
   id : UInt64
   events : Map[UInt64, Binding]
   ranges : Map[UInt64, RangeBinding]
+  sections : Array[String]
+}
+
+///| Retained render segment: rows owned by the session cache, never mutated after store.
+/// Splicing copies rows with base-offset fixups, so one cache entry serves many publications.
+priv struct RetainedSection {
+  revision : UInt64
+  root : Int
+  nodes : Array[FrameNode]
+  ops : Array[FrameOp]
+  data : Array[Byte]
+  edges : Int
+  events : Map[UInt64, Binding]
+  ranges : Map[UInt64, RangeBinding]
+  used : Array[String]
 }
 
 ///|
@@ -96,6 +111,7 @@ priv struct Session {
   mut pending : Publication?
   mut events : Map[UInt64, Binding]
   mut ranges : Map[UInt64, RangeBinding]
+  sections : Map[String, RetainedSection]
   artifacts : Map[UInt64, Artifact]
   artifact_events : Map[UInt64, Binding]
 }
