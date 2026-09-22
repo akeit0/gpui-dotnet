@@ -29,6 +29,24 @@ public static class ComponentsExtension
     internal static NativeExtensionComponent Alert { get; } = Component(ComponentSchema.Alert.Kind);
     internal static NativeExtensionComponent GroupBox { get; } =
         Component(ComponentSchema.GroupBox.Kind);
+    internal static NativeExtensionComponent Label { get; } = Component(ComponentSchema.Label.Kind);
+    internal static NativeExtensionComponent Kbd { get; } = Component(ComponentSchema.Kbd.Kind);
+    internal static NativeExtensionComponent Link { get; } = Component(ComponentSchema.Link.Kind);
+    internal static NativeExtensionComponent Avatar { get; } =
+        Component(ComponentSchema.Avatar.Kind);
+    internal static NativeExtensionComponent ShimmerText { get; } =
+        Component(ComponentSchema.ShimmerText.Kind);
+    internal static NativeExtensionComponent Switch { get; } =
+        Component(ComponentSchema.Switch.Kind);
+    internal static NativeExtensionComponent Checkbox { get; } =
+        Component(ComponentSchema.Checkbox.Kind);
+    internal static NativeExtensionComponent Radio { get; } = Component(ComponentSchema.Radio.Kind);
+    internal static NativeExtensionComponent Toggle { get; } =
+        Component(ComponentSchema.Toggle.Kind);
+    internal static NativeExtensionComponent Pagination { get; } =
+        Component(ComponentSchema.Pagination.Kind);
+    internal static NativeExtensionComponent Collapsible { get; } =
+        Component(ComponentSchema.Collapsible.Kind);
 
     private static NativeExtensionComponent Component(string kind) => new(Requirement, kind);
 }
@@ -128,6 +146,20 @@ public sealed record ComponentTagOptions
 public sealed record ComponentProgressOptions
 {
     public ComponentSize Size { get; init; } = ComponentSize.Medium;
+    public float Value { get; init; }
+    public bool Loading { get; init; }
+    public string Color { get; init; } = string.Empty;
+    public string AccessibilityLabel { get; init; } = string.Empty;
+}
+
+public sealed record ComponentProgressCircleOptions
+{
+    public ComponentSize Size { get; init; } = ComponentSize.Medium;
+
+    /// <summary>
+    /// Optional fixed diameter. Zero keeps the selected semantic size.
+    /// </summary>
+    public float Diameter { get; init; }
     public float Value { get; init; }
     public bool Loading { get; init; }
     public string Color { get; init; } = string.Empty;
@@ -234,9 +266,25 @@ internal static class ComponentEvents
             throw new InvalidOperationException("The component event is invalid.");
         }
     }
+
+    internal static bool DecodeBoolean(NativeExtensionEvent nativeEvent, ushort kind)
+    {
+        ArgumentNullException.ThrowIfNull(nativeEvent);
+        if (
+            nativeEvent.Kind != kind
+            || nativeEvent.Flags != 0
+            || nativeEvent.Revision != 0
+            || nativeEvent.Payload.Length != 1
+            || nativeEvent.Payload.Span[0] > 1
+        )
+        {
+            throw new InvalidOperationException("The checked-state event is invalid.");
+        }
+        return nativeEvent.Payload.Span[0] != 0;
+    }
 }
 
-public static class ComponentElements
+public static partial class ComponentElements
 {
     public static Element<NativeExtensionTag> Spinner(
         this RenderContext ui,
@@ -343,14 +391,45 @@ public static class ComponentElements
         this RenderContext ui,
         ReadOnlySpan<char> key,
         ComponentProgressOptions? options = null
-    ) => Progress(ui, ComponentsExtension.Progress, key, options, false, []);
+    )
+    {
+        options ??= new();
+        return ui.NativeExtension(
+            ComponentsExtension.Progress,
+            key,
+            ComponentSchema.Progress.EncodeConfiguration(
+                SizeProgress(options.Size),
+                options.Value,
+                options.Loading,
+                options.Color,
+                options.AccessibilityLabel
+            )
+        );
+    }
 
     public static Element<NativeExtensionTag> ProgressCircle(
         this RenderContext ui,
         ReadOnlySpan<char> key,
-        ComponentProgressOptions? options = null,
+        ComponentProgressCircleOptions? options = null,
         params ReadOnlySpan<Element> children
-    ) => Progress(ui, ComponentsExtension.ProgressCircle, key, options, true, children);
+    )
+    {
+        options ??= new();
+        ArgumentOutOfRangeException.ThrowIfNegative(options.Diameter);
+        return ui.NativeExtension(
+            ComponentsExtension.ProgressCircle,
+            key,
+            ComponentSchema.ProgressCircle.EncodeConfiguration(
+                SizeCircle(options.Size),
+                options.Diameter,
+                options.Value,
+                options.Loading,
+                options.Color,
+                options.AccessibilityLabel
+            ),
+            children
+        );
+    }
 
     public static Element<NativeExtensionTag> Rating(
         this RenderContext ui,
@@ -424,34 +503,6 @@ public static class ComponentElements
             ),
             children
         );
-    }
-
-    private static Element<NativeExtensionTag> Progress(
-        RenderContext ui,
-        NativeExtensionComponent component,
-        ReadOnlySpan<char> key,
-        ComponentProgressOptions? options,
-        bool circle,
-        ReadOnlySpan<Element> children
-    )
-    {
-        options ??= new();
-        var configuration = circle
-            ? ComponentSchema.ProgressCircle.EncodeConfiguration(
-                SizeCircle(options.Size),
-                options.Value,
-                options.Loading,
-                options.Color,
-                options.AccessibilityLabel
-            )
-            : ComponentSchema.Progress.EncodeConfiguration(
-                SizeProgress(options.Size),
-                options.Value,
-                options.Loading,
-                options.Color,
-                options.AccessibilityLabel
-            );
-        return ui.NativeExtension(component, key, configuration, children);
     }
 
     private static Element<NativeExtensionTag> Rating(

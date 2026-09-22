@@ -11,6 +11,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 gpui = { package = "gpui-pre", version = "0.3.1" }
 gpui-component = { path = "../../../../external/gpui-kit/crates/component" }
+gpui-kit-assets = { path = "../../../../external/gpui-kit/crates/assets" }
 gpui-dotnet = { path = "../.." }
 gpui-dotnet-editor-provider = { path = "../editor-provider" }
 

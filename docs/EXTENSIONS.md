@@ -34,6 +34,8 @@ Rust providers implement `gpui_dotnet::extension::NativeExtension`. A custom hos
 `install_native_extensions` once and delegates its `gpui_dotnet_get_api` export to
 `gpui_dotnet::api`. The runtime crate is an `rlib`; explicit default and custom `cdylib` host crates
 own the native entry-point exports. GPUI and Rust values never cross a dynamic-library boundary.
+Providers that render asset-backed native elements expose an `asset_source`; the host composes all
+installed provider sources before GPUI starts. The default host remains asset-free.
 
 Runtime loading arbitrary Rust plugin DLLs is intentionally unsupported. Rust has no stable ABI,
 and separately linked GPUI revisions would create incompatible type universes. Combining multiple
@@ -113,12 +115,15 @@ The accepted ownership, revision, bootstrap, command, and event design is docume
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes Editor plus eleven common families: Spinner, Skeleton, Separator, Badge, Tag,
-linear and circular Progress, Rating, Button, Alert, and GroupBox. Editor keeps its independently
-versioned `Gpui.Editor` managed schema; applications using both schemas list both requirements, and
-the host advertises and serves both. Parent-capable controls receive one batched managed child list.
-Button, Rating, and Alert callbacks use schema-owned event IDs and payloads. Resolved GPUI.NET theme
-roles are projected into the component theme on startup and every theme change.
+The host includes Editor plus twenty-two component families. Display and content coverage includes
+Spinner, Skeleton, Separator, Badge, Tag, linear and circular Progress, Alert, GroupBox, Label, Kbd,
+Avatar, and ShimmerText. Interactive and controlled coverage includes Rating, Button, Link, Switch,
+Checkbox, Radio, Toggle, Pagination, and Collapsible. Editor keeps its independently versioned
+`Gpui.Editor` managed schema; applications using both schemas list both requirements, and the host
+advertises and serves both. Parent-capable controls receive one batched managed child list. Native
+callbacks use schema-owned event IDs and payloads, while current values remain managed-authoritative.
+Resolved GPUI.NET theme roles are projected into the component theme on startup and every theme
+change.
 
 The sample proves the generated configuration contract and custom-host composition:
 

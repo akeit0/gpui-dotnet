@@ -9,7 +9,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(1u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(2u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -30,6 +30,17 @@ public sealed class ComponentExtensionTests
                 true,
                 false,
                 42
+            )
+        );
+        Assert.Equal(
+            "large\n80\n68\n0\n\nUpload progress",
+            ComponentSchema.ProgressCircle.EncodeConfiguration(
+                ComponentSchema.ProgressCircle.Size.Large,
+                80,
+                68,
+                false,
+                string.Empty,
+                "Upload progress"
             )
         );
         Assert.Throws<ArgumentException>(() =>
@@ -65,6 +76,49 @@ public sealed class ComponentExtensionTests
             ComponentClickedEvent.Decode(
                 new NativeExtensionEvent(ComponentSchema.Button.EventClicked, 1, 0, [])
             )
+        );
+    }
+
+    [Fact]
+    public void GeneratedConfigurationEncoderEscapesCSharpKeywordFields()
+    {
+        Assert.Equal(
+            "small\n1\n0\nWi-Fi\nWireless network\nNetwork state\n#336699\n17",
+            ComponentSchema.Switch.EncodeConfiguration(
+                ComponentSchema.Switch.Size.Small,
+                true,
+                false,
+                "Wi-Fi",
+                "Wireless network",
+                "Network state",
+                "#336699",
+                17
+            )
+        );
+    }
+
+    [Fact]
+    public void AdditionalControlledEventsValidatePayloads()
+    {
+        var enabled = ComponentSwitchChangedEvent.Decode(
+            new NativeExtensionEvent(ComponentSchema.Switch.EventChanged, 0, 0, [1])
+        );
+        Assert.True(enabled.Value);
+        Assert.Throws<InvalidOperationException>(() =>
+            ComponentSwitchChangedEvent.Decode(
+                new NativeExtensionEvent(ComponentSchema.Switch.EventChanged, 0, 0, [2])
+            )
+        );
+
+        var page = new byte[4];
+        BinaryPrimitives.WriteUInt32LittleEndian(page, 7);
+        Assert.Equal(
+            7u,
+            ComponentPageChangedEvent
+                .Decode(
+                    new NativeExtensionEvent(ComponentSchema.Pagination.EventChanged, 0, 0, page)
+                )
+                .Page
         );
     }
 }

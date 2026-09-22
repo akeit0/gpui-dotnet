@@ -88,8 +88,8 @@ where it validates reusable extension behavior:
 
 Build on the generated `Gpui.Components` schema and `gpui-dotnet-components-host` catalog:
 
-- add coherent families from the upstream component inventory, prioritizing components whose state
-  and event ownership fit the existing declaration/event contract;
+- continue adding coherent families from the remaining upstream component inventory, prioritizing
+  components whose state and event ownership fit the existing declaration/event contract;
 - generate more of the public managed option/builder surface once repeated API shapes justify it;
 - design explicit retained datasource and command contracts for collection, select, input, editor,
   overlay, and compound state families instead of encoding callbacks or per-frame state in config;

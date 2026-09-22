@@ -30,8 +30,13 @@ application.Run();
 internal sealed partial class ComponentsSampleView : View
 {
     private uint _rating = 3;
+    private uint _page = 3;
     private int _clicks;
     private bool _showAlert = true;
+    private bool _switchChecked = true;
+    private bool _checkboxChecked = true;
+    private bool _radioChecked;
+    private bool _toggleChecked;
     private readonly EditorController _editor;
     private readonly Effect<NoProps> _bootstrapEditor;
 
@@ -95,7 +100,127 @@ internal sealed partial class ComponentsSampleView : View
             )
             : ui.Spacer();
 
-        return ui.VStack(
+        var additional = ui.GroupBox(
+            "additional-components",
+            new ComponentGroupBoxOptions
+            {
+                Title = "Broader official catalog",
+                Variant = ComponentGroupBoxVariant.Outline,
+            },
+            ui.HStack(
+                    ui.Avatar(
+                        "catalog-avatar",
+                        new ComponentAvatarOptions { Name = "GPUI Components" }
+                    ),
+                    ui.Label(
+                        "catalog-label",
+                        new ComponentLabelOptions
+                        {
+                            Text = "Generated semantic adapters",
+                            Secondary = "22 families",
+                            Highlight = "semantic",
+                        }
+                    ),
+                    ui.Kbd("catalog-kbd", new ComponentKbdOptions { Keystroke = "cmd-shift-p" }),
+                    ui.ShimmerText(
+                            "catalog-shimmer",
+                            new ComponentShimmerTextOptions { Text = "Native animation" }
+                        )
+                        .TextColor(theme.Colors.TextMuted)
+                )
+                .Gap(Px(16))
+                .ItemsCenter()
+                .Wrap(FlexWrap.Wrap),
+            ui.Link(
+                "catalog-link",
+                this,
+                static (view, _) =>
+                {
+                    view._clicks++;
+                    view.Invalidate();
+                },
+                children: [ui.Text("Event-backed Link"u8)]
+            ),
+            ui.HStack(
+                    ui.Switch(
+                        "catalog-switch",
+                        this,
+                        static (view, changed) =>
+                        {
+                            view._switchChecked = changed.Value;
+                            view.Invalidate();
+                        },
+                        new ComponentSwitchOptions { Checked = _switchChecked, Label = "Switch" }
+                    ),
+                    ui.Checkbox(
+                        "catalog-checkbox",
+                        this,
+                        static (view, changed) =>
+                        {
+                            view._checkboxChecked = changed.Value;
+                            view.Invalidate();
+                        },
+                        new ComponentCheckboxOptions
+                        {
+                            Checked = _checkboxChecked,
+                            Label = "Checkbox",
+                        }
+                    ),
+                    ui.Radio(
+                        "catalog-radio",
+                        this,
+                        static (view, changed) =>
+                        {
+                            view._radioChecked = changed.Value;
+                            view.Invalidate();
+                        },
+                        new ComponentRadioOptions { Checked = _radioChecked, Label = "Radio" }
+                    ),
+                    ui.Toggle(
+                        "catalog-toggle",
+                        this,
+                        static (view, changed) =>
+                        {
+                            view._toggleChecked = changed.Value;
+                            view.Invalidate();
+                        },
+                        new ComponentToggleOptions
+                        {
+                            Checked = _toggleChecked,
+                            Label = "Toggle",
+                            Variant = ComponentToggleVariant.Outline,
+                        }
+                    )
+                )
+                .Gap(Px(18))
+                .ItemsCenter()
+                .Wrap(FlexWrap.Wrap),
+            ui.Pagination(
+                "catalog-pagination",
+                this,
+                static (view, changed) =>
+                {
+                    view._page = changed.Page;
+                    view.Invalidate();
+                },
+                new ComponentPaginationOptions
+                {
+                    CurrentPage = _page,
+                    TotalPages = 12,
+                    VisiblePages = 5,
+                }
+            ),
+            ui.Collapsible(
+                "catalog-collapsible",
+                new ComponentCollapsibleOptions { Open = _switchChecked },
+                ui.Text("Switch controls this native measured reveal."u8)
+                    .Padding(Px(12))
+                    .Background(theme.Colors.ElementBackground)
+                    .Radius(Px(8))
+            )
+        );
+
+        var body = ui.VStack(
                 ui.Text("Optional gpui-component catalog"u8)
                     .FontSize(Px(theme.Typography.Heading))
                     .TextColor(theme.Colors.Text),
@@ -142,8 +267,12 @@ internal sealed partial class ComponentsSampleView : View
                     ui.HStack(
                             ui.ProgressCircle(
                                 "circle-progress",
-                                new ComponentProgressOptions { Value = 68 },
-                                ui.Text("68%"u8)
+                                new ComponentProgressCircleOptions { Value = 68, Diameter = 80 },
+                                ui.HStack(ui.Text("68%"u8))
+                                    .Width(Percent(100))
+                                    .Height(Percent(100))
+                                    .ItemsCenter()
+                                    .JustifyCenter()
                             ),
                             ui.Skeleton(
                                 "placeholder",
@@ -155,13 +284,29 @@ internal sealed partial class ComponentsSampleView : View
                     ui.Editor(_editor, new EditorOptions { Language = "rust", LineNumbers = true })
                         .Height(Px(180))
                         .Width(Percent(100))
-                )
+                ),
+                additional
             )
             .Gap(Px(18))
             .Padding(Px(24))
             .Width(Percent(100))
-            .Height(Percent(100))
             .Background(theme.Colors.Background)
             .TextColor(theme.Colors.Text);
+
+        var scroll = ui.Scroll(
+                "component-catalog-scroll",
+                ScrollAxis.Vertical,
+                new ScrollOptions(
+                    smoothScrolling: true,
+                    showScrollbar: true,
+                    scrollbarGutter: true
+                ),
+                body
+            )
+            .Grow()
+            .Width(Percent(100))
+            .Background(theme.Colors.Background);
+
+        return ui.VStack(scroll).Grow().Width(Percent(100)).Background(theme.Colors.Background);
     }
 }

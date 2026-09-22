@@ -1,11 +1,12 @@
 use std::{
     any::Any,
+    borrow::Cow,
     cell::RefCell,
     collections::{HashMap, HashSet},
     sync::{Arc, OnceLock},
 };
 
-use gpui::{AnyElement, App, Global, SharedString, Window};
+use gpui::{AnyElement, App, AssetSource, Global, SharedString, Window};
 
 use crate::{
     abi::{ManagedCallbacks, NativeControlEvent},
@@ -232,6 +233,11 @@ impl Global for ResolvedTheme {}
 pub trait NativeExtension: Sync {
     fn descriptor(&self) -> NativeExtensionDescriptor;
 
+    /// Optional provider-owned assets used by materialized native elements.
+    fn asset_source(&self) -> Option<&'static dyn AssetSource> {
+        None
+    }
+
     /// Performs schema-specific validation before a command is copied into a View's UI queue.
     fn validate_command(&self, _command: &NativeExtensionCommand) -> bool {
         false
@@ -260,6 +266,55 @@ pub trait NativeExtension: Sync {
 }
 
 static EXTENSIONS: OnceLock<&'static [&'static dyn NativeExtension]> = OnceLock::new();
+
+/// Application asset source composed from every installed native extension provider.
+pub(crate) struct NativeExtensionAssets;
+
+impl AssetSource for NativeExtensionAssets {
+    fn load(&self, path: &str) -> gpui::Result<Option<Cow<'static, [u8]>>> {
+        let mut last_error = None;
+        if let Some(extensions) = EXTENSIONS.get() {
+            for source in extensions
+                .iter()
+                .filter_map(|extension| extension.asset_source())
+            {
+                match source.load(path) {
+                    Ok(Some(asset)) => return Ok(Some(asset)),
+                    Ok(None) => {}
+                    Err(error) => last_error = Some(error),
+                }
+            }
+        }
+        match last_error {
+            Some(error) => Err(error),
+            None => Ok(None),
+        }
+    }
+
+    fn list(&self, path: &str) -> gpui::Result<Vec<SharedString>> {
+        let mut assets = HashSet::new();
+        let mut last_error = None;
+        if let Some(extensions) = EXTENSIONS.get() {
+            for source in extensions
+                .iter()
+                .filter_map(|extension| extension.asset_source())
+            {
+                match source.list(path) {
+                    Ok(paths) => assets.extend(paths),
+                    Err(error) => last_error = Some(error),
+                }
+            }
+        }
+        if assets.is_empty()
+            && let Some(error) = last_error
+        {
+            return Err(error);
+        }
+        let mut assets: Vec<_> = assets.into_iter().collect();
+        assets.sort_unstable_by(|left, right| left.as_ref().cmp(right.as_ref()));
+        Ok(assets)
+    }
+}
 
 /// Installs the complete provider set for a custom host. Call once before returning its API table.
 pub fn install_native_extensions(
@@ -448,5 +503,16 @@ mod tests {
         assert!(!valid_payload(
             b"gpui.net.test\0box\0main\01\00123456789abcdef\0configuration"
         ));
+    }
+
+    #[test]
+    fn extension_assets_are_empty_without_installed_providers() {
+        assert!(
+            NativeExtensionAssets
+                .load("icons/check.svg")
+                .unwrap()
+                .is_none()
+        );
+        assert!(NativeExtensionAssets.list("icons/").unwrap().is_empty());
     }
 }

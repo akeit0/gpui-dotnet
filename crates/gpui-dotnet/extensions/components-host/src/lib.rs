@@ -1,17 +1,33 @@
-use std::sync::Once;
+use std::{sync::Once, time::Duration};
 
-use gpui::{AnyElement, App, Hsla, IntoElement as _, ParentElement as _, SharedString, Window, rgba};
+use gpui::{
+    AnyElement, App, Hsla, IntoElement as _, Keystroke, ParentElement as _, SharedString,
+    Styled as _, Window, div, px, rgba,
+};
 use gpui_component::{
     Disableable as _, Selectable as _, Sizable as _,
     alert::{Alert, AlertVariant as NativeAlertVariant},
+    avatar::Avatar,
     badge::Badge,
-    button::{Button, ButtonVariant as NativeButtonVariant, ButtonVariants as _},
+    button::{
+        Button, ButtonVariant as NativeButtonVariant, ButtonVariants as _, Toggle,
+        ToggleVariant as NativeToggleVariant, ToggleVariants as _,
+    },
+    checkbox::Checkbox,
+    collapsible::Collapsible,
     group_box::{GroupBox, GroupBoxVariant as NativeGroupBoxVariant, GroupBoxVariants as _},
+    kbd::Kbd,
+    label::{HighlightsMatch, Label},
+    link::Link,
+    pagination::Pagination,
     progress::{Progress, ProgressCircle},
+    radio::Radio,
     rating::Rating,
     separator::Separator,
+    shimmer::ShimmerText,
     skeleton::Skeleton,
     spinner::Spinner,
+    switch::Switch,
     tag::{Tag, TagVariant as NativeTagVariant},
     try_parse_color,
 };
@@ -38,6 +54,10 @@ impl NativeExtension for ComponentsExtension {
             version: SCHEMA_VERSION,
             schema_hash: SCHEMA_HASH,
         }
+    }
+
+    fn asset_source(&self) -> Option<&'static dyn gpui::AssetSource> {
+        Some(&gpui_kit_assets::Assets)
     }
 
     fn initialize(&self, cx: &mut App) {
@@ -73,6 +93,17 @@ impl NativeExtension for ComponentsExtension {
             COMPONENT_BUTTON => button(request),
             COMPONENT_ALERT => alert(request),
             COMPONENT_GROUP_BOX => group_box(request),
+            COMPONENT_LABEL => label(request),
+            COMPONENT_KBD => kbd(request),
+            COMPONENT_LINK => link(request),
+            COMPONENT_AVATAR => avatar(request),
+            COMPONENT_SHIMMER_TEXT => shimmer_text(request),
+            COMPONENT_SWITCH => switch(request),
+            COMPONENT_CHECKBOX => checkbox(request),
+            COMPONENT_RADIO => radio(request),
+            COMPONENT_TOGGLE => toggle(request),
+            COMPONENT_PAGINATION => pagination(request),
+            COMPONENT_COLLAPSIBLE => collapsible(request),
             _ => Err("The component host received an unknown component kind.".into()),
         }
     }
@@ -216,6 +247,12 @@ fn progress_circle(mut request: NativeExtensionRequest) -> Result<AnyElement, Sh
         .with_size(progress_circle_size(config.size))
         .value(config.value)
         .loading(config.loading);
+    if config.diameter < 0. {
+        return Err("ProgressCircle diameter must be zero or positive.".into());
+    }
+    if config.diameter > 0. {
+        component = component.size(px(config.diameter));
+    }
     if !config.accessibility_label.is_empty() {
         component = component.accessibility_label(config.accessibility_label.to_owned());
     }
@@ -321,6 +358,229 @@ fn group_box(mut request: NativeExtensionRequest) -> Result<AnyElement, SharedSt
     Ok(component.into_any_element())
 }
 
+fn label(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = LabelConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Label configuration."))?;
+    let mut component = Label::new(config.text.to_owned()).masked(config.masked);
+    if !config.secondary.is_empty() {
+        component = component.secondary(config.secondary.to_owned());
+    }
+    if !config.highlight.is_empty() {
+        component = component.highlights(if config.highlight_prefix {
+            HighlightsMatch::Prefix(config.highlight.to_owned().into())
+        } else {
+            HighlightsMatch::Full(config.highlight.to_owned().into())
+        });
+    }
+    Ok(component.into_any_element())
+}
+
+fn kbd(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = KbdConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Kbd configuration."))?;
+    let stroke = Keystroke::parse(config.keystroke)
+        .map_err(|error| SharedString::from(format!("Invalid Kbd keystroke: {error}")))?;
+    let mut component = Kbd::new(stroke).appearance(config.appearance);
+    if config.outline {
+        component = component.outline();
+    }
+    Ok(component.into_any_element())
+}
+
+fn link(mut request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = LinkConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Link configuration."))?;
+    let mut component = Link::new(request.resource_key.key().to_owned());
+    if !config.href.is_empty() {
+        component = component.href(config.href.to_owned());
+    }
+    let token = config.clicked_event;
+    let events = request.events;
+    if token != 0 {
+        component = component.on_click(move |_, _, _| {
+            let _ = events.emit(token, LINK_EVENT_CLICKED, 0, 0, &[]);
+        });
+    }
+    component.extend(request.children.drain(..));
+    Ok(component.into_any_element())
+}
+
+fn avatar(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = AvatarConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Avatar configuration."))?;
+    let mut component = Avatar::new().with_size(avatar_size(config.size));
+    if !config.name.is_empty() {
+        component = component.name(config.name.to_owned());
+    }
+    Ok(component.into_any_element())
+}
+
+fn shimmer_text(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = ShimmerTextConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid ShimmerText configuration."))?;
+    let mut component = ShimmerText::new(config.text.to_owned())
+        .id(request.resource_key.key().to_owned())
+        .duration(Duration::from_millis(config.duration_ms.into()))
+        .reverse(config.reverse)
+        .once(config.once);
+    if let Some(color) = optional_color(config.color)? {
+        component = component.highlight_color(color);
+    }
+    Ok(component.into_any_element())
+}
+
+fn switch(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = SwitchConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Switch configuration."))?;
+    let mut component = Switch::new(request.resource_key.key().to_owned())
+        .with_size(switch_size(config.size))
+        .checked(config.checked)
+        .disabled(config.disabled);
+    if !config.label.is_empty() {
+        component = component.label(config.label.to_owned());
+    }
+    if !config.accessibility_label.is_empty() {
+        component = component.accessibility_label(config.accessibility_label.to_owned());
+    }
+    if !config.tooltip.is_empty() {
+        component = component.tooltip(config.tooltip.to_owned());
+    }
+    if let Some(color) = optional_color(config.color)? {
+        component = component.color(color);
+    }
+    let token = config.changed_event;
+    let events = request.events;
+    if token != 0 {
+        component = component.on_change(move |value, _, _| {
+            let _ = events.emit(token, SWITCH_EVENT_CHANGED, 0, 0, &[u8::from(*value)]);
+        });
+    }
+    Ok(component.into_any_element())
+}
+
+fn checkbox(mut request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = CheckboxConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Checkbox configuration."))?;
+    let mut component = Checkbox::new(request.resource_key.key().to_owned())
+        .with_size(checkbox_size(config.size))
+        .checked(config.checked)
+        .disabled(config.disabled);
+    if !config.label.is_empty() {
+        component = component.label(config.label.to_owned());
+    }
+    if !config.accessibility_label.is_empty() {
+        component = component.accessibility_label(config.accessibility_label.to_owned());
+    }
+    if !config.tooltip.is_empty() {
+        component = component.tooltip(config.tooltip.to_owned());
+    }
+    let token = config.changed_event;
+    let events = request.events;
+    if token != 0 {
+        component = component.on_change(move |value, _, _| {
+            let _ = events.emit(token, CHECKBOX_EVENT_CHANGED, 0, 0, &[u8::from(*value)]);
+        });
+    }
+    component.extend(request.children.drain(..));
+    Ok(component.into_any_element())
+}
+
+fn radio(mut request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = RadioConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Radio configuration."))?;
+    let mut component = Radio::new(request.resource_key.key().to_owned())
+        .with_size(radio_size(config.size))
+        .checked(config.checked)
+        .disabled(config.disabled);
+    if !config.label.is_empty() {
+        component = component.label(config.label.to_owned());
+    }
+    if !config.accessibility_label.is_empty() {
+        component = component.accessibility_label(config.accessibility_label.to_owned());
+    }
+    if !config.tooltip.is_empty() {
+        component = component.tooltip(config.tooltip.to_owned());
+    }
+    let token = config.changed_event;
+    let events = request.events;
+    if token != 0 {
+        component = component.on_change(move |value, _, _| {
+            let _ = events.emit(token, RADIO_EVENT_CHANGED, 0, 0, &[u8::from(*value)]);
+        });
+    }
+    component.extend(request.children.drain(..));
+    Ok(component.into_any_element())
+}
+
+fn toggle(mut request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = ToggleConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Toggle configuration."))?;
+    let mut component = Toggle::new(request.resource_key.key().to_owned())
+        .with_size(toggle_size(config.size))
+        .with_variant(match config.variant {
+            ToggleVariant::Ghost => NativeToggleVariant::Ghost,
+            ToggleVariant::Outline => NativeToggleVariant::Outline,
+        })
+        .checked(config.checked)
+        .disabled(config.disabled);
+    if !config.label.is_empty() {
+        component = component.label(config.label.to_owned());
+    }
+    if !config.tooltip.is_empty() {
+        component = component.tooltip(config.tooltip.to_owned());
+    }
+    let token = config.changed_event;
+    let events = request.events;
+    if token != 0 {
+        component = component.on_click(move |value, _, _| {
+            let _ = events.emit(token, TOGGLE_EVENT_CHANGED, 0, 0, &[u8::from(*value)]);
+        });
+    }
+    component.extend(request.children.drain(..));
+    Ok(component.into_any_element())
+}
+
+fn pagination(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = PaginationConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Pagination configuration."))?;
+    let mut component = Pagination::new(request.resource_key.key().to_owned())
+        .with_size(pagination_size(config.size))
+        .current_page(config.current_page as usize)
+        .total_pages(config.total_pages as usize)
+        .visible_pages(config.visible_pages as usize)
+        .disabled(config.disabled);
+    if config.compact {
+        component = component.compact();
+    }
+    let token = config.changed_event;
+    let events = request.events;
+    if token != 0 {
+        component = component.on_click(move |page, _, _| {
+            let payload = (*page as u32).to_le_bytes();
+            let _ = events.emit(token, PAGINATION_EVENT_CHANGED, 0, 0, &payload);
+        });
+    }
+    Ok(component.into_any_element())
+}
+
+fn collapsible(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = CollapsibleConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Collapsible configuration."))?;
+    let mut component = Collapsible::new()
+        .open(config.open)
+        .content(div().children(request.children));
+    if config.animated {
+        component = component.motion_id(request.resource_key.key().to_owned());
+    }
+    Ok(component.into_any_element())
+}
+
 fn badge_size(value: BadgeSize) -> gpui_component::Size {
     match value {
         BadgeSize::Xsmall => gpui_component::Size::XSmall,
@@ -384,6 +644,60 @@ fn alert_size(value: AlertSize) -> gpui_component::Size {
     }
 }
 
+fn avatar_size(value: AvatarSize) -> gpui_component::Size {
+    match value {
+        AvatarSize::Xsmall => gpui_component::Size::XSmall,
+        AvatarSize::Small => gpui_component::Size::Small,
+        AvatarSize::Medium => gpui_component::Size::Medium,
+        AvatarSize::Large => gpui_component::Size::Large,
+    }
+}
+
+fn switch_size(value: SwitchSize) -> gpui_component::Size {
+    match value {
+        SwitchSize::Xsmall => gpui_component::Size::XSmall,
+        SwitchSize::Small => gpui_component::Size::Small,
+        SwitchSize::Medium => gpui_component::Size::Medium,
+        SwitchSize::Large => gpui_component::Size::Large,
+    }
+}
+
+fn checkbox_size(value: CheckboxSize) -> gpui_component::Size {
+    match value {
+        CheckboxSize::Xsmall => gpui_component::Size::XSmall,
+        CheckboxSize::Small => gpui_component::Size::Small,
+        CheckboxSize::Medium => gpui_component::Size::Medium,
+        CheckboxSize::Large => gpui_component::Size::Large,
+    }
+}
+
+fn radio_size(value: RadioSize) -> gpui_component::Size {
+    match value {
+        RadioSize::Xsmall => gpui_component::Size::XSmall,
+        RadioSize::Small => gpui_component::Size::Small,
+        RadioSize::Medium => gpui_component::Size::Medium,
+        RadioSize::Large => gpui_component::Size::Large,
+    }
+}
+
+fn toggle_size(value: ToggleSize) -> gpui_component::Size {
+    match value {
+        ToggleSize::Xsmall => gpui_component::Size::XSmall,
+        ToggleSize::Small => gpui_component::Size::Small,
+        ToggleSize::Medium => gpui_component::Size::Medium,
+        ToggleSize::Large => gpui_component::Size::Large,
+    }
+}
+
+fn pagination_size(value: PaginationSize) -> gpui_component::Size {
+    match value {
+        PaginationSize::Xsmall => gpui_component::Size::XSmall,
+        PaginationSize::Small => gpui_component::Size::Small,
+        PaginationSize::Medium => gpui_component::Size::Medium,
+        PaginationSize::Large => gpui_component::Size::Large,
+    }
+}
+
 fn button_variant(value: component_schema::ButtonVariant) -> NativeButtonVariant {
     match value {
         component_schema::ButtonVariant::Default => NativeButtonVariant::Default,
@@ -410,12 +724,14 @@ fn alert_variant(value: component_schema::AlertVariant) -> NativeAlertVariant {
 }
 
 fn project_theme(theme: ResolvedTheme, cx: &mut App) {
-    let target = gpui_component::Theme::global_mut(cx);
-    target.mode = if theme.dark {
+    let mode = if theme.dark {
         gpui_component::ThemeMode::Dark
     } else {
         gpui_component::ThemeMode::Light
     };
+    if gpui_component::Theme::global(cx).mode != mode {
+        gpui_component::Theme::change(mode, None, cx);
+    }
     let color = |value| -> Hsla { rgba(value).into() };
     let background = color(theme.background);
     let text = color(theme.text);
@@ -430,38 +746,40 @@ fn project_theme(theme: ResolvedTheme, cx: &mut App) {
     let element_active = color(theme.element_active);
     let accent = color(theme.accent);
 
-    let colors = &mut target.colors;
-    colors.background = background;
-    colors.foreground = text;
-    colors.caret = text;
-    colors.selection = accent.alpha(0.3);
-    colors.muted = element;
-    colors.muted_foreground = text_muted;
-    colors.border = border;
-    colors.input = border_variant;
-    colors.ring = border_focused;
-    colors.accent = element_hover;
-    colors.accent_foreground = text;
-    colors.primary = accent;
-    colors.primary_foreground = text_on_accent;
-    colors.primary_hover = element_hover;
-    colors.primary_active = element_active;
-    colors.button = element;
-    colors.button_foreground = text;
-    colors.button_hover = element_hover;
-    colors.button_active = element_active;
-    colors.popover = surface;
-    colors.popover_foreground = text;
-    colors.tab = surface;
-    colors.tab_bar = element;
-    colors.tab_active = surface;
-    colors.tab_foreground = text_muted;
-    colors.tab_active_foreground = text;
-    colors.drag_border = border_focused;
-    colors.drop_target = accent.alpha(0.2);
-    colors.scrollbar = color(theme.scrollbar_track_background);
-    colors.scrollbar_thumb = color(theme.scrollbar_thumb_background);
-    colors.scrollbar_thumb_hover = border_focused;
+    gpui_component::Theme::update(cx, |target| {
+        let colors = &mut target.colors;
+        colors.background = background;
+        colors.foreground = text;
+        colors.caret = text;
+        colors.selection = accent.alpha(0.3);
+        colors.muted = element;
+        colors.muted_foreground = text_muted;
+        colors.border = border;
+        colors.input = border_variant;
+        colors.ring = border_focused;
+        colors.accent = element_hover;
+        colors.accent_foreground = text;
+        colors.primary = accent;
+        colors.primary_foreground = text_on_accent;
+        colors.primary_hover = element_hover;
+        colors.primary_active = element_active;
+        colors.button = element;
+        colors.button_foreground = text;
+        colors.button_hover = element_hover;
+        colors.button_active = element_active;
+        colors.popover = surface;
+        colors.popover_foreground = text;
+        colors.tab = surface;
+        colors.tab_bar = element;
+        colors.tab_active = surface;
+        colors.tab_foreground = text_muted;
+        colors.tab_active_foreground = text;
+        colors.drag_border = border_focused;
+        colors.drop_target = accent.alpha(0.2);
+        colors.scrollbar = color(theme.scrollbar_track_background);
+        colors.scrollbar_thumb = color(theme.scrollbar_thumb_background);
+        colors.scrollbar_thumb_hover = border_focused;
+    });
 }
 
 static COMPONENTS_EXTENSION: ComponentsExtension = ComponentsExtension;
@@ -487,6 +805,21 @@ mod tests {
         assert!(ButtonConfiguration::parse("medium\nprimary\nSave\n\n0\n0\n0\n0\n0\n42").is_some());
         assert!(ButtonConfiguration::parse("medium\nunknown\nSave\n\n0\n0\n0\n0\n0\n42").is_none());
         assert!(ProgressConfiguration::parse("medium\nNaN\n0\n\nUpload").is_none());
+        let circle =
+            ProgressCircleConfiguration::parse("large\n80\n68\n0\n\nUpload progress").unwrap();
+        assert_eq!(circle.diameter, 80.);
+        assert_eq!(circle.value, 68.);
+        assert!(ProgressCircleConfiguration::parse("large\nNaN\n68\n0\n\n").is_none());
+        assert!(
+            SwitchConfiguration::parse("small\n1\n0\nWi-Fi\nWireless network\nNetwork state\n#336699\n17")
+                .is_some()
+        );
+        assert!(SwitchConfiguration::parse("small\n2\n0\n\n\n\n\n0").is_none());
+        let checkbox = CheckboxConfiguration::parse("medium\n1\n0\nCheckbox\n\n\n19").unwrap();
+        assert!(checkbox.checked);
+        assert_eq!(checkbox.changed_event, 19);
+        assert!(PaginationConfiguration::parse("medium\n3\n10\n5\n0\n0\n23").is_some());
+        assert!(CollapsibleConfiguration::parse("1\n1").is_some());
     }
 
     #[test]
@@ -526,6 +859,20 @@ mod tests {
         );
     }
 
+    #[test]
+    fn component_provider_exposes_its_indicator_assets() {
+        let assets = COMPONENTS_EXTENSION.asset_source().unwrap();
+        let check = assets.load("icons/check.svg").unwrap().unwrap();
+        assert!(!check.is_empty());
+        assert!(
+            assets
+                .list("icons/check")
+                .unwrap()
+                .iter()
+                .any(|path| path.as_ref() == "icons/check.svg")
+        );
+    }
+
     #[gpui::test]
     fn provider_installs_component_foundation_and_projects_managed_theme(
         cx: &mut gpui::TestAppContext,
@@ -538,6 +885,7 @@ mod tests {
             cx.set_global(ResolvedTheme {
                 dark: true,
                 text: 0xF0F4F8FF,
+                text_on_accent: 0x102030FF,
                 accent: 0x4466EEFF,
                 ..Default::default()
             });
@@ -547,6 +895,14 @@ mod tests {
             assert_eq!(projected.mode, gpui_component::ThemeMode::Dark);
             assert_eq!(projected.colors.foreground, Hsla::from(rgba(0xF0F4F8FF)));
             assert_eq!(projected.colors.primary, Hsla::from(rgba(0x4466EEFF)));
+            assert_eq!(
+                projected.colors.primary_foreground,
+                Hsla::from(rgba(0x102030FF))
+            );
+            assert_eq!(
+                projected.tokens.primary.color,
+                Hsla::from(rgba(0x4466EEFF))
+            );
         });
     }
 }

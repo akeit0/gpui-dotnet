@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "components": [
     {
       "kind": "spinner",
@@ -95,6 +95,7 @@
         "encoding": "lines",
         "fields": [
           { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "diameter", "type": "f32" },
           { "name": "value", "type": "f32" },
           { "name": "loading", "type": "bool" },
           { "name": "color", "type": "string" },
@@ -173,6 +174,194 @@
         "fields": [
           { "name": "variant", "type": "enum", "values": ["normal", "fill", "outline"] },
           { "name": "title", "type": "string" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "label",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "text", "type": "string" },
+          { "name": "secondary", "type": "string" },
+          { "name": "masked", "type": "bool" },
+          { "name": "highlight", "type": "string" },
+          { "name": "highlight_prefix", "type": "bool" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "kbd",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "keystroke", "type": "string" },
+          { "name": "appearance", "type": "bool" },
+          { "name": "outline", "type": "bool" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "link",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "href", "type": "string" },
+          { "name": "clicked_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "clicked": { "id": 1, "flags": "none", "payload": "none", "revision": "none" }
+      }
+    },
+    {
+      "kind": "avatar",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "name", "type": "string" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "shimmer_text",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "text", "type": "string" },
+          { "name": "duration_ms", "type": "u32" },
+          { "name": "reverse", "type": "bool" },
+          { "name": "once", "type": "bool" },
+          { "name": "color", "type": "string" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "switch",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "checked", "type": "bool" },
+          { "name": "disabled", "type": "bool" },
+          { "name": "label", "type": "string" },
+          { "name": "accessibility_label", "type": "string" },
+          { "name": "tooltip", "type": "string" },
+          { "name": "color", "type": "string" },
+          { "name": "changed_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "changed": { "id": 1, "flags": "none", "payload": "bool-u8", "revision": "none" }
+      }
+    },
+    {
+      "kind": "checkbox",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "checked", "type": "bool" },
+          { "name": "disabled", "type": "bool" },
+          { "name": "label", "type": "string" },
+          { "name": "accessibility_label", "type": "string" },
+          { "name": "tooltip", "type": "string" },
+          { "name": "changed_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "changed": { "id": 1, "flags": "none", "payload": "bool-u8", "revision": "none" }
+      }
+    },
+    {
+      "kind": "radio",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "checked", "type": "bool" },
+          { "name": "disabled", "type": "bool" },
+          { "name": "label", "type": "string" },
+          { "name": "accessibility_label", "type": "string" },
+          { "name": "tooltip", "type": "string" },
+          { "name": "changed_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "changed": { "id": 1, "flags": "none", "payload": "bool-u8", "revision": "none" }
+      }
+    },
+    {
+      "kind": "toggle",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "variant", "type": "enum", "values": ["ghost", "outline"] },
+          { "name": "checked", "type": "bool" },
+          { "name": "disabled", "type": "bool" },
+          { "name": "label", "type": "string" },
+          { "name": "tooltip", "type": "string" },
+          { "name": "changed_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "changed": { "id": 1, "flags": "none", "payload": "bool-u8", "revision": "none" }
+      }
+    },
+    {
+      "kind": "pagination",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "current_page", "type": "u32" },
+          { "name": "total_pages", "type": "u32" },
+          { "name": "visible_pages", "type": "u32" },
+          { "name": "disabled", "type": "bool" },
+          { "name": "compact", "type": "bool" },
+          { "name": "changed_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "changed": { "id": 1, "flags": "none", "payload": "page-u32-le", "revision": "none" }
+      }
+    },
+    {
+      "kind": "collapsible",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "open", "type": "bool" },
+          { "name": "animated", "type": "bool" }
         ]
       },
       "flags": {},

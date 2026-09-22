@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 1u;
-    internal const ulong SchemaHash = 0x96D6AEE59A1C9B2CUL;
+    internal const uint SchemaVersion = 2u;
+    internal const ulong SchemaHash = 0x76070B245D3F22ACUL;
 
     internal static class Spinner
     {
@@ -236,7 +236,7 @@ internal static class ComponentSchema
             Large,
         }
 
-        internal static string EncodeConfiguration(Size size, float value, bool loading, string color, string accessibilityLabel)
+        internal static string EncodeConfiguration(Size size, float diameter, float value, bool loading, string color, string accessibilityLabel)
         {
             var sizeValue = size switch
             {
@@ -246,6 +246,10 @@ internal static class ComponentSchema
                 Size.Large => "large",
                 _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
             };
+            if (!float.IsFinite(diameter))
+            {
+                throw new global::System.ArgumentOutOfRangeException(nameof(diameter), "Extension configuration numbers must be finite.");
+            }
             if (!float.IsFinite(value))
             {
                 throw new global::System.ArgumentOutOfRangeException(nameof(value), "Extension configuration numbers must be finite.");
@@ -260,7 +264,7 @@ internal static class ComponentSchema
             {
                 throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(accessibilityLabel));
             }
-            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{value}\n{(loading ? 1 : 0)}\n{color}\n{accessibilityLabel}");
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{diameter}\n{value}\n{(loading ? 1 : 0)}\n{color}\n{accessibilityLabel}");
         }
     }
 
@@ -442,6 +446,330 @@ internal static class ComponentSchema
                 throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(title));
             }
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{variantValue}\n{title}");
+        }
+    }
+
+    internal static class Label
+    {
+        internal const string Kind = "label";
+
+        internal static string EncodeConfiguration(string text, string secondary, bool masked, string highlight, bool highlightPrefix)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(text);
+            if (text.Contains('\0') || text.Contains('\n') || text.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(text));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(secondary);
+            if (secondary.Contains('\0') || secondary.Contains('\n') || secondary.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(secondary));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(highlight);
+            if (highlight.Contains('\0') || highlight.Contains('\n') || highlight.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(highlight));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{text}\n{secondary}\n{(masked ? 1 : 0)}\n{highlight}\n{(highlightPrefix ? 1 : 0)}");
+        }
+    }
+
+    internal static class Kbd
+    {
+        internal const string Kind = "kbd";
+
+        internal static string EncodeConfiguration(string keystroke, bool appearance, bool outline)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(keystroke);
+            if (keystroke.Contains('\0') || keystroke.Contains('\n') || keystroke.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(keystroke));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{keystroke}\n{(appearance ? 1 : 0)}\n{(outline ? 1 : 0)}");
+        }
+    }
+
+    internal static class Link
+    {
+        internal const string Kind = "link";
+        internal const ushort EventClicked = 1;
+
+        internal static string EncodeConfiguration(string href, ulong clickedEvent)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(href);
+            if (href.Contains('\0') || href.Contains('\n') || href.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(href));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{href}\n{clickedEvent}");
+        }
+    }
+
+    internal static class Avatar
+    {
+        internal const string Kind = "avatar";
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal static string EncodeConfiguration(Size size, string name)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            global::System.ArgumentNullException.ThrowIfNull(name);
+            if (name.Contains('\0') || name.Contains('\n') || name.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(name));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{name}");
+        }
+    }
+
+    internal static class ShimmerText
+    {
+        internal const string Kind = "shimmer_text";
+
+        internal static string EncodeConfiguration(string text, uint durationMs, bool reverse, bool once, string color)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(text);
+            if (text.Contains('\0') || text.Contains('\n') || text.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(text));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(color);
+            if (color.Contains('\0') || color.Contains('\n') || color.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(color));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{text}\n{durationMs}\n{(reverse ? 1 : 0)}\n{(once ? 1 : 0)}\n{color}");
+        }
+    }
+
+    internal static class Switch
+    {
+        internal const string Kind = "switch";
+        internal const ushort EventChanged = 1;
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal static string EncodeConfiguration(Size size, bool @checked, bool disabled, string label, string accessibilityLabel, string tooltip, string color, ulong changedEvent)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            global::System.ArgumentNullException.ThrowIfNull(label);
+            if (label.Contains('\0') || label.Contains('\n') || label.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(label));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(accessibilityLabel);
+            if (accessibilityLabel.Contains('\0') || accessibilityLabel.Contains('\n') || accessibilityLabel.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(accessibilityLabel));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(tooltip);
+            if (tooltip.Contains('\0') || tooltip.Contains('\n') || tooltip.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(tooltip));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(color);
+            if (color.Contains('\0') || color.Contains('\n') || color.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(color));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{(@checked ? 1 : 0)}\n{(disabled ? 1 : 0)}\n{label}\n{accessibilityLabel}\n{tooltip}\n{color}\n{changedEvent}");
+        }
+    }
+
+    internal static class Checkbox
+    {
+        internal const string Kind = "checkbox";
+        internal const ushort EventChanged = 1;
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal static string EncodeConfiguration(Size size, bool @checked, bool disabled, string label, string accessibilityLabel, string tooltip, ulong changedEvent)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            global::System.ArgumentNullException.ThrowIfNull(label);
+            if (label.Contains('\0') || label.Contains('\n') || label.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(label));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(accessibilityLabel);
+            if (accessibilityLabel.Contains('\0') || accessibilityLabel.Contains('\n') || accessibilityLabel.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(accessibilityLabel));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(tooltip);
+            if (tooltip.Contains('\0') || tooltip.Contains('\n') || tooltip.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(tooltip));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{(@checked ? 1 : 0)}\n{(disabled ? 1 : 0)}\n{label}\n{accessibilityLabel}\n{tooltip}\n{changedEvent}");
+        }
+    }
+
+    internal static class Radio
+    {
+        internal const string Kind = "radio";
+        internal const ushort EventChanged = 1;
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal static string EncodeConfiguration(Size size, bool @checked, bool disabled, string label, string accessibilityLabel, string tooltip, ulong changedEvent)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            global::System.ArgumentNullException.ThrowIfNull(label);
+            if (label.Contains('\0') || label.Contains('\n') || label.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(label));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(accessibilityLabel);
+            if (accessibilityLabel.Contains('\0') || accessibilityLabel.Contains('\n') || accessibilityLabel.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(accessibilityLabel));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(tooltip);
+            if (tooltip.Contains('\0') || tooltip.Contains('\n') || tooltip.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(tooltip));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{(@checked ? 1 : 0)}\n{(disabled ? 1 : 0)}\n{label}\n{accessibilityLabel}\n{tooltip}\n{changedEvent}");
+        }
+    }
+
+    internal static class Toggle
+    {
+        internal const string Kind = "toggle";
+        internal const ushort EventChanged = 1;
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal enum Variant
+        {
+            Ghost,
+            Outline,
+        }
+
+        internal static string EncodeConfiguration(Size size, Variant variant, bool @checked, bool disabled, string label, string tooltip, ulong changedEvent)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            var variantValue = variant switch
+            {
+                Variant.Ghost => "ghost",
+                Variant.Outline => "outline",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(variant)),
+            };
+            global::System.ArgumentNullException.ThrowIfNull(label);
+            if (label.Contains('\0') || label.Contains('\n') || label.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(label));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(tooltip);
+            if (tooltip.Contains('\0') || tooltip.Contains('\n') || tooltip.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(tooltip));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{variantValue}\n{(@checked ? 1 : 0)}\n{(disabled ? 1 : 0)}\n{label}\n{tooltip}\n{changedEvent}");
+        }
+    }
+
+    internal static class Pagination
+    {
+        internal const string Kind = "pagination";
+        internal const ushort EventChanged = 1;
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal static string EncodeConfiguration(Size size, uint currentPage, uint totalPages, uint visiblePages, bool disabled, bool compact, ulong changedEvent)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{currentPage}\n{totalPages}\n{visiblePages}\n{(disabled ? 1 : 0)}\n{(compact ? 1 : 0)}\n{changedEvent}");
+        }
+    }
+
+    internal static class Collapsible
+    {
+        internal const string Kind = "collapsible";
+
+        internal static string EncodeConfiguration(bool open, bool animated)
+        {
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{(open ? 1 : 0)}\n{(animated ? 1 : 0)}");
         }
     }
 }

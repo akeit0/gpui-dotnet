@@ -595,8 +595,13 @@ impl Render for ManagedView {
         self.schedule_dynamic_frame(dynamic_owners, window, cx);
 
         let item_tooltips = self.resources.item_tooltips.clone();
+        // The managed root's Grow/Shrink styles only constrain it to the window when this host
+        // participates in flex layout. Without that contract, root scroll views expand to their
+        // full content height and never acquire an overflow range.
         div()
             .tab_group()
+            .flex()
+            .flex_col()
             .capture_key_down(cx.listener(|this, _, _, _| this.resources.shortcuts.begin()))
             .on_key_down(move |event, window, cx| {
                 item_tooltips.dismiss(window);
@@ -752,7 +757,7 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
     let application_status_in_app = Arc::clone(&application_status);
 
     gpui_platform::application()
-        .with_assets(())
+        .with_assets(crate::extension::NativeExtensionAssets)
         .run(move |cx: &mut App| {
             gpui_base::init(cx);
             crate::input::init(cx);
@@ -1301,6 +1306,51 @@ mod tests {
             assert!(cx.has_global::<gpui_base::Theme>());
             assert!(cx.has_global::<gpui_base::GlobalState>());
         });
+    }
+
+    #[gpui::test]
+    fn managed_root_is_a_flex_viewport_for_growing_scroll_content(cx: &mut gpui::TestAppContext) {
+        use crate::{
+            native_workloads::WorkloadArena,
+            resources::ResourceKey,
+            semantic::{
+                COMPONENT_DIV, COMPONENT_SCROLL, OP_FLEX_GROW, OP_HEIGHT_PX, OP_RESOURCE_OWNER,
+                OP_V_STACK, OP_WIDTH_PERCENT,
+            },
+        };
+
+        let mut arena = WorkloadArena::default();
+        let root = arena.node(COMPONENT_DIV, None);
+        arena.op(root, OP_V_STACK, 0);
+        arena.op(root, OP_FLEX_GROW, 1f32.to_bits() as u64);
+        arena.op(root, OP_WIDTH_PERCENT, 100f32.to_bits() as u64);
+        let scroll = arena.node_with_data(COMPONENT_SCROLL, Some(root), "catalog-scroll");
+        arena.op(scroll, OP_RESOURCE_OWNER, 1);
+        arena.op(scroll, OP_FLEX_GROW, 1f32.to_bits() as u64);
+        arena.op(scroll, OP_WIDTH_PERCENT, 100f32.to_bits() as u64);
+        let body = arena.node(COMPONENT_DIV, Some(scroll));
+        arena.op(body, OP_V_STACK, 0);
+        for _ in 0..8 {
+            let row = arena.node(COMPONENT_DIV, Some(body));
+            arena.op(row, OP_HEIGHT_PX, 100f32.to_bits() as u64);
+        }
+        let snapshot = arena.decode();
+        let (view, cx) = cx.add_window_view(move |_, _| {
+            let callbacks = unsafe { std::mem::zeroed() };
+            let mut view = ManagedView::new(1, callbacks, Default::default(), Default::default());
+            view.snapshot = snapshot;
+            view.has_snapshot = true;
+            view.dirty = false;
+            view
+        });
+        cx.simulate_resize(gpui::size(px(320.), px(240.)));
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+
+        let resource = view.read_with(cx, |view, _| {
+            view.resources
+                .scroll_resource(&ResourceKey::new(1, "catalog-scroll".into()))
+        });
+        assert!(resource.handle.max_offset().y > px(0.));
     }
 
     #[gpui::test]
