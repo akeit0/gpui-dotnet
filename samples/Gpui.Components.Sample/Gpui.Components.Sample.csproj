@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+        <ComponentsHostProfile Condition="'$(Configuration)' == 'Release'"
+            >release</ComponentsHostProfile>
+        <ComponentsHostProfile Condition="'$(ComponentsHostProfile)' == ''"
+            >debug</ComponentsHostProfile>
+        <ComponentsHostCargoArgument Condition="'$(Configuration)' == 'Release'"
+            >--release</ComponentsHostCargoArgument>
+        <ComponentsHostName Condition="$([MSBuild]::IsOSPlatform('Windows'))"
+            >gpui_dotnet_components.dll</ComponentsHostName>
+        <ComponentsHostName Condition="$([MSBuild]::IsOSPlatform('Linux'))"
+            >libgpui_dotnet_components.so</ComponentsHostName>
+        <ComponentsHostName Condition="$([MSBuild]::IsOSPlatform('OSX'))"
+            >libgpui_dotnet_components.dylib</ComponentsHostName>
+        <ComponentsHostManifest>$(MSBuildThisFileDirectory)../../crates/gpui-dotnet/Cargo.toml</ComponentsHostManifest>
+        <ComponentsHostPath>$(MSBuildThisFileDirectory)../../crates/gpui-dotnet/target/$(ComponentsHostProfile)/$(ComponentsHostName)</ComponentsHostPath>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference
+            Include="../../src/Gpui.Core/Gpui.Core.csproj"
+            AdditionalProperties="BuildGpuiNative=false"
+        />
+        <ProjectReference Include="../../src/Gpui.Components/Gpui.Components.csproj" />
+        <ProjectReference
+            Include="../../src/Gpui.Generators/Gpui.Generators.csproj"
+            OutputItemType="Analyzer"
+            ReferenceOutputAssembly="false"
+        />
+    </ItemGroup>
+
+    <Target Name="BuildComponentsNativeHost" BeforeTargets="CoreCompile">
+        <Exec
+            Command="cargo build --manifest-path &quot;$(ComponentsHostManifest)&quot; --package gpui-dotnet-components-host $(ComponentsHostCargoArgument)"
+            Condition="'$(GpuiNativePrebuilt)' != 'true'"
+        />
+        <Copy
+            SourceFiles="$(ComponentsHostPath)"
+            DestinationFolder="$(OutDir)"
+            SkipUnchangedFiles="true"
+        />
+    </Target>
+</Project>

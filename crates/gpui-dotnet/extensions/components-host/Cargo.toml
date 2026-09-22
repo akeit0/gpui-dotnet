@@ -1,0 +1,20 @@
+[package]
+name = "gpui-dotnet-components-host"
+version.workspace = true
+edition = "2024"
+publish = false
+
+[lib]
+name = "gpui_dotnet_components"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+gpui = { package = "gpui-pre", version = "0.3.1" }
+gpui-component = { path = "../../../../external/gpui-kit/crates/component" }
+gpui-dotnet = { path = "../.." }
+
+[dev-dependencies]
+gpui = { package = "gpui-pre", version = "0.3.1", features = ["test-support"] }
+
+[lints]
+workspace = true

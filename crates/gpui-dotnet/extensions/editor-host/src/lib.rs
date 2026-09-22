@@ -27,7 +27,7 @@ use editor_schema::{
     EDITOR_COMMAND_REPLACE_DOCUMENT, EDITOR_COMMAND_SET_SELECTION, EDITOR_EVENT_CHANGED,
     EDITOR_EVENT_COMMAND_REJECTED, EDITOR_FLAG_DISABLED, EDITOR_FLAG_FOLDING,
     EDITOR_FLAG_LINE_NUMBERS, EDITOR_FLAG_READ_ONLY, EDITOR_FLAG_SHOW_WHITESPACE,
-    EDITOR_KNOWN_FLAGS, EXTENSION_ID, SCHEMA_HASH, SCHEMA_VERSION,
+    EXTENSION_ID, EditorConfiguration, SCHEMA_HASH, SCHEMA_VERSION,
 };
 
 const EDITOR_CHANGE_ORIGIN_USER: u16 = 0;
@@ -305,13 +305,18 @@ impl NativeExtension for EditorExtension {
         let Some(configuration) = EditorConfiguration::parse(&request.configuration) else {
             return Err("The editor declaration has invalid configuration.".into());
         };
+        if configuration.line_number_width < 0. {
+            return Err("The editor line-number width cannot be negative.".into());
+        }
+        let line_number_width =
+            (configuration.line_number_width > 0.).then_some(configuration.line_number_width);
 
         let resource = resources.get_or_insert_with(&request.resource_key, || {
             let state = cx.new(|cx| {
                 EditorState::new(window, cx)
                     .language(configuration.language)
                     .line_number(configuration.flags & EDITOR_FLAG_LINE_NUMBERS != 0)
-                    .line_number_width(configuration.line_number_width.map(px))
+                    .line_number_width(line_number_width.map(px))
                     .folding(configuration.flags & EDITOR_FLAG_FOLDING != 0)
                     .show_whitespaces(configuration.flags & EDITOR_FLAG_SHOW_WHITESPACE != 0)
             });
@@ -335,7 +340,7 @@ impl NativeExtension for EditorExtension {
             RetainedEditor {
                 state,
                 flags: Rc::new(Cell::new(configuration.flags)),
-                line_number_width: Rc::new(Cell::new(configuration.line_number_width)),
+                line_number_width: Rc::new(Cell::new(line_number_width)),
                 bootstrapped: Rc::new(Cell::new(false)),
                 events,
                 _subscription: Rc::new(subscription),
@@ -487,11 +492,11 @@ impl NativeExtension for EditorExtension {
 
         if resource
             .line_number_width
-            .replace(configuration.line_number_width)
-            != configuration.line_number_width
+            .replace(line_number_width)
+            != line_number_width
         {
             resource.state.update(cx, |state, cx| {
-                state.set_line_number_width(configuration.line_number_width.map(px), window, cx);
+                state.set_line_number_width(line_number_width.map(px), window, cx);
             });
         }
 
@@ -500,38 +505,6 @@ impl NativeExtension for EditorExtension {
             .readonly(configuration.flags & EDITOR_FLAG_READ_ONLY != 0)
             .size_full()
             .into_any_element())
-    }
-}
-
-struct EditorConfiguration<'a> {
-    flags: u32,
-    language: &'a str,
-    changed_event: u64,
-    command_rejected_event: u64,
-    line_number_width: Option<f32>,
-}
-
-impl<'a> EditorConfiguration<'a> {
-    fn parse(value: &'a str) -> Option<Self> {
-        let mut fields = value.splitn(5, '\n');
-        let flags = fields.next()?.parse::<u32>().ok()?;
-        let language = fields.next()?;
-        let changed_event = fields.next()?.parse::<u64>().ok()?;
-        let command_rejected_event = fields.next()?.parse::<u64>().ok()?;
-        let line_number_width = fields.next()?.parse::<f32>().ok()?;
-        if flags & !EDITOR_KNOWN_FLAGS != 0
-            || !line_number_width.is_finite()
-            || line_number_width < 0.
-        {
-            return None;
-        }
-        Some(Self {
-            flags,
-            language,
-            changed_event,
-            command_rejected_event,
-            line_number_width: (line_number_width > 0.).then_some(line_number_width),
-        })
     }
 }
 
@@ -562,15 +535,20 @@ mod tests {
         assert_eq!(configuration.language, "rust");
         assert_eq!(configuration.changed_event, 42);
         assert_eq!(configuration.command_rejected_event, 43);
-        assert_eq!(configuration.line_number_width, Some(64.));
+        assert_eq!(configuration.line_number_width, 64.);
         assert_eq!(
             EditorConfiguration::parse("12\nrust\n42\n43\n0")
                 .unwrap()
                 .line_number_width,
-            None
+            0.
         );
         assert!(EditorConfiguration::parse("32\nrust\n42\n43\n64").is_none());
-        assert!(EditorConfiguration::parse("12\nrust\n42\n43\n-1").is_none());
+        assert_eq!(
+            EditorConfiguration::parse("12\nrust\n42\n43\n-1")
+                .unwrap()
+                .line_number_width,
+            -1.
+        );
         assert!(EditorConfiguration::parse("12\nrust\n42").is_none());
     }
 

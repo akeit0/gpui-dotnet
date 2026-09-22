@@ -84,6 +84,21 @@ validates reusable extension behavior:
 - RID runtime packages and clean-consumer tests that never require Cargo;
 - IME, clipboard, undo, large-document, accessibility, and cross-platform behavior tests.
 
+## Optional component extension
+
+Build on the generated `Gpui.Components` schema and `gpui-dotnet-components-host` catalog:
+
+- add coherent families from the upstream component inventory, prioritizing components whose state
+  and event ownership fit the existing declaration/event contract;
+- generate more of the public managed option/builder surface once repeated API shapes justify it;
+- design explicit retained datasource and command contracts for collection, select, input, editor,
+  overlay, and compound state families instead of encoding callbacks or per-frame state in config;
+- add RID runtime packages, clean-consumer coverage, accessibility tests, and cross-platform visual
+  behavior verification.
+
+Do not claim inventory-complete coverage from constructor names alone. Each addition needs native
+materialization, managed semantics, theme behavior, event lifetime, and ownership tests.
+
 ## Dock
 
 Tile layouts stay undeclared: no application requirement justifies them, and the managed schema

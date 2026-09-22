@@ -30,6 +30,12 @@ internal static partial class BindingGenerator
                 .Select(part => char.ToUpperInvariant(part[0]) + part[1..])
         );
 
+    private static string Camel(string value)
+    {
+        var pascal = Pascal(value);
+        return char.ToLowerInvariant(pascal[0]) + pascal[1..];
+    }
+
     private static string UpperSnake(string value) => value.ToUpperInvariant();
 
     private static string XmlDoc(string value) =>

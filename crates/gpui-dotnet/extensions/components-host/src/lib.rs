@@ -1,0 +1,538 @@
+use std::sync::Once;
+
+use gpui::{AnyElement, App, Hsla, IntoElement as _, ParentElement as _, SharedString, Window, rgba};
+use gpui_component::{
+    Disableable as _, Selectable as _, Sizable as _,
+    alert::{Alert, AlertVariant as NativeAlertVariant},
+    badge::Badge,
+    button::{Button, ButtonVariant as NativeButtonVariant, ButtonVariants as _},
+    group_box::{GroupBox, GroupBoxVariant as NativeGroupBoxVariant, GroupBoxVariants as _},
+    progress::{Progress, ProgressCircle},
+    rating::Rating,
+    separator::Separator,
+    skeleton::Skeleton,
+    spinner::Spinner,
+    tag::{Tag, TagVariant as NativeTagVariant},
+    try_parse_color,
+};
+use gpui_dotnet::{
+    abi::GpuiDotnetApiV3,
+    extension::{
+        NativeExtension, NativeExtensionDescriptor, NativeExtensionRequest, NativeExtensionStore,
+        ResolvedTheme, install_native_extensions,
+    },
+};
+
+#[path = "component_schema.g.rs"]
+mod component_schema;
+
+use component_schema::*;
+
+struct ComponentsExtension;
+
+impl NativeExtension for ComponentsExtension {
+    fn descriptor(&self) -> NativeExtensionDescriptor {
+        NativeExtensionDescriptor {
+            id: EXTENSION_ID,
+            version: SCHEMA_VERSION,
+            schema_hash: SCHEMA_HASH,
+        }
+    }
+
+    fn initialize(&self, cx: &mut App) {
+        gpui_component::init(cx);
+    }
+
+    fn apply_theme(&self, cx: &mut App) {
+        let Some(theme) = cx.try_global::<ResolvedTheme>().cloned() else {
+            return;
+        };
+        project_theme(theme, cx);
+    }
+
+    fn materialize(
+        &self,
+        request: NativeExtensionRequest,
+        _resources: &NativeExtensionStore,
+        _window: &mut Window,
+        _cx: &mut App,
+    ) -> Result<AnyElement, SharedString> {
+        if !request.commands.is_empty() {
+            return Err("The component catalog does not define imperative commands.".into());
+        }
+        match request.resource_key.component_kind() {
+            COMPONENT_SPINNER => spinner(request),
+            COMPONENT_SKELETON => skeleton(request),
+            COMPONENT_SEPARATOR => separator(request),
+            COMPONENT_BADGE => badge(request),
+            COMPONENT_TAG => tag(request),
+            COMPONENT_PROGRESS => progress(request),
+            COMPONENT_PROGRESS_CIRCLE => progress_circle(request),
+            COMPONENT_RATING => rating(request),
+            COMPONENT_BUTTON => button(request),
+            COMPONENT_ALERT => alert(request),
+            COMPONENT_GROUP_BOX => group_box(request),
+            _ => Err("The component host received an unknown component kind.".into()),
+        }
+    }
+}
+
+fn no_children(request: &NativeExtensionRequest) -> Result<(), SharedString> {
+    if request.children.is_empty() {
+        Ok(())
+    } else {
+        Err("This component does not accept child elements.".into())
+    }
+}
+
+fn optional_color(value: &str) -> Result<Option<Hsla>, SharedString> {
+    if value.is_empty() {
+        return Ok(None);
+    }
+    try_parse_color(value)
+        .map(Some)
+        .map_err(|error| format!("Invalid component color '{value}': {error}").into())
+}
+
+fn spinner(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = SpinnerConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Spinner configuration."))?;
+    let mut component = Spinner::new()
+        .with_size(match config.size {
+            SpinnerSize::Xsmall => gpui_component::Size::XSmall,
+            SpinnerSize::Small => gpui_component::Size::Small,
+            SpinnerSize::Medium => gpui_component::Size::Medium,
+            SpinnerSize::Large => gpui_component::Size::Large,
+        })
+        .icon(match config.icon {
+            SpinnerIcon::Loader => gpui_component::IconName::Loader,
+            SpinnerIcon::LoaderCircle => gpui_component::IconName::LoaderCircle,
+        });
+    component = match config.ease {
+        SpinnerEase::Linear => component.ease(gpui::linear),
+        SpinnerEase::EaseInOut => component.ease(gpui::ease_in_out),
+        SpinnerEase::EaseOutQuint => component.ease(gpui::ease_out_quint()),
+    };
+    if let Some(color) = optional_color(config.color)? {
+        component = component.color(color);
+    }
+    Ok(component.into_any_element())
+}
+
+fn skeleton(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = SkeletonConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Skeleton configuration."))?;
+    let component = if config.secondary {
+        Skeleton::new().secondary()
+    } else {
+        Skeleton::new()
+    };
+    Ok(component.into_any_element())
+}
+
+fn separator(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = SeparatorConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Separator configuration."))?;
+    let mut component = match (config.orientation, config.dashed) {
+        (SeparatorOrientation::Horizontal, false) => Separator::horizontal(),
+        (SeparatorOrientation::Horizontal, true) => Separator::horizontal_dashed(),
+        (SeparatorOrientation::Vertical, false) => Separator::vertical(),
+        (SeparatorOrientation::Vertical, true) => Separator::vertical_dashed(),
+    };
+    if !config.label.is_empty() {
+        component = component.label(config.label.to_owned());
+    }
+    if let Some(color) = optional_color(config.color)? {
+        component = component.color(color);
+    }
+    Ok(component.into_any_element())
+}
+
+fn badge(mut request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = BadgeConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Badge configuration."))?;
+    let mut component = Badge::new()
+        .with_size(badge_size(config.size))
+        .count(config.count as usize)
+        .max(config.max as usize);
+    if config.dot {
+        component = component.dot();
+    }
+    if let Some(color) = optional_color(config.color)? {
+        component = component.color(color);
+    }
+    component.extend(request.children.drain(..));
+    Ok(component.into_any_element())
+}
+
+fn tag(mut request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = TagConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Tag configuration."))?;
+    let mut component = Tag::new()
+        .with_size(tag_size(config.size))
+        .with_variant(match config.variant {
+            TagVariant::Primary => NativeTagVariant::Primary,
+            TagVariant::Secondary => NativeTagVariant::Secondary,
+            TagVariant::Danger => NativeTagVariant::Danger,
+            TagVariant::Success => NativeTagVariant::Success,
+            TagVariant::Warning => NativeTagVariant::Warning,
+            TagVariant::Info => NativeTagVariant::Info,
+        });
+    if config.outline {
+        component = component.outline();
+    }
+    if config.rounded_full {
+        component = component.rounded_full();
+    }
+    component.extend(request.children.drain(..));
+    Ok(component.into_any_element())
+}
+
+fn progress(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = ProgressConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Progress configuration."))?;
+    let mut component = Progress::new(request.resource_key.key().to_owned())
+        .with_size(progress_size(config.size))
+        .value(config.value)
+        .loading(config.loading);
+    if !config.accessibility_label.is_empty() {
+        component = component.accessibility_label(config.accessibility_label.to_owned());
+    }
+    if let Some(color) = optional_color(config.color)? {
+        component = component.color(color);
+    }
+    Ok(component.into_any_element())
+}
+
+fn progress_circle(mut request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = ProgressCircleConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid ProgressCircle configuration."))?;
+    let mut component = ProgressCircle::new(request.resource_key.key().to_owned())
+        .with_size(progress_circle_size(config.size))
+        .value(config.value)
+        .loading(config.loading);
+    if !config.accessibility_label.is_empty() {
+        component = component.accessibility_label(config.accessibility_label.to_owned());
+    }
+    if let Some(color) = optional_color(config.color)? {
+        component = component.color(color);
+    }
+    component.extend(request.children.drain(..));
+    Ok(component.into_any_element())
+}
+
+fn rating(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = RatingConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Rating configuration."))?;
+    let mut component = Rating::new(request.resource_key.key().to_owned())
+        .with_size(rating_size(config.size))
+        .value(config.value as usize)
+        .max(config.max as usize)
+        .disabled(config.disabled);
+    if let Some(color) = optional_color(config.color)? {
+        component = component.color(color);
+    }
+    let token = config.changed_event;
+    let events = request.events;
+    if token != 0 {
+        component = component.on_click(move |value, _, _| {
+            let payload = (*value as u32).to_le_bytes();
+            let _ = events.emit(token, RATING_EVENT_CHANGED, 0, 0, &payload);
+        });
+    }
+    Ok(component.into_any_element())
+}
+
+fn button(mut request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = ButtonConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Button configuration."))?;
+    let mut component = Button::new(request.resource_key.key().to_owned())
+        .with_size(button_size(config.size))
+        .with_variant(button_variant(config.variant))
+        .disabled(config.disabled)
+        .selected(config.selected)
+        .loading(config.loading);
+    if !config.label.is_empty() {
+        component = component.label(config.label.to_owned());
+    }
+    if !config.accessibility_label.is_empty() {
+        component = component.accessibility_label(config.accessibility_label.to_owned());
+    }
+    if config.outline {
+        component = component.outline();
+    }
+    if config.compact {
+        component = component.compact();
+    }
+    let token = config.clicked_event;
+    let events = request.events;
+    if token != 0 {
+        component = component.on_click(move |_, _, _| {
+            let _ = events.emit(token, BUTTON_EVENT_CLICKED, 0, 0, &[]);
+        });
+    }
+    component.extend(request.children.drain(..));
+    Ok(component.into_any_element())
+}
+
+fn alert(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = AlertConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Alert configuration."))?;
+    let mut component = Alert::new(request.resource_key.key().to_owned(), config.message.to_owned())
+        .with_size(alert_size(config.size))
+        .with_variant(alert_variant(config.variant));
+    if !config.title.is_empty() {
+        component = component.title(config.title.to_owned());
+    }
+    if config.banner {
+        component = component.banner();
+    }
+    let token = config.closed_event;
+    let events = request.events;
+    if token != 0 {
+        component = component.on_close(move |_, _, _| {
+            let _ = events.emit(token, ALERT_EVENT_CLOSED, 0, 0, &[]);
+        });
+    }
+    Ok(component.into_any_element())
+}
+
+fn group_box(mut request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = GroupBoxConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid GroupBox configuration."))?;
+    let mut component = GroupBox::new()
+        .id(request.resource_key.key().to_owned())
+        .with_variant(match config.variant {
+            GroupBoxVariant::Normal => NativeGroupBoxVariant::Normal,
+            GroupBoxVariant::Fill => NativeGroupBoxVariant::Fill,
+            GroupBoxVariant::Outline => NativeGroupBoxVariant::Outline,
+        });
+    if !config.title.is_empty() {
+        component = component.title(config.title.to_owned());
+    }
+    component.extend(request.children.drain(..));
+    Ok(component.into_any_element())
+}
+
+fn badge_size(value: BadgeSize) -> gpui_component::Size {
+    match value {
+        BadgeSize::Xsmall => gpui_component::Size::XSmall,
+        BadgeSize::Small => gpui_component::Size::Small,
+        BadgeSize::Medium => gpui_component::Size::Medium,
+        BadgeSize::Large => gpui_component::Size::Large,
+    }
+}
+
+fn tag_size(value: component_schema::TagSize) -> gpui_component::Size {
+    match value {
+        component_schema::TagSize::Xsmall => gpui_component::Size::XSmall,
+        component_schema::TagSize::Small => gpui_component::Size::Small,
+        component_schema::TagSize::Medium => gpui_component::Size::Medium,
+        component_schema::TagSize::Large => gpui_component::Size::Large,
+    }
+}
+
+fn progress_size(value: ProgressSize) -> gpui_component::Size {
+    match value {
+        ProgressSize::Xsmall => gpui_component::Size::XSmall,
+        ProgressSize::Small => gpui_component::Size::Small,
+        ProgressSize::Medium => gpui_component::Size::Medium,
+        ProgressSize::Large => gpui_component::Size::Large,
+    }
+}
+
+fn progress_circle_size(value: ProgressCircleSize) -> gpui_component::Size {
+    match value {
+        ProgressCircleSize::Xsmall => gpui_component::Size::XSmall,
+        ProgressCircleSize::Small => gpui_component::Size::Small,
+        ProgressCircleSize::Medium => gpui_component::Size::Medium,
+        ProgressCircleSize::Large => gpui_component::Size::Large,
+    }
+}
+
+fn rating_size(value: RatingSize) -> gpui_component::Size {
+    match value {
+        RatingSize::Xsmall => gpui_component::Size::XSmall,
+        RatingSize::Small => gpui_component::Size::Small,
+        RatingSize::Medium => gpui_component::Size::Medium,
+        RatingSize::Large => gpui_component::Size::Large,
+    }
+}
+
+fn button_size(value: ButtonSize) -> gpui_component::Size {
+    match value {
+        ButtonSize::Xsmall => gpui_component::Size::XSmall,
+        ButtonSize::Small => gpui_component::Size::Small,
+        ButtonSize::Medium => gpui_component::Size::Medium,
+        ButtonSize::Large => gpui_component::Size::Large,
+    }
+}
+
+fn alert_size(value: AlertSize) -> gpui_component::Size {
+    match value {
+        AlertSize::Xsmall => gpui_component::Size::XSmall,
+        AlertSize::Small => gpui_component::Size::Small,
+        AlertSize::Medium => gpui_component::Size::Medium,
+        AlertSize::Large => gpui_component::Size::Large,
+    }
+}
+
+fn button_variant(value: component_schema::ButtonVariant) -> NativeButtonVariant {
+    match value {
+        component_schema::ButtonVariant::Default => NativeButtonVariant::Default,
+        component_schema::ButtonVariant::Primary => NativeButtonVariant::Primary,
+        component_schema::ButtonVariant::Secondary => NativeButtonVariant::Secondary,
+        component_schema::ButtonVariant::Danger => NativeButtonVariant::Danger,
+        component_schema::ButtonVariant::Success => NativeButtonVariant::Success,
+        component_schema::ButtonVariant::Warning => NativeButtonVariant::Warning,
+        component_schema::ButtonVariant::Info => NativeButtonVariant::Info,
+        component_schema::ButtonVariant::Ghost => NativeButtonVariant::Ghost,
+        component_schema::ButtonVariant::Link => NativeButtonVariant::Link,
+        component_schema::ButtonVariant::Text => NativeButtonVariant::Text,
+    }
+}
+
+fn alert_variant(value: component_schema::AlertVariant) -> NativeAlertVariant {
+    match value {
+        component_schema::AlertVariant::Default => NativeAlertVariant::Default,
+        component_schema::AlertVariant::Info => NativeAlertVariant::Info,
+        component_schema::AlertVariant::Success => NativeAlertVariant::Success,
+        component_schema::AlertVariant::Warning => NativeAlertVariant::Warning,
+        component_schema::AlertVariant::Error => NativeAlertVariant::Error,
+    }
+}
+
+fn project_theme(theme: ResolvedTheme, cx: &mut App) {
+    let target = gpui_component::Theme::global_mut(cx);
+    target.mode = if theme.dark {
+        gpui_component::ThemeMode::Dark
+    } else {
+        gpui_component::ThemeMode::Light
+    };
+    let color = |value| -> Hsla { rgba(value).into() };
+    let background = color(theme.background);
+    let text = color(theme.text);
+    let text_muted = color(theme.text_muted);
+    let text_on_accent = color(theme.text_on_accent);
+    let border = color(theme.border);
+    let border_variant = color(theme.border_variant);
+    let border_focused = color(theme.border_focused);
+    let surface = color(theme.surface_background);
+    let element = color(theme.element_background);
+    let element_hover = color(theme.element_hover);
+    let element_active = color(theme.element_active);
+    let accent = color(theme.accent);
+
+    let colors = &mut target.colors;
+    colors.background = background;
+    colors.foreground = text;
+    colors.caret = text;
+    colors.selection = accent.alpha(0.3);
+    colors.muted = element;
+    colors.muted_foreground = text_muted;
+    colors.border = border;
+    colors.input = border_variant;
+    colors.ring = border_focused;
+    colors.accent = element_hover;
+    colors.accent_foreground = text;
+    colors.primary = accent;
+    colors.primary_foreground = text_on_accent;
+    colors.primary_hover = element_hover;
+    colors.primary_active = element_active;
+    colors.button = element;
+    colors.button_foreground = text;
+    colors.button_hover = element_hover;
+    colors.button_active = element_active;
+    colors.popover = surface;
+    colors.popover_foreground = text;
+    colors.tab = surface;
+    colors.tab_bar = element;
+    colors.tab_active = surface;
+    colors.tab_foreground = text_muted;
+    colors.tab_active_foreground = text;
+    colors.drag_border = border_focused;
+    colors.drop_target = accent.alpha(0.2);
+    colors.scrollbar = color(theme.scrollbar_track_background);
+    colors.scrollbar_thumb = color(theme.scrollbar_thumb_background);
+    colors.scrollbar_thumb_hover = border_focused;
+}
+
+static COMPONENTS_EXTENSION: ComponentsExtension = ComponentsExtension;
+static EXTENSIONS: [&dyn NativeExtension; 1] = [&COMPONENTS_EXTENSION];
+static INSTALL: Once = Once::new();
+
+#[unsafe(no_mangle)]
+pub extern "C" fn gpui_dotnet_get_api(requested_version: u32) -> *const GpuiDotnetApiV3 {
+    INSTALL.call_once(|| {
+        install_native_extensions(&EXTENSIONS)
+            .expect("the component host must install its extension registry exactly once");
+    });
+    gpui_dotnet::api(requested_version)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generated_parsers_cover_the_catalog_contract() {
+        assert!(SpinnerConfiguration::parse("medium\nloader\nlinear\n").is_some());
+        assert!(ButtonConfiguration::parse("medium\nprimary\nSave\n\n0\n0\n0\n0\n0\n42").is_some());
+        assert!(ButtonConfiguration::parse("medium\nunknown\nSave\n\n0\n0\n0\n0\n0\n42").is_none());
+        assert!(ProgressConfiguration::parse("medium\nNaN\n0\n\nUpload").is_none());
+    }
+
+    #[test]
+    fn custom_host_advertises_the_component_schema() {
+        let api = gpui_dotnet_get_api(gpui_dotnet::abi::ABI_VERSION);
+        assert!(!api.is_null());
+        let api = unsafe { &*api };
+        let supports = api.supports_extension.unwrap();
+        let id = EXTENSION_ID.as_bytes();
+        assert_eq!(
+            unsafe { supports(id.as_ptr(), id.len() as i32, SCHEMA_VERSION, SCHEMA_HASH) },
+            0
+        );
+        assert_eq!(
+            unsafe {
+                supports(
+                    id.as_ptr(),
+                    id.len() as i32,
+                    SCHEMA_VERSION,
+                    SCHEMA_HASH + 1,
+                )
+            },
+            -82
+        );
+    }
+
+    #[gpui::test]
+    fn provider_installs_component_foundation_and_projects_managed_theme(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        cx.update(|cx| {
+            assert!(!cx.has_global::<gpui_component::Theme>());
+            COMPONENTS_EXTENSION.initialize(cx);
+            assert!(cx.has_global::<gpui_component::Theme>());
+
+            cx.set_global(ResolvedTheme {
+                dark: true,
+                text: 0xF0F4F8FF,
+                accent: 0x4466EEFF,
+                ..Default::default()
+            });
+            COMPONENTS_EXTENSION.apply_theme(cx);
+
+            let projected = gpui_component::Theme::global(cx);
+            assert_eq!(projected.mode, gpui_component::ThemeMode::Dark);
+            assert_eq!(projected.colors.foreground, Hsla::from(rgba(0xF0F4F8FF)));
+            assert_eq!(projected.colors.primary, Hsla::from(rgba(0x4466EEFF)));
+        });
+    }
+}

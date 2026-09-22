@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>Gpui.Components</RootNamespace>
+        <AssemblyName>Gpui.Components</AssemblyName>
+        <PackageId>GPUI.NET.Components.Schema</PackageId>
+        <Description>Optional managed schemas for GPUI.NET gpui-component extensions.</Description>
+        <IsPackable>true</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference
+            Include="../Gpui.Core/Gpui.Core.csproj"
+            AdditionalProperties="BuildGpuiNative=false"
+        />
+        <None Include="schema.json" Pack="true" PackagePath="schema" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Gpui.Tests" />
+    </ItemGroup>
+</Project>

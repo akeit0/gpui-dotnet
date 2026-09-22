@@ -103,7 +103,7 @@ internal sealed partial class EditorSampleView : View
                             )
                             .Gap(Px(4)),
                         ui.Spacer(),
-                        ui.Badge(ui.Text("schema v5"u8))
+                        ui.Badge(ui.Text("schema v6"u8))
                             .Background(theme.Colors.InfoBackground)
                             .TextColor(theme.Colors.Info)
                     )

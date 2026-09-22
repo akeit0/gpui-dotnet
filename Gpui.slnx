@@ -8,9 +8,11 @@
     <Project Path="src/Gpui.Native/Gpui.Native.osx-arm64.csproj" />
     <Project Path="src/Gpui.Generators/Gpui.Generators.csproj" />
     <Project Path="src/Gpui.Editor/Gpui.Editor.csproj" />
+    <Project Path="src/Gpui.Components/Gpui.Components.csproj" />
     <Project Path="tests/Gpui.Tests/Gpui.Tests.csproj" />
     <Project Path="samples/Gpui.Sample/Gpui.Sample.csproj" />
     <Project Path="samples/Gpui.Editor.Sample/Gpui.Editor.Sample.csproj" />
+    <Project Path="samples/Gpui.Components.Sample/Gpui.Components.Sample.csproj" />
     <Project Path="samples/Gpui.Bench/Gpui.Bench.csproj" />
     <Project Path="samples/Gpui.TaskBoard/Gpui.TaskBoard.csproj" />
     <Project Path="samples/Gpui.Wander/Gpui.Wander.csproj" />

@@ -41,11 +41,18 @@ internal sealed record ExtensionSchema(
 
 internal sealed record ExtensionComponent(
     string Kind,
-    string Configuration,
+    ExtensionConfiguration Configuration,
     Dictionary<string, int> Flags,
     Dictionary<string, ExtensionCommand> Commands,
     Dictionary<string, ExtensionEvent> Events
 );
+
+internal sealed record ExtensionConfiguration(
+    string Encoding,
+    List<ExtensionConfigurationField> Fields
+);
+
+internal sealed record ExtensionConfigurationField(string Name, string Type, List<string>? Values);
 
 internal sealed record ExtensionCommand(ushort Id, string Payload, string Revision);
 

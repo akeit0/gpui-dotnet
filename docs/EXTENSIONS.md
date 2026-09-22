@@ -25,8 +25,10 @@ definitions do not enter `bindings/schema.json` and do not change the base seman
 
 `bindings/extensions.json` registers extension schema files and their generated C#/Rust outputs.
 The normal binding generator canonicalizes each schema, derives its independent hash, and emits the
-shared identity, component-kind, flag, command, and event constants. Hand-maintained protocol
-numbers are not part of an extension implementation.
+shared identity, component-kind, flag, command, and event constants. A component's ordered `lines`
+configuration fields also generate an invariant managed encoder plus the matching validating Rust
+parser and enum types. Hand-maintained protocol numbers and duplicate configuration parsers are not
+part of an extension implementation.
 
 Rust providers implement `gpui_dotnet::extension::NativeExtension`. A custom host calls
 `install_native_extensions` once and delegates its `gpui_dotnet_get_api` export to
@@ -101,6 +103,31 @@ commands explicitly. Release packaging remains open work.
 
 The accepted ownership, revision, bootstrap, command, and event design is documented in
 [EDITOR.md](EDITOR.md).
+
+## Optional component catalog
+
+`src/Gpui.Components` is a separate managed schema project paired with the
+`gpui-dotnet-components-host` custom host. It exposes semantic wrappers over official
+`gpui-component` controls without putting that dependency in the default host. C# still owns the
+tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
+interaction.
+
+The first catalog spans eleven common families: Spinner, Skeleton, Separator, Badge, Tag, linear
+and circular Progress, Rating, Button, Alert, and GroupBox. Parent-capable controls receive one
+batched managed child list. Button, Rating, and Alert callbacks use schema-owned event IDs and
+payloads. Resolved GPUI.NET theme roles are projected into the component theme on startup and every
+theme change.
+
+The sample proves the generated configuration contract and custom-host composition:
+
+```sh
+dotnet run --project samples/Gpui.Components.Sample/Gpui.Components.Sample.csproj
+```
+
+This is deliberately a semantic catalog, not a mirror of every Rust builder method. Broader
+coverage should add coherent component families to the schema and provider. Retained data sources,
+editors, overlays, and stateful compound controls need their own coarse ownership contracts rather
+than being forced through a property bag.
 
 ## Packaging guidance
 

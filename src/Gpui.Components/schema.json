@@ -1,0 +1,183 @@
+{
+  "extensionId": "gpui.net.components",
+  "schemaVersion": 1,
+  "components": [
+    {
+      "kind": "spinner",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "icon", "type": "enum", "values": ["loader", "loader_circle"] },
+          { "name": "ease", "type": "enum", "values": ["linear", "ease_in_out", "ease_out_quint"] },
+          { "name": "color", "type": "string" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "skeleton",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [{ "name": "secondary", "type": "bool" }]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "separator",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "orientation", "type": "enum", "values": ["horizontal", "vertical"] },
+          { "name": "dashed", "type": "bool" },
+          { "name": "label", "type": "string" },
+          { "name": "color", "type": "string" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "badge",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "dot", "type": "bool" },
+          { "name": "count", "type": "u32" },
+          { "name": "max", "type": "u32" },
+          { "name": "color", "type": "string" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "tag",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "variant", "type": "enum", "values": ["primary", "secondary", "danger", "success", "warning", "info"] },
+          { "name": "outline", "type": "bool" },
+          { "name": "rounded_full", "type": "bool" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "progress",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "value", "type": "f32" },
+          { "name": "loading", "type": "bool" },
+          { "name": "color", "type": "string" },
+          { "name": "accessibility_label", "type": "string" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "progress_circle",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "value", "type": "f32" },
+          { "name": "loading", "type": "bool" },
+          { "name": "color", "type": "string" },
+          { "name": "accessibility_label", "type": "string" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "rating",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "value", "type": "u32" },
+          { "name": "max", "type": "u32" },
+          { "name": "disabled", "type": "bool" },
+          { "name": "color", "type": "string" },
+          { "name": "changed_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "changed": { "id": 1, "flags": "none", "payload": "value-u32-le", "revision": "none" }
+      }
+    },
+    {
+      "kind": "button",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "variant", "type": "enum", "values": ["default", "primary", "secondary", "danger", "success", "warning", "info", "ghost", "link", "text"] },
+          { "name": "label", "type": "string" },
+          { "name": "accessibility_label", "type": "string" },
+          { "name": "disabled", "type": "bool" },
+          { "name": "selected", "type": "bool" },
+          { "name": "loading", "type": "bool" },
+          { "name": "outline", "type": "bool" },
+          { "name": "compact", "type": "bool" },
+          { "name": "clicked_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "clicked": { "id": 1, "flags": "none", "payload": "none", "revision": "none" }
+      }
+    },
+    {
+      "kind": "alert",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "variant", "type": "enum", "values": ["default", "info", "success", "warning", "error"] },
+          { "name": "title", "type": "string" },
+          { "name": "message", "type": "string" },
+          { "name": "banner", "type": "bool" },
+          { "name": "closed_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "closed": { "id": 1, "flags": "none", "payload": "none", "revision": "none" }
+      }
+    },
+    {
+      "kind": "group_box",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "variant", "type": "enum", "values": ["normal", "fill", "outline"] },
+          { "name": "title", "type": "string" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    }
+  ]
+}

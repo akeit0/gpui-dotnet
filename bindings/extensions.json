@@ -6,6 +6,13 @@
       "rustOutput": "crates/gpui-dotnet/extensions/editor-host/src/editor_schema.g.rs",
       "csharpNamespace": "Gpui.Editor",
       "csharpClass": "EditorSchema"
+    },
+    {
+      "schema": "src/Gpui.Components/schema.json",
+      "csharpOutput": "src/Gpui.Components/ComponentSchema.g.cs",
+      "rustOutput": "crates/gpui-dotnet/extensions/components-host/src/component_schema.g.rs",
+      "csharpNamespace": "Gpui.Components",
+      "csharpClass": "ComponentSchema"
     }
   ]
 }

@@ -26,8 +26,8 @@ schema, and the native ABI may change before a stable release.
 - Native image decoding/caching and vector drawing with paths, fills, strokes, curves, arcs, and
   view boxes.
 - Multiple windows, application menus, system or custom title bars, and native window controls.
-- Build-time native extension hosts with independently versioned managed schemas; the optional
-  editor probe retains Rope, selection, highlighting, undo, scrolling, focus, and IME in Rust.
+- Build-time native extension hosts with independently versioned generated managed/native schemas;
+  optional hosts provide the retained editor and a semantic eleven-family `gpui-component` catalog.
 
 ### Platform support
 
@@ -402,9 +402,11 @@ crates/gpui-dotnet/       Rust native host
 src/Gpui/                 managed public API and runtime sources
 src/Gpui.Core/            platform-neutral package project
 src/Gpui.Editor/          optional editor schema assembly
+src/Gpui.Components/      optional gpui-component catalog schema assembly
 src/Gpui.Native/          RID-specific native package projects
 src/Gpui.Generators/      Roslyn generators for views and list items
 samples/Gpui.Sample/      interactive component gallery
+samples/Gpui.Components.Sample/ optional native component-catalog sample
 tests/Gpui.Tests/         managed contract and generator tests
 tools/                    base/extension binding generator and UI driver
 eng/                      native build, staging, and packaging scripts

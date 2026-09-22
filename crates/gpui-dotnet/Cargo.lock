@@ -2293,6 +2293,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gpui-dotnet-components-host"
+version = "0.3.0-preview.1"
+dependencies = [
+ "gpui-component",
+ "gpui-dotnet",
+ "gpui-pre",
+]
+
+[[package]]
 name = "gpui-dotnet-default-host"
 version = "0.3.0-preview.1"
 dependencies = [

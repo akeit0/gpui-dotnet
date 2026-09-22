@@ -16,6 +16,7 @@
         <ProjectReference Include="../../src/Gpui.Core/Gpui.Core.csproj" />
         <ProjectReference Include="../../src/Gpui.Generators/Gpui.Generators.csproj" />
         <ProjectReference Include="../../src/Gpui.Editor/Gpui.Editor.csproj" />
+        <ProjectReference Include="../../src/Gpui.Components/Gpui.Components.csproj" />
         <ProjectReference Include="../../samples/Gpui.Sample/Gpui.Sample.csproj" />
         <ProjectReference
             Include="../../samples/Gpui.TaskBoard/Gpui.TaskBoard.csproj"
