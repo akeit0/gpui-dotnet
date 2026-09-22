@@ -8,12 +8,13 @@ use gpui::{
     IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, ParentElement,
     StatefulInteractiveElement, Styled, WeakEntity, Window, canvas, div, px,
 };
-use gpui_base::{Align, Placement, PopoverState, Popup};
+use gpui_base::{Align, Placement, PopoverState};
 
 use crate::{
     app_host::ManagedView,
     overlay::{OverlayStack, OverlayToken},
     resources::ResourceKey,
+    side_popup::{SidePopupOptions, side_popup},
 };
 
 #[derive(Clone, Copy)]
@@ -107,14 +108,23 @@ pub(crate) fn popover_menu(
         })
         .child(trigger)
         .child(measurement);
-    let mut popup = Popup::new(menu_id.clone(), host)
-        .placement(Placement::Bottom)
-        .align(Align::Start)
-        .margin(px(configuration.margin))
-        .priority(configuration.priority as usize);
+    let popup_options = SidePopupOptions {
+        placement: Placement::Bottom,
+        align: Align::Start,
+        offset: px(0.),
+        margin: px(configuration.margin),
+        priority: configuration.priority as usize,
+    };
 
     if !state.read(cx).is_open() {
-        return popup.into_any_element();
+        return side_popup(
+            menu_id,
+            host.into_any_element(),
+            None,
+            popup_options,
+            window,
+            cx,
+        );
     }
 
     let focus = state.read(cx).focus_handle(cx);
@@ -133,7 +143,7 @@ pub(crate) fn popover_menu(
     let escape_token = overlay_token;
     let escape_group = group;
     let content = div()
-        .id((menu_id, "content"))
+        .id((menu_id.clone(), "content"))
         .occlude()
         .track_focus(&focus)
         .on_mouse_down_out(move |event: &MouseDownEvent, window, cx| {
@@ -164,8 +174,14 @@ pub(crate) fn popover_menu(
             close_popover_menu(&escape_state, &escape_group, window, cx);
         })
         .child(content);
-    popup = popup.content(content);
-    popup.into_any_element()
+    side_popup(
+        menu_id,
+        host.into_any_element(),
+        Some(content.into_any_element()),
+        popup_options,
+        window,
+        cx,
+    )
 }
 
 fn open_popover_menu(

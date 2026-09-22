@@ -4,9 +4,13 @@ use gpui::{
     AnyElement, App, Context, ElementId, InteractiveElement, IntoElement, MouseButton,
     ParentElement, StatefulInteractiveElement, Styled, Window, div, px,
 };
-use gpui_base::{Align, Placement, Popup};
+use gpui_base::{Align, Placement};
 
-use crate::{app_host::ManagedView, resources::ResourceKey};
+use crate::{
+    app_host::ManagedView,
+    resources::ResourceKey,
+    side_popup::{SidePopupOptions, side_popup},
+};
 
 const TOOLTIP_PRIORITY: usize = 200;
 
@@ -114,39 +118,48 @@ pub(crate) fn tooltip(
             hide_immediately(&pressed_state, window, cx);
         })
         .child(trigger);
-    let mut popup = Popup::new(tooltip_id.clone(), trigger)
-        .placement(foundation_placement(configuration.placement))
-        .align(foundation_alignment(configuration.alignment))
-        .offset(px(configuration.gap))
-        .margin(px(configuration.margin))
-        .priority(TOOLTIP_PRIORITY);
-
-    if state.read(cx).visible {
+    let content = if state.read(cx).visible {
         let content_state = state.clone();
         let content_config = configuration;
         let pressed_state = state.clone();
-        let content = div()
-            .id((tooltip_id, "content"))
-            .occlude()
-            .on_hover(move |hovered, window, cx| {
-                update_hover(
-                    &content_state,
-                    HoverTarget::Content,
-                    *hovered,
-                    content_config,
-                    window,
-                    cx,
-                );
-            })
-            .on_mouse_down(MouseButton::Left, move |_, window, cx| {
-                hide_immediately(&pressed_state, window, cx);
-            })
-            .child(content)
-            .into_any_element();
-        popup = popup.content(content);
-    }
+        Some(
+            div()
+                .id((tooltip_id.clone(), "content"))
+                .occlude()
+                .on_hover(move |hovered, window, cx| {
+                    update_hover(
+                        &content_state,
+                        HoverTarget::Content,
+                        *hovered,
+                        content_config,
+                        window,
+                        cx,
+                    );
+                })
+                .on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                    hide_immediately(&pressed_state, window, cx);
+                })
+                .child(content)
+                .into_any_element(),
+        )
+    } else {
+        None
+    };
 
-    popup.into_any_element()
+    side_popup(
+        tooltip_id,
+        trigger.into_any_element(),
+        content,
+        SidePopupOptions {
+            placement: foundation_placement(configuration.placement),
+            align: foundation_alignment(configuration.alignment),
+            offset: px(configuration.gap),
+            margin: px(configuration.margin),
+            priority: TOOLTIP_PRIORITY,
+        },
+        window,
+        cx,
+    )
 }
 
 fn update_hover(

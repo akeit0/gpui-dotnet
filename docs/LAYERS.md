@@ -70,8 +70,8 @@ item removal, or an omitted tooltip declaration expires it. Mouse press, wheel i
 reaching the root dismisses it without consuming the input. A stale declaration cannot reopen it.
 Tooltip content belongs to the callback's View; high-frequency hover and geometry remain native.
 
-Tooltip and PopoverMenu delegate trigger measurement and viewport-aware positioning to
-`gpui-base` Popup/Positioner. ContextMenu uses the same Positioner for pointer-corner placement and
+Tooltip and PopoverMenu share native trigger measurement and delegate viewport-aware positioning to
+the `gpui-base` Positioner. ContextMenu uses the same Positioner for pointer-corner placement and
 viewport clamping. PopoverMenu and ContextMenu delegate their open/focus/restoration lifecycle to
 foundation PopoverState. Modal Overlay containers register with the foundation FocusTrapElement;
 Dialog and Sheet inherit that behavior because they are managed Overlay compositions.

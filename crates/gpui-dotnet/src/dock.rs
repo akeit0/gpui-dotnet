@@ -722,7 +722,7 @@ fn layout_spec_from_state(
             })
         }
         // A lone leaf where a container belongs wraps into a tab group; any
-        // other shape (including tiles) has no declarative equivalent.
+        // other shape has no declarative equivalent.
         PanelInfo::Panel(value) => {
             let id = value.get("id")?.as_str()?;
             let spec = specs.get(id)?;
@@ -731,7 +731,6 @@ fn layout_spec_from_state(
                 panels: vec![(*spec).clone()],
             })
         }
-        PanelInfo::Tiles { .. } => None,
     }
 }
 
@@ -1130,14 +1129,9 @@ mod tests {
     }
 
     #[test]
-    fn tiles_and_foreign_leaves_do_not_convert() {
+    fn foreign_leaves_do_not_convert() {
         let declared = vec![panel("a", "A", 1)];
         let specs = specs(&declared);
-        let mut state = PanelState::new("Tiles");
-        state.info = PanelInfo::tiles(vec![]);
-        state.children = vec![leaf("a")];
-        assert!(layout_spec_from_state(&state, &specs).is_none());
-
         let mut foreign = PanelState::new("SomethingElse");
         foreign.info = PanelInfo::panel(serde_json::json!({ "other": true }));
         assert!(layout_spec_from_state(&foreign, &specs).is_none());
