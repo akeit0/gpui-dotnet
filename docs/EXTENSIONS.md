@@ -65,11 +65,12 @@ Typed schema packages also bind render-scoped callbacks through `NativeExtension
 decode copied `NativeExtensionEvent` packets into their public event types. Event IDs, flags,
 revisions, and payload layouts remain schema-owned.
 
-## Optional editor probe
+## Editor component
 
 `src/Gpui.Editor` is a separate managed schema project. The
-`gpui-dotnet-editor-host` crate is a separate custom host that registers a retained
-`gpui-component` Editor provider. Neither project is referenced by the `GPUI.NET` or
+`gpui-dotnet-editor-provider` crate contains the retained `gpui-component` Editor provider. The
+single `gpui-dotnet-components-host` registers it alongside the broader component catalog; there is
+no editor-only native host. Neither managed schema project is referenced by the `GPUI.NET` or
 `GPUI.NET.Core` package graph.
 
 The sample proves build-time composition and startup negotiation:
@@ -85,14 +86,14 @@ and selects it explicitly:
 var application = new GpuiApplication(
     new NativeRuntimeOptions
     {
-        LibraryPath = Path.Combine(AppContext.BaseDirectory, "gpui_dotnet_editor.dll"),
+        LibraryPath = Path.Combine(AppContext.BaseDirectory, "gpui_dotnet_components.dll"),
         Extensions = [EditorExtension.Requirement],
     }
 );
 ```
 
-The editor probe retains native Rope, incremental Tree-sitter parse state, selection, scrolling,
-highlighting, undo, focus, and IME state. Its custom host currently bundles only the Rust grammar;
+The Editor component retains native Rope, incremental Tree-sitter parse state, selection, scrolling,
+highlighting, undo, focus, and IME state. The component host currently bundles only the Rust grammar;
 unknown language identifiers render as plain text. Its managed schema exposes language,
 disabled/read-only state, line numbers, optional fixed line-number width, folding, and whitespace
 visibility. `EditorController.Bootstrap` transfers the initial UTF-8 document once, outside render
@@ -112,11 +113,12 @@ The accepted ownership, revision, bootstrap, command, and event design is docume
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The first catalog spans eleven common families: Spinner, Skeleton, Separator, Badge, Tag, linear
-and circular Progress, Rating, Button, Alert, and GroupBox. Parent-capable controls receive one
-batched managed child list. Button, Rating, and Alert callbacks use schema-owned event IDs and
-payloads. Resolved GPUI.NET theme roles are projected into the component theme on startup and every
-theme change.
+The host includes Editor plus eleven common families: Spinner, Skeleton, Separator, Badge, Tag,
+linear and circular Progress, Rating, Button, Alert, and GroupBox. Editor keeps its independently
+versioned `Gpui.Editor` managed schema; applications using both schemas list both requirements, and
+the host advertises and serves both. Parent-capable controls receive one batched managed child list.
+Button, Rating, and Alert callbacks use schema-owned event IDs and payloads. Resolved GPUI.NET theme
+roles are projected into the component theme on startup and every theme change.
 
 The sample proves the generated configuration contract and custom-host composition:
 

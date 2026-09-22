@@ -2298,6 +2298,7 @@ version = "0.3.0-preview.1"
 dependencies = [
  "gpui-component",
  "gpui-dotnet",
+ "gpui-dotnet-editor-provider",
  "gpui-pre",
 ]
 
@@ -2309,7 +2310,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gpui-dotnet-editor-host"
+name = "gpui-dotnet-editor-provider"
 version = "0.3.0-preview.1"
 dependencies = [
  "gpui-component",

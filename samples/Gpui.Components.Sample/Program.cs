@@ -1,5 +1,6 @@
 using Gpui;
 using Gpui.Components;
+using Gpui.Editor;
 using static Gpui.Units;
 
 var hostName =
@@ -10,7 +11,7 @@ var application = new GpuiApplication(
     new NativeRuntimeOptions
     {
         LibraryPath = Path.Combine(AppContext.BaseDirectory, hostName),
-        Extensions = [ComponentsExtension.Requirement],
+        Extensions = [ComponentsExtension.Requirement, EditorExtension.Requirement],
     }
 );
 application.SetTheme(GpuiTheme.CreateDefault(GpuiThemeAppearance.Dark));
@@ -31,12 +32,26 @@ internal sealed partial class ComponentsSampleView : View
     private uint _rating = 3;
     private int _clicks;
     private bool _showAlert = true;
+    private readonly EditorController _editor;
+    private readonly Effect<NoProps> _bootstrapEditor;
 
     public ComponentsSampleView(ViewConstruction context)
-        : base(context) { }
+        : base(context)
+    {
+        _editor = context.CreateEditorController("catalog-editor");
+        _bootstrapEditor = context.Effect<NoProps>(BootstrapEditor);
+    }
+
+    private void BootstrapEditor(EffectScope scope, NoProps input)
+    {
+        _editor.Bootstrap(
+            "// Editor is retained by the same broad component host.\nfn main() {\n    println!(\"gpui-component\");\n}\n"
+        );
+    }
 
     protected override Element Render(ref RenderContext ui)
     {
+        ui.Effect(_bootstrapEditor, default);
         var theme = ui.Theme;
         var button = ui.Button(
             "component-button",
@@ -136,7 +151,10 @@ internal sealed partial class ComponentsSampleView : View
                             )
                         )
                         .Gap(Px(20))
-                        .ItemsCenter()
+                        .ItemsCenter(),
+                    ui.Editor(_editor, new EditorOptions { Language = "rust", LineNumbers = true })
+                        .Height(Px(180))
+                        .Width(Percent(100))
                 )
             )
             .Gap(Px(18))

@@ -25,6 +25,7 @@
             AdditionalProperties="BuildGpuiNative=false"
         />
         <ProjectReference Include="../../src/Gpui.Components/Gpui.Components.csproj" />
+        <ProjectReference Include="../../src/Gpui.Editor/Gpui.Editor.csproj" />
         <ProjectReference
             Include="../../src/Gpui.Generators/Gpui.Generators.csproj"
             OutputItemType="Analyzer"

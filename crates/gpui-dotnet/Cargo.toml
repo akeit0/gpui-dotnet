@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [workspace]
-members = ["hosts/default", "extensions/editor-host", "extensions/components-host"]
+members = ["hosts/default", "extensions/editor-provider", "extensions/components-host"]
 default-members = [".", "hosts/default"]
 resolver = "3"
 

@@ -27,7 +27,7 @@ schema, and the native ABI may change before a stable release.
   view boxes.
 - Multiple windows, application menus, system or custom title bars, and native window controls.
 - Build-time native extension hosts with independently versioned generated managed/native schemas;
-  optional hosts provide the retained editor and a semantic eleven-family `gpui-component` catalog.
+  the broad optional host provides Editor plus eleven semantic `gpui-component` families.
 
 ### Platform support
 

@@ -26,7 +26,7 @@ GPUI.NET semantic IR and native protocol
 GPUI.NET native adapters and retained identity
         │
         ├── gpui-base reusable behavior, retained components, and the local Dock skin
-        ├── selected gpui-component components in custom hosts only (for example the editor host)
+        ├── selected gpui-component components in the optional component host only
         ├── direct GPUI primitives
         └── platform-specific integration
 ```
@@ -49,7 +49,7 @@ Status values are `Complete`, `In progress`, `Planned`, and `Decision pending`.
 | 6. Input | Complete | GPUI.NET retains its single-line editing engine because it preserves the revisioned contiguous UTF-8 event path without per-event native value materialization. The retained root now exposes the foundation-equivalent text-input role. | IME, Unicode, selection, clipboard, focus, commands, revisions, and events reach parity before old behavior is removed. |
 | 7. Scrolling and scrollbar | Complete | Scroll, List, and Table use foundation Scrollbar interaction and paint. GPUI.NET retains wheel smoothing, controller commands, and gutter geometry while seeding GPUI's native ListState with estimated heights for unmeasured items. | Foundation scrollbar behavior is adopted selectively without additional managed/native traffic. |
 | 8. List and Table evaluation | Complete | GPUI.NET retains GPUI `ListState`, managed aligned range batches, stable item identity, structural commands, and table column reconciliation. Foundation scrollbar behavior remains shared. | Migration to foundation `VirtualList` is rejected because its integration cost and ownership tradeoffs do not provide a corresponding API or performance benefit. |
-| 9. Advanced retained components | Complete | DockArea retains a foundation Dock wearing a small in-repo skin (`crates/gpui-dotnet/src/dock_skin.rs`) with stable string panel IDs, declarative center tabs/splits and left/bottom/right regions, ordinary element or child-View content, tab activation, close/zoom controls, collapse affordances, resize handles, and native drag/drop interaction; the default host links `gpui-base` only (14,988,800-byte Windows x64 Release host, no `gpui-component` skin crate or asset provider); the optional Editor probe proves one-shot bootstrap, revisioned UTF-8 deltas, typed commands, and stale-command rejection from its custom host through the extension lifecycle seam; Dock exposes coarse close/layout events, controller close/region/import/export operations, and serialized layout export/import with a documented reconciliation policy. | Advanced components prove stable managed identity, coarse events, native high-frequency interaction, lifecycle, theme integration, optional packaging where appropriate, and no unrelated component families in the default native host. |
+| 9. Advanced retained components | Complete | DockArea retains a foundation Dock wearing a small in-repo skin (`crates/gpui-dotnet/src/dock_skin.rs`) with stable string panel IDs, declarative center tabs/splits and left/bottom/right regions, ordinary element or child-View content, tab activation, close/zoom controls, collapse affordances, resize handles, and native drag/drop interaction; the default host links `gpui-base` only (14,988,800-byte Windows x64 Release host, no `gpui-component` skin crate or asset provider); the optional component host includes Editor and proves one-shot bootstrap, revisioned UTF-8 deltas, typed commands, and stale-command rejection through the extension lifecycle seam; Dock exposes coarse close/layout events, controller close/region/import/export operations, and serialized layout export/import with a documented reconciliation policy. | Advanced components prove stable managed identity, coarse events, native high-frequency interaction, lifecycle, theme integration, optional packaging where appropriate, and no unrelated component families in the default native host. |
 | 10. Cleanup and protocol freeze candidate | Planned | Migration work is complete; the stability review is not yet performed. See [Protocol freeze review](#protocol-freeze-review). | Superseded behavior and protocol paths are removed and the new contract is deliberately reviewed for stability. |
 
 No semantic component is considered migrated merely because the dependency and initializer exist.
@@ -224,7 +224,7 @@ region collapse, drop targeting, focus, and frame-sensitive layout remain native
 
 Rich Editor is separate from the existing single-line Input and from the default package graph.
 The base schema has one generic NativeExtension envelope; `Gpui.Editor` owns the typed managed
-schema, while `gpui-dotnet-editor-host` links the matching provider into a custom host. ABI version
+schema, while `gpui-dotnet-components-host` links the matching provider into the component host. ABI version
 3 negotiates the editor ID, version, and schema hash before startup and routes schema-owned commands.
 The provider retains the native Rope and frame-sensitive editing state. It supports one-shot
 bootstrap, revisioned UTF-8 delta events, focus, revision-checked selection, whole-document
@@ -251,7 +251,7 @@ An equivalent locked Windows x64 Release build established these reference point
 | Local Dock skin on `gpui-base` only | 14,988,800 bytes |
 
 The large boundary was the styled Dock integration, not the initial `gpui-base` adoption and not
-the optional Editor host. Dock made the default host reference `gpui-component` and its
+the optional component host. Dock made the default host reference `gpui-component` and its
 asset crate. The resulting reachable graph included substantially more component, theme,
 Markdown, regular-expression, and parsing code than the Dock contract needs. Bundled component
 assets were a small fraction of the increase. Replacing the full component initializer with minimal
@@ -262,8 +262,8 @@ The Dock skin is now a small in-repo renderer over `gpui-base` (`crates/gpui-dot
 The default host resolves one GPUI type universe through `gpui` plus `gpui-base`, ships no
 `gpui-component` skin crate and no bundled asset provider (the application runs with empty asset
 resolution), and projects the managed theme only into the foundation theme. Broad
-`gpui-component` facilities remain available to custom native hosts that require them, such as the
-optional editor host. A Windows x64 Release build of the split host
+`gpui-component` facilities remain available through the optional component host. A Windows x64
+Release build of the split default host
 (`cargo build -p gpui-dotnet-default-host --release`) measures 14,988,800
 bytes, against 14,127,104 bytes at the pre-Dock reference and 19,929,600 bytes with the styled
 integration: the split recovered most of the roughly 5.8 MB regression, and the remaining roughly
@@ -372,9 +372,8 @@ affected decisions. The agenda, in order:
    accessibility pass tracked in [NEXT_STEPS.md](NEXT_STEPS.md#accessibility), not to the
    Dock slice.
 
-   Dispositions recorded from the current tree (109 native, 7 editor-host, 103 managed tests,
-   all passing; managed tests cover validation, binding, and dispatch, while interaction
-   evidence lives in native tests and the sample):
+   Dispositions recorded from the acceptance suites; managed tests cover validation, binding, and
+   dispatch, while interaction evidence lives in native tests and the samples:
 
    | Family | Disposition | Evidence and notes |
    |---|---|---|
@@ -386,7 +385,7 @@ affected decisions. The agenda, in order:
    | Scrolling | Holds | Native coalescing, gutter, and metric tests behind the retained wheel path and foundation scrollbar paint. |
    | List and Table | Holds | Twenty-four native tests across measurements, splices, refreshes, and telemetry plus managed validation/dispatch tests; `VirtualList` rejection rationale documented. |
    | Dock | Holds | Fourteen native tests including the vertical command/event/persistence integration test plus managed binding/dispatch tests; dependency boundary measured and tree-guarded; keyboard/a11y notes as above. |
-   | Editor probe | Holds at probe scope | Seven native plus fifteen managed tests across bootstrap, revisioned deltas, commands, and rejections; custom-host isolation with provider-owned init/theme. |
+   | Editor component | Holds at probe scope | Native and managed tests cover bootstrap, revisioned deltas, commands, and rejections; component-host isolation retains provider-owned init/theme. |
    | Cross-cutting (criteria 7-8) | Holds | No new fork patches from this work (delta remains the three recorded commits); coarse-batch protocol with trace stages and list telemetry, no per-frame managed crossings. |
 2. **Protocol-question decisions.** Resolve each row of [the remaining protocol
    questions](#remaining-protocol-questions) into a keep/change
@@ -395,7 +394,7 @@ affected decisions. The agenda, in order:
    touches its area reopens that row.
 3. **Superseded-path removal.** Enumerate preview-era paths and remove them: at minimum, decide
    whether full managed render validation remains enabled in Release builds, and graduate or
-   retire the optional editor probe. There is no other known superseded inventory in the tree;
+   retire the Editor component reference implementation. There is no other known superseded inventory in the tree;
    the review must confirm that rather than assume it.
 4. **Carried hardening.** Accessibility and persistence tests for Dock land here if they have
    not landed earlier. This project is in preview: CI keeps its existing gates (format,
@@ -414,11 +413,11 @@ Compatibility remains preview-level until this review is complete and its remova
   managed walk is the fail-fast net that turns malformed snapshots into managed errors
   instead of native undefined behavior, and no measurement shows it as a cost problem worth
   removing. Revisit only with measurements. No code change.
-- **Editor probe (agenda item 3). Retain as the reference probe: neither graduate nor
-  retire.** Its purpose is proving the extension mechanism and custom-host composition,
+- **Editor component (agenda item 3). Retain as the reference implementation: neither graduate nor
+  retire.** Its purpose is proving the extension mechanism and component-host composition,
   which it does under green suites through the provider lifecycle seam. Graduation to a
   supported product requires the editor depth work still tracked in
-  [NEXT_STEPS.md](NEXT_STEPS.md#optional-editor-extension); retiring it would remove the
+  [NEXT_STEPS.md](NEXT_STEPS.md#editor-component); retiring it would remove the
   only end-to-end proof of the extension seam. No code change.
 
 ## Verification

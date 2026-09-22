@@ -3,8 +3,7 @@
 GPUI.NET consumes `gpui-base` from the `external/gpui-kit` submodule and locks the
 complete native dependency graph in `crates/gpui-dotnet/Cargo.lock`. The submodule gitlink is the
 executable fork pin; the reviewable copy of the revision tuple is `crates/native-baseline.toml`.
-Broad `gpui-component` facilities link only into custom hosts that select them, such as the
-optional editor host.
+Broad `gpui-component` facilities link only into the optional component host.
 
 ## GPUI Kit
 
@@ -44,7 +43,7 @@ narrowly scoped fork policy below remains unchanged.
 | Patch | Reason | Upstream status |
 |---|---|---|
 | Side-aware popup positioning | Anchored tooltips and menus need generic placement, alignment, offset, viewport margin, and deferred priority controls. | PR deferred until the GPUI.NET anchored-layer migration validates the API across the remaining components. |
-| Configurable editor line-number width | Hosts embedding the foundation Editor need a stable optional gutter width instead of layout shifts when the document crosses a decimal digit boundary. | PR deferred until the optional editor probe completes interaction validation. |
+| Configurable editor line-number width | Hosts embedding the foundation Editor need a stable optional gutter width instead of layout shifts when the document crosses a decimal digit boundary. | PR deferred until the optional Editor component completes interaction validation. |
 | Rust primitive deprecation cleanup | Enabling Tree-sitter under the current Rust toolchain exposed warnings from importing the deprecated `std::usize` module. | Include with a later editor-related upstream PR. |
 
 Fork-only changes must stay generic, include focused tests when appropriate, and be recorded here

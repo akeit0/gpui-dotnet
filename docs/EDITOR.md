@@ -7,8 +7,9 @@ single-line Input keeps its independent contract.
 ## Current slice
 
 `Gpui.Editor` is a schema-only managed assembly. It provides the typed `ui.Editor` builder and
-references `GPUI.NET.Core`; it carries no native asset. `gpui-dotnet-editor-host` is a custom native
-host that links the base runtime with a retained `gpui-component` Editor provider.
+references `GPUI.NET.Core`; it carries no native asset. The `gpui-dotnet-editor-provider` crate
+implements the retained `gpui-component` Editor and is linked into the single
+`gpui-dotnet-components-host` alongside the wider component catalog.
 
 The current probe supports a one-shot UTF-8 document bootstrap, an initial language identifier,
 disabled/read-only state, line numbers, an optional fixed line-number column width, folding,

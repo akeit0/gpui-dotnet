@@ -1,7 +1,6 @@
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
-    sync::Once,
 };
 
 use gpui::{
@@ -9,25 +8,23 @@ use gpui::{
     Subscription, Window, px, rgba,
 };
 use gpui_component::input::{Editor, EditorState, InputEvent};
-use gpui_dotnet::{
-    abi::GpuiDotnetApiV3,
-    extension::{
-        NativeExtension, NativeExtensionCommand, NativeExtensionDescriptor,
-        NativeExtensionEventEmitter, NativeExtensionRequest, NativeExtensionStore, ResolvedTheme,
-        install_native_extensions,
-    },
+use gpui_dotnet::extension::{
+    NativeExtension, NativeExtensionCommand, NativeExtensionDescriptor, NativeExtensionEventEmitter,
+    NativeExtensionRequest, NativeExtensionStore, ResolvedTheme,
 };
 use ropey::Rope;
 
 #[path = "editor_schema.g.rs"]
 mod editor_schema;
 
+pub use editor_schema::{EXTENSION_ID, SCHEMA_HASH, SCHEMA_VERSION};
+
 use editor_schema::{
     COMPONENT_EDITOR, EDITOR_COMMAND_APPLY_EDIT, EDITOR_COMMAND_BOOTSTRAP, EDITOR_COMMAND_FOCUS,
     EDITOR_COMMAND_REPLACE_DOCUMENT, EDITOR_COMMAND_SET_SELECTION, EDITOR_EVENT_CHANGED,
     EDITOR_EVENT_COMMAND_REJECTED, EDITOR_FLAG_DISABLED, EDITOR_FLAG_FOLDING,
     EDITOR_FLAG_LINE_NUMBERS, EDITOR_FLAG_READ_ONLY, EDITOR_FLAG_SHOW_WHITESPACE,
-    EXTENSION_ID, EditorConfiguration, SCHEMA_HASH, SCHEMA_VERSION,
+    EditorConfiguration,
 };
 
 const EDITOR_CHANGE_ORIGIN_USER: u16 = 0;
@@ -35,7 +32,7 @@ const EDITOR_CHANGE_ORIGIN_COMMAND: u16 = 1;
 const EDITOR_REJECTION_STALE_REVISION: u16 = 1;
 const EDITOR_REJECTION_INVALID_RANGE: u16 = 2;
 
-struct EditorExtension;
+pub struct EditorExtension;
 
 /// Projects resolved managed roles into the component theme the Editor
 /// reads. Previously owned by the base runtime's startup path; it moved here
@@ -255,10 +252,11 @@ impl NativeExtension for EditorExtension {
 
     fn initialize(&self, cx: &mut App) {
         // The editor provider reads the component Theme global. The base
-        // runtime initializes gpui-base only, so this custom host installs
-        // the component foundation itself at startup, before any Editor
-        // materializes.
-        gpui_component::init(cx);
+        // runtime initializes gpui-base only, so the provider ensures the
+        // component foundation exists before any Editor materializes.
+        if !cx.has_global::<gpui_component::Theme>() {
+            gpui_component::init(cx);
+        }
     }
 
     fn apply_theme(&self, cx: &mut App) {
@@ -297,7 +295,7 @@ impl NativeExtension for EditorExtension {
         cx: &mut App,
     ) -> Result<AnyElement, SharedString> {
         if request.resource_key.component_kind() != COMPONENT_EDITOR {
-            return Err("The editor host received an unknown component kind.".into());
+            return Err("The Editor provider received an unknown component kind.".into());
         }
         if !request.children.is_empty() {
             return Err("Editor declarations cannot contain child elements.".into());
@@ -409,7 +407,7 @@ impl NativeExtension for EditorExtension {
                             .and_then(|end| byte_range(resource.state.read(cx).text(), start, end))
                     }),
                 EDITOR_COMMAND_REPLACE_DOCUMENT => Some(0..0),
-                _ => return Err("The editor host received an unknown command.".into()),
+                _ => return Err("The Editor provider received an unknown command.".into()),
             };
             let Some(range) = range else {
                 resource.events.command_rejected(
@@ -452,7 +450,7 @@ impl NativeExtension for EditorExtension {
                     });
                     resource.events.changed(resource.state.read(cx).text());
                 }
-                _ => return Err("The editor host received an unknown command.".into()),
+                _ => return Err("The Editor provider received an unknown command.".into()),
             }
         }
 
@@ -508,18 +506,7 @@ impl NativeExtension for EditorExtension {
     }
 }
 
-static EDITOR_EXTENSION: EditorExtension = EditorExtension;
-static EXTENSIONS: [&dyn NativeExtension; 1] = [&EDITOR_EXTENSION];
-static INSTALL: Once = Once::new();
-
-#[unsafe(no_mangle)]
-pub extern "C" fn gpui_dotnet_get_api(requested_version: u32) -> *const GpuiDotnetApiV3 {
-    INSTALL.call_once(|| {
-        install_native_extensions(&EXTENSIONS)
-            .expect("the editor host must install its extension registry exactly once");
-    });
-    gpui_dotnet::api(requested_version)
-}
+pub static EDITOR_EXTENSION: EditorExtension = EditorExtension;
 
 #[cfg(test)]
 mod tests {
@@ -553,7 +540,7 @@ mod tests {
     }
 
     #[test]
-    fn custom_host_bundles_rust_highlighting_and_allows_plain_text_fallback() {
+    fn provider_bundles_rust_highlighting_and_allows_plain_text_fallback() {
         let registry = gpui_component::highlighter::LanguageRegistry::singleton();
         assert!(
             registry
@@ -588,69 +575,6 @@ mod tests {
         assert_eq!(u64::from_le_bytes(payload[20..28].try_into().unwrap()), 4);
         assert_eq!(u64::from_le_bytes(payload[28..36].try_into().unwrap()), 3);
         assert_eq!(&payload[36..], "界".as_bytes());
-    }
-
-    #[test]
-    fn custom_host_advertises_editor_schema() {
-        let api = gpui_dotnet_get_api(gpui_dotnet::abi::ABI_VERSION);
-        assert!(!api.is_null());
-        let api = unsafe { &*api };
-        let supports = api.supports_extension.unwrap();
-        let id = EXTENSION_ID.as_bytes();
-        assert_eq!(
-            unsafe { supports(id.as_ptr(), id.len() as i32, SCHEMA_VERSION, SCHEMA_HASH) },
-            0
-        );
-        assert_eq!(
-            unsafe {
-                supports(
-                    id.as_ptr(),
-                    id.len() as i32,
-                    SCHEMA_VERSION,
-                    SCHEMA_HASH + 1,
-                )
-            },
-            -82
-        );
-    }
-
-    #[test]
-    fn custom_host_validates_editor_commands_before_view_routing() {
-        let api = gpui_dotnet_get_api(gpui_dotnet::abi::ABI_VERSION);
-        let api = unsafe { api.as_ref() }.expect("matching ABI must return a valid API table");
-        let dispatch = api.dispatch_extension_command.unwrap();
-        let extension_id = EXTENSION_ID.as_bytes();
-        let component_kind = COMPONENT_EDITOR.as_bytes();
-        let key = b"document";
-        let payload = b"hello\0world";
-        let mut command = gpui_dotnet::abi::NativeExtensionCommand {
-            owner_view: 7,
-            command: EDITOR_COMMAND_BOOTSTRAP,
-            flags: 0,
-            schema_version: SCHEMA_VERSION,
-            reserved: 0,
-            schema_hash: SCHEMA_HASH,
-            expected_revision: 0,
-            extension_id: extension_id.as_ptr(),
-            extension_id_length: extension_id.len() as i32,
-            component_kind: component_kind.as_ptr(),
-            component_kind_length: component_kind.len() as i32,
-            key: key.as_ptr(),
-            key_length: key.len() as i32,
-            payload: payload.as_ptr(),
-            payload_length: payload.len() as i32,
-        };
-
-        assert_eq!(unsafe { dispatch(u64::MAX - 1, &command) }, -30);
-        command.command = 99;
-        assert_eq!(unsafe { dispatch(u64::MAX - 1, &command) }, -85);
-    }
-
-    #[test]
-    fn custom_host_rejects_older_abi_versions() {
-        for version in 0..gpui_dotnet::abi::ABI_VERSION {
-            assert!(gpui_dotnet_get_api(version).is_null());
-        }
     }
 
     /// The regression the default-host split introduced: the shared runtime

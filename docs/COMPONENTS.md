@@ -9,8 +9,7 @@ Checkbox, and Radio use foundation primitives for activation, focus, keyboard, a
 disabled behavior. Dock wears a small in-repo skin over the foundation layout engine, so the
 default host links no styled component facade. Other adapters remain direct GPUI or GPUI.NET
 implementations until their behavior families meet the migration parity criteria. Broad
-`gpui-component` facilities link only into custom hosts that select them, such as the optional
-editor host.
+`gpui-component` facilities link only into the optional component host.
 
 ## Component classes
 

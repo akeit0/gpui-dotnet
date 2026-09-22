@@ -34,7 +34,7 @@ mv "$cargo_toml.tmp" "$cargo_toml"
 
 echo "Updated Directory.Build.props and Cargo workspace version to $version."
 
-cargo update --manifest-path "$root/crates/gpui-dotnet/Cargo.toml" -p gpui-dotnet -p gpui-dotnet-default-host -p gpui-dotnet-editor-host
+cargo update --manifest-path "$root/crates/gpui-dotnet/Cargo.toml" -p gpui-dotnet -p gpui-dotnet-default-host -p gpui-dotnet-editor-provider -p gpui-dotnet-components-host
 
 "$root/eng/check-version.sh"
 echo "Bumped to $version. Verify with 'dotnet run --project tools/Gpui.Bindings.Generator -- verify' and commit the change before tagging."

@@ -95,7 +95,8 @@ Rust crates are not published, so their versions exist only to keep diagnostics 
 share one Cargo workspace version instead of repeating it per crate:
 
 - `crates/gpui-dotnet/Cargo.toml` defines `[workspace.package] version`.
-- the root, `hosts/default`, and `extensions/editor-host` packages all use
+- the root, `hosts/default`, `extensions/editor-provider`, and `extensions/components-host`
+  packages all use
   `version.workspace = true`.
 - `crates/gpui-dotnet/Cargo.lock` is generated; refresh it with Cargo after every bump.
 

@@ -44,7 +44,7 @@ Write-Text $cargoPath $cargo
 Write-Host "Updated Directory.Build.props and Cargo workspace version to $Version."
 
 $manifest = Join-Path $root 'crates/gpui-dotnet/Cargo.toml'
-& cargo update --manifest-path $manifest -p gpui-dotnet -p gpui-dotnet-default-host -p gpui-dotnet-editor-host 2>&1 | Write-Host
+& cargo update --manifest-path $manifest -p gpui-dotnet -p gpui-dotnet-default-host -p gpui-dotnet-editor-provider -p gpui-dotnet-components-host 2>&1 | Write-Host
 if ($LASTEXITCODE -ne 0) {
     throw "cargo update failed. Refresh Cargo.lock with 'cargo metadata --manifest-path crates/gpui-dotnet/Cargo.toml' and retry."
 }

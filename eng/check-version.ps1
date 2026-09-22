@@ -24,7 +24,7 @@ if ([string]::IsNullOrWhiteSpace($workspaceVersion)) {
     Fail "Cargo workspace version '$workspaceVersion' does not match Directory.Build.props '$version'."
 }
 
-foreach ($member in @('hosts/default', 'extensions/editor-host')) {
+foreach ($member in @('hosts/default', 'extensions/editor-provider', 'extensions/components-host')) {
     $memberToml = Get-Content -LiteralPath (Join-Path $root "crates/gpui-dotnet/$member/Cargo.toml") -Raw
     if ($memberToml -match '(?m)^version\s*=\s*"') {
         Fail "crates/gpui-dotnet/$member/Cargo.toml sets an explicit version; use 'version.workspace = true'."
@@ -39,7 +39,7 @@ if ($cargoRoot -notmatch '(?m)^version\.workspace\s*=\s*true') {
 }
 
 $lock = Get-Content -LiteralPath (Join-Path $root 'crates/gpui-dotnet/Cargo.lock') -Raw
-foreach ($name in @('gpui-dotnet', 'gpui-dotnet-default-host', 'gpui-dotnet-editor-host')) {
+foreach ($name in @('gpui-dotnet', 'gpui-dotnet-default-host', 'gpui-dotnet-editor-provider', 'gpui-dotnet-components-host')) {
     $pattern = "(?ms)\[\[package\]\]\s*name\s*=\s*`"$name`"\s*version\s*=\s*`"([^`"]+)`""
     $match = [regex]::Match($lock, $pattern)
     if (-not $match.Success) {

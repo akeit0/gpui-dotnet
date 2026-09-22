@@ -22,6 +22,7 @@ use gpui_dotnet::{
         ResolvedTheme, install_native_extensions,
     },
 };
+use gpui_dotnet_editor_provider::EDITOR_EXTENSION;
 
 #[path = "component_schema.g.rs"]
 mod component_schema;
@@ -464,7 +465,7 @@ fn project_theme(theme: ResolvedTheme, cx: &mut App) {
 }
 
 static COMPONENTS_EXTENSION: ComponentsExtension = ComponentsExtension;
-static EXTENSIONS: [&dyn NativeExtension; 1] = [&COMPONENTS_EXTENSION];
+static EXTENSIONS: [&dyn NativeExtension; 2] = [&COMPONENTS_EXTENSION, &EDITOR_EXTENSION];
 static INSTALL: Once = Once::new();
 
 #[unsafe(no_mangle)]
@@ -489,7 +490,7 @@ mod tests {
     }
 
     #[test]
-    fn custom_host_advertises_the_component_schema() {
+    fn component_host_advertises_all_bundled_schemas() {
         let api = gpui_dotnet_get_api(gpui_dotnet::abi::ABI_VERSION);
         assert!(!api.is_null());
         let api = unsafe { &*api };
@@ -509,6 +510,19 @@ mod tests {
                 )
             },
             -82
+        );
+
+        let editor_id = gpui_dotnet_editor_provider::EXTENSION_ID.as_bytes();
+        assert_eq!(
+            unsafe {
+                supports(
+                    editor_id.as_ptr(),
+                    editor_id.len() as i32,
+                    gpui_dotnet_editor_provider::SCHEMA_VERSION,
+                    gpui_dotnet_editor_provider::SCHEMA_HASH,
+                )
+            },
+            0
         );
     }
 

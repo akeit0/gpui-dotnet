@@ -71,10 +71,10 @@ Harden the single-line Input independently of the optional editor extension:
 - a controlled-binding helper using revision-aware replacement that avoids destructive edit echoes;
 - IME and clipboard integration tests on every desktop platform.
 
-## Optional editor extension
+## Editor component
 
-Build on the separate `Gpui.Editor` schema and `gpui-dotnet-editor-host` runtime probe only where it
-validates reusable extension behavior:
+Build on the separate `Gpui.Editor` schema and its provider in `gpui-dotnet-components-host` only
+where it validates reusable extension behavior:
 
 - optional undo/redo and multi-edit commands if an application needs them;
 - managed reconciliation helpers for applying revisioned UTF-8 edits and handling stale commands;
