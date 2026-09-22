@@ -4,10 +4,9 @@ use std::{
     sync::Arc,
 };
 
-use futures::FutureExt as _;
 use gpui::{
-    App, AppContext as _, Asset as _, AssetLogger, Entity, ImageAssetLoader, ImageCache,
-    ImageCacheError, ImageCacheItem, RenderImage, Resource, Window, hash,
+    App, AppContext as _, Entity, ImageCache, ImageCacheError, ImageCacheItem, RenderImage,
+    Resource, Window, hash,
 };
 
 use crate::{
@@ -104,7 +103,7 @@ impl ManagedImageCache {
             max_spill_entries: DEFAULT_MAX_SPILL_ENTRIES,
         });
         cx.observe_release(&entity, |cache, cx| {
-            for (_, mut item) in std::mem::take(&mut cache.entries) {
+            for (_, item) in std::mem::take(&mut cache.entries) {
                 if let Some(Ok(image)) = item.get() {
                     cx.drop_image(image, None);
                 }
@@ -170,30 +169,17 @@ impl ManagedImageCache {
     ) -> Option<Result<Arc<RenderImage>, ImageCacheError>> {
         self.apply_global_budget();
         let key = hash(source);
-        if let Some(item) = self.entries.get_mut(&key) {
-            let cached = item.get();
+        if let Some(item) = self.entries.get(&key) {
+            let cached = item.use_image(window);
             self.touch(key);
             return cached;
         }
 
-        let asset = AssetLogger::<ImageAssetLoader>::load(source.clone(), cx);
-        let task = cx.background_executor().spawn(asset).shared();
-        self.entries
-            .insert(key, ImageCacheItem::Loading(task.clone()));
+        let item = ImageCacheItem::new(source, cx);
+        let loaded = item.use_image(window);
+        self.entries.insert(key, item);
         self.touch(key);
-
-        let view = window.current_view();
-        window
-            .spawn(cx, {
-                async move |cx| {
-                    _ = task.await;
-                    cx.on_next_frame(move |_, cx| {
-                        cx.notify(view);
-                    });
-                }
-            })
-            .detach();
-        None
+        loaded
     }
 
     /// Reconciles the cache against the snapshot's live set. Live images stay pinned with
@@ -231,7 +217,7 @@ impl ManagedImageCache {
             let Some(key) = self.oldest_spilled(live) else {
                 break;
             };
-            if let Some(mut item) = self.entries.remove(&key) {
+            if let Some(item) = self.entries.remove(&key) {
                 if let Some(position) = self.order.iter().position(|candidate| *candidate == key) {
                     self.order.remove(position);
                 }
@@ -270,7 +256,7 @@ impl ManagedImageCache {
         cx: &mut App,
     ) -> bool {
         let key = hash(source);
-        let Some(mut item) = self.entries.remove(&key) else {
+        let Some(item) = self.entries.remove(&key) else {
             return false;
         };
         if let Some(position) = self.order.iter().position(|candidate| *candidate == key) {
@@ -300,7 +286,7 @@ impl ManagedImageCache {
         source: &Resource,
     ) -> Option<Result<Arc<RenderImage>, ImageCacheError>> {
         self.entries
-            .get_mut(&hash(source))
+            .get(&hash(source))
             .and_then(ImageCacheItem::get)
     }
 }
@@ -553,7 +539,7 @@ mod tests {
     }
 
     #[gpui::test]
-    fn zero_byte_budget_evicts_pending_spills_but_keeps_live_entries(
+    fn zero_byte_budget_evicts_zero_cost_spills_but_keeps_live_entries(
         cx: &mut gpui::TestAppContext,
     ) {
         let _serial = serial();
@@ -567,14 +553,10 @@ mod tests {
             cache.update(cx, |cache, cx| {
                 for max_entries in [0, 64] {
                     cache.set_budget(0, max_entries);
-                    for key in [11_u64, 22] {
-                        let task = cx
-                            .background_executor()
-                            .spawn(futures::future::pending::<
-                                Result<Arc<RenderImage>, ImageCacheError>,
-                            >())
-                            .shared();
-                        cache.entries.insert(key, ImageCacheItem::Loading(task));
+                    for (key, name) in [(11_u64, "missing-live.bmp"), (22, "missing-spill.bmp")] {
+                        cache
+                            .entries
+                            .insert(key, ImageCacheItem::new(&image_resource(name), cx));
                         cache.touch(key);
                     }
                     let live = [11_u64].into_iter().collect();

@@ -31,6 +31,7 @@ mod scrolling;
 #[path = "semantic.g.rs"]
 mod semantic;
 mod shortcuts;
+mod side_popup;
 mod slider;
 mod snapshot;
 mod theme;

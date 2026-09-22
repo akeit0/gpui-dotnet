@@ -9,10 +9,6 @@
 //! recovered from [`ManagedDockPanel`](crate::dock::ManagedDockPanel) through
 //! the same object-safe downcast the foundation documents.
 //!
-//! Tiles canvases are unreachable through the managed schema (layouts describe
-//! only splits and tab groups), so their renderer draws titles and close
-//! controls without move/resize gestures.
-
 /// Names the drop-target overlay in the debug-bounds map, so tests can ask a
 /// really-drawn frame whether a hovered group previewed its drop rect.
 pub(crate) const DROP_PREVIEW_SELECTOR: &str = "gpui-dotnet-drop-preview";
@@ -27,8 +23,7 @@ use gpui::{
 };
 use gpui_base::dock::{
     AnyDrag, DockArea, DockAreaRenderer, DockContext, DockPlacement, DragPanel, DropIndicator,
-    NodeId, PaneNode, PaneRef, PanelView, TabGroupContext, TabGroupRenderer, TileContext,
-    TilesRenderer,
+    NodeId, PaneNode, PaneRef, PanelView, TabGroupContext, TabGroupRenderer,
 };
 
 use crate::{
@@ -113,10 +108,6 @@ impl DockAreaRenderer for GpuiDotnetDockSkin {
         Rc::new(TabGroupSkin {
             shared: self.shared.clone(),
         })
-    }
-
-    fn tiles_renderer(&self) -> Rc<dyn TilesRenderer> {
-        Rc::new(TilesSkin)
     }
 }
 
@@ -464,7 +455,6 @@ fn left_top_group(node: &PaneNode) -> Option<NodeId> {
     match node.kind() {
         PaneRef::Tabs { .. } => Some(node.id()),
         PaneRef::Split { children, .. } => children.first().and_then(left_top_group),
-        PaneRef::Tiles { .. } => None,
     }
 }
 
@@ -476,7 +466,6 @@ fn right_top_group(node: &PaneNode) -> Option<NodeId> {
             Axis::Horizontal => children.last(),
         }
         .and_then(right_top_group),
-        PaneRef::Tiles { .. } => None,
     }
 }
 
@@ -488,7 +477,7 @@ fn tree_contains(node: &PaneNode, target: NodeId) -> bool {
         PaneRef::Split { children, .. } => {
             children.iter().any(|child| tree_contains(child, target))
         }
-        PaneRef::Tabs { .. } | PaneRef::Tiles { .. } => false,
+        PaneRef::Tabs { .. } => false,
     }
 }
 
@@ -672,50 +661,6 @@ impl TabGroupRenderer for TabGroupSkin {
                 .debug_selector(|| DROP_PREVIEW_SELECTOR.to_string())
                 .into_any_element(),
         )
-    }
-}
-
-struct TilesSkin;
-
-impl TilesRenderer for TilesSkin {
-    fn render_drag_bar(&self, tile: &TileContext, _: &mut Window, cx: &mut App) -> AnyElement {
-        let tokens = gpui_base::Theme::global(cx).tokens;
-        let mut bar = div()
-            .flex()
-            .flex_row()
-            .items_center()
-            .justify_between()
-            .h(px(28.))
-            .w_full()
-            .px(px(8.))
-            .bg(tokens.colors.muted)
-            .text_color(tokens.colors.foreground)
-            .text_sm()
-            .child(panel_title(tile.panel(), cx));
-        if tile.is_closable() {
-            let tile = tile.clone();
-            bar = bar.child(
-                div()
-                    .id("gpui-dotnet-tile-close")
-                    .flex_shrink_0()
-                    .w(px(18.))
-                    .h(px(18.))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .cursor_pointer()
-                    .on_click(move |_, window, cx| {
-                        cx.stop_propagation();
-                        tile.close(window, cx);
-                    })
-                    .child(icon(
-                        DockIcon::Close,
-                        tokens.colors.muted_foreground,
-                        px(12.),
-                    )),
-            );
-        }
-        bar.into_any_element()
     }
 }
 

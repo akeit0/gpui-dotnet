@@ -140,5 +140,4 @@ tabs, region placement and open state) from such a document while panel content,
 options always come from the live declaration, joined by panel id. Persisted panels unknown to
 the declaration are pruned; declared panels missing from the document are appended to the center,
 so an import never silently drops live content; lock state always comes from the declaration.
-Tiles subtrees have no managed declaration and are skipped on import. Tab chrome carries no
-accessibility roles yet; that belongs to the planned accessibility pass.
+Tab chrome carries no accessibility roles yet; that belongs to the planned accessibility pass.
