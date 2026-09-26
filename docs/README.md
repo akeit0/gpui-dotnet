@@ -31,7 +31,7 @@ Start with the repository [README](../README.md) for setup and a small applicati
 | [Binding generation](BINDING_GENERATION.md) | Schema ownership, ID allocation, generators |
 | [Semantic IDs](SEMANTIC_IDS.md) | Generated component, operation, command, and event catalog |
 | [Extensions](EXTENSIONS.md) | Independently versioned native providers |
-| [Editor](EDITOR.md) | Optional editor integration |
+| [Editor example](EDITOR.md) | Retained extension contract example |
 | [Packaging](PACKAGING.md) | Package graph and native assets |
 | [Performance](PERFORMANCE.md) | Measurement tools and recorded evidence |
 | [Image cache](IMAGE_CACHE.md) | Image decoding, budgets, eviction, framework comparison |

@@ -158,8 +158,8 @@ It also preserves keyed retained identity, declarative-initial-value semantics, 
 focus commands, and revisioned changed/submitted/focus events. The retained root now declares the
 `TextInput` accessibility role used by the foundation frame. No ABI or schema change is required.
 
-Richer editor behavior such as word navigation, undo/redo, and multiline editing remains separate
-roadmap work rather than grounds to replace the stable single-line ABI contract.
+The native single-line Input now supports word navigation and undo/redo. Multiline editing remains
+outside that base contract; the optional Editor is one extension example.
 
 ## Scrolling and scrollbar decision
 
@@ -217,15 +217,16 @@ active indices, panel IDs, region placement, or container structure change. Cons
 frames do not call managed code, and ordinary managed invalidation does not undo native tab moves,
 split sizes, or side-region open state.
 
-The current slice deliberately has no Dock command or event ABI. Persistence, tiles, programmatic
-layout operations, close/layout-change events, and application reconciliation policy must be
-designed together rather than exposing foundation entities piecemeal. Pointer dragging, resizing,
-region collapse, drop targeting, focus, and frame-sensitive layout remain native.
+Dock exposes coarse close/layout events and controller close, region, import, and export commands.
+The managed declaration reconciles imported layout with the current panel set. Tiles remain
+undeclared. Pointer dragging, resizing, region collapse, drop targeting, focus, and frame-sensitive
+layout remain native.
 
-Rich Editor is separate from the existing single-line Input and from the default package graph.
-The base schema has one generic NativeExtension envelope; `Gpui.Editor` owns the typed managed
-schema, while `gpui-dotnet-components-host` links the matching provider into the component host. ABI version
-3 negotiates the editor ID, version, and schema hash before startup and routes schema-owned commands.
+The Editor example is separate from the existing single-line Input and from the default package
+graph. The base schema has one generic NativeExtension envelope; `Gpui.Editor` owns the example's
+typed managed schema, while `gpui-dotnet-components-host` links its provider with the catalog. The
+native API negotiates its ID, version, and schema hash before startup and routes schema-owned
+commands.
 The provider retains the native Rope and frame-sensitive editing state. It supports one-shot
 bootstrap, revisioned UTF-8 delta events, focus, revision-checked selection, whole-document
 replacement, one contiguous edit, and explicit stale/range rejection events. This deliberately
@@ -413,12 +414,10 @@ Compatibility remains preview-level until this review is complete and its remova
   managed walk is the fail-fast net that turns malformed snapshots into managed errors
   instead of native undefined behavior, and no measurement shows it as a cost problem worth
   removing. Revisit only with measurements. No code change.
-- **Editor component (agenda item 3). Retain as the reference implementation: neither graduate nor
-  retire.** Its purpose is proving the extension mechanism and component-host composition,
-  which it does under green suites through the provider lifecycle seam. Graduation to a
-  supported product requires the editor depth work still tracked in
-  [NEXT_STEPS.md](NEXT_STEPS.md#editor-component); retiring it would remove the
-  only end-to-end proof of the extension seam. No code change.
+- **Editor example (agenda item 3). Retain as an extension contract example.** It proves retained
+  state, commands, events, and component-host composition through the provider lifecycle seam.
+  Further editor depth is driven by a consuming application's needs rather than the catalog's
+  structure. See [optional component work](NEXT_STEPS.md#optional-component-extension).
 
 ## Verification
 

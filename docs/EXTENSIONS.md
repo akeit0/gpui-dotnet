@@ -67,46 +67,6 @@ Typed schema packages also bind render-scoped callbacks through `NativeExtension
 decode copied `NativeExtensionEvent` packets into their public event types. Event IDs, flags,
 revisions, and payload layouts remain schema-owned.
 
-## Editor component
-
-`src/Gpui.Editor` is a separate managed schema project. The
-`gpui-dotnet-editor-provider` crate contains the retained `gpui-component` Editor provider. The
-single `gpui-dotnet-components-host` registers it alongside the broader component catalog; there is
-no editor-only native host. Neither managed schema project is referenced by the `GPUI.NET` or
-`GPUI.NET.Core` package graph.
-
-The sample proves build-time composition and startup negotiation:
-
-```sh
-dotnet run --project samples/Gpui.Editor.Sample/Gpui.Editor.Sample.csproj
-```
-
-Its project builds the custom host, copies the uniquely named native library beside the executable,
-and selects it explicitly:
-
-```csharp
-var application = new GpuiApplication(
-    new NativeRuntimeOptions
-    {
-        LibraryPath = Path.Combine(AppContext.BaseDirectory, "gpui_dotnet_components.dll"),
-        Extensions = [EditorExtension.Requirement],
-    }
-);
-```
-
-The Editor component retains native Rope, incremental Tree-sitter parse state, selection, scrolling,
-highlighting, undo, focus, and IME state. The component host currently bundles only the Rust grammar;
-unknown language identifiers render as plain text. Its managed schema exposes language,
-disabled/read-only state, line numbers, optional fixed line-number width, folding, and whitespace
-visibility. `EditorController.Bootstrap` transfers the initial UTF-8 document once, outside render
-snapshots. Typed commands cover focus and
-revision-checked selection, whole-document replacement, and one contiguous edit. Opt-in callbacks
-report native edits as minimal contiguous UTF-8 replacements and report stale or invalid-range
-commands explicitly. Release packaging remains open work.
-
-The accepted ownership, revision, bootstrap, command, and event design is documented in
-[EDITOR.md](EDITOR.md).
-
 ## Optional component catalog
 
 `src/Gpui.Components` is a separate managed schema project paired with the
@@ -115,16 +75,21 @@ The accepted ownership, revision, bootstrap, command, and event design is docume
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes Editor plus thirty-six component families. Display and content coverage includes
-Spinner, Skeleton, Separator, Badge, Tag, linear and circular Progress, Alert, GroupBox, Label, Kbd,
-Avatar, Icon, ShimmerText, Attachment, Empty, StatusBar, Bubble, BubbleGroup, Message,
-MessageGroup, Marker, and DescriptionList. Interactive and controlled coverage includes Rating,
-Button, Link, Switch, Checkbox, Radio, Toggle, Pagination, Collapsible, Toolbar, ToolbarGroup,
-Breadcrumb, and Tabs.
-Editor keeps its independently versioned
-`Gpui.Editor` managed schema; applications using both schemas list both requirements, and the host
-advertises and serves both. Parent-capable controls receive one batched managed child list. Native
-callbacks use schema-owned event IDs and payloads, while current values remain managed-authoritative.
+The host includes thirty-six catalog families plus Editor, a retained extension example. Display
+and content coverage includes Spinner, Skeleton, Separator, Badge, Tag, linear and circular
+Progress, Alert, GroupBox, Label, Kbd, Avatar, Icon, ShimmerText, Attachment, Empty, StatusBar,
+Bubble, BubbleGroup, Message, MessageGroup, Marker, and DescriptionList. Interactive and
+controlled coverage includes Rating, Button, Link, Switch, Checkbox, Radio, Toggle, Pagination,
+Collapsible, Toolbar, ToolbarGroup, Breadcrumb, and Tabs.
+
+The Editor example uses its own schema within the same host to exercise bootstrap, retained state,
+revisioned commands, and native edit events. Its separate schema is an example of the extension
+contract, not a requirement to split every component family or host. Applications using both
+schemas list both requirements. The [Editor contract](EDITOR.md) records the example's behavior;
+the [Editor sample](../samples/Gpui.Editor.Sample/README.md) contains its run instructions.
+
+Parent-capable controls receive one batched managed child list. Native callbacks use schema-owned
+event IDs and payloads, while current values remain managed-authoritative.
 Resolved GPUI.NET theme roles are projected into the component theme on startup and every theme
 change.
 

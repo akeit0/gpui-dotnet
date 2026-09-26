@@ -29,8 +29,7 @@ GPUI applications need it; do not maintain a GPUI fork or expose unsupported rol
 
 ## Native host packaging
 
-- keep editor providers, grammars, and other optional runtime families exclusive to their custom
-  hosts;
+- keep optional providers, grammars, and assets exclusive to the custom hosts that use them;
 - evaluate Thin LTO and one release codegen unit against build time and frame-sensitive runtime
   performance before enabling them in packaging.
 
@@ -57,25 +56,12 @@ declarations that compose with scoped commands and focus targets; do not restart
 
 ## Input
 
-Harden the single-line Input independently of the optional editor extension:
+Harden the single-line Input independently of the optional component Editor example:
 
 - touch selection handles and edit menu;
 - accessible validation/help/error relationships for field compositions;
 - a controlled-binding helper using revision-aware replacement that avoids destructive edit echoes;
 - IME and clipboard integration tests on every desktop platform.
-
-## Editor component
-
-Build on the separate `Gpui.Editor` schema and its provider in `gpui-dotnet-components-host` only
-where it validates reusable extension behavior:
-
-- optional undo/redo and multi-edit commands if an application needs them;
-- managed reconciliation helpers for applying revisioned UTF-8 edits and handling stale commands;
-- runtime language/highlighter changes and explicit unsupported-language behavior;
-- use native edit deltas for small edits if large-document measurements show full-document
-  comparison dominates; preserve revision checks and UTF-8 boundaries;
-- RID runtime packages and clean-consumer tests that never require Cargo;
-- IME, clipboard, undo, large-document, accessibility, and cross-platform behavior tests.
 
 ## Optional component extension
 
@@ -88,6 +74,10 @@ Build on the generated `Gpui.Components` schema and `gpui-dotnet-components-host
   overlay, and compound state families instead of encoding callbacks or per-frame state in config;
 - add RID runtime packages, clean-consumer coverage, accessibility tests, and cross-platform visual
   behavior verification.
+
+The retained Editor remains a contract example within the component host. Extend its language,
+edit-command, and large-document behavior when a consuming application requires it; the current
+probe does not set the catalog's structure or delivery priority.
 
 Do not claim inventory-complete coverage from constructor names alone. Each addition needs native
 materialization, managed semantics, theme behavior, event lifetime, and ownership tests.

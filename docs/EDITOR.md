@@ -1,14 +1,15 @@
-# Optional editor extension
+# Retained editor extension example
 
-The rich text editor is an optional component family, separate from the default GPUI.NET managed
-and native hosts. This document defines its ownership and protocol direction. The existing
-single-line Input keeps its independent contract.
+The rich text editor exercises retained state, commands, events, and bootstrap through the optional
+gpui-component extension contract. It is one component example in the combined component host,
+not a separate host or a priority that determines the rest of the catalog's structure. The existing
+single-line Input keeps its independent base contract.
 
 ## Current slice
 
 `Gpui.Editor` is a schema-only managed assembly. It provides the typed `ui.Editor` builder and
 references `GPUI.NET.Core`; it carries no native asset. The `gpui-dotnet-editor-provider` crate
-implements the retained `gpui-component` Editor and is linked into the single
+implements the retained `gpui-component` Editor and is linked into
 `gpui-dotnet-components-host` alongside the wider component catalog.
 
 The current probe supports a one-shot UTF-8 document bootstrap, an initial language identifier,
