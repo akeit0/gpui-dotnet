@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 12u;
-    internal const ulong SchemaHash = 0x1819D8A9591D88B9UL;
+    internal const uint SchemaVersion = 13u;
+    internal const ulong SchemaHash = 0xE31E78AA34968A67UL;
 
     internal static class Attachment
     {
@@ -1259,6 +1259,35 @@ internal static class ComponentSchema
             }
             var itemDisabledValue = itemDisabledBuilder.ToString();
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{variantValue}\n{labelsValue}\n{itemIdsValue}\n{itemDisabledValue}\n{selectedId}\n{(hasSelection ? 1 : 0)}\n{(overflowMenu ? 1 : 0)}\n{selectedEvent}");
+        }
+    }
+
+    internal static class Textarea
+    {
+        internal const string Kind = "textarea";
+        internal const ushort CommandFocus = 1;
+        internal const ushort CommandSetValue = 2;
+        internal const ushort EventChanged = 1;
+
+        internal static string EncodeConfiguration(string initialValue, string placeholder, uint rows, bool disabled, bool readOnly, string accessibilityLabel, ulong changedEvent)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(initialValue);
+            if (initialValue.Contains('\0'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL characters.", nameof(initialValue));
+            }
+            var initialValueValue = global::System.Text.Json.JsonSerializer.Serialize(initialValue);
+            global::System.ArgumentNullException.ThrowIfNull(placeholder);
+            if (placeholder.Contains('\0') || placeholder.Contains('\n') || placeholder.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(placeholder));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(accessibilityLabel);
+            if (accessibilityLabel.Contains('\0') || accessibilityLabel.Contains('\n') || accessibilityLabel.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(accessibilityLabel));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{initialValueValue}\n{placeholder}\n{rows}\n{(disabled ? 1 : 0)}\n{(readOnly ? 1 : 0)}\n{accessibilityLabel}\n{changedEvent}");
         }
     }
 

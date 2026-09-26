@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 12,
+  "schemaVersion": 13,
   "components": [
     {
       "kind": "attachment",
@@ -566,6 +566,29 @@
       "commands": {},
       "events": {
         "selected": { "id": 1, "flags": "none", "payload": "u32 item ID", "revision": "none" }
+      }
+    },
+    {
+      "kind": "textarea",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "initial_value", "type": "json_string" },
+          { "name": "placeholder", "type": "string" },
+          { "name": "rows", "type": "u32" },
+          { "name": "disabled", "type": "bool" },
+          { "name": "read_only", "type": "bool" },
+          { "name": "accessibility_label", "type": "string" },
+          { "name": "changed_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {
+        "focus": { "id": 1, "payload": "none", "revision": "none" },
+        "set_value": { "id": 2, "payload": "utf8-value", "revision": "none" }
+      },
+      "events": {
+        "changed": { "id": 1, "flags": "none", "payload": "utf8-value", "revision": "result" }
       }
     },
     {

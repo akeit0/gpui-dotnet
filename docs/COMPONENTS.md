@@ -40,7 +40,7 @@ host uses `gpui-component` for themed presentation and more specialized controls
 | --- | --- | --- |
 | Shared behavior such as Button activation, focus, and accessibility | Base semantic component backed by `gpui-base` | Add an operation to `bindings/schema.json` only for a reusable managed concept; the base schema hash changes. |
 | Native interaction state such as Input, Slider, Scroll, List, Table, or Dock | Keyed retained resource; selected foundation behavior where it fits | Reconcile snapshots with coarse commands and events; keep pointer, IME, and viewport updates native. |
-| Themed catalog controls and compound optional features | Typed API in `Gpui.Components`, native adapter in the combined component host | Add component kinds and configuration to the optional schema; the base semantic schema and C ABI remain unchanged. |
+| Themed catalog controls and compound optional features, including retained Textarea | Typed API in `Gpui.Components`, native adapter in the combined component host | Add component kinds and configuration to the optional schema; the base semantic schema and C ABI remain unchanged. |
 
 An upstream Rust builder method alone does not justify a managed operation. A C ABI layout or
 entry-point change is needed only when the semantic transport cannot express the ownership or

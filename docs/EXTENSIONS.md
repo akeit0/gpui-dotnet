@@ -77,12 +77,20 @@ revisions, and payload layouts remain schema-owned.
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes thirty-six catalog families plus Editor, a retained extension example. Display
+The host includes thirty-seven catalog families plus Editor, a retained extension example. Display
 and content coverage includes Spinner, Skeleton, Separator, Badge, Tag, linear and circular
 Progress, Alert, GroupBox, Label, Kbd, Avatar, Icon, ShimmerText, Attachment, Empty, StatusBar,
 Bubble, BubbleGroup, Message, MessageGroup, Marker, and DescriptionList. Interactive and
 controlled coverage includes Rating, Button, Link, Switch, Checkbox, Radio, Toggle, Pagination,
-Collapsible, Toolbar, ToolbarGroup, Breadcrumb, and Tabs.
+Collapsible, Toolbar, ToolbarGroup, Breadcrumb, Tabs, and Textarea.
+
+`Textarea` is an ordinary multiline field with keyed native value, selection, IME, undo, and
+scrolling state. Its initial value is consumed when the resource is created; subsequent declarations
+update placeholder, row count, disabled/read-only state, accessibility label, and callback binding.
+User edits can emit a copied UTF-8 value with a native revision. `Focus` and `SetValue` are coarse
+commands; a changed replacement clears selection, scroll, and undo history without emitting a
+change event, while an identical replacement preserves them. It uses the existing component host
+and generic extension transport.
 
 The Editor example uses its own schema within the same host to exercise bootstrap, retained state,
 revisioned commands, and native edit events. Its separate schema is an example of the extension

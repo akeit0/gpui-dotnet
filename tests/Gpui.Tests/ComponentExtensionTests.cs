@@ -9,7 +9,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(12u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(13u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -190,6 +190,46 @@ public sealed class ComponentExtensionTests
                 false,
                 false,
                 false
+            )
+        );
+    }
+
+    [Fact]
+    public void TextareaCarriesInitialMultilineValueAndDecodesChanges()
+    {
+        Assert.Equal(
+            "\"First\\nSecond\"\nNotes\n3\n0\n1\nReview notes\n17",
+            ComponentSchema.Textarea.EncodeConfiguration(
+                "First\nSecond",
+                "Notes",
+                3,
+                false,
+                true,
+                "Review notes",
+                17
+            )
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            ComponentElements.TextareaConfiguration(new ComponentTextareaOptions { Rows = 0 }, 0)
+        );
+        var changed = ComponentTextareaChangedEvent.Decode(
+            new NativeExtensionEvent(
+                ComponentSchema.Textarea.EventChanged,
+                0,
+                2,
+                "Hello\n世界"u8.ToArray()
+            )
+        );
+        Assert.Equal("Hello\n世界", changed.Value);
+        Assert.Equal(2ul, changed.Revision);
+        Assert.Throws<InvalidOperationException>(() =>
+            ComponentTextareaChangedEvent.Decode(
+                new NativeExtensionEvent(ComponentSchema.Textarea.EventChanged, 0, 1, [0xff])
+            )
+        );
+        Assert.Throws<InvalidOperationException>(() =>
+            ComponentTextareaChangedEvent.Decode(
+                new NativeExtensionEvent(ComponentSchema.Textarea.EventChanged, 0, 0, [])
             )
         );
     }

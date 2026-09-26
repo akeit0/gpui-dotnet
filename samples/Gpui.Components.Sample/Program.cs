@@ -42,12 +42,15 @@ internal sealed partial class ComponentsSampleView : View
     private ComponentAttachmentStatus _fileStatus = ComponentAttachmentStatus.Uploading;
     private int _fileOpens;
     private bool _fileArchived;
+    private string _notes = "Review notes:\n- Check the attachment";
+    private readonly ComponentTextareaController _textarea;
     private readonly EditorController _editor;
     private readonly Effect<NoProps> _bootstrapEditor;
 
     public ComponentsSampleView(ViewConstruction context)
         : base(context)
     {
+        _textarea = context.CreateTextareaController("catalog-notes");
         _editor = context.CreateEditorController("catalog-editor");
         _bootstrapEditor = context.Effect<NoProps>(BootstrapEditor);
     }
@@ -211,7 +214,7 @@ internal sealed partial class ComponentsSampleView : View
                         new ComponentLabelOptions
                         {
                             Text = "Generated semantic adapters",
-                            Secondary = "33 families",
+                            Secondary = "37 families",
                             Highlight = "semantic",
                         }
                     ),
@@ -523,6 +526,46 @@ internal sealed partial class ComponentsSampleView : View
                         new ComponentSeparatorOptions { Label = "Retained controls" }
                     ),
                     ui.HStack(button, rating).Gap(Px(20)).ItemsCenter(),
+                    ui.Text("Multiline notes"u8),
+                    ui.Textarea(
+                            _textarea,
+                            this,
+                            static (view, changed) =>
+                            {
+                                view._notes = changed.Value;
+                                view.Invalidate();
+                            },
+                            new ComponentTextareaOptions
+                            {
+                                InitialValue = "Review notes:\n- Check the attachment",
+                                Placeholder = "Write review notes...",
+                                Rows = 4,
+                                AccessibilityLabel = "Review notes",
+                            }
+                        )
+                        .Width(Percent(100)),
+                    ui.HStack(
+                            ui.Button(
+                                "focus-notes",
+                                this,
+                                static (view, _) => view._textarea.Focus(),
+                                new ComponentButtonOptions { Label = "Focus notes" }
+                            ),
+                            ui.Button(
+                                "clear-notes",
+                                this,
+                                static (view, _) =>
+                                {
+                                    view._textarea.SetValue(string.Empty);
+                                    view._notes = string.Empty;
+                                    view.Invalidate();
+                                },
+                                new ComponentButtonOptions { Label = "Clear notes" }
+                            ),
+                            ui.Text($"{_notes.Length} characters")
+                        )
+                        .Gap(Px(12))
+                        .ItemsCenter(),
                     ui.Progress(
                         "upload-progress",
                         new ComponentProgressOptions

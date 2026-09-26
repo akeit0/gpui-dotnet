@@ -1,13 +1,20 @@
-use std::{borrow::Cow, cell::Cell, collections::HashSet, path::{Component as PathComponent, Path}, rc::Rc, sync::Once, time::Duration};
+use std::{
+    borrow::Cow,
+    cell::{Cell, RefCell},
+    collections::HashSet,
+    path::{Component as PathComponent, Path},
+    rc::Rc,
+    sync::Once,
+    time::Duration,
+};
 
 use gpui::{
-    AnyElement, App, AssetSource, Axis, FocusHandle, Hsla, InteractiveElement as _,
-    IntoElement as _, KeyDownEvent, Keystroke, ParentElement as _, Role, SharedString, Styled as _,
-    Window, div, px, rgba,
+    AnyElement, App, AppContext as _, AssetSource, Axis, Entity, FocusHandle, Hsla,
+    InteractiveElement as _, IntoElement as _, KeyDownEvent, Keystroke, ParentElement as _, Role,
+    SharedString, Styled as _, Subscription, Window, div, px, rgba,
 };
 use gpui_component::{
-    ActiveTheme as _,
-    Disableable as _, Selectable as _, Sizable as _,
+    ActiveTheme as _, Disableable as _, Icon, Selectable as _, Sizable as _,
     alert::{Alert, AlertVariant as NativeAlertVariant},
     attachment::{
         Attachment, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentMedia,
@@ -32,6 +39,7 @@ use gpui_component::{
         EmptyMediaVariant as NativeEmptyMediaVariant, EmptyTitle,
     },
     group_box::{GroupBox, GroupBoxVariant as NativeGroupBoxVariant, GroupBoxVariants as _},
+    input::{InputEvent, Rope, Textarea, TextareaState},
     kbd::Kbd,
     label::{HighlightsMatch, Label},
     link::Link,
@@ -53,16 +61,17 @@ use gpui_component::{
     spinner::Spinner,
     status_bar::StatusBar,
     switch::Switch,
-    tag::{Tag, TagVariant as NativeTagVariant},
     tab::{Tab, TabBar, TabVariant as NativeTabVariant},
+    tag::{Tag, TagVariant as NativeTagVariant},
     toolbar::{Toolbar, ToolbarGroup},
-    Icon, try_parse_color,
+    try_parse_color,
 };
 use gpui_dotnet::{
     abi::GpuiDotnetApiV3,
     extension::{
-        NativeExtension, NativeExtensionDescriptor, NativeExtensionRequest, NativeExtensionStore,
-        ResolvedTheme, install_native_extensions,
+        NativeExtension, NativeExtensionCommand, NativeExtensionDescriptor,
+        NativeExtensionEventEmitter, NativeExtensionRequest, NativeExtensionStore, ResolvedTheme,
+        install_native_extensions,
     },
 };
 use gpui_dotnet_editor_provider::EDITOR_EXTENSION;
@@ -133,18 +142,38 @@ impl NativeExtension for ComponentsExtension {
         project_theme(theme, cx);
     }
 
+    fn validate_command(&self, command: &NativeExtensionCommand) -> bool {
+        if command.resource_key.extension_id() != EXTENSION_ID
+            || command.resource_key.component_kind() != COMPONENT_TEXTAREA
+            || command.flags != 0
+            || command.expected_revision != 0
+        {
+            return false;
+        }
+        match command.command {
+            TEXTAREA_COMMAND_FOCUS => command.payload.is_empty(),
+            TEXTAREA_COMMAND_SET_VALUE => {
+                std::str::from_utf8(&command.payload).is_ok_and(|value| !value.contains('\0'))
+            }
+            _ => false,
+        }
+    }
+
     fn materialize(
         &self,
         request: NativeExtensionRequest,
         resources: &NativeExtensionStore,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut App,
     ) -> Result<AnyElement, SharedString> {
-        if !request.commands.is_empty() {
+        if request.resource_key.component_kind() != COMPONENT_TEXTAREA
+            && !request.commands.is_empty()
+        {
             return Err("The component catalog does not define imperative commands.".into());
         }
         match request.resource_key.component_kind() {
             COMPONENT_ATTACHMENT => attachment(request),
+            COMPONENT_TEXTAREA => textarea(request, resources, window, cx),
             COMPONENT_EMPTY => empty(request),
             COMPONENT_TOOLBAR => toolbar(request),
             COMPONENT_TOOLBAR_GROUP => toolbar_group(request),
@@ -183,6 +212,150 @@ impl NativeExtension for ComponentsExtension {
             _ => Err("The component host received an unknown component kind.".into()),
         }
     }
+}
+
+#[derive(Clone)]
+struct RetainedTextarea {
+    state: Entity<TextareaState>,
+    rows: Rc<Cell<u32>>,
+    placeholder: Rc<RefCell<String>>,
+    events: Rc<TextareaEvents>,
+    _subscription: Rc<Subscription>,
+}
+
+struct TextareaEvents {
+    changed_token: Cell<u64>,
+    revision: Cell<u64>,
+    last_text: RefCell<Rope>,
+    emitter: NativeExtensionEventEmitter,
+    callback_error: Cell<Option<i32>>,
+}
+
+impl TextareaEvents {
+    fn changed(&self, current: &Rope) {
+        let previous = self.last_text.replace(current.clone());
+        if previous == *current {
+            return;
+        }
+        let Some(revision) = self.revision.get().checked_add(1) else {
+            self.callback_error.set(Some(-86));
+            return;
+        };
+        self.revision.set(revision);
+        let token = self.changed_token.get();
+        if token == 0 {
+            return;
+        }
+        let value = current.to_string();
+        if let Err(status) =
+            self.emitter
+                .emit(token, TEXTAREA_EVENT_CHANGED, 0, revision, value.as_bytes())
+        {
+            self.callback_error.set(Some(status));
+        }
+    }
+}
+
+fn textarea(
+    request: NativeExtensionRequest,
+    resources: &NativeExtensionStore,
+    window: &mut Window,
+    cx: &mut App,
+) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = TextareaConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Textarea configuration."))?;
+    if !(1..=1000).contains(&config.rows) {
+        return Err("Textarea rows must be 1 through 1000.".into());
+    }
+    let resource = resources.get_or_insert_with(&request.resource_key, || {
+        let state = cx.new(|cx| {
+            TextareaState::new(window, cx)
+                .rows(config.rows as usize)
+                .placeholder(config.placeholder.to_owned())
+                .default_value(config.initial_value.clone())
+        });
+        let events = Rc::new(TextareaEvents {
+            changed_token: Cell::new(config.changed_event),
+            revision: Cell::new(0),
+            last_text: RefCell::new(state.read(cx).text().clone()),
+            emitter: request.events,
+            callback_error: Cell::new(None),
+        });
+        let dispatch = events.clone();
+        let observed_state = state.clone();
+        let subscription = window.subscribe(&state, cx, move |_, emitted: &InputEvent, _, cx| {
+            if matches!(emitted, InputEvent::Change) {
+                dispatch.changed(observed_state.read(cx).text());
+            }
+        });
+        RetainedTextarea {
+            state,
+            rows: Rc::new(Cell::new(config.rows)),
+            placeholder: Rc::new(RefCell::new(config.placeholder.to_owned())),
+            events,
+            _subscription: Rc::new(subscription),
+        }
+    });
+    resource.events.changed_token.set(config.changed_event);
+    if let Some(status) = resource.events.callback_error.take() {
+        return Err(
+            format!("The managed Textarea event callback failed with status {status}.").into(),
+        );
+    }
+    for command in request.commands {
+        match command.command {
+            TEXTAREA_COMMAND_FOCUS => resource
+                .state
+                .update(cx, |state, cx| state.focus(window, cx)),
+            TEXTAREA_COMMAND_SET_VALUE => {
+                let value = std::str::from_utf8(&command.payload)
+                    .map_err(|_| SharedString::from("The Textarea value is not UTF-8."))?;
+                if resource.state.read(cx).text().to_string() != value {
+                    resource.state.update(cx, |state, cx| {
+                        state.set_value(value.to_owned(), window, cx)
+                    });
+                    resource
+                        .events
+                        .last_text
+                        .replace(resource.state.read(cx).text().clone());
+                    resource.events.revision.set(
+                        resource
+                            .events
+                            .revision
+                            .get()
+                            .checked_add(1)
+                            .ok_or_else(|| SharedString::from("Textarea revision overflow."))?,
+                    );
+                }
+            }
+            _ => return Err("The Textarea provider received an unknown command.".into()),
+        }
+    }
+    if let Some(status) = resource.events.callback_error.take() {
+        return Err(
+            format!("The managed Textarea event callback failed with status {status}.").into(),
+        );
+    }
+    if resource.rows.replace(config.rows) != config.rows {
+        resource
+            .state
+            .update(cx, |state, cx| state.set_rows(config.rows as usize, cx));
+    }
+    if resource.placeholder.borrow().as_str() != config.placeholder {
+        resource.state.update(cx, |state, cx| {
+            state.set_placeholder(config.placeholder.to_owned(), window, cx)
+        });
+        *resource.placeholder.borrow_mut() = config.placeholder.to_owned();
+    }
+    let mut element = Textarea::new(&resource.state)
+        .disabled(config.disabled)
+        .readonly(config.read_only)
+        .w_full();
+    if !config.accessibility_label.is_empty() {
+        element = element.aria_label(config.accessibility_label.to_owned());
+    }
+    Ok(element.into_any_element())
 }
 
 fn attachment(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
@@ -225,7 +398,8 @@ fn attachment(request: NativeExtensionRequest) -> Result<AnyElement, SharedStrin
             content = content.title(AttachmentTitle::new(config.title.to_owned()));
         }
         if !config.description.is_empty() {
-            content = content.description(AttachmentDescription::new(config.description.to_owned()));
+            content =
+                content.description(AttachmentDescription::new(config.description.to_owned()));
         }
         content.extend(content_child);
         component = component.content(content);
@@ -349,7 +523,11 @@ fn description_items(
         } else {
             let label = children.next().ok_or("Missing DescriptionList label.")?;
             let value = children.next().ok_or("Missing DescriptionList value.")?;
-            items.push(DescriptionItem::new(label).value(value).span(*span as usize));
+            items.push(
+                DescriptionItem::new(label)
+                    .value(value)
+                    .span(*span as usize),
+            );
         }
     }
     Ok(items)
@@ -408,27 +586,32 @@ fn tabs(
     let focus = interaction.focus.clone().tab_stop(keyboard_enabled);
     let selected_index = config
         .has_selection
-        .then(|| config.item_ids.iter().position(|id| *id == config.selected_id))
+        .then(|| {
+            config
+                .item_ids
+                .iter()
+                .position(|id| *id == config.selected_id)
+        })
         .flatten();
     let mut component = TabBar::new(format!(
         "gpui-net-tabs:{}:{}",
         request.resource_key.owner_view(),
         request.resource_key.key()
     ))
-        .with_size(match config.size {
-            TabsSize::Xsmall => gpui_component::Size::XSmall,
-            TabsSize::Small => gpui_component::Size::Small,
-            TabsSize::Medium => gpui_component::Size::Medium,
-            TabsSize::Large => gpui_component::Size::Large,
-        })
-        .with_variant(match config.variant {
-            TabsVariant::Tab => NativeTabVariant::Tab,
-            TabsVariant::Outline => NativeTabVariant::Outline,
-            TabsVariant::Pill => NativeTabVariant::Pill,
-            TabsVariant::Segmented => NativeTabVariant::Segmented,
-            TabsVariant::Underline => NativeTabVariant::Underline,
-        })
-        .menu(config.overflow_menu);
+    .with_size(match config.size {
+        TabsSize::Xsmall => gpui_component::Size::XSmall,
+        TabsSize::Small => gpui_component::Size::Small,
+        TabsSize::Medium => gpui_component::Size::Medium,
+        TabsSize::Large => gpui_component::Size::Large,
+    })
+    .with_variant(match config.variant {
+        TabsVariant::Tab => NativeTabVariant::Tab,
+        TabsVariant::Outline => NativeTabVariant::Outline,
+        TabsVariant::Pill => NativeTabVariant::Pill,
+        TabsVariant::Segmented => NativeTabVariant::Segmented,
+        TabsVariant::Underline => NativeTabVariant::Underline,
+    })
+    .menu(config.overflow_menu);
     if let Some(index) = selected_index {
         component = component.selected_index(index);
     }
@@ -471,16 +654,18 @@ fn tabs(
                 return;
             }
             let modifiers = event.keystroke.modifiers;
-            if modifiers.control || modifiers.alt || modifiers.platform || modifiers.function || modifiers.shift {
+            if modifiers.control
+                || modifiers.alt
+                || modifiers.platform
+                || modifiers.function
+                || modifiers.shift
+            {
                 return;
             }
             let current = interaction.cursor.get();
-            let Some(id) = tabs_key_target(
-                event.keystroke.key.as_str(),
-                current,
-                &ids,
-                &disabled_items,
-            ) else {
+            let Some(id) =
+                tabs_key_target(event.keystroke.key.as_str(), current, &ids, &disabled_items)
+            else {
                 return;
             };
             cx.stop_propagation();
@@ -500,8 +685,16 @@ fn tabs_key_target(key: &str, current: Option<u32>, ids: &[u32], disabled: &[u32
         return None;
     }
     match key {
-        "home" => ids.iter().zip(disabled).find(|(_, disabled)| **disabled == 0).map(|(id, _)| *id),
-        "end" => ids.iter().zip(disabled).rfind(|(_, disabled)| **disabled == 0).map(|(id, _)| *id),
+        "home" => ids
+            .iter()
+            .zip(disabled)
+            .find(|(_, disabled)| **disabled == 0)
+            .map(|(id, _)| *id),
+        "end" => ids
+            .iter()
+            .zip(disabled)
+            .rfind(|(_, disabled)| **disabled == 0)
+            .map(|(id, _)| *id),
         "enter" | "space" => match current {
             Some(id) => ids
                 .iter()
@@ -512,7 +705,8 @@ fn tabs_key_target(key: &str, current: Option<u32>, ids: &[u32], disabled: &[u32
         },
         "left" | "right" => {
             let forward = key == "right";
-            let Some(mut index) = current.and_then(|id| ids.iter().position(|item| *item == id)) else {
+            let Some(mut index) = current.and_then(|id| ids.iter().position(|item| *item == id))
+            else {
                 return if forward {
                     tabs_key_target("home", current, ids, disabled)
                 } else {
@@ -625,10 +819,8 @@ fn status_bar(request: NativeExtensionRequest) -> Result<AnyElement, SharedStrin
 fn bubble(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
     let config = BubbleConfiguration::parse(&request.configuration)
         .ok_or_else(|| SharedString::from("Invalid Bubble configuration."))?;
-    let [content, reactions] = split_slots(
-        request.children,
-        [config.has_content, config.has_reactions],
-    )?;
+    let [content, reactions] =
+        split_slots(request.children, [config.has_content, config.has_reactions])?;
     let mut component = Bubble::new().with_variant(match config.variant {
         BubbleVariant::Filled => NativeBubbleVariant::Filled,
         BubbleVariant::Secondary => NativeBubbleVariant::Secondary,
@@ -742,7 +934,9 @@ fn marker(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
         MarkerAlignment::End => component.alignment(NativeMarkerAlignment::End),
     };
     if config.status_role {
-        component = component.id(request.resource_key.key().to_owned()).role(Role::Status);
+        component = component
+            .id(request.resource_key.key().to_owned())
+            .role(Role::Status);
     }
     if let Some(icon) = icon {
         let mut slot = MarkerIcon::new();
@@ -850,16 +1044,17 @@ fn badge(mut request: NativeExtensionRequest) -> Result<AnyElement, SharedString
 fn tag(mut request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
     let config = TagConfiguration::parse(&request.configuration)
         .ok_or_else(|| SharedString::from("Invalid Tag configuration."))?;
-    let mut component = Tag::new()
-        .with_size(tag_size(config.size))
-        .with_variant(match config.variant {
-            TagVariant::Primary => NativeTagVariant::Primary,
-            TagVariant::Secondary => NativeTagVariant::Secondary,
-            TagVariant::Danger => NativeTagVariant::Danger,
-            TagVariant::Success => NativeTagVariant::Success,
-            TagVariant::Warning => NativeTagVariant::Warning,
-            TagVariant::Info => NativeTagVariant::Info,
-        });
+    let mut component =
+        Tag::new()
+            .with_size(tag_size(config.size))
+            .with_variant(match config.variant {
+                TagVariant::Primary => NativeTagVariant::Primary,
+                TagVariant::Secondary => NativeTagVariant::Secondary,
+                TagVariant::Danger => NativeTagVariant::Danger,
+                TagVariant::Success => NativeTagVariant::Success,
+                TagVariant::Warning => NativeTagVariant::Warning,
+                TagVariant::Info => NativeTagVariant::Info,
+            });
     if config.outline {
         component = component.outline();
     }
@@ -972,9 +1167,12 @@ fn alert(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
     no_children(&request)?;
     let config = AlertConfiguration::parse(&request.configuration)
         .ok_or_else(|| SharedString::from("Invalid Alert configuration."))?;
-    let mut component = Alert::new(request.resource_key.key().to_owned(), config.message.to_owned())
-        .with_size(alert_size(config.size))
-        .with_variant(alert_variant(config.variant));
+    let mut component = Alert::new(
+        request.resource_key.key().to_owned(),
+        config.message.to_owned(),
+    )
+    .with_size(alert_size(config.size))
+    .with_variant(alert_variant(config.variant));
     if !config.title.is_empty() {
         component = component.title(config.title.to_owned());
     }
@@ -1078,7 +1276,9 @@ fn icon(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
     if config.asset_path.is_empty() {
         return Err("Icon asset path cannot be empty.".into());
     }
-    let mut component = Icon::default().path(config.asset_path.to_owned()).with_size(match config.size {
+    let mut component = Icon::default()
+        .path(config.asset_path.to_owned())
+        .with_size(match config.size {
             IconSize::Xsmall => gpui_component::Size::XSmall,
             IconSize::Small => gpui_component::Size::Small,
             IconSize::Medium => gpui_component::Size::Medium,
@@ -1474,8 +1674,15 @@ mod tests {
     #[test]
     fn generated_parsers_cover_the_catalog_contract() {
         assert!(SpinnerConfiguration::parse("medium\nloader\nlinear\n").is_some());
-        assert!(ButtonConfiguration::parse("medium\nprimary\nSave\n\n0\n0\n0\n0\n0\nicons/save.svg\n42").is_some());
-        assert!(ButtonConfiguration::parse("medium\nunknown\nSave\n\n0\n0\n0\n0\n0\n\n42").is_none());
+        assert!(
+            ButtonConfiguration::parse(
+                "medium\nprimary\nSave\n\n0\n0\n0\n0\n0\nicons/save.svg\n42"
+            )
+            .is_some()
+        );
+        assert!(
+            ButtonConfiguration::parse("medium\nunknown\nSave\n\n0\n0\n0\n0\n0\n\n42").is_none()
+        );
         assert!(ProgressConfiguration::parse("medium\nNaN\n0\n\nUpload").is_none());
         let circle =
             ProgressCircleConfiguration::parse("large\n80\n68\n0\n\nUpload progress").unwrap();
@@ -1483,8 +1690,10 @@ mod tests {
         assert_eq!(circle.value, 68.);
         assert!(ProgressCircleConfiguration::parse("large\nNaN\n68\n0\n\n").is_none());
         assert!(
-            SwitchConfiguration::parse("small\n1\n0\nWi-Fi\nWireless network\nNetwork state\n#336699\n17")
-                .is_some()
+            SwitchConfiguration::parse(
+                "small\n1\n0\nWi-Fi\nWireless network\nNetwork state\n#336699\n17"
+            )
+            .is_some()
         );
         assert!(SwitchConfiguration::parse("small\n2\n0\n\n\n\n\n0").is_none());
         let checkbox = CheckboxConfiguration::parse("medium\n1\n0\nCheckbox\n\n\n19").unwrap();
@@ -1500,19 +1709,34 @@ mod tests {
         assert!(attachment.media_child);
         assert!(attachment.content_child);
         assert!(attachment.has_actions);
-        assert!(AttachmentConfiguration::parse(
-            "small\nvertical\nunknown\nreport.pdf\n\"Uploading\"\n\n1\n1\n1\n17"
-        )
-        .is_none());
-        let empty = EmptyConfiguration::parse("icon\nNo files\n\"Add a file to begin.\"\n1\n0\n1")
-            .unwrap();
+        assert!(
+            AttachmentConfiguration::parse(
+                "small\nvertical\nunknown\nreport.pdf\n\"Uploading\"\n\n1\n1\n1\n17"
+            )
+            .is_none()
+        );
+        let empty =
+            EmptyConfiguration::parse("icon\nNo files\n\"Add a file to begin.\"\n1\n0\n1").unwrap();
         assert_eq!(empty.media_variant, EmptyMediaVariant::Icon);
         assert!(empty.has_media);
         assert!(!empty.has_content);
         assert!(empty.has_footer);
-        let multiline = EmptyConfiguration::parse("icon\nNo files\n\"First line\\nSecond line\"\n0\n0\n0").unwrap();
+        let multiline =
+            EmptyConfiguration::parse("icon\nNo files\n\"First line\\nSecond line\"\n0\n0\n0")
+                .unwrap();
         assert_eq!(multiline.description, "First line\nSecond line");
-        assert!(EmptyConfiguration::parse("icon\nNo files\n\"Invalid\\u0000text\"\n0\n0\n0").is_none());
+        assert!(
+            EmptyConfiguration::parse("icon\nNo files\n\"Invalid\\u0000text\"\n0\n0\n0").is_none()
+        );
+        let textarea =
+            TextareaConfiguration::parse("\"First\\nSecond\"\nNotes\n4\n0\n1\nReview notes\n17")
+                .unwrap();
+        assert_eq!(textarea.initial_value, "First\nSecond");
+        assert_eq!(textarea.rows, 4);
+        assert!(textarea.read_only);
+        assert!(
+            TextareaConfiguration::parse("\"Invalid\\u0000text\"\nNotes\n4\n0\n0\n\n0").is_none()
+        );
         let toolbar = ToolbarConfiguration::parse("small\n1").unwrap();
         assert_eq!(toolbar.size, ToolbarSize::Small);
         assert!(toolbar.disabled);
@@ -1539,25 +1763,29 @@ mod tests {
         assert!(message.accessible_list_item);
         assert!(message.has_avatar);
         assert!(!message.has_footer);
-        let marker = MarkerConfiguration::parse("separator\ncenter\n1\nshimmer\n1\nLoading\n0\n0")
-            .unwrap();
+        let marker =
+            MarkerConfiguration::parse("separator\ncenter\n1\nshimmer\n1\nLoading\n0\n0").unwrap();
         assert_eq!(marker.variant, MarkerVariant::Separator);
         assert_eq!(marker.loading_style, MarkerLoadingStyle::Shimmer);
         let icon = IconConfiguration::parse("large\nicons/archive.svg\n#ffffff").unwrap();
         assert_eq!(icon.size, IconSize::Large);
         assert_eq!(icon.asset_path, "icons/archive.svg");
         assert!(IconConfiguration::parse("huge\nicons/archive.svg\n#ffffff").is_none());
-        let avatar = AvatarConfiguration::parse("small\nAlex\nhttps://example.com/alex.png")
-            .unwrap();
+        let avatar =
+            AvatarConfiguration::parse("small\nAlex\nhttps://example.com/alex.png").unwrap();
         assert_eq!(avatar.source, "https://example.com/alex.png");
         assert!(AvatarConfiguration::parse("small\nAlex").is_none());
         let description =
             DescriptionListConfiguration::parse("small\nhorizontal\n120\n1\n2\n1,1,0,2").unwrap();
         assert_eq!(description.entry_spans, [1, 1, 0, 2]);
-        assert!(DescriptionListConfiguration::parse("small\nhorizontal\n120\n1\n2\n1,,2").is_none());
+        assert!(
+            DescriptionListConfiguration::parse("small\nhorizontal\n120\n1\n2\n1,,2").is_none()
+        );
         assert!(DescriptionListConfiguration::parse("small\nhorizontal\nNaN\n1\n2\n1").is_none());
-        let breadcrumb = BreadcrumbConfiguration::parse("[\"Files\",\"R\\u00e9sum\\u00e9\\n2026\"]\n1,7\n0,1\n42")
-            .unwrap();
+        let breadcrumb = BreadcrumbConfiguration::parse(
+            "[\"Files\",\"R\\u00e9sum\\u00e9\\n2026\"]\n1,7\n0,1\n42",
+        )
+        .unwrap();
         assert_eq!(breadcrumb.labels[1], "Résumé\n2026");
         assert!(validate_breadcrumb(&breadcrumb).is_ok());
         assert!(BreadcrumbConfiguration::parse("[\"Files\",]\n1\n0\n42").is_none());
@@ -1633,14 +1861,23 @@ mod tests {
     fn tabs_keyboard_navigation_skips_disabled_items_and_wraps() {
         let ids = [10, 20, 30, 40];
         let disabled = [0, 1, 0, 0];
-        assert_eq!(tabs_key_target("right", Some(10), &ids, &disabled), Some(30));
-        assert_eq!(tabs_key_target("right", Some(40), &ids, &disabled), Some(10));
+        assert_eq!(
+            tabs_key_target("right", Some(10), &ids, &disabled),
+            Some(30)
+        );
+        assert_eq!(
+            tabs_key_target("right", Some(40), &ids, &disabled),
+            Some(10)
+        );
         assert_eq!(tabs_key_target("left", Some(10), &ids, &disabled), Some(40));
         assert_eq!(tabs_key_target("right", None, &ids, &disabled), Some(10));
         assert_eq!(tabs_key_target("left", None, &ids, &disabled), Some(40));
         assert_eq!(tabs_key_target("home", Some(40), &ids, &disabled), Some(10));
         assert_eq!(tabs_key_target("end", Some(10), &ids, &disabled), Some(40));
-        assert_eq!(tabs_key_target("enter", Some(30), &ids, &disabled), Some(30));
+        assert_eq!(
+            tabs_key_target("enter", Some(30), &ids, &disabled),
+            Some(30)
+        );
         assert_eq!(tabs_key_target("enter", None, &ids, &disabled), Some(10));
         assert_eq!(tabs_key_target("space", Some(20), &ids, &disabled), None);
         assert_eq!(tabs_key_target("up", Some(10), &ids, &disabled), None);
@@ -1725,10 +1962,7 @@ mod tests {
                 projected.colors.primary_foreground,
                 Hsla::from(rgba(0x102030FF))
             );
-            assert_eq!(
-                projected.tokens.primary.color,
-                Hsla::from(rgba(0x4466EEFF))
-            );
+            assert_eq!(projected.tokens.primary.color, Hsla::from(rgba(0x4466EEFF)));
         });
     }
 }

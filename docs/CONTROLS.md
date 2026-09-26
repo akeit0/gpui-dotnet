@@ -2,6 +2,8 @@
 
 Input, Slider, and Dock keep interaction state in Rust while accepted declarations update their
 configuration and presentation. See [Interaction](INTERACTION.md) for custom focus targets.
+The optional `Gpui.Components` Textarea uses the same retained ownership principle through the
+component extension contract; see [Extensions](EXTENSIONS.md).
 
 ## Retained Input
 

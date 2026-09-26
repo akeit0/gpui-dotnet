@@ -27,7 +27,7 @@ schema, and the native ABI may change before a stable release.
   view boxes.
 - Multiple windows, application menus, system or custom title bars, and native window controls.
 - Build-time native extension hosts with independently versioned generated managed/native schemas;
-  the optional component host provides thirty-six catalog families and a retained Editor example.
+  the optional component host provides thirty-seven catalog families and a retained Editor example.
 
 ### Platform support
 
