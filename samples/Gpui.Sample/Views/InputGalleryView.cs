@@ -180,6 +180,11 @@ internal sealed partial class InputGalleryView : View
                     )
                     .FontSize(Px(theme.Typography.BodySmall))
                     .TextColor(theme.Colors.TextMuted),
+                ui.Text(
+                        "Touch: long-press a word and drag to extend; whitespace places the caret."u8
+                    )
+                    .FontSize(Px(theme.Typography.BodySmall))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.HStack(search, password).Gap(Px(14)),
                 ui.HStack(readOnly, disabled).Gap(Px(14)),
                 ui.HStack(

@@ -30,6 +30,10 @@ selects the entire single line. A masked password value selects as one unit on d
 Pointer positions are clamped to grapheme boundaries before changing the caret or selection.
 Drag selection continues when the pointer leaves the Input bounds and applies the release position
 before ending the selection.
+On touch devices, a long press selects the word under the finger; dragging extends that selection
+by word even beyond the field. A long press on whitespace or an empty value places the caret, while
+a password value selects as one masked unit. Touch selection handles and an edit menu remain open
+work.
 
 Undo uses Command+Z on macOS or Control+Z on Windows and Linux. Redo uses Command+Shift+Z on
 macOS, and Control+Y or Control+Shift+Z on Windows and Linux. Adjacent typing forms one undo entry

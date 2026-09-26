@@ -9,10 +9,11 @@ use std::{
 use gpui::{
     App, AppContext, Bounds, ClipboardItem, Context, CursorStyle, DragMoveEvent, Element,
     ElementId, ElementInputHandler, Empty, Entity, EntityId, EntityInputHandler, FocusHandle,
-    Focusable, GlobalElementId, IntoElement, KeyBinding, LayoutId, MouseButton, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point, Render, Role, ShapedLine, SharedString,
-    Style, Subscription, TextAlign, TextRun, UTF16Selection, UnderlineStyle, Window, actions, div,
-    fill, point, prelude::*, px, relative, rgba, size,
+    Focusable, GlobalElementId, IntoElement, KeyBinding, LayoutId, LongPressEvent, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point, Render, Role,
+    ShapedLine, SharedString, Style, Subscription, TextAlign, TextRun, TouchPhase, UTF16Selection,
+    UnderlineStyle, Window, actions, canvas, div, fill, point, prelude::*, px, relative, rgba,
+    size,
 };
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -706,6 +707,66 @@ impl ManagedInput {
         }
     }
 
+    fn on_long_press(
+        &mut self,
+        event: &LongPressEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        match event.phase {
+            TouchPhase::Started => {
+                if self.disabled {
+                    return false;
+                }
+                self.focus_handle.focus(window, cx);
+                let offset = self.index_for_mouse_position(event.start_position);
+                let range = self.word_range_at(offset).filter(|range| {
+                    self.password || !self.content[range.clone()].chars().all(char::is_whitespace)
+                });
+                if let Some(range) = range {
+                    self.selected_range = range.clone();
+                    self.drag_word_range = Some(range);
+                    self.selection_reversed = false;
+                    self.last_typing_end = None;
+                    cx.notify();
+                } else {
+                    self.drag_word_range = None;
+                    self.move_to(offset, cx);
+                }
+                self.is_selecting = true;
+                true
+            }
+            TouchPhase::Moved => {
+                if self.is_selecting {
+                    self.extend_touch_selection_to(event.position, cx);
+                }
+                true
+            }
+            TouchPhase::Ended => {
+                if self.is_selecting {
+                    self.extend_touch_selection_to(event.position, cx);
+                }
+                self.is_selecting = false;
+                self.drag_word_range = None;
+                true
+            }
+            TouchPhase::Cancelled => {
+                self.is_selecting = false;
+                self.drag_word_range = None;
+                true
+            }
+        }
+    }
+
+    fn extend_touch_selection_to(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
+        let offset = self.index_for_mouse_position(position);
+        if self.drag_word_range.is_some() {
+            self.select_dragged_word_to(offset, cx);
+        } else {
+            self.move_to(offset, cx);
+        }
+    }
+
     fn extend_pointer_selection_to(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
         if self.is_selecting && !self.disabled {
             let offset = self.index_for_mouse_position(position);
@@ -1166,6 +1227,7 @@ impl Render for ManagedInput {
             .role(Role::TextInput)
             .map(|element| self.presentation.accessibility.apply(element))
             .size_full()
+            .relative()
             .min_w_0()
             .flex()
             .items_center()
@@ -1207,8 +1269,45 @@ impl Render for ManagedInput {
                     .on_drag_move(cx.listener(Self::on_drag_move))
             })
             .child(TextElement { input: cx.entity() })
+            .child(long_press_layer(cx.entity()))
             .into_any_element()
     }
+}
+
+// GPUI exposes long press through paint-time listeners; the canvas covers the full field.
+fn long_press_layer(input: Entity<ManagedInput>) -> impl IntoElement {
+    canvas(
+        |_, _, _| {},
+        move |bounds, _, window, _| {
+            window.on_mouse_event({
+                let input = input.clone();
+                move |event: &LongPressEvent, phase, window, cx| {
+                    if !phase.bubble() {
+                        return;
+                    }
+                    if event.phase == TouchPhase::Started {
+                        if window.default_prevented() || !bounds.contains(&event.start_position) {
+                            return;
+                        }
+                        if !input.update(cx, |input, cx| input.on_long_press(event, window, cx)) {
+                            return;
+                        }
+                        window.capture_long_press(&input);
+                    } else if !window.has_long_press_capture(&input) {
+                        return;
+                    } else {
+                        input.update(cx, |input, cx| {
+                            input.on_long_press(event, window, cx);
+                        });
+                    }
+                    window.prevent_default();
+                    cx.stop_propagation();
+                }
+            });
+        },
+    )
+    .absolute()
+    .size_full()
 }
 
 struct TextElement {
@@ -1750,6 +1849,100 @@ mod tests {
             assert_eq!(input.selected_range.end, input.content.len());
             assert!(!input.is_selecting);
         });
+    }
+
+    #[gpui::test]
+    fn long_press_selects_a_word_and_extends_beyond_input(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        cx.update(|cx| {
+            input.update(cx, |input, cx| {
+                input.content = shared("alpha beta gamma");
+                cx.notify();
+            });
+        });
+        let (_, cx) = cx.add_window_view(|_, _| InputDragHost {
+            input: input.clone(),
+        });
+        cx.simulate_resize(size(px(320.), px(120.)));
+        cx.update(|window, _| window.refresh());
+        let inside = point(px(10.), px(20.));
+        let outside = point(px(260.), px(20.));
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Started,
+            start_position: inside,
+            position: inside,
+        });
+        input.update(cx, |input, _| {
+            assert_eq!(input.selected_range, 0..5);
+            assert!(input.is_selecting);
+        });
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Moved,
+            start_position: inside,
+            position: outside,
+        });
+        input.update(cx, |input, _| {
+            assert_eq!(input.selected_range.end, input.content.len());
+        });
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Ended,
+            start_position: inside,
+            position: outside,
+        });
+        input.update(cx, |input, _| {
+            assert!(!input.is_selecting);
+            assert!(input.drag_word_range.is_none());
+        });
+
+        input.update(cx, |input, cx| {
+            input.disabled = true;
+            cx.notify();
+        });
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Started,
+            start_position: inside,
+            position: inside,
+        });
+        input.update(cx, |input, _| assert!(!input.is_selecting));
+
+        input.update(cx, |input, cx| {
+            input.disabled = false;
+            input.password = true;
+            input.content = shared("   ");
+            input.selected_range = 0..0;
+            cx.notify();
+        });
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Started,
+            start_position: inside,
+            position: inside,
+        });
+        input.update(cx, |input, _| assert_eq!(input.selected_range, 0..3));
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Ended,
+            start_position: inside,
+            position: inside,
+        });
+
+        input.update(cx, |input, cx| {
+            input.password = false;
+            input.content = shared("   abc");
+            input.selected_range = 6..6;
+            cx.notify();
+        });
+        let whitespace = point(px(1.), px(20.));
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Started,
+            start_position: whitespace,
+            position: whitespace,
+        });
+        input.update(cx, |input, _| assert_eq!(input.selected_range, 0..0));
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Cancelled,
+            start_position: whitespace,
+            position: whitespace,
+        });
+        input.update(cx, |input, _| assert!(!input.is_selecting));
     }
 
     #[gpui::test]
