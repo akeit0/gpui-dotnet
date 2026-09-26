@@ -91,7 +91,7 @@ jobs:
 
       - name: NativeAOT publish smoke test
         if: runner.os == 'Windows'
-        run: dotnet publish samples/Gpui.Sample/Gpui.Sample.csproj -c Release -r win-x64 -p:NativeCargoProfile=debug -p:GpuiNativePrebuilt=true
+        run: dotnet publish samples/Gpui.Sample/Gpui.Sample.csproj -c Release -r win-x64 -p:PublishAot=true -p:NativeCargoProfile=debug -p:GpuiNativePrebuilt=true
 
       - name: Build release native asset
         if: github.event_name == 'workflow_dispatch'
