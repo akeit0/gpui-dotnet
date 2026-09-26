@@ -72,6 +72,8 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
         _application.AttachHost(this);
     }
 
+    internal int Ready() => _application.NativeReady() ? 0 : -121;
+
     public void SetMenuBar(IReadOnlyList<GpuiMenu> menus)
     {
         ApplicationExecution.AssertEffectsAllowed();
@@ -474,7 +476,14 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
             {
                 RecordFailure(failure);
             }
-            _application.NativeWindowClosed(windowId);
+            try
+            {
+                _application.NativeWindowClosed(windowId);
+            }
+            catch (Exception exception)
+            {
+                RecordFailure(exception);
+            }
         }
     }
 

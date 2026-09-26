@@ -753,6 +753,7 @@ unsafe extern "C" fn run_application(
         || callbacks.accept_artifact.is_none()
         || callbacks.window_placement.is_none()
         || callbacks.window_opened.is_none()
+        || callbacks.application_ready.is_none()
     {
         return -21;
     }

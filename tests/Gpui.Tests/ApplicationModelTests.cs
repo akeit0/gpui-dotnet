@@ -9,7 +9,7 @@ public sealed class ApplicationModelTests
     [Fact]
     public void UsesExpectedProtocolVersions()
     {
-        Assert.Equal(10u, NativeConstants.AbiVersion);
+        Assert.Equal(11u, NativeConstants.AbiVersion);
         Assert.Equal(1u, SemanticRegistry.SchemaVersion);
     }
 
@@ -98,7 +98,11 @@ public sealed class ApplicationModelTests
     [Fact]
     public unsafe void AcceptanceCallbackExtendsTheNativeCallbackTable()
     {
-        Assert.Equal(15 * IntPtr.Size, sizeof(ManagedCallbacks));
+        Assert.Equal(16 * IntPtr.Size, sizeof(ManagedCallbacks));
+        Assert.Equal(
+            15 * IntPtr.Size,
+            (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.application_ready))
+        );
         Assert.Equal(
             14 * IntPtr.Size,
             (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.window_opened))
@@ -172,11 +176,31 @@ public sealed class ApplicationModelTests
         var application = new GpuiApplication(new NativeRuntimeOptions { LibraryPath = " " });
         var root = ProbeView.Spec();
         var window = application.OpenWindow(root);
+        var stopped = false;
+        application.Stopped += stoppedApplication =>
+        {
+            Assert.False(stoppedApplication.IsReady);
+            Assert.True(window.IsClosed);
+            stopped = true;
+        };
 
         Assert.Throws<ArgumentException>(application.Run);
 
         Assert.True(window.IsClosed);
+        Assert.True(stopped);
         Assert.Equal(0, ProbeView.Constructions);
+    }
+
+    [Fact]
+    public void StoppedHandlerFailurePreservesStartupFailure()
+    {
+        var application = new GpuiApplication(new NativeRuntimeOptions { LibraryPath = " " });
+        application.OpenWindow(ProbeView.Spec());
+        application.Stopped += _ => throw new InvalidOperationException("Stopped handler failed.");
+
+        var failure = Assert.Throws<AggregateException>(application.Run);
+        Assert.IsType<ArgumentException>(failure.InnerExceptions[0]);
+        Assert.IsType<InvalidOperationException>(failure.InnerExceptions[1]);
     }
 
     [Fact]

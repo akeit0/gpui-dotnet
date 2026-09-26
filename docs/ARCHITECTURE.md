@@ -256,6 +256,9 @@ as render-session IDs.
 Native window-bounds observations update a cached restore rectangle and state without reverse
 callbacks during dragging. On close, a single placement callback precedes managed teardown;
 managed application code decides whether and where to persist that value.
+The managed startup callback enqueues initial window commands before GPUI starts. A separate
+ready callback follows native initialization and initial window creation. After the event loop
+returns, managed teardown marks remaining handles closed before the application stopped event.
 
 Window and resource commands may originate from managed threads, but all GPUI mutations occur on
 the native event-loop thread. The application exits after its final registered window closes. A

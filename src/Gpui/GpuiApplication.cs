@@ -280,6 +280,23 @@ public sealed class GpuiApplication
     private (ulong MaxBytes, ulong MaxEntries)? _imageCacheBudget;
     private IGpuiApplicationHost? _host;
     private ApplicationState _state;
+    private bool _ready;
+
+    /// <summary>True after native initialization and initial window creation until Run ends.</summary>
+    public bool IsReady
+    {
+        get
+        {
+            lock (_gate)
+                return _state == ApplicationState.Running && _ready;
+        }
+    }
+
+    /// <summary>Raised on the GPUI application thread after native initialization and initial windows.</summary>
+    public event Action<GpuiApplication>? Ready;
+
+    /// <summary>Raised on the Run execution thread after native return and managed cleanup.</summary>
+    public event Action<GpuiApplication>? Stopped;
 
     /// <summary>Raised after any application window opens natively.</summary>
     public event Action<GpuiWindow>? WindowOpened;
@@ -537,11 +554,44 @@ public sealed class GpuiApplication
 
         try
         {
-            RunOnUiThread(() => NativeRuntime.Load(_runtimeOptions).Run(this));
+            RunOnUiThread(() =>
+            {
+                Exception? runFailure = null;
+                try
+                {
+                    NativeRuntime.Load(_runtimeOptions).Run(this);
+                }
+                catch (Exception exception)
+                {
+                    runFailure = exception;
+                }
+
+                try
+                {
+                    FinishRun();
+                }
+                catch (Exception exception)
+                {
+                    if (runFailure is not null)
+                        throw new AggregateException(runFailure, exception);
+                    throw;
+                }
+
+                if (runFailure is not null)
+                    ExceptionDispatchInfo.Capture(runFailure).Throw();
+            });
         }
-        finally
+        catch (Exception runFailure)
         {
-            FinishRun();
+            try
+            {
+                FinishRun();
+            }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException(runFailure, cleanupFailure);
+            }
+            throw;
         }
     }
 
@@ -551,13 +601,29 @@ public sealed class GpuiApplication
         {
             lock (_gate)
             {
+                if (_state == ApplicationState.Stopped)
+                    return;
                 _state = ApplicationState.Stopped;
+                _ready = false;
                 _host = null;
                 foreach (var window in _windows.Values)
                     window.MarkClosed();
                 _windows.Clear();
             }
         }
+        Stopped?.Invoke(this);
+    }
+
+    internal bool NativeReady()
+    {
+        lock (_gate)
+        {
+            if (_state != ApplicationState.Running || _host is null || _ready)
+                return false;
+            _ready = true;
+        }
+        Ready?.Invoke(this);
+        return true;
     }
 
     /// <summary>Runs one framework-owned root with the selected native runtime.</summary>

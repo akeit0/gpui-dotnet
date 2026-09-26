@@ -1261,6 +1261,7 @@ mod tests {
             menu_applied: None,
             window_placement: None,
             window_opened: None,
+            application_ready: None,
         }
     }
 

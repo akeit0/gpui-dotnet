@@ -16,3 +16,7 @@ The next run with that flag restores its normal bounds and maximized or fullscre
 sample owns this JSON policy; the core library reports the native placement when the window closes.
 The file is written from the primary window's `Closed` event, even while a companion remains open.
 Some window managers may ignore requested absolute positions.
+
+Run with `dotnet run --project samples/Gpui.Sample -- --lifecycle-log` to print application
+readiness, native window open/close, and final shutdown notifications. This flag can be combined
+with `--multi-window` and `--persist-window`.

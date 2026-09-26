@@ -903,6 +903,15 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
             .detach();
 
             cx.activate(true);
+            let ready_status = unsafe {
+                callbacks
+                    .application_ready
+                    .expect("validated application-ready callback")(application_id)
+            };
+            if ready_status != 0 {
+                record_status(&application_status_in_app, ready_status);
+                cx.quit();
+            }
         });
 
     application_status.load(Ordering::Acquire)
@@ -1946,6 +1955,7 @@ mod tests {
             menu_applied: None,
             window_placement: None,
             window_opened: None,
+            application_ready: None,
             dynamic_frame: None,
             render_completed: None,
             release_artifact: None,

@@ -3,8 +3,16 @@ using Gpui;
 var stressGrowth = args.Contains("--stress-growth", StringComparer.Ordinal);
 var multiWindow = args.Contains("--multi-window", StringComparer.Ordinal);
 var persistWindow = args.Contains("--persist-window", StringComparer.Ordinal);
+var lifecycleLog = args.Contains("--lifecycle-log", StringComparer.Ordinal);
 var savedPlacement = persistWindow ? WindowPlacementStore.Load() : null;
 var application = new GpuiApplication();
+if (lifecycleLog)
+{
+    application.Ready += _ => Console.WriteLine("Application ready");
+    application.WindowOpened += window => Console.WriteLine($"Window {window.Id} opened");
+    application.WindowClosed += window => Console.WriteLine($"Window {window.Id} closed");
+    application.Stopped += _ => Console.WriteLine("Application stopped");
+}
 application.SetTheme(SampleThemes.Light);
 var options = new GpuiWindowOptions
 {

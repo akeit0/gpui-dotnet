@@ -224,6 +224,7 @@ public sealed unsafe class NativeRuntime
                 dynamic_frame = &NativeCallbacks.DynamicFrame,
                 control_event = &NativeCallbacks.ControlEvent,
                 application_started = &NativeCallbacks.ApplicationStarted,
+                application_ready = &NativeCallbacks.ApplicationReady,
                 window_closed = &NativeCallbacks.WindowClosed,
                 window_placement = &NativeCallbacks.WindowPlacement,
                 window_opened = &NativeCallbacks.WindowOpened,
@@ -234,8 +235,14 @@ public sealed unsafe class NativeRuntime
         }
         finally
         {
-            managedApplication.Stop();
-            NativeRegistry.Applications.TryRemove(id, out _);
+            try
+            {
+                managedApplication.Stop();
+            }
+            finally
+            {
+                NativeRegistry.Applications.TryRemove(id, out _);
+            }
         }
 
         if (status != 0)

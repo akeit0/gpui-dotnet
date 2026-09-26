@@ -194,6 +194,7 @@ namespace Gpui.Interop
         public delegate* unmanaged[Cdecl]<ulong, ulong, int> menu_applied;
         public delegate* unmanaged[Cdecl]<ulong, ulong, NativeWindowPlacement*, int> window_placement;
         public delegate* unmanaged[Cdecl]<ulong, ulong, int> window_opened;
+        public delegate* unmanaged[Cdecl]<ulong, int> application_ready;
     }
 
     [StructLayout(LayoutKind.Sequential)]

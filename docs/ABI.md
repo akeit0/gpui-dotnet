@@ -55,6 +55,7 @@ callback table provides:
 - owner-view preparation for a requested dynamic frame;
 - retained control events (Input, Slider, Dock, List/Table item events, and observer key/mouse);
 - application-started notification;
+- application-ready notification after GPUI initialization and initial window creation;
 - window-opened notification after native creation;
 - window-closed notification;
 - final window placement before window-closed notification;
@@ -77,6 +78,13 @@ ABI 10 appends `window_opened(application_id, window_id)` to the callback table.
 once after inserting a successfully created window into the application registry. A failed open
 receives only the existing `window_closed` failure callback. Managed lifecycle events execute from
 these notifications; `window_placement` still precedes a successful close callback.
+
+ABI 11 appends `application_ready(application_id)`. The existing `application_started` callback
+still runs before GPUI creates its `App` and is used to enqueue initial windows. Native invokes
+`application_ready` once after GPUI initialization, processing initial Open commands, and activating
+the application, provided at least one window opened. A nonzero callback status requests native
+shutdown and is returned through the normal application failure path. Managed `Stopped` notification
+is local to `GpuiApplication.Run()` after native return and managed cleanup; it has no ABI callback.
 
 The native application is registered before the application-started callback, so managed code can
 enqueue initial windows synchronously. A window ID is also its render-session ID. Closing one window

@@ -122,6 +122,25 @@ public sealed class ApplicationIngressTests
         Assert.Same(accepted, Assert.Single(application.MenuBarSnapshot()!));
     }
 
+    [Fact]
+    public void ReadyFollowsHostAttachmentAndRunsOnce()
+    {
+        var application = new GpuiApplication();
+        application.OpenWindow(Probe.Spec());
+        MarkRunning(application);
+        Assert.False(application.NativeReady());
+        application.AttachHost(new Host());
+        var readyCount = 0;
+        application.Ready += readyApplication =>
+        {
+            Assert.True(readyApplication.IsReady);
+            readyCount++;
+        };
+        Assert.True(application.NativeReady());
+        Assert.False(application.NativeReady());
+        Assert.Equal(1, readyCount);
+    }
+
     private static void MarkRunning(GpuiApplication application)
     {
         // Exercise attachment without starting a native event loop or constructing Views.

@@ -291,6 +291,10 @@ native state for application-owned persistence. A failed open leaves this value 
 `WindowClosed` events report native window creation and post-teardown closure on the application
 thread. Window events run before their application-wide counterparts. A pending window canceled
 before native creation emits neither event.
+`GpuiApplication.Ready` runs after native initialization and initial window creation;
+`Stopped` runs after `Run()` has finished native and managed cleanup, including failure paths.
+`Ready` uses the GPUI thread; `Stopped` uses the Run execution thread, or the caller if launching
+that thread fails. `IsReady` reflects the active interval.
 
 Declare application commands once with `GpuiMenu[]`. macOS installs them in the global native menu
 bar. `GpuiTitleBar.RenderWindow` uses the same definitions for a minimal managed menu/title bar on

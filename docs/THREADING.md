@@ -31,6 +31,11 @@ into the snapshot consumed by that native `ManagedView`.
 Native-to-managed render, acceptance, virtual-item, dynamic-frame, event, startup, window-open,
 and window-close callbacks originate from GPUI foreground work. Managed mounting, rendering, event-table access,
 reconciliation, and unmounting therefore stay serialized on that thread once a View is prepared.
+`GpuiApplication.Ready` fires on that thread after initial windows have opened. `Stopped` fires on
+the thread selected to run GPUI after native return and managed cleanup, including when startup
+fails before a native application exists. If launching that thread itself fails, `Stopped` runs on
+the caller of `Run()`.
+Neither event implies an attached View; `Stopped` cannot enqueue new UI work.
 Roots and children construct on this thread under a pre-existing local ownership scope. Candidates
 retired before acceptance release local resources without activating effects.
 
