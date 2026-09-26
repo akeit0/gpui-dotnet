@@ -201,6 +201,7 @@ pub(crate) struct ManagedInput {
     pub(crate) last_paint_color: Option<gpui::Hsla>,
     scroll_x: Pixels,
     is_selecting: bool,
+    drag_word_range: Option<Range<usize>>,
     disabled: bool,
     read_only: bool,
     password: bool,
@@ -242,6 +243,7 @@ impl ManagedInput {
             last_paint_color: None,
             scroll_x: px(0.),
             is_selecting: false,
+            drag_word_range: None,
             disabled: initial.disabled,
             read_only: initial.read_only,
             password: initial.password,
@@ -281,6 +283,7 @@ impl ManagedInput {
         self.bindings = bindings;
         if disabled {
             self.is_selecting = false;
+            self.drag_word_range = None;
         }
         if changed {
             self.last_typing_end = None;
@@ -655,7 +658,16 @@ impl ManagedInput {
         self.focus_handle.focus(window, cx);
         self.is_selecting = true;
         let offset = self.index_for_mouse_position(event.position);
-        if event.modifiers.shift {
+        self.drag_word_range = None;
+        if event.click_count >= 3 {
+            self.selected_range = 0..self.content.len();
+            self.selection_reversed = false;
+            self.is_selecting = false;
+            self.last_typing_end = None;
+            cx.notify();
+        } else if event.click_count == 2 {
+            self.select_word_at(offset, cx);
+        } else if event.modifiers.shift {
             self.select_to(offset, cx);
         } else {
             self.move_to(offset, cx);
@@ -664,12 +676,78 @@ impl ManagedInput {
 
     fn on_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, _: &mut Context<Self>) {
         self.is_selecting = false;
+        self.drag_word_range = None;
     }
 
     fn on_mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
         if self.is_selecting && !self.disabled {
-            self.select_to(self.index_for_mouse_position(event.position), cx);
+            let offset = self.index_for_mouse_position(event.position);
+            if self.drag_word_range.is_some() {
+                self.select_dragged_word_to(offset, cx);
+            } else {
+                self.select_to(offset, cx);
+            }
         }
+    }
+
+    fn word_range_at(&self, offset: usize) -> Option<Range<usize>> {
+        if self.content.is_empty() {
+            return None;
+        }
+        if self.password {
+            return Some(0..self.content.len());
+        }
+        let offset = if offset == self.content.len() {
+            self.previous_boundary(offset)
+        } else {
+            offset
+        };
+        self.content
+            .split_word_bound_indices()
+            .find(|(start, segment)| offset >= *start && offset < *start + segment.len())
+            .map(|(start, segment)| {
+                let end = start + segment.len();
+                let start = self
+                    .content
+                    .grapheme_indices(true)
+                    .take_while(|(index, _)| *index <= start)
+                    .last()
+                    .map_or(0, |(index, _)| index);
+                start..self.clamp_grapheme_forward(end)
+            })
+    }
+
+    fn select_word_at(&mut self, offset: usize, cx: &mut Context<Self>) {
+        if let Some(range) = self.word_range_at(offset) {
+            self.selected_range = range.clone();
+            self.drag_word_range = Some(range);
+            self.selection_reversed = false;
+            self.last_typing_end = None;
+            cx.notify();
+        } else {
+            self.move_to(offset, cx);
+        }
+    }
+
+    fn select_dragged_word_to(&mut self, offset: usize, cx: &mut Context<Self>) {
+        let Some(anchor) = self.drag_word_range.clone() else {
+            return;
+        };
+        let Some(target) = self.word_range_at(offset) else {
+            return;
+        };
+        if target.end <= anchor.start {
+            self.selected_range = target.start..anchor.end;
+            self.selection_reversed = true;
+        } else if target.start >= anchor.end {
+            self.selected_range = anchor.start..target.end;
+            self.selection_reversed = false;
+        } else {
+            self.selected_range = anchor;
+            self.selection_reversed = false;
+        }
+        self.last_typing_end = None;
+        cx.notify();
     }
 
     fn move_to(&mut self, offset: usize, cx: &mut Context<Self>) {
@@ -782,7 +860,7 @@ impl ManagedInput {
 
     fn content_offset_for_display(&self, offset: usize) -> usize {
         if !self.password {
-            return offset.min(self.content.len());
+            return self.clamp_grapheme_forward(offset.min(self.content.len()));
         }
         let ordinal = offset / "•".len();
         self.content
@@ -1033,6 +1111,7 @@ impl Render for ManagedInput {
             });
             let blurred = cx.on_blur(&focus, window, |this, _, cx| {
                 this.is_selecting = false;
+                this.drag_word_range = None;
                 this.last_typing_end = None;
                 this.emit(
                     this.bindings.focus_changed,
@@ -1504,6 +1583,93 @@ mod tests {
                 input.disabled = true;
                 input.word_left(&WordLeft, window, cx);
                 assert_eq!(input.selected_range, 4..4);
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn pointer_word_ranges_follow_unicode_and_mask_passwords(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        cx.update(|cx| {
+            input.update(cx, |input, _| {
+                input.content = shared("one  café 🦊");
+                let cafe = input.content.find("café").unwrap();
+                let fox = input.content.find('🦊').unwrap();
+                assert_eq!(input.word_range_at(0), Some(0..3));
+                assert_eq!(input.word_range_at(3), Some(3..5));
+                assert_eq!(
+                    input.word_range_at(cafe + 1),
+                    Some(cafe..cafe + "café".len())
+                );
+                assert_eq!(
+                    input.word_range_at(input.content.len()),
+                    Some(fox..input.content.len())
+                );
+                input.password = true;
+                assert_eq!(input.word_range_at(cafe), Some(0..input.content.len()));
+                input.content = shared("a\u{301} b");
+                input.password = false;
+                assert_eq!(input.word_range_at(0), Some(0.."a\u{301}".len()));
+                assert_eq!(input.content_offset_for_display(1), "a\u{301}".len());
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn double_click_word_drag_keeps_anchor_and_triple_click_selects_all(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.content = shared("one two three");
+                input.select_word_at(5, cx);
+                assert_eq!(input.selected_range, 4..7);
+                input.select_dragged_word_to(9, cx);
+                assert_eq!(input.selected_range, 4..13);
+                input.select_dragged_word_to(1, cx);
+                assert_eq!(input.selected_range, 0..7);
+                assert!(input.selection_reversed);
+                input.select_dragged_word_to(5, cx);
+                assert_eq!(input.selected_range, 4..7);
+                input.on_mouse_up(&MouseUpEvent::default(), window, cx);
+                assert!(input.drag_word_range.is_none());
+
+                input.read_only = true;
+                input.on_mouse_down(
+                    &MouseDownEvent {
+                        button: MouseButton::Left,
+                        click_count: 2,
+                        ..Default::default()
+                    },
+                    window,
+                    cx,
+                );
+                assert_eq!(input.selected_range, 0..3);
+
+                input.on_mouse_down(
+                    &MouseDownEvent {
+                        button: MouseButton::Left,
+                        click_count: 3,
+                        ..Default::default()
+                    },
+                    window,
+                    cx,
+                );
+                assert_eq!(input.selected_range, 0..input.content.len());
+                assert!(!input.is_selecting);
+                input.disabled = true;
+                input.on_mouse_down(
+                    &MouseDownEvent {
+                        button: MouseButton::Left,
+                        click_count: 2,
+                        ..Default::default()
+                    },
+                    window,
+                    cx,
+                );
+                assert_eq!(input.selected_range, 0..input.content.len());
             });
         });
     }

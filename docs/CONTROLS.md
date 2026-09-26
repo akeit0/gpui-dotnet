@@ -24,6 +24,11 @@ boundaries follow Unicode word segments without placing the caret inside a graph
 fields, a word command treats the whole value as one unit rather than exposing its boundaries.
 Read-only inputs allow navigation and selection but reject deletion; disabled inputs reject both.
 
+Double-click selects a Unicode word segment, including whitespace when clicked. Dragging after a
+double-click extends by whole segments while keeping the original segment selected. Triple-click
+selects the entire single line. A masked password value selects as one unit on double-click.
+Pointer positions are clamped to grapheme boundaries before changing the caret or selection.
+
 Undo uses Command+Z on macOS or Control+Z on Windows and Linux. Redo uses Command+Shift+Z on
 macOS, and Control+Y or Control+Shift+Z on Windows and Linux. Adjacent typing forms one undo entry
 until selection, focus, or configuration changes; other edits form separate entries. An IME
