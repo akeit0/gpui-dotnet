@@ -226,6 +226,7 @@ public sealed unsafe class NativeRuntime
                 application_started = &NativeCallbacks.ApplicationStarted,
                 window_closed = &NativeCallbacks.WindowClosed,
                 window_placement = &NativeCallbacks.WindowPlacement,
+                window_opened = &NativeCallbacks.WindowOpened,
                 menu_action = &NativeCallbacks.MenuAction,
                 menu_applied = &NativeCallbacks.MenuApplied,
             };

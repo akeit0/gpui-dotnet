@@ -410,6 +410,22 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
         return failed ? -121 : 0;
     }
 
+    internal int WindowOpened(ulong windowId)
+    {
+        if (!_sessions.TryGetValue(windowId, out var session))
+            return -121;
+        var previousContext = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
+        try
+        {
+            return _application.NativeWindowOpened(windowId) ? 0 : -121;
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previousContext);
+        }
+    }
+
     internal int WindowPlacement(ulong windowId, NativeWindowPlacement placement)
     {
         if (

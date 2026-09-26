@@ -136,6 +136,7 @@ public sealed class GpuiWindow
     private readonly object _placementGate = new();
     private GpuiWindowPlacement? _finalPlacement;
     internal GpuiApplication Application => _application;
+    private int _opened;
     private int _closed;
 
     internal GpuiWindow(
@@ -155,6 +156,15 @@ public sealed class GpuiWindow
     public ulong Id { get; }
 
     public bool IsClosed => Volatile.Read(ref _closed) != 0;
+
+    /// <summary>True after the native window opens and before it closes.</summary>
+    public bool IsOpen => Volatile.Read(ref _opened) != 0 && !IsClosed;
+
+    /// <summary>Raised on the GPUI application thread after native window creation.</summary>
+    public event Action<GpuiWindow>? Opened;
+
+    /// <summary>Raised on the GPUI application thread after managed View teardown.</summary>
+    public event Action<GpuiWindow>? Closed;
 
     /// <summary>
     /// Final native placement after this window closes successfully. Save it in application
@@ -216,6 +226,14 @@ public sealed class GpuiWindow
         Interlocked.Exchange(ref _rootDeclaration, null);
         Volatile.Write(ref _closed, 1);
     }
+
+    internal void MarkOpened() => Volatile.Write(ref _opened, 1);
+
+    internal void RaiseOpened() => Opened?.Invoke(this);
+
+    internal void RaiseClosed() => Closed?.Invoke(this);
+
+    internal bool WasOpened => Volatile.Read(ref _opened) != 0;
 }
 
 /// <summary>
@@ -262,6 +280,12 @@ public sealed class GpuiApplication
     private (ulong MaxBytes, ulong MaxEntries)? _imageCacheBudget;
     private IGpuiApplicationHost? _host;
     private ApplicationState _state;
+
+    /// <summary>Raised after any application window opens natively.</summary>
+    public event Action<GpuiWindow>? WindowOpened;
+
+    /// <summary>Raised after any opened window's managed View teardown.</summary>
+    public event Action<GpuiWindow>? WindowClosed;
 
     /// <summary>
     /// Creates an application using the package's default native host or an explicitly selected
@@ -603,14 +627,36 @@ public sealed class GpuiApplication
 
     internal void NativeWindowClosed(ulong id)
     {
+        GpuiWindow? closedWindow;
+        bool wasOpened;
         lock (_gate)
         {
-            if (!_windows.Remove(id, out var window))
+            if (!_windows.Remove(id, out closedWindow))
             {
                 return;
             }
-            window.MarkClosed();
+            wasOpened = closedWindow.WasOpened;
+            closedWindow.MarkClosed();
         }
+        if (wasOpened)
+        {
+            closedWindow.RaiseClosed();
+            WindowClosed?.Invoke(closedWindow);
+        }
+    }
+
+    internal bool NativeWindowOpened(ulong id)
+    {
+        GpuiWindow window;
+        lock (_gate)
+        {
+            if (!_windows.TryGetValue(id, out window!) || window.IsClosed || window.WasOpened)
+                return false;
+            window.MarkOpened();
+        }
+        window.RaiseOpened();
+        WindowOpened?.Invoke(window);
+        return true;
     }
 
     internal bool NativeWindowPlacement(ulong id, GpuiWindowPlacement placement)

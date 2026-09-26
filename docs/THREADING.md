@@ -28,8 +28,8 @@ Each native window owns one GPUI `Entity<ManagedView>`. The C# root and child `V
 not separate GPUI entities. They form a binding-managed retained tree whose fragments are combined
 into the snapshot consumed by that native `ManagedView`.
 
-Native-to-managed render, acceptance, virtual-item, dynamic-frame, event, startup, and window-close callbacks
-originate from GPUI foreground work. Managed mounting, rendering, event-table access,
+Native-to-managed render, acceptance, virtual-item, dynamic-frame, event, startup, window-open,
+and window-close callbacks originate from GPUI foreground work. Managed mounting, rendering, event-table access,
 reconciliation, and unmounting therefore stay serialized on that thread once a View is prepared.
 Roots and children construct on this thread under a pre-existing local ownership scope. Candidates
 retired before acceptance release local resources without activating effects.

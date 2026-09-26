@@ -9,7 +9,7 @@ public sealed class ApplicationModelTests
     [Fact]
     public void UsesExpectedProtocolVersions()
     {
-        Assert.Equal(9u, NativeConstants.AbiVersion);
+        Assert.Equal(10u, NativeConstants.AbiVersion);
         Assert.Equal(1u, SemanticRegistry.SchemaVersion);
     }
 
@@ -40,9 +40,69 @@ public sealed class ApplicationModelTests
     }
 
     [Fact]
+    public void NativeWindowLifecycleNotificationsFollowCreationAndTeardown()
+    {
+        var application = new GpuiApplication();
+        var window = application.OpenWindow(ProbeView.Spec());
+        var events = new List<string>();
+        window.Opened += opened =>
+        {
+            Assert.True(opened.IsOpen);
+            events.Add("window-opened");
+        };
+        application.WindowOpened += _ => events.Add("application-opened");
+        window.Closed += closed =>
+        {
+            Assert.True(closed.IsClosed);
+            Assert.Equal(
+                new GpuiWindowPlacement(20, 30, 800, 600, WindowInitialState.Normal),
+                closed.FinalPlacement
+            );
+            events.Add("window-closed");
+        };
+        application.WindowClosed += _ => events.Add("application-closed");
+
+        Assert.False(window.IsOpen);
+        Assert.True(application.NativeWindowOpened(window.Id));
+        Assert.True(window.IsOpen);
+        Assert.False(application.NativeWindowOpened(window.Id));
+        Assert.True(
+            application.NativeWindowPlacement(
+                window.Id,
+                new GpuiWindowPlacement(20, 30, 800, 600, WindowInitialState.Normal)
+            )
+        );
+        application.NativeWindowClosed(window.Id);
+        Assert.False(window.IsOpen);
+        Assert.True(window.IsClosed);
+        application.NativeWindowClosed(window.Id);
+        Assert.Equal(
+            ["window-opened", "application-opened", "window-closed", "application-closed"],
+            events
+        );
+    }
+
+    [Fact]
+    public void CanceledPendingWindowDoesNotRaiseNativeLifecycleNotifications()
+    {
+        var application = new GpuiApplication();
+        var window = application.OpenWindow(ProbeView.Spec());
+        var raised = false;
+        window.Opened += _ => raised = true;
+        window.Closed += _ => raised = true;
+        window.Close();
+        Assert.True(window.IsClosed);
+        Assert.False(raised);
+    }
+
+    [Fact]
     public unsafe void AcceptanceCallbackExtendsTheNativeCallbackTable()
     {
-        Assert.Equal(14 * IntPtr.Size, sizeof(ManagedCallbacks));
+        Assert.Equal(15 * IntPtr.Size, sizeof(ManagedCallbacks));
+        Assert.Equal(
+            14 * IntPtr.Size,
+            (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.window_opened))
+        );
         Assert.Equal(
             13 * IntPtr.Size,
             (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.window_placement))

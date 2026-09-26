@@ -22,6 +22,14 @@ var options = new GpuiWindowOptions
 var primaryWindow = stressGrowth
     ? application.OpenWindow(ArenaGrowthView.Spec(), options)
     : application.OpenWindow(SampleShellView.Spec(), options);
+if (persistWindow)
+{
+    primaryWindow.Closed += window =>
+    {
+        if (window.FinalPlacement is { } placement)
+            WindowPlacementStore.Save(placement);
+    };
+}
 if (multiWindow)
 {
     application.OpenWindow(
@@ -37,5 +45,3 @@ if (multiWindow)
     );
 }
 application.Run();
-if (persistWindow && primaryWindow.FinalPlacement is { } placement)
-    WindowPlacementStore.Save(placement);

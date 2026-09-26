@@ -1016,17 +1016,29 @@ fn apply_application_command(
                 minimum_size,
                 theme.clone(),
             );
-            if let Err(status) = result {
-                record_status(application_status, status);
-                report_window_closed(
-                    application_id,
-                    window_id,
-                    status,
-                    callbacks,
-                    application_status,
-                );
-                if windows.borrow().is_empty() {
-                    cx.quit();
+            match result {
+                Ok(()) => {
+                    let status = unsafe {
+                        callbacks
+                            .window_opened
+                            .expect("validated window-opened callback")(
+                            application_id, window_id
+                        )
+                    };
+                    record_status(application_status, status);
+                }
+                Err(status) => {
+                    record_status(application_status, status);
+                    report_window_closed(
+                        application_id,
+                        window_id,
+                        status,
+                        callbacks,
+                        application_status,
+                    );
+                    if windows.borrow().is_empty() {
+                        cx.quit();
+                    }
                 }
             }
         }
@@ -1933,6 +1945,7 @@ mod tests {
             menu_action: None,
             menu_applied: None,
             window_placement: None,
+            window_opened: None,
             dynamic_frame: None,
             render_completed: None,
             release_artifact: None,

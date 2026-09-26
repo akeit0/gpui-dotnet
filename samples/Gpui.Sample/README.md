@@ -14,4 +14,5 @@ window's final placement to
 `Gpui.Sample/window-placement.json` under the current user's local application-data directory.
 The next run with that flag restores its normal bounds and maximized or fullscreen state. The
 sample owns this JSON policy; the core library reports the native placement when the window closes.
+The file is written from the primary window's `Closed` event, even while a companion remains open.
 Some window managers may ignore requested absolute positions.

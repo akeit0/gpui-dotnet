@@ -55,6 +55,7 @@ callback table provides:
 - owner-view preparation for a requested dynamic frame;
 - retained control events (Input, Slider, Dock, List/Table item events, and observer key/mouse);
 - application-started notification;
+- window-opened notification after native creation;
 - window-closed notification;
 - final window placement before window-closed notification;
 - application-menu action dispatch;
@@ -71,6 +72,11 @@ record immediately before `window_closed` for a successfully opened window. Maxi
 fullscreen changes keep the cached restore rectangle; ordinary resize and move notifications
 update it. Managed copies and validates the borrowed record before closing the handle. An open
 failure has no placement record.
+
+ABI 10 appends `window_opened(application_id, window_id)` to the callback table. Native calls it
+once after inserting a successfully created window into the application registry. A failed open
+receives only the existing `window_closed` failure callback. Managed lifecycle events execute from
+these notifications; `window_placement` still precedes a successful close callback.
 
 The native application is registered before the application-started callback, so managed code can
 enqueue initial windows synchronously. A window ID is also its render-session ID. Closing one window

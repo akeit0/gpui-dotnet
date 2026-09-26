@@ -1055,6 +1055,7 @@ fn callbacks() -> ManagedCallbacks {
         menu_action: None,
         menu_applied: None,
         window_placement: None,
+        window_opened: None,
     }
 }
 
