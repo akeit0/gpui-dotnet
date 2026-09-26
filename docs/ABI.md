@@ -317,6 +317,7 @@ Current commands are:
 | Command | Contract |
 |---|---|
 | Open | UTF-8 title, positive restore size, optional position/activation, title-bar style, initial state |
+| OpenWithMinimumSize | versioned UTF-8 title and positive minimum size, plus the Open geometry and flags |
 | Close | existing window ID |
 | Activate | existing window ID |
 | Minimize | existing window ID |
@@ -337,6 +338,14 @@ or `Hidden` title-bar style, and bits 4–5 for initial state (`Normal`, `Maximi
 Bits 6–15 and the fourth value of either two-bit field are rejected. Width, height, and optional
 position are restore bounds when the window opens maximized or fullscreen. Runtime reposition is
 not exposed because the pinned GPUI revision has no durable cross-platform operation for it.
+
+`OpenWithMinimumSize` (command 16) keeps the Open flags and geometry fields. Its borrowed byte
+range contains a 20-byte header: version (`u32`, currently 1), minimum width and height (`f32`),
+title byte length (`u32`), and reserved zero (`u32`), all little-endian. The non-empty UTF-8 title
+follows the header and is limited to 4096 bytes. Both minimum dimensions must be finite, positive,
+and no greater than the restore dimensions. The native entry point validates and copies the entire
+payload before enqueueing a window-open command. Plain Open remains valid for windows with no
+minimum size; no C struct or entry point changes.
 
 `ShowToast` (command 13) uses the borrowed byte range as a version 1 payload. Its 24-byte header
 contains six little-endian `u32` fields: version, timeout in milliseconds, ID byte length, title

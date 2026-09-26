@@ -76,6 +76,21 @@ internal sealed partial class SampleShellView : View
         );
     }
 
+    private void OpenWindowWithMinimumSize()
+    {
+        Application.OpenWindow(
+            CompanionWindowView.Spec("Try resizing this window below 560 × 380."),
+            new GpuiWindowOptions
+            {
+                Title = "GPUI.NET Minimum Size",
+                Width = 760,
+                Height = 520,
+                MinimumWidth = 560,
+                MinimumHeight = 380,
+            }
+        );
+    }
+
     private void CloseWindow()
     {
         Window.Close();
@@ -412,6 +427,9 @@ internal sealed partial class SampleShellView : View
                                         (view, _) =>
                                             view.OpenWindowInState(WindowInitialState.Fullscreen)
                                     )
+                                    .Padding(Px(11)),
+                                ui.Button("open-minimum-size", "Open minimum size")
+                                    .OnClick(this, (view, _) => view.OpenWindowWithMinimumSize())
                                     .Padding(Px(11))
                             )
                             .Gap(Px(10))

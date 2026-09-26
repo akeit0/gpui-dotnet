@@ -107,6 +107,26 @@ public sealed class ApplicationModelTests
                 new GpuiWindowOptions { InitialState = (WindowInitialState)99 }
             )
         );
+        Assert.Throws<ArgumentException>(() =>
+            application.OpenWindow(ProbeView.Spec(), new GpuiWindowOptions { MinimumWidth = 400 })
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            application.OpenWindow(
+                ProbeView.Spec(),
+                new GpuiWindowOptions { MinimumWidth = 800, MinimumHeight = 300 }
+            )
+        );
+        Assert.Throws<ArgumentException>(() =>
+            application.OpenWindow(
+                ProbeView.Spec(),
+                new GpuiWindowOptions
+                {
+                    Title = new string('x', 4097),
+                    MinimumWidth = 400,
+                    MinimumHeight = 300,
+                }
+            )
+        );
     }
 
     [Fact]
@@ -145,6 +165,7 @@ public sealed class ApplicationModelTests
         Assert.Equal(600, window.Snapshot.Height);
         Assert.Equal(WindowTitleBarStyle.System, window.Snapshot.TitleBarStyle);
         Assert.Equal(WindowInitialState.Normal, window.Snapshot.InitialState);
+        Assert.Null(window.Snapshot.MinimumWidth);
         Assert.Throws<InvalidOperationException>(window.Minimize);
         Assert.Throws<InvalidOperationException>(window.ToggleMaximize);
         Assert.Throws<InvalidOperationException>(window.ToggleFullscreen);
@@ -174,6 +195,8 @@ public sealed class ApplicationModelTests
             {
                 TitleBarStyle = WindowTitleBarStyle.Custom,
                 InitialState = WindowInitialState.Maximized,
+                MinimumWidth = 480,
+                MinimumHeight = 320,
             }
         );
 
@@ -182,6 +205,8 @@ public sealed class ApplicationModelTests
         Assert.True(second.Snapshot.Activate);
         Assert.Equal(WindowTitleBarStyle.Custom, second.Snapshot.TitleBarStyle);
         Assert.Equal(WindowInitialState.Maximized, second.Snapshot.InitialState);
+        Assert.Equal(480, second.Snapshot.MinimumWidth);
+        Assert.Equal(320, second.Snapshot.MinimumHeight);
         var third = application.OpenWindow(firstRoot);
         Assert.NotEqual(first.Id, third.Id);
 

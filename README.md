@@ -284,6 +284,7 @@ the managed View snapshot. The [sample](samples/Gpui.Sample/README.md) has inter
 `WindowControlArea` regions for native drag, minimize, maximize, and close behavior.
 Set `GpuiWindowOptions.InitialState` to `Maximized` or `Fullscreen` to open in that native state;
 `Width`, `Height`, `Left`, and `Top` remain the restore bounds.
+Set `MinimumWidth` and `MinimumHeight` together to request a native minimum window size.
 
 Declare application commands once with `GpuiMenu[]`. macOS installs them in the global native menu
 bar. `GpuiTitleBar.RenderWindow` uses the same definitions for a minimal managed menu/title bar on

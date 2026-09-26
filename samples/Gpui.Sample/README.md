@@ -7,3 +7,4 @@ times out after five seconds by default and pauses while its stack is hovered.
 
 The **Windows** page can open companion windows with normal, maximized, or fullscreen initial
 state. Their configured size is used when the window leaves maximized or fullscreen mode.
+The minimum-size button opens a window with a native 560 × 380 minimum-size request.

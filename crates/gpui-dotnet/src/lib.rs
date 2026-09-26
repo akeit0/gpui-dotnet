@@ -37,6 +37,7 @@ mod snapshot;
 mod theme;
 mod tooltip;
 mod trace;
+mod window_open;
 mod window_toast;
 
 use std::{mem::size_of, panic::AssertUnwindSafe, ptr};
@@ -487,7 +488,7 @@ unsafe fn dispatch_application_command_inner(
         && command.width > 0.0
         && command.height > 0.0;
     let payload_valid = match command.command {
-        1 => {
+        1 | window_open::COMMAND => {
             command.flags & !0b11_1111 == 0
                 && title_bar_style <= 2
                 && initial_state <= 2
@@ -512,18 +513,27 @@ unsafe fn dispatch_application_command_inner(
         return -62;
     }
 
-    let title = if no_title {
-        None
+    let (title, minimum_size) = if command.command == window_open::COMMAND {
+        let payload = match window_open::parse(command) {
+            Ok(payload) => payload,
+            Err(status) => return status,
+        };
+        (
+            Some(payload.title),
+            Some((payload.minimum_width, payload.minimum_height)),
+        )
+    } else if no_title {
+        (None, None)
     } else {
         let bytes = unsafe { crate::pointer::slice(command.title, command.title_length as usize) };
         let Ok(title) = std::str::from_utf8(bytes) else {
             return -63;
         };
-        Some(title.to_owned())
+        (Some(title.to_owned()), None)
     };
 
     let message = match command.command {
-        1 => app_host::ApplicationCommand::Open {
+        1 | window_open::COMMAND => app_host::ApplicationCommand::Open {
             window_id: command.window_id,
             title: title.expect("validated open title"),
             left: (command.flags & 1 != 0).then_some(command.left),
@@ -543,6 +553,7 @@ unsafe fn dispatch_application_command_inner(
                 2 => app_host::WindowInitialState::Fullscreen,
                 _ => unreachable!("initial state was validated"),
             },
+            minimum_size,
         },
         2 => app_host::ApplicationCommand::Close(command.window_id),
         3 => app_host::ApplicationCommand::Activate(command.window_id),
@@ -893,6 +904,30 @@ mod tests {
                 -62
             );
         }
+    }
+
+    #[test]
+    fn open_with_minimum_validates_before_application_dispatch() {
+        let mut payload = Vec::new();
+        for field in [1u32, 480f32.to_bits(), 320f32.to_bits(), 5, 0] {
+            payload.extend_from_slice(&field.to_le_bytes());
+        }
+        payload.extend_from_slice(b"Title");
+        let mut command = empty_application_command(window_open::COMMAND);
+        command.window_id = 1;
+        command.title = payload.as_ptr();
+        command.title_length = payload.len() as i32;
+        command.width = 800.0;
+        command.height = 600.0;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -40
+        );
+        command.flags = 1 << 6;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -62
+        );
     }
 
     #[test]

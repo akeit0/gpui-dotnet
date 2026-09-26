@@ -120,6 +120,7 @@ pub(crate) enum ApplicationCommand {
         activate: bool,
         title_bar_style: WindowTitleBarStyle,
         initial_state: WindowInitialState,
+        minimum_size: Option<(f32, f32)>,
     },
     Close(u64),
     Activate(u64),
@@ -995,6 +996,7 @@ fn apply_application_command(
             activate,
             title_bar_style,
             initial_state,
+            minimum_size,
         } => {
             let result = open_managed_window(
                 cx,
@@ -1008,6 +1010,7 @@ fn apply_application_command(
                 activate,
                 title_bar_style,
                 initial_state,
+                minimum_size,
                 theme.clone(),
             );
             if let Err(status) = result {
@@ -1151,6 +1154,7 @@ fn open_managed_window(
     activate: bool,
     title_bar_style: WindowTitleBarStyle,
     initial_state: WindowInitialState,
+    minimum_size: Option<(f32, f32)>,
     theme: SharedTheme,
 ) -> Result<(), i32> {
     if windows.borrow().contains_key(&window_id) {
@@ -1198,6 +1202,7 @@ fn open_managed_window(
                 window_bounds: Some(window_bounds),
                 titlebar,
                 focus: activate,
+                window_min_size: minimum_size.map(|(width, height)| size(px(width), px(height))),
                 window_decorations,
                 ..Default::default()
             },

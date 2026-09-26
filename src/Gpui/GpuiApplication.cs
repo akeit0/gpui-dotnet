@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using System.Text;
 using Gpui.Interop;
 
 namespace Gpui;
@@ -40,6 +41,8 @@ public sealed class GpuiWindowOptions
     public bool Activate { get; init; } = true;
     public WindowTitleBarStyle TitleBarStyle { get; init; } = WindowTitleBarStyle.System;
     public WindowInitialState InitialState { get; init; } = WindowInitialState.Normal;
+    public float? MinimumWidth { get; init; }
+    public float? MinimumHeight { get; init; }
 
     internal GpuiWindowSnapshot ValidateAndSnapshot()
     {
@@ -61,6 +64,35 @@ public sealed class GpuiWindowOptions
         {
             throw new ArgumentOutOfRangeException(nameof(Left));
         }
+        if (MinimumWidth.HasValue != MinimumHeight.HasValue)
+        {
+            throw new ArgumentException(
+                "MinimumWidth and MinimumHeight must either both be set or both be omitted."
+            );
+        }
+        if (MinimumWidth is { } minimumWidth)
+        {
+            if (!float.IsFinite(minimumWidth) || minimumWidth <= 0)
+                throw new ArgumentOutOfRangeException(nameof(MinimumWidth));
+            if (!float.IsFinite(MinimumHeight!.Value) || MinimumHeight.Value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(MinimumHeight));
+            if (minimumWidth > Width || MinimumHeight.Value > Height)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(MinimumWidth),
+                    "The minimum size must not exceed the initial restore size."
+                );
+            }
+            if (
+                Encoding.UTF8.GetByteCount(Title) > Interop.Internal.WindowOpenPayload.MaxTitleBytes
+            )
+            {
+                throw new ArgumentException(
+                    "A window title with minimum size must fit within 4096 UTF-8 bytes.",
+                    nameof(Title)
+                );
+            }
+        }
         return new GpuiWindowSnapshot(
             Title,
             Width,
@@ -69,7 +101,9 @@ public sealed class GpuiWindowOptions
             Top,
             Activate,
             TitleBarStyle,
-            InitialState
+            InitialState,
+            MinimumWidth,
+            MinimumHeight
         );
     }
 
@@ -835,7 +869,9 @@ internal readonly record struct GpuiWindowSnapshot(
     float? Top,
     bool Activate,
     WindowTitleBarStyle TitleBarStyle,
-    WindowInitialState InitialState
+    WindowInitialState InitialState,
+    float? MinimumWidth,
+    float? MinimumHeight
 );
 
 internal readonly record struct GpuiWindowOpenRequest(

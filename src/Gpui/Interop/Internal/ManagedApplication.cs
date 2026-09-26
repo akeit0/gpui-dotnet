@@ -314,21 +314,42 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
         try
         {
-            Dispatch(
-                1,
-                window.Id,
-                snapshot.Title,
-                snapshot.Left ?? 0,
-                snapshot.Top ?? 0,
-                snapshot.Width,
-                snapshot.Height,
-                (ushort)(
-                    (snapshot.Left.HasValue ? 1 : 0)
-                    | (snapshot.Activate ? 2 : 0)
-                    | ((ushort)snapshot.TitleBarStyle << 2)
-                    | ((ushort)snapshot.InitialState << 4)
-                )
+            var flags = (ushort)(
+                (snapshot.Left.HasValue ? 1 : 0)
+                | (snapshot.Activate ? 2 : 0)
+                | ((ushort)snapshot.TitleBarStyle << 2)
+                | ((ushort)snapshot.InitialState << 4)
             );
+            if (snapshot.MinimumWidth is { } minimumWidth)
+            {
+                DispatchBytes(
+                    16,
+                    window.Id,
+                    WindowOpenPayload.Encode(
+                        snapshot.Title,
+                        minimumWidth,
+                        snapshot.MinimumHeight!.Value
+                    ),
+                    snapshot.Left ?? 0,
+                    snapshot.Top ?? 0,
+                    snapshot.Width,
+                    snapshot.Height,
+                    flags
+                );
+            }
+            else
+            {
+                Dispatch(
+                    1,
+                    window.Id,
+                    snapshot.Title,
+                    snapshot.Left ?? 0,
+                    snapshot.Top ?? 0,
+                    snapshot.Width,
+                    snapshot.Height,
+                    flags
+                );
+            }
         }
         catch
         {
