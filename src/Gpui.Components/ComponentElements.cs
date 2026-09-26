@@ -54,6 +54,8 @@ public static class ComponentsExtension
         Component(ComponentSchema.Toolbar.Kind);
     internal static NativeExtensionComponent ToolbarGroup { get; } =
         Component(ComponentSchema.ToolbarGroup.Kind);
+    internal static NativeExtensionComponent StatusBar { get; } =
+        Component(ComponentSchema.StatusBar.Kind);
 
     private static NativeExtensionComponent Component(string kind) => new(Requirement, kind);
 }

@@ -119,7 +119,7 @@ internal sealed partial class ComponentsSampleView : View
                         new ComponentLabelOptions
                         {
                             Text = "Generated semantic adapters",
-                            Secondary = "26 families",
+                            Secondary = "27 families",
                             Highlight = "semantic",
                         }
                     ),
@@ -297,6 +297,12 @@ internal sealed partial class ComponentsSampleView : View
                     footer: ui.Text("Empty state presentation from gpui-component."u8)
                 )
                 .Height(Px(180)),
+            ui.StatusBar(
+                "catalog-status",
+                left: ui.Text("Ready"u8),
+                center: ui.Text($"Actions: {_clicks}"),
+                right: ui.Text("UTF-8"u8)
+            ),
             ui.Collapsible(
                 "catalog-collapsible",
                 new ComponentCollapsibleOptions { Open = _switchChecked },

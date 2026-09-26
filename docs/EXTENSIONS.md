@@ -115,9 +115,9 @@ The accepted ownership, revision, bootstrap, command, and event design is docume
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes Editor plus twenty-six component families. Display and content coverage includes
+The host includes Editor plus twenty-seven component families. Display and content coverage includes
 Spinner, Skeleton, Separator, Badge, Tag, linear and circular Progress, Alert, GroupBox, Label, Kbd,
-Avatar, ShimmerText, Attachment, and Empty. Interactive and controlled coverage includes Rating,
+Avatar, ShimmerText, Attachment, Empty, and StatusBar. Interactive and controlled coverage includes Rating,
 Button, Link, Switch, Checkbox, Radio, Toggle, Pagination, Collapsible, Toolbar, and ToolbarGroup.
 Editor keeps its independently versioned
 `Gpui.Editor` managed schema; applications using both schemas list both requirements, and the host
@@ -140,6 +140,10 @@ each named child in its declared position even when earlier slots are absent.
 roving keyboard navigation and group semantics. The toolbar's size sets container density; children
 retain their explicitly declared sizes and event routes. Disabling toolbar navigation does not
 disable its child controls, which remain application-owned declarations.
+
+`StatusBar` accepts independent left, center, and right regions. Its native layout places the
+outer regions at the edges and aligns the center according to which outer regions are present.
+Each region can contain a managed composition of text, controls, or other elements.
 
 The sample proves the generated configuration contract and custom-host composition:
 

@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 5u;
-    internal const ulong SchemaHash = 0x5C5E68FC71438D1CUL;
+    internal const uint SchemaVersion = 6u;
+    internal const ulong SchemaHash = 0xE0C58E5CC83CA49AUL;
 
     internal static class Attachment
     {
@@ -915,6 +915,16 @@ internal static class ComponentSchema
                 throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(label));
             }
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{label}");
+        }
+    }
+
+    internal static class StatusBar
+    {
+        internal const string Kind = "status_bar";
+
+        internal static string EncodeConfiguration(bool hasLeft, bool hasCenter, bool hasRight)
+        {
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{(hasLeft ? 1 : 0)}\n{(hasCenter ? 1 : 0)}\n{(hasRight ? 1 : 0)}");
         }
     }
 }

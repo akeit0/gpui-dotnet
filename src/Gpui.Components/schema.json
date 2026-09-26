@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 5,
+  "schemaVersion": 6,
   "components": [
     {
       "kind": "attachment",
@@ -426,6 +426,20 @@
       "configuration": {
         "encoding": "lines",
         "fields": [{ "name": "label", "type": "string" }]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "status_bar",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "has_left", "type": "bool" },
+          { "name": "has_center", "type": "bool" },
+          { "name": "has_right", "type": "bool" }
+        ]
       },
       "flags": {},
       "commands": {},

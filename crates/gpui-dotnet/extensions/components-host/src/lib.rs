@@ -35,6 +35,7 @@ use gpui_component::{
     shimmer::ShimmerText,
     skeleton::Skeleton,
     spinner::Spinner,
+    status_bar::StatusBar,
     switch::Switch,
     tag::{Tag, TagVariant as NativeTagVariant},
     toolbar::{Toolbar, ToolbarGroup},
@@ -95,6 +96,7 @@ impl NativeExtension for ComponentsExtension {
             COMPONENT_EMPTY => empty(request),
             COMPONENT_TOOLBAR => toolbar(request),
             COMPONENT_TOOLBAR_GROUP => toolbar_group(request),
+            COMPONENT_STATUS_BAR => status_bar(request),
             COMPONENT_SPINNER => spinner(request),
             COMPONENT_SKELETON => skeleton(request),
             COMPONENT_SEPARATOR => separator(request),
@@ -264,6 +266,24 @@ fn toolbar_group(mut request: NativeExtensionRequest) -> Result<AnyElement, Shar
         component = component.label(config.label.to_owned());
     }
     component.extend(request.children.drain(..));
+    Ok(component.into_any_element())
+}
+
+fn status_bar(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = StatusBarConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid StatusBar configuration."))?;
+    let [left, center, right] = split_slots(
+        request.children,
+        [config.has_left, config.has_center, config.has_right],
+    )?;
+    let mut component = StatusBar::new();
+    if let Some(left) = left {
+        component = component.left(left);
+    }
+    component.extend(center);
+    if let Some(right) = right {
+        component = component.right(right);
+    }
     Ok(component.into_any_element())
 }
 
@@ -1006,6 +1026,10 @@ mod tests {
                 .label,
             "Document actions"
         );
+        let status_bar = StatusBarConfiguration::parse("1\n0\n1").unwrap();
+        assert!(status_bar.has_left);
+        assert!(!status_bar.has_center);
+        assert!(status_bar.has_right);
     }
 
     #[test]

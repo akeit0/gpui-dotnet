@@ -9,7 +9,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(5u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(6u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -177,5 +177,11 @@ public sealed class ComponentExtensionTests
             "Document actions",
             ComponentSchema.ToolbarGroup.EncodeConfiguration("Document actions")
         );
+    }
+
+    [Fact]
+    public void StatusBarConfigurationKeepsAllThreeRegions()
+    {
+        Assert.Equal("1\n0\n1", ComponentSchema.StatusBar.EncodeConfiguration(true, false, true));
     }
 }
