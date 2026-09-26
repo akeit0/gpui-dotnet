@@ -77,19 +77,29 @@ revisions, and payload layouts remain schema-owned.
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes thirty-seven catalog families plus Editor, a retained extension example. Display
+The host includes thirty-eight catalog families plus Editor, a retained extension example. Display
 and content coverage includes Spinner, Skeleton, Separator, Badge, Tag, linear and circular
 Progress, Alert, GroupBox, Label, Kbd, Avatar, Icon, ShimmerText, Attachment, Empty, StatusBar,
 Bubble, BubbleGroup, Message, MessageGroup, Marker, and DescriptionList. Interactive and
 controlled coverage includes Rating, Button, Link, Switch, Checkbox, Radio, Toggle, Pagination,
-Collapsible, Toolbar, ToolbarGroup, Breadcrumb, Tabs, and Textarea.
+Collapsible, Toolbar, ToolbarGroup, Breadcrumb, Tabs, and Textarea. Form batches a compound field
+layout with existing core or optional controls.
+
+`Form` takes one control child per field and an optional full-width footer. Labels, help text,
+errors, required markers, column spans, label orientation, and grid columns form one declarative
+batch. Error text replaces help text while present. C# owns field values and validation; the native
+component owns the grid and themed label/error presentation. `ComponentFormField.For` sets a core
+control's accessible name and current description from the field declaration. For extension
+controls, `NamedControl` requires the control to declare its own accessible label (for example,
+`ComponentTextareaOptions.AccessibilityLabel`). Separate accessible descriptions for optional
+controls are not part of their current schema.
 
 `Textarea` is an ordinary multiline field with keyed native value, selection, IME, undo, and
 scrolling state. Its initial value is consumed when the resource is created; subsequent declarations
 update placeholder, row count, disabled/read-only state, accessibility label, and callback binding.
 `Rows` sets the visible field height and its native text viewport. User edits can emit a copied
-UTF-8 value with a native revision. `Focus` and `SetValue` are coarse
-commands; a changed replacement clears selection, scroll, and undo history without emitting a
+UTF-8 value with a native revision. `Focus` and `SetValue` are coarse commands; a changed
+replacement clears selection, scroll, and undo history without emitting a
 change event, while an identical replacement preserves them. It uses the existing component host
 and generic extension transport.
 

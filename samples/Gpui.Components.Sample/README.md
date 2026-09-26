@@ -8,8 +8,10 @@ dotnet run --project samples/Gpui.Components.Sample/Gpui.Components.Sample.cspro
 
 The sample loads the optional component host, which includes the gpui-kit catalog and Editor. It
 demonstrates display elements, controlled inputs, file presentation, a conversation, and retained
-editing. The Multiline notes field retains text, selection, and undo natively. Focus notes sends a
-focus command; Clear notes replaces the value and updates the sample's character count. The empty
+editing. The Review form batches a core Subject input, optional Ready checkbox, and a full-width
+multiline Notes field with a shared footer. Clear notes shows the field error; typing clears it.
+The notes field retains text, selection, and undo natively. Focus notes sends a focus command;
+Clear notes replaces the value and updates the sample's character count. The empty
 state uses the sample's `Assets/archive-box.svg` file through the native Icon
 component's application asset path. Its two-line description exercises generated multiline text
 configuration. The Save button uses an icon from the host's bundled assets.

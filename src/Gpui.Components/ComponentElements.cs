@@ -74,6 +74,7 @@ public static class ComponentsExtension
     internal static NativeExtensionComponent Tabs { get; } = Component(ComponentSchema.Tabs.Kind);
     internal static NativeExtensionComponent Textarea { get; } =
         Component(ComponentSchema.Textarea.Kind);
+    internal static NativeExtensionComponent Form { get; } = Component(ComponentSchema.Form.Kind);
 
     private static NativeExtensionComponent Component(string kind) => new(Requirement, kind);
 }

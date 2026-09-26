@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 13u;
-    internal const ulong SchemaHash = 0xE31E78AA34968A67UL;
+    internal const uint SchemaVersion = 14u;
+    internal const ulong SchemaHash = 0x99043981CAB38C97UL;
 
     internal static class Attachment
     {
@@ -1288,6 +1288,79 @@ internal static class ComponentSchema
                 throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(accessibilityLabel));
             }
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{initialValueValue}\n{placeholder}\n{rows}\n{(disabled ? 1 : 0)}\n{(readOnly ? 1 : 0)}\n{accessibilityLabel}\n{changedEvent}");
+        }
+    }
+
+    internal static class Form
+    {
+        internal const string Kind = "form";
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal enum LabelAxis
+        {
+            Horizontal,
+            Vertical,
+        }
+
+        internal static string EncodeConfiguration(Size size, LabelAxis labelAxis, uint columns, float labelWidthPixels, global::System.ReadOnlySpan<string> labels, global::System.ReadOnlySpan<string> helpTexts, global::System.ReadOnlySpan<string> errorTexts, global::System.ReadOnlySpan<uint> required, global::System.ReadOnlySpan<uint> columnSpans, bool hasFooter)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            var labelAxisValue = labelAxis switch
+            {
+                LabelAxis.Horizontal => "horizontal",
+                LabelAxis.Vertical => "vertical",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(labelAxis)),
+            };
+            if (!float.IsFinite(labelWidthPixels))
+            {
+                throw new global::System.ArgumentOutOfRangeException(nameof(labelWidthPixels), "Extension configuration numbers must be finite.");
+            }
+            foreach (var item in labels)
+            {
+                global::System.ArgumentNullException.ThrowIfNull(item);
+            }
+            var labelsValue = global::System.Text.Json.JsonSerializer.Serialize(labels.ToArray());
+            foreach (var item in helpTexts)
+            {
+                global::System.ArgumentNullException.ThrowIfNull(item);
+            }
+            var helpTextsValue = global::System.Text.Json.JsonSerializer.Serialize(helpTexts.ToArray());
+            foreach (var item in errorTexts)
+            {
+                global::System.ArgumentNullException.ThrowIfNull(item);
+            }
+            var errorTextsValue = global::System.Text.Json.JsonSerializer.Serialize(errorTexts.ToArray());
+            var requiredBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < required.Length; index++)
+            {
+                if (index != 0)
+                    requiredBuilder.Append(',');
+                requiredBuilder.Append(required[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var requiredValue = requiredBuilder.ToString();
+            var columnSpansBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < columnSpans.Length; index++)
+            {
+                if (index != 0)
+                    columnSpansBuilder.Append(',');
+                columnSpansBuilder.Append(columnSpans[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var columnSpansValue = columnSpansBuilder.ToString();
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{labelAxisValue}\n{columns}\n{labelWidthPixels}\n{labelsValue}\n{helpTextsValue}\n{errorTextsValue}\n{requiredValue}\n{columnSpansValue}\n{(hasFooter ? 1 : 0)}");
         }
     }
 

@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using Gpui.Components;
+using Gpui.Interop;
 
 namespace Gpui.Tests;
 
@@ -9,7 +10,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(13u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(14u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -232,6 +233,83 @@ public sealed class ComponentExtensionTests
                 new NativeExtensionEvent(ComponentSchema.Textarea.EventChanged, 0, 0, [])
             )
         );
+    }
+
+    [Fact]
+    public void CoreFormFieldNamesItsControlAndDescribesRequirement()
+    {
+        using var arena = new RenderArenaOwner();
+        var ui = arena.BeginRender();
+        var field = ComponentFormField.For(
+            "Account",
+            ui.Button("account-button"),
+            helpText: "Use the account on your receipt",
+            required: true
+        );
+        Assert.Equal("Account", field.Label);
+        Assert.True(field.Required);
+        arena.Validate(ui.Div(field.Control));
+        Assert.Equal("Account", ReadDataOp(arena, OpCode.AccessibleName));
+        Assert.Equal(
+            "Required. Use the account on your receipt",
+            ReadDataOp(arena, OpCode.AccessibleDescription)
+        );
+    }
+
+    [Fact]
+    public void FormRejectsInvalidLayoutAndDefaultFields()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(CheckColumns);
+        Assert.Throws<ArgumentException>(CheckDefaultField);
+
+        static void CheckColumns()
+        {
+            using var arena = new RenderArenaOwner();
+            arena.BeginRender().Form("bad-form", [], new ComponentFormOptions { Columns = 0 });
+        }
+
+        static void CheckDefaultField()
+        {
+            using var arena = new RenderArenaOwner();
+            arena.BeginRender().Form("bad-form", [default(ComponentFormField)]);
+        }
+    }
+
+    [Fact]
+    public void FormSchemaCarriesOneFieldBatch()
+    {
+        Assert.Equal(
+            "medium\nvertical\n2\n140\n[\"Account\",\"Notes\"]\n[\"Help\",\"\"]\n[\"\",\"Error\"]\n1,0\n1,2\n1",
+            ComponentSchema.Form.EncodeConfiguration(
+                ComponentSchema.Form.Size.Medium,
+                ComponentSchema.Form.LabelAxis.Vertical,
+                2,
+                140,
+                ["Account", "Notes"],
+                ["Help", ""],
+                ["", "Error"],
+                [1u, 0u],
+                [1u, 2u],
+                true
+            )
+        );
+    }
+
+    private static unsafe string ReadDataOp(RenderArenaOwner arena, OpCode code)
+    {
+        for (var index = arena.NativeArena->OpLength - 1; index >= 0; index--)
+        {
+            ref readonly var operation = ref arena.NativeArena->Ops[index];
+            if (operation.Code != (ushort)code)
+                continue;
+            return System.Text.Encoding.UTF8.GetString(
+                new ReadOnlySpan<byte>(
+                    arena.NativeArena->Utf8 + (uint)operation.A,
+                    checked((int)operation.B)
+                )
+            );
+        }
+        throw new Xunit.Sdk.XunitException($"The form field did not declare {code}.");
     }
 
     [Fact]

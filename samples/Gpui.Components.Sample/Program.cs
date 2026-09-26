@@ -42,6 +42,7 @@ internal sealed partial class ComponentsSampleView : View
     private ComponentAttachmentStatus _fileStatus = ComponentAttachmentStatus.Uploading;
     private int _fileOpens;
     private bool _fileArchived;
+    private bool _reviewReady;
     private string _notes = "Review notes:\n- Check the attachment";
     private readonly ComponentTextareaController _textarea;
     private readonly EditorController _editor;
@@ -526,46 +527,86 @@ internal sealed partial class ComponentsSampleView : View
                         new ComponentSeparatorOptions { Label = "Retained controls" }
                     ),
                     ui.HStack(button, rating).Gap(Px(20)).ItemsCenter(),
-                    ui.Text("Multiline notes"u8),
-                    ui.Textarea(
-                            _textarea,
-                            this,
-                            static (view, changed) =>
-                            {
-                                view._notes = changed.Value;
-                                view.Invalidate();
-                            },
-                            new ComponentTextareaOptions
-                            {
-                                InitialValue = "Review notes:\n- Check the attachment",
-                                Placeholder = "Write review notes...",
-                                Rows = 4,
-                                AccessibilityLabel = "Review notes",
-                            }
-                        )
-                        .Width(Percent(100)),
-                    ui.HStack(
-                            ui.Button(
-                                "focus-notes",
-                                this,
-                                static (view, _) => view._textarea.Focus(),
-                                new ComponentButtonOptions { Label = "Focus notes" }
+                    ui.Form(
+                        "review-form",
+                        [
+                            ComponentFormField.For(
+                                "Subject",
+                                ui.Input(
+                                        "review-subject",
+                                        new InputOptions("Attachment review", "Short subject")
+                                    )
+                                    .Width(Percent(100)),
+                                helpText: "A short title for these notes",
+                                required: true
                             ),
-                            ui.Button(
-                                "clear-notes",
-                                this,
-                                static (view, _) =>
-                                {
-                                    view._textarea.SetValue(string.Empty);
-                                    view._notes = string.Empty;
-                                    view.Invalidate();
-                                },
-                                new ComponentButtonOptions { Label = "Clear notes" }
+                            ComponentFormField.NamedControl(
+                                "Ready for review",
+                                ui.Checkbox(
+                                    "review-ready",
+                                    this,
+                                    static (view, changed) =>
+                                    {
+                                        view._reviewReady = changed.Value;
+                                        view.Invalidate();
+                                    },
+                                    new ComponentCheckboxOptions
+                                    {
+                                        Checked = _reviewReady,
+                                        AccessibilityLabel = "Ready for review",
+                                    }
+                                ),
+                                helpText: "Mark after reading the attachment"
                             ),
-                            ui.Text($"{_notes.Length} characters")
-                        )
-                        .Gap(Px(12))
-                        .ItemsCenter(),
+                            ComponentFormField.NamedControl(
+                                "Review notes",
+                                ui.Textarea(
+                                        _textarea,
+                                        this,
+                                        static (view, changed) =>
+                                        {
+                                            view._notes = changed.Value;
+                                            view.Invalidate();
+                                        },
+                                        new ComponentTextareaOptions
+                                        {
+                                            InitialValue = "Review notes:\n- Check the attachment",
+                                            Placeholder = "Write review notes...",
+                                            Rows = 4,
+                                            AccessibilityLabel = "Review notes",
+                                        }
+                                    )
+                                    .Width(Percent(100)),
+                                helpText: "Add what needs checking",
+                                errorText: _notes.Length == 0 ? "Notes are required" : null,
+                                required: true,
+                                columnSpan: 2
+                            ),
+                        ],
+                        new ComponentFormOptions { Columns = 2 },
+                        footer: ui.HStack(
+                                ui.Button(
+                                    "focus-notes",
+                                    this,
+                                    static (view, _) => view._textarea.Focus(),
+                                    new ComponentButtonOptions { Label = "Focus notes" }
+                                ),
+                                ui.Button(
+                                    "clear-notes",
+                                    this,
+                                    static (view, _) =>
+                                    {
+                                        view._textarea.SetValue(string.Empty);
+                                        view._notes = string.Empty;
+                                        view.Invalidate();
+                                    },
+                                    new ComponentButtonOptions { Label = "Clear notes" }
+                                ),
+                                ui.Text($"{_notes.Length} characters")
+                            )
+                            .Gap(Px(12))
+                            .ItemsCenter()
+                    ),
                     ui.Progress(
                         "upload-progress",
                         new ComponentProgressOptions

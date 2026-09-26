@@ -38,6 +38,7 @@ use gpui_component::{
         Empty as ComponentEmpty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia,
         EmptyMediaVariant as NativeEmptyMediaVariant, EmptyTitle,
     },
+    form::{Field, Form},
     group_box::{GroupBox, GroupBoxVariant as NativeGroupBoxVariant, GroupBoxVariants as _},
     input::{InputEvent, Rope, Textarea, TextareaState},
     kbd::Kbd,
@@ -174,6 +175,7 @@ impl NativeExtension for ComponentsExtension {
         match request.resource_key.component_kind() {
             COMPONENT_ATTACHMENT => attachment(request),
             COMPONENT_TEXTAREA => textarea(request, resources, window, cx),
+            COMPONENT_FORM => form(request),
             COMPONENT_EMPTY => empty(request),
             COMPONENT_TOOLBAR => toolbar(request),
             COMPONENT_TOOLBAR_GROUP => toolbar_group(request),
@@ -357,6 +359,73 @@ fn textarea(
         element = element.aria_label(config.accessibility_label.to_owned());
     }
     Ok(element.into_any_element())
+}
+
+fn form(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = FormConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Form configuration."))?;
+    validate_form(&config, request.children.len())?;
+
+    let mut children = request.children.into_iter();
+    let mut fields = Vec::with_capacity(config.labels.len());
+    for index in 0..config.labels.len() {
+        let mut field = Field::new()
+            .label(config.labels[index].clone())
+            .required(config.required[index] != 0)
+            .col_span(config.column_spans[index] as u16);
+        if !config.error_texts[index].is_empty() {
+            let error: SharedString = config.error_texts[index].clone().into();
+            field = field.description_fn(move |_, cx| {
+                div().text_color(cx.theme().danger).child(error.clone())
+            });
+        } else if !config.help_texts[index].is_empty() {
+            field = field.description(config.help_texts[index].clone());
+        }
+        let control = children.next().ok_or("Missing Form control child.")?;
+        fields.push(field.child(control));
+    }
+
+    let mut component = Form::new()
+        .with_size(match config.size {
+            FormSize::Xsmall => gpui_component::Size::XSmall,
+            FormSize::Small => gpui_component::Size::Small,
+            FormSize::Medium => gpui_component::Size::Medium,
+            FormSize::Large => gpui_component::Size::Large,
+        })
+        .label_layout(match config.label_axis {
+            FormLabelAxis::Horizontal => Axis::Horizontal,
+            FormLabelAxis::Vertical => Axis::Vertical,
+        })
+        .label_width(px(config.label_width_pixels))
+        .columns(config.columns as usize)
+        .children(fields);
+    if config.has_footer {
+        component = component.footer(children.next().ok_or("Missing Form footer child.")?);
+    }
+    Ok(component.into_any_element())
+}
+
+fn validate_form(config: &FormConfiguration, child_count: usize) -> Result<(), SharedString> {
+    let count = config.labels.len();
+    if !(1..=4).contains(&config.columns)
+        || !config.label_width_pixels.is_finite()
+        || config.label_width_pixels <= 0.0
+        || count > 256
+        || config.help_texts.len() != count
+        || config.error_texts.len() != count
+        || config.required.len() != count
+        || config.column_spans.len() != count
+        || config.labels.iter().any(|label| label.trim().is_empty())
+        || config.labels.iter().any(|label| label.contains('\0'))
+        || config.help_texts.iter().any(|text| text.contains('\0'))
+        || config.error_texts.iter().any(|text| text.contains('\0'))
+        || config.required.iter().any(|value| *value > 1)
+        || config.column_spans.iter().any(|span| *span == 0 || *span > config.columns)
+        || count.checked_add(usize::from(config.has_footer)) != Some(child_count)
+    {
+        return Err("Invalid Form field batch or layout.".into());
+    }
+    Ok(())
 }
 
 fn attachment(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
@@ -1738,6 +1807,21 @@ mod tests {
         assert!(
             TextareaConfiguration::parse("\"Invalid\\u0000text\"\nNotes\n4\n0\n0\n\n0").is_none()
         );
+        let form = FormConfiguration::parse(
+            "medium\nvertical\n2\n140\n[\"Account\",\"Notes\"]\n[\"Help\",\"\"]\n[\"\",\"Error\"]\n1,0\n1,2\n1",
+        )
+        .unwrap();
+        assert!(validate_form(&form, 3).is_ok());
+        assert!(validate_form(&form, 2).is_err());
+        let mut invalid = form.clone();
+        invalid.column_spans[1] = 3;
+        assert!(validate_form(&invalid, 3).is_err());
+        invalid.column_spans[1] = 2;
+        invalid.required[0] = 2;
+        assert!(validate_form(&invalid, 3).is_err());
+        invalid.required[0] = 1;
+        invalid.help_texts[0] = "Invalid\0help".into();
+        assert!(validate_form(&invalid, 3).is_err());
         let toolbar = ToolbarConfiguration::parse("small\n1").unwrap();
         assert_eq!(toolbar.size, ToolbarSize::Small);
         assert!(toolbar.disabled);

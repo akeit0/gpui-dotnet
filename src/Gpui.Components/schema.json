@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 13,
+  "schemaVersion": 14,
   "components": [
     {
       "kind": "attachment",
@@ -590,6 +590,27 @@
       "events": {
         "changed": { "id": 1, "flags": "none", "payload": "utf8-value", "revision": "result" }
       }
+    },
+    {
+      "kind": "form",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "label_axis", "type": "enum", "values": ["horizontal", "vertical"] },
+          { "name": "columns", "type": "u32" },
+          { "name": "label_width_pixels", "type": "f32" },
+          { "name": "labels", "type": "string_list" },
+          { "name": "help_texts", "type": "string_list" },
+          { "name": "error_texts", "type": "string_list" },
+          { "name": "required", "type": "u32_list" },
+          { "name": "column_spans", "type": "u32_list" },
+          { "name": "has_footer", "type": "bool" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
     },
     {
       "kind": "breadcrumb",

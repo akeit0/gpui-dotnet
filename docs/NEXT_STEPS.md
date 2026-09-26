@@ -59,7 +59,7 @@ declarations that compose with scoped commands and focus targets; do not restart
 Harden the single-line Input independently of the optional component Editor example:
 
 - touch selection handles and edit menu;
-- accessible validation/help/error relationships for field compositions;
+- native validation state and field help/error announcements on desktop accessibility backends;
 - a controlled-binding helper using revision-aware replacement that avoids destructive edit echoes;
 - IME and clipboard integration tests on every desktop platform.
 
@@ -72,6 +72,8 @@ Build on the generated `Gpui.Components` schema and `gpui-dotnet-components-host
 - generate more of the public managed option/builder surface once repeated API shapes justify it;
 - design explicit retained datasource and command contracts for collection, select, input, editor,
   overlay, and compound state families instead of encoding callbacks or per-frame state in config;
+- add separate accessible help/error descriptions to optional form controls that currently expose
+  only an accessible label, and verify announcements with desktop accessibility backends;
 - add RID runtime packages, clean-consumer coverage, accessibility tests, and cross-platform visual
   behavior verification.
 
