@@ -39,6 +39,7 @@ internal sealed partial class ComponentsSampleView : View
     private bool _toggleChecked;
     private ComponentAttachmentStatus _fileStatus = ComponentAttachmentStatus.Uploading;
     private int _fileOpens;
+    private bool _fileArchived;
     private readonly EditorController _editor;
     private readonly Effect<NoProps> _bootstrapEditor;
 
@@ -101,6 +102,88 @@ internal sealed partial class ComponentsSampleView : View
                 }
             )
             : ui.Spacer();
+
+        var fileAttachment = ui.Attachment(
+            "catalog-file",
+            this,
+            static (view, _) =>
+            {
+                view._fileOpens++;
+                view.Invalidate();
+            },
+            new ComponentAttachmentOptions
+            {
+                Title = "release-notes.pdf",
+                Description = $"{_fileStatus} · opened {_fileOpens} times",
+                Status = _fileStatus,
+            },
+            media: ui.Text("PDF"u8),
+            content: ui.Progress(
+                "file-progress",
+                new ComponentProgressOptions
+                {
+                    Value = _fileStatus == ComponentAttachmentStatus.Complete ? 100 : 68,
+                    AccessibilityLabel = "File upload progress",
+                }
+            ),
+            actions: ui.HStack(
+                    ui.Button(
+                        "file-action",
+                        this,
+                        static (view, _) =>
+                        {
+                            view._fileStatus =
+                                view._fileStatus == ComponentAttachmentStatus.Complete
+                                    ? ComponentAttachmentStatus.Uploading
+                                    : ComponentAttachmentStatus.Complete;
+                            view.Invalidate();
+                        },
+                        new ComponentButtonOptions
+                        {
+                            Label =
+                                _fileStatus == ComponentAttachmentStatus.Complete
+                                    ? "Restart"
+                                    : "Finish",
+                            Variant = ComponentButtonVariant.Secondary,
+                            Size = ComponentSize.Small,
+                        }
+                    ),
+                    ui.Button(
+                        "archive-action",
+                        this,
+                        static (view, _) =>
+                        {
+                            view._fileArchived = !view._fileArchived;
+                            view.Invalidate();
+                        },
+                        new ComponentButtonOptions
+                        {
+                            Label = _fileArchived ? "Restore" : "Archive",
+                            Variant = ComponentButtonVariant.Secondary,
+                            Size = ComponentSize.Small,
+                        }
+                    )
+                )
+                .Gap(Px(8))
+        );
+        var fileRegion = _fileArchived
+            ? ui.VStack(ui.Text("Archived files"u8), fileAttachment).Gap(Px(12))
+            : ui.VStack(
+                    fileAttachment,
+                    ui.Empty(
+                            "catalog-empty",
+                            new ComponentEmptyOptions
+                            {
+                                Title = "No archived files",
+                                Description = "Archive the file above to see it here.",
+                                MediaVariant = ComponentEmptyMediaVariant.Icon,
+                            },
+                            media: ui.Text("□"u8),
+                            footer: ui.Text("Empty state presentation from gpui-component."u8)
+                        )
+                        .Height(Px(180))
+                )
+                .Gap(Px(16));
 
         var additional = ui.GroupBox(
             "additional-components",
@@ -240,63 +323,7 @@ internal sealed partial class ComponentsSampleView : View
                     )
                 )
             ),
-            ui.Attachment(
-                "catalog-file",
-                this,
-                static (view, _) =>
-                {
-                    view._fileOpens++;
-                    view.Invalidate();
-                },
-                new ComponentAttachmentOptions
-                {
-                    Title = "release-notes.pdf",
-                    Description = $"{_fileStatus} · opened {_fileOpens} times",
-                    Status = _fileStatus,
-                },
-                media: ui.Text("PDF"u8),
-                content: ui.Progress(
-                    "file-progress",
-                    new ComponentProgressOptions
-                    {
-                        Value = _fileStatus == ComponentAttachmentStatus.Complete ? 100 : 68,
-                        AccessibilityLabel = "File upload progress",
-                    }
-                ),
-                actions: ui.Button(
-                    "file-action",
-                    this,
-                    static (view, _) =>
-                    {
-                        view._fileStatus =
-                            view._fileStatus == ComponentAttachmentStatus.Complete
-                                ? ComponentAttachmentStatus.Uploading
-                                : ComponentAttachmentStatus.Complete;
-                        view.Invalidate();
-                    },
-                    new ComponentButtonOptions
-                    {
-                        Label =
-                            _fileStatus == ComponentAttachmentStatus.Complete
-                                ? "Restart"
-                                : "Finish",
-                        Variant = ComponentButtonVariant.Secondary,
-                        Size = ComponentSize.Small,
-                    }
-                )
-            ),
-            ui.Empty(
-                    "catalog-empty",
-                    new ComponentEmptyOptions
-                    {
-                        Title = "No archived files",
-                        Description = "Archived attachments will appear here.",
-                        MediaVariant = ComponentEmptyMediaVariant.Icon,
-                    },
-                    media: ui.Text("□"u8),
-                    footer: ui.Text("Empty state presentation from gpui-component."u8)
-                )
-                .Height(Px(180)),
+            fileRegion,
             ui.StatusBar(
                 "catalog-status",
                 left: ui.Text("Ready"u8),

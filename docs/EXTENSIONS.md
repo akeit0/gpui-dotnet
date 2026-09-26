@@ -160,6 +160,10 @@ The sample proves the generated configuration contract and custom-host compositi
 dotnet run --project samples/Gpui.Components.Sample/Gpui.Components.Sample.csproj
 ```
 
+In the sample, click `Archive` on `release-notes.pdf` to replace the empty state with the archived
+file. Click `Restore` on that card to return to the empty state. `Finish` and `Restart` separately
+demonstrate its file lifecycle status.
+
 This is deliberately a semantic catalog, not a mirror of every Rust builder method. Broader
 coverage should add coherent component families to the schema and provider. Retained data sources,
 editors, overlays, and stateful compound controls need their own coarse ownership contracts rather
