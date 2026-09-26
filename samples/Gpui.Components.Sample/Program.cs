@@ -36,6 +36,8 @@ internal sealed partial class ComponentsSampleView : View
     private uint _selectedTab = 1;
     private uint? _selectedReviewState = 1;
     private uint[] _selectedTopics = [1, 3];
+    private string? _selectedTreeNode = "src/Program.cs";
+    private string _treeActivity = "File tree ready";
     private bool _showAlert = true;
     private bool _switchChecked = true;
     private bool _checkboxChecked = true;
@@ -665,6 +667,49 @@ internal sealed partial class ComponentsSampleView : View
                         )
                         .Gap(Px(12))
                         .ItemsCenter(),
+                    ui.HStack(
+                            ui.Tree(
+                                    "sample-file-tree",
+                                    this,
+                                    static (view, treeEvent) =>
+                                    {
+                                        if (
+                                            treeEvent.Kind
+                                            == ComponentTreeEventKind.SelectionRequested
+                                        )
+                                            view._selectedTreeNode = treeEvent.ItemId;
+                                        view._treeActivity =
+                                            $"{treeEvent.Kind}: {treeEvent.ItemId}";
+                                        view.Invalidate();
+                                    },
+                                    new ComponentTreeOptions { SelectedId = _selectedTreeNode },
+                                    [
+                                        new("src", "src", 0, InitiallyExpanded: true),
+                                        new("src/Program.cs", "Program.cs", 1),
+                                        new(
+                                            "src/Components",
+                                            "Components",
+                                            1,
+                                            InitiallyExpanded: true
+                                        ),
+                                        new("src/Components/Tree.cs", "Tree.cs", 2),
+                                        new("tests", "tests", 0),
+                                        new("tests/TreeTests.cs", "TreeTests.cs", 1),
+                                        new("README.md", "README.md", 0, Disabled: true),
+                                    ]
+                                )
+                                .Width(Px(340))
+                                .Height(Px(200)),
+                            ui.VStack(
+                                    ui.Text(
+                                        "Tree: click or use Up/Down and Left/Right; Space requests selection."
+                                    ),
+                                    ui.Text($"Selected: {_selectedTreeNode ?? "none"}"),
+                                    ui.Text(_treeActivity)
+                                )
+                                .Gap(Px(8))
+                        )
+                        .Gap(Px(20)),
                     ui.Progress(
                         "upload-progress",
                         new ComponentProgressOptions

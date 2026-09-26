@@ -77,13 +77,21 @@ revisions, and payload layouts remain schema-owned.
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes forty catalog families plus Editor, a retained extension example. Display
+The host includes forty-one catalog families plus Editor, a retained extension example. Display
 and content coverage includes Spinner, Skeleton, Separator, Badge, Tag, linear and circular
 Progress, Alert, GroupBox, Label, Kbd, Avatar, Icon, ShimmerText, Attachment, Empty, StatusBar,
 Bubble, BubbleGroup, Message, MessageGroup, Marker, and DescriptionList. Interactive and
 controlled coverage includes Rating, Button, Link, Switch, Checkbox, Radio, Toggle, Pagination,
-Collapsible, Toolbar, ToolbarGroup, Breadcrumb, Tabs, Select, Combobox, and Textarea. Form batches
+Collapsible, Toolbar, ToolbarGroup, Breadcrumb, Tabs, Select, Combobox, Tree, and Textarea. Form batches
 a compound field layout with existing core or optional controls.
+
+`Tree` uses `gpui-base::TreeState` for native expansion, keyboard cursor, and virtual row rendering;
+the optional component layer supplies themed rows. A single preorder batch carries stable string
+IDs, labels, depths, disabled flags, and initial expansion for newly declared IDs. Expansion state
+survives accepted data replacement for surviving IDs. C# owns the committed selected ID, which is
+separate from the native keyboard cursor. Pointer clicks and Space on the focused cursor request
+selection; expansion and collapse emit ID events. The local batch is limited to 4096 nodes. Large
+or remote trees need a batched datasource contract before they can use this API.
 
 `Select` and `Combobox` share batched labels, stable nonzero IDs, disabled items, and controlled
 selection. Native entities retain popup, keyboard, filtering, and scrolling state. Select requests

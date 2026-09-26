@@ -14,6 +14,10 @@ The Select below the form searches review states and can clear the selected ID. 
 topics and keeps a selected ID set while its popup is open. Both include a disabled choice. The
 sample updates managed selection from one event per interaction; native state handles popup,
 keyboard, search, and scrolling without per-item callbacks.
+The file Tree below the selection controls starts with two expanded folders. Click a row to request
+selection, use Up/Down to move the native cursor, Left/Right to collapse or expand, and Space to
+request the cursor's ID. Expansion persists when unrelated sample state changes. The disabled
+README row cannot be activated.
 The notes field retains text, selection, and undo natively. Focus notes sends a focus command;
 Clear notes replaces the value and updates the sample's character count. The empty
 state uses the sample's `Assets/archive-box.svg` file through the native Icon

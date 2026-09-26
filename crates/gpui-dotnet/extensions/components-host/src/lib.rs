@@ -80,6 +80,7 @@ use gpui_dotnet_editor_provider::EDITOR_EXTENSION;
 #[path = "component_schema.g.rs"]
 mod component_schema;
 mod selection;
+mod tree;
 
 use component_schema::*;
 
@@ -178,6 +179,7 @@ impl NativeExtension for ComponentsExtension {
             COMPONENT_TEXTAREA => textarea(request, resources, window, cx),
             COMPONENT_SELECT => selection::select(request, resources, window, cx),
             COMPONENT_COMBOBOX => selection::combobox(request, resources, window, cx),
+            COMPONENT_TREE => tree::tree(request, resources, window, cx),
             COMPONENT_FORM => form(request),
             COMPONENT_EMPTY => empty(request),
             COMPONENT_TOOLBAR => toolbar(request),

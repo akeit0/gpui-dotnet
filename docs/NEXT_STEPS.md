@@ -71,7 +71,7 @@ Build on the generated `Gpui.Components` schema and `gpui-dotnet-components-host
   components whose state and event ownership fit the existing declaration/event contract;
 - generate more of the public managed option/builder surface once repeated API shapes justify it;
 - design explicit retained datasource and command contracts for large or remote selection data,
-  collection, input, editor, overlay, and compound state families instead of encoding callbacks or
+  Tree, collection, input, editor, overlay, and compound state families instead of encoding callbacks or
   per-frame state in config;
 - add separate accessible help/error descriptions to optional form controls that currently expose
   only an accessible label, and verify announcements with desktop accessibility backends;

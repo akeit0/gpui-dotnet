@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 15u;
-    internal const ulong SchemaHash = 0x08F23B8465A20B12UL;
+    internal const uint SchemaVersion = 16u;
+    internal const ulong SchemaHash = 0x07C4EF8A2C1E4A01UL;
 
     internal static class Attachment
     {
@@ -1498,6 +1498,58 @@ internal static class ComponentSchema
                 throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(searchPlaceholder));
             }
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{labelsValue}\n{itemIdsValue}\n{itemDisabledValue}\n{selectedIdsValue}\n{placeholder}\n{searchPlaceholder}\n{(multiple ? 1 : 0)}\n{(cleanable ? 1 : 0)}\n{(disabled ? 1 : 0)}\n{changedEvent}");
+        }
+    }
+
+    internal static class Tree
+    {
+        internal const string Kind = "tree";
+        internal const ushort EventSelectionRequested = 1;
+        internal const ushort EventExpanded = 2;
+        internal const ushort EventCollapsed = 3;
+
+        internal static string EncodeConfiguration(global::System.ReadOnlySpan<string> itemIds, global::System.ReadOnlySpan<string> labels, global::System.ReadOnlySpan<uint> depths, global::System.ReadOnlySpan<uint> itemDisabled, global::System.ReadOnlySpan<uint> initialExpanded, string selectedId, bool hasSelection, ulong treeEvent)
+        {
+            foreach (var item in itemIds)
+            {
+                global::System.ArgumentNullException.ThrowIfNull(item);
+            }
+            var itemIdsValue = global::System.Text.Json.JsonSerializer.Serialize(itemIds.ToArray());
+            foreach (var item in labels)
+            {
+                global::System.ArgumentNullException.ThrowIfNull(item);
+            }
+            var labelsValue = global::System.Text.Json.JsonSerializer.Serialize(labels.ToArray());
+            var depthsBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < depths.Length; index++)
+            {
+                if (index != 0)
+                    depthsBuilder.Append(',');
+                depthsBuilder.Append(depths[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var depthsValue = depthsBuilder.ToString();
+            var itemDisabledBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < itemDisabled.Length; index++)
+            {
+                if (index != 0)
+                    itemDisabledBuilder.Append(',');
+                itemDisabledBuilder.Append(itemDisabled[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var itemDisabledValue = itemDisabledBuilder.ToString();
+            var initialExpandedBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < initialExpanded.Length; index++)
+            {
+                if (index != 0)
+                    initialExpandedBuilder.Append(',');
+                initialExpandedBuilder.Append(initialExpanded[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var initialExpandedValue = initialExpandedBuilder.ToString();
+            global::System.ArgumentNullException.ThrowIfNull(selectedId);
+            if (selectedId.Contains('\0') || selectedId.Contains('\n') || selectedId.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(selectedId));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{itemIdsValue}\n{labelsValue}\n{depthsValue}\n{itemDisabledValue}\n{initialExpandedValue}\n{selectedId}\n{(hasSelection ? 1 : 0)}\n{treeEvent}");
         }
     }
 

@@ -10,7 +10,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(15u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(16u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -74,6 +74,56 @@ public sealed class ComponentExtensionTests
         Assert.Throws<InvalidOperationException>(() =>
             ComponentComboboxChangedEvent.Decode(
                 new NativeExtensionEvent(ComponentSchema.Combobox.EventChanged, 0, 0, [10])
+            )
+        );
+    }
+
+    [Fact]
+    public void TreeBatchValidatesPreorderAndStableIds()
+    {
+        var batch = TreeBatch.Create(
+            [new("src", "src", 0, InitiallyExpanded: true), new("src/main", "main", 1)],
+            "src/main"
+        );
+        Assert.Equal(["src", "src/main"], batch.Ids);
+        Assert.Equal([0u, 1u], batch.Depths);
+        Assert.Equal([1u, 0u], batch.InitiallyExpanded);
+        Assert.Throws<ArgumentException>(() =>
+            TreeBatch.Create([new("src", "src", 0), new("missing", "missing", 2)], null)
+        );
+        Assert.Throws<ArgumentException>(() =>
+            TreeBatch.Create([new("src", "src", 0), new("src", "again", 0)], null)
+        );
+        Assert.Throws<ArgumentException>(() => TreeBatch.Create([new("src", "src", 0)], "absent"));
+        Assert.Throws<ArgumentException>(() =>
+            TreeBatch.Create([new("\uD800", "invalid", 0)], null)
+        );
+        Assert.Throws<ArgumentException>(() =>
+            TreeBatch.Create([new("src", "bad\nlabel", 0)], null)
+        );
+    }
+
+    [Fact]
+    public void TreeEventsValidateKindMetadataAndUtf8Id()
+    {
+        var valid = ComponentTreeEvent.Decode(
+            new NativeExtensionEvent(
+                ComponentSchema.Tree.EventExpanded,
+                0,
+                0,
+                "src/main"u8.ToArray()
+            )
+        );
+        Assert.Equal(ComponentTreeEventKind.Expanded, valid.Kind);
+        Assert.Equal("src/main", valid.ItemId);
+        Assert.Throws<InvalidOperationException>(() =>
+            ComponentTreeEvent.Decode(
+                new NativeExtensionEvent(ComponentSchema.Tree.EventCollapsed, 0, 0, [0xFF])
+            )
+        );
+        Assert.Throws<InvalidOperationException>(() =>
+            ComponentTreeEvent.Decode(
+                new NativeExtensionEvent(ComponentSchema.Tree.EventSelectionRequested, 1, 0, [65])
             )
         );
     }

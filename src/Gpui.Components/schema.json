@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 15,
+  "schemaVersion": 16,
   "components": [
     {
       "kind": "attachment",
@@ -659,6 +659,29 @@
       "commands": {},
       "events": {
         "changed": { "id": 1, "flags": "none", "payload": "little-endian u32 item IDs", "revision": "none" }
+      }
+    },
+    {
+      "kind": "tree",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "item_ids", "type": "string_list" },
+          { "name": "labels", "type": "string_list" },
+          { "name": "depths", "type": "u32_list" },
+          { "name": "item_disabled", "type": "u32_list" },
+          { "name": "initial_expanded", "type": "u32_list" },
+          { "name": "selected_id", "type": "string" },
+          { "name": "has_selection", "type": "bool" },
+          { "name": "tree_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "selection_requested": { "id": 1, "flags": "none", "payload": "utf8 item ID", "revision": "none" },
+        "expanded": { "id": 2, "flags": "none", "payload": "utf8 item ID", "revision": "none" },
+        "collapsed": { "id": 3, "flags": "none", "payload": "utf8 item ID", "revision": "none" }
       }
     },
     {

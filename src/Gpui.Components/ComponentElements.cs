@@ -79,6 +79,7 @@ public static class ComponentsExtension
         Component(ComponentSchema.Select.Kind);
     internal static NativeExtensionComponent Combobox { get; } =
         Component(ComponentSchema.Combobox.Kind);
+    internal static NativeExtensionComponent Tree { get; } = Component(ComponentSchema.Tree.Kind);
 
     private static NativeExtensionComponent Component(string kind) => new(Requirement, kind);
 }
