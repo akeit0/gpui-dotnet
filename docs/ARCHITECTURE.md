@@ -313,6 +313,19 @@ schema remains in a separate assembly, with its own extension ID, version, and h
 links the selected Rust providers with the base runtime at build time and advertises those schemas
 through ABI negotiation. GPUI/Rust objects are never passed between independently built libraries.
 
+## Application service boundary
+
+`GPUI.NET.Core` owns the managed View lifecycle, render snapshots, and window commands. The Rust
+host owns the GPUI event loop, window state, retained controls, deferred layers, and interaction
+that depends on a frame or pointer position. Optional component packages supply typed declarations
+and matching native adapters without expanding the core component vocabulary.
+
+Application file, process, and network work uses .NET services outside `Render()`. Event handlers
+or accepted effects update application state, which then invalidates Views. A window-level
+notification host belongs with the native window and should accept coarse managed declarations;
+it is not a component extension or a per-frame callback. If applications later load untrusted
+code, capability grants and isolation belong at that host boundary rather than in the renderer.
+
 ## Dependency policy
 
 The `external/gpui-kit` submodule pins `gpui-base` and `gpui-component` to an exact revision

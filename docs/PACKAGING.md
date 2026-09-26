@@ -35,6 +35,14 @@ exactly one native host under its `runtimes/<rid>/native` path:
 `GPUI.NET` is the application-facing meta package. It also carries the Roslyn analyzer so
 `[GpuiView]` and `[GpuiListItem]` work without an additional package reference.
 
+The package boundary follows ownership. Core carries View lifetime, semantic rendering, and
+window commands because they share one managed session and native event loop. Optional component
+schema packages such as `GPUI.NET.Components.Schema` and `GPUI.NET.Editor.Schema` depend on Core;
+their providers are linked only by a host that selects them. Application file, process, and network
+services use the .NET libraries directly and do not require native host packages. A future
+window-owned service, such as toast hosting, should expose a coarse window API and native retained
+state instead of joining the component schema.
+
 The default native host is also a dependency boundary. It must not link optional provider families
 merely because their managed schema packages are separate. Its Cargo dependencies and features
 should select only the implementations required by the base semantic surface. A custom host owns

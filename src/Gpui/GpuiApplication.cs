@@ -103,6 +103,9 @@ public sealed class GpuiWindow
     /// <summary>Toggles an already-open native window between maximized and restored bounds.</summary>
     public void ToggleMaximize() => _application.ToggleMaximizeWindow(this);
 
+    /// <summary>Toggles fullscreen for an already-open native window.</summary>
+    public void ToggleFullscreen() => _application.ToggleFullscreenWindow(this);
+
     public void SetTitle(string title) => _application.SetWindowTitle(this, title);
 
     /// <summary>Changes native window content size. Runtime repositioning is not exposed by GPUI.</summary>
@@ -611,6 +614,23 @@ public sealed class GpuiApplication
         }
     }
 
+    internal void ToggleFullscreenWindow(GpuiWindow window)
+    {
+        lock (_ingressGate)
+        {
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            IGpuiApplicationHost host;
+            lock (_gate)
+            {
+                ValidateOpenWindow(window);
+                host =
+                    _host
+                    ?? throw new InvalidOperationException("The native window has not opened yet.");
+            }
+            host.ToggleFullscreenWindow(window.Id);
+        }
+    }
+
     internal void SetWindowTitle(GpuiWindow window, string title)
     {
         lock (_ingressGate)
@@ -745,6 +765,7 @@ internal interface IGpuiApplicationHost
     void ActivateWindow(ulong windowId);
     void MinimizeWindow(ulong windowId);
     void ToggleMaximizeWindow(ulong windowId);
+    void ToggleFullscreenWindow(ulong windowId);
     void SetWindowTitle(ulong windowId, string title);
     void ResizeWindow(ulong windowId, float width, float height);
 }

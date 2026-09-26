@@ -120,6 +120,7 @@ pub(crate) enum ApplicationCommand {
     Activate(u64),
     Minimize(u64),
     ToggleMaximize(u64),
+    ToggleFullscreen(u64),
     SetTitle {
         window_id: u64,
         title: String,
@@ -969,6 +970,11 @@ fn apply_application_command(
         ApplicationCommand::ToggleMaximize(window_id) => {
             if let Some(handle) = managed_window_handle(windows, window_id) {
                 let _ = handle.update(cx, |_, window, _| toggle_window_maximize(window));
+            }
+        }
+        ApplicationCommand::ToggleFullscreen(window_id) => {
+            if let Some(handle) = managed_window_handle(windows, window_id) {
+                let _ = handle.update(cx, |_, window, _| window.toggle_fullscreen());
             }
         }
         ApplicationCommand::SetTitle { window_id, title } => {

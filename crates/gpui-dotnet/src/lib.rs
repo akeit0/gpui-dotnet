@@ -483,7 +483,7 @@ unsafe fn dispatch_application_command_inner(
                     no_position
                 }
         }
-        2 | 3 | 6 | 7 => command.flags == 0 && no_title && no_position && no_size,
+        2 | 3 | 6 | 7 | 12 => command.flags == 0 && no_title && no_position && no_size,
         4 => command.flags == 0 && !no_title && no_position && no_size,
         5 => command.flags == 0 && no_title && no_position && size_valid,
         11 => command.flags == 0 && command.window_id == 0 && !no_title && no_position && no_size,
@@ -523,6 +523,7 @@ unsafe fn dispatch_application_command_inner(
         3 => app_host::ApplicationCommand::Activate(command.window_id),
         6 => app_host::ApplicationCommand::Minimize(command.window_id),
         7 => app_host::ApplicationCommand::ToggleMaximize(command.window_id),
+        12 => app_host::ApplicationCommand::ToggleFullscreen(command.window_id),
         4 => app_host::ApplicationCommand::SetTitle {
             window_id: command.window_id,
             title: title.expect("validated title update"),
@@ -805,6 +806,28 @@ mod tests {
         );
         command.window_id = 0;
         command.flags = 1;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -62
+        );
+    }
+
+    #[test]
+    fn toggle_fullscreen_requires_an_empty_window_command() {
+        let mut command = empty_application_command(12);
+        command.window_id = 1;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -40
+        );
+
+        command.flags = 1;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -62
+        );
+        command.flags = 0;
+        command.width = 1.0;
         assert_eq!(
             unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
             -62

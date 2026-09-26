@@ -267,10 +267,14 @@ var window = application.OpenWindow(
     }
 );
 
+// Later, after the native window opens:
 window.SetTitle("Renamed document");
 window.Resize(1000, 720);
 window.Activate();
 ```
+
+Window commands such as `ToggleFullscreen()` and `ToggleMaximize()` act on an already-open
+native window.
 
 `WindowTitleBarStyle` supports `System`, `Custom`, and `Hidden`. Custom title bars use semantic
 `WindowControlArea` regions for native drag, minimize, maximize, and close behavior.

@@ -140,6 +140,7 @@ public sealed class ApplicationModelTests
         Assert.Equal(WindowTitleBarStyle.System, window.Snapshot.TitleBarStyle);
         Assert.Throws<InvalidOperationException>(window.Minimize);
         Assert.Throws<InvalidOperationException>(window.ToggleMaximize);
+        Assert.Throws<InvalidOperationException>(window.ToggleFullscreen);
 
         window.Close();
 

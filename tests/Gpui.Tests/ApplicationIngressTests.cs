@@ -43,6 +43,7 @@ public sealed class ApplicationIngressTests
                     second.SetTitle("Updated");
                     second.Resize(900, 600);
                     second.Activate();
+                    second.ToggleFullscreen();
                     application.SetImageCacheBudget(200, 8);
                     application.SetTheme(GpuiTheme.Default);
                     second.Close();
@@ -67,6 +68,7 @@ public sealed class ApplicationIngressTests
                 $"title:{second.Id}:Updated",
                 $"size:{second.Id}",
                 $"activate:{second.Id}",
+                $"fullscreen:{second.Id}",
                 "budget:200:8",
                 "theme",
                 $"close:{second.Id}",
@@ -164,6 +166,8 @@ public sealed class ApplicationIngressTests
         public void MinimizeWindow(ulong id) { }
 
         public void ToggleMaximizeWindow(ulong id) { }
+
+        public void ToggleFullscreenWindow(ulong id) => Commands.Enqueue($"fullscreen:{id}");
     }
 
     private sealed class Probe(ViewConstruction construction)

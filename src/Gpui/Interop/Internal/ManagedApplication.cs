@@ -346,6 +346,8 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     public void ToggleMaximizeWindow(ulong windowId) => Dispatch(7, windowId);
 
+    public void ToggleFullscreenWindow(ulong windowId) => Dispatch(12, windowId);
+
     public void SetWindowTitle(ulong windowId, string title) => Dispatch(4, windowId, title);
 
     public void EvictImage(string path) => Dispatch(11, 0, path);

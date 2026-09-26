@@ -321,6 +321,7 @@ Current commands are:
 | Activate | existing window ID |
 | Minimize | existing window ID |
 | ToggleMaximize | existing window ID |
+| ToggleFullscreen | existing window ID |
 | SetTitle | non-empty UTF-8 title |
 | Resize | positive finite width and height |
 | SetTheme | versioned appearance and resolved semantic palette, application-scoped |
