@@ -253,6 +253,9 @@ Tab traversal, descendant precedence, and keyboard focus paint.
 One `GpuiApplication` maps to one native `gpui::Application`. Every `GpuiWindow` maps to an
 independent managed session and native root view. Window IDs are stable 64-bit values and also serve
 as render-session IDs.
+Native window-bounds observations update a cached restore rectangle and state without reverse
+callbacks during dragging. On close, a single placement callback precedes managed teardown;
+managed application code decides whether and where to persist that value.
 
 Window and resource commands may originate from managed threads, but all GPUI mutations occur on
 the native event-loop thread. The application exits after its final registered window closes. A

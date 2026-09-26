@@ -30,6 +30,15 @@ public enum WindowInitialState : ushort
     Fullscreen,
 }
 
+/// <summary>Native placement captured when a window closes. Dimensions are restore bounds.</summary>
+public readonly record struct GpuiWindowPlacement(
+    float Left,
+    float Top,
+    float Width,
+    float Height,
+    WindowInitialState State
+);
+
 /// <summary>Initial native window placement and presentation.</summary>
 public sealed class GpuiWindowOptions
 {
@@ -124,6 +133,8 @@ public sealed class GpuiWindowOptions
 public sealed class GpuiWindow
 {
     private readonly GpuiApplication _application;
+    private readonly object _placementGate = new();
+    private GpuiWindowPlacement? _finalPlacement;
     internal GpuiApplication Application => _application;
     private int _closed;
 
@@ -144,6 +155,25 @@ public sealed class GpuiWindow
     public ulong Id { get; }
 
     public bool IsClosed => Volatile.Read(ref _closed) != 0;
+
+    /// <summary>
+    /// Final native placement after this window closes successfully. Save it in application
+    /// storage and pass its bounds and state to a later <see cref="GpuiWindowOptions"/>.
+    /// </summary>
+    public GpuiWindowPlacement? FinalPlacement
+    {
+        get
+        {
+            lock (_placementGate)
+                return _finalPlacement;
+        }
+    }
+
+    internal void SetFinalPlacement(GpuiWindowPlacement placement)
+    {
+        lock (_placementGate)
+            _finalPlacement = placement;
+    }
 
     private RootViewDeclaration? _rootDeclaration;
 
@@ -580,6 +610,17 @@ public sealed class GpuiApplication
                 return;
             }
             window.MarkClosed();
+        }
+    }
+
+    internal bool NativeWindowPlacement(ulong id, GpuiWindowPlacement placement)
+    {
+        lock (_gate)
+        {
+            if (!_windows.TryGetValue(id, out var window) || window.IsClosed)
+                return false;
+            window.SetFinalPlacement(placement);
+            return true;
         }
     }
 

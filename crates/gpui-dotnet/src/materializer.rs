@@ -2504,6 +2504,7 @@ mod tests {
             window_closed: None,
             menu_action: None,
             menu_applied: None,
+            window_placement: None,
             dynamic_frame: None,
             render_completed: None,
             release_artifact: None,

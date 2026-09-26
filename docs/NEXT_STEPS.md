@@ -125,7 +125,6 @@ deltas across the managed boundary while a pointer is moving.
 ## Windows
 
 - maximum window size constraints if GPUI exposes a cross-platform option;
-- bounds persistence;
 - managed application/window lifecycle events;
 - runtime repositioning if GPUI exposes a cross-platform operation;
 - platform verification for native and forced-managed title-bar modes.

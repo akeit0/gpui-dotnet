@@ -410,6 +410,33 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
         return failed ? -121 : 0;
     }
 
+    internal int WindowPlacement(ulong windowId, NativeWindowPlacement placement)
+    {
+        if (
+            placement.reserved != 0
+            || placement.state > 2
+            || !float.IsFinite(placement.left)
+            || !float.IsFinite(placement.top)
+            || !float.IsFinite(placement.width)
+            || !float.IsFinite(placement.height)
+            || placement.width <= 0
+            || placement.height <= 0
+        )
+            return -121;
+        return _application.NativeWindowPlacement(
+            windowId,
+            new GpuiWindowPlacement(
+                placement.left,
+                placement.top,
+                placement.width,
+                placement.height,
+                (WindowInitialState)placement.state
+            )
+        )
+            ? 0
+            : -121;
+    }
+
     internal void Stop()
     {
         if (Interlocked.Exchange(ref _stopped, 1) != 0)

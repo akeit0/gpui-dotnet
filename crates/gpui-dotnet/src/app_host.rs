@@ -1,5 +1,5 @@
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     rc::Rc,
     sync::{
@@ -12,12 +12,12 @@ use std::{
 use async_channel::{Receiver, Sender, TrySendError};
 use gpui::{
     AnyWindowHandle, App, AppContext, Bounds, Context, IntoElement, Menu, MenuItem, Render,
-    TitlebarOptions, Window, WindowBounds, WindowDecorations, WindowOptions, div, point,
-    prelude::*, px, rgba, size,
+    Subscription, TitlebarOptions, Window, WindowBounds, WindowDecorations, WindowOptions, div,
+    point, prelude::*, px, rgba, size,
 };
 
 use crate::{
-    abi::ManagedCallbacks,
+    abi::{ManagedCallbacks, NativeWindowPlacement},
     arena::with_root_render_output,
     extension::NativeExtensionCommand,
     overlay::OverlayStack,
@@ -50,6 +50,7 @@ pub(crate) struct ManagedView {
     pub(crate) theme: SharedTheme,
     toasts: WindowToastHost,
     toast_clock_running: bool,
+    bounds_subscription: Option<Subscription>,
 }
 
 enum ViewMessage {
@@ -237,6 +238,7 @@ impl Drop for ApplicationRegistration {
 
 struct ManagedWindowRegistration {
     handle: AnyWindowHandle,
+    placement: Rc<Cell<NativeWindowPlacement>>,
     _view_registration: ViewRegistration,
 }
 
@@ -389,6 +391,7 @@ impl ManagedView {
             theme,
             toasts: WindowToastHost::new(),
             toast_clock_running: false,
+            bounds_subscription: None,
         }
     }
 
@@ -1196,6 +1199,19 @@ fn open_managed_window(
         WindowInitialState::Maximized => WindowBounds::Maximized(bounds),
         WindowInitialState::Fullscreen => WindowBounds::Fullscreen(bounds),
     };
+    let placement = Rc::new(Cell::new(NativeWindowPlacement {
+        left: f32::from(bounds.origin.x),
+        top: f32::from(bounds.origin.y),
+        width,
+        height,
+        state: match initial_state {
+            WindowInitialState::Normal => 0,
+            WindowInitialState::Maximized => 1,
+            WindowInitialState::Fullscreen => 2,
+        },
+        reserved: 0,
+    }));
+    let observed_placement = Rc::clone(&placement);
     let handle = cx
         .open_window(
             WindowOptions {
@@ -1206,8 +1222,8 @@ fn open_managed_window(
                 window_decorations,
                 ..Default::default()
             },
-            move |_, cx| {
-                create_managed_view(
+            move |window, cx| {
+                let view = create_managed_view(
                     cx,
                     window_id,
                     callbacks,
@@ -1215,7 +1231,15 @@ fn open_managed_window(
                     invalidate_pending,
                     presence,
                     theme,
-                )
+                );
+                view.update(cx, |view, cx| {
+                    view.bounds_subscription =
+                        Some(cx.observe_window_bounds(window, move |_, window, _| {
+                            observed_placement
+                                .set(window_placement(window, observed_placement.get()));
+                        }));
+                });
+                view
             },
         )
         .map_err(|_| -45)?;
@@ -1225,6 +1249,7 @@ fn open_managed_window(
         window_id,
         ManagedWindowRegistration {
             handle,
+            placement,
             _view_registration: view_registration,
         },
     );
@@ -1236,6 +1261,51 @@ fn open_managed_window(
         let _ = handle.update(cx, |_, window, _| window.activate_window());
     }
     Ok(())
+}
+
+fn window_placement(window: &Window, previous: NativeWindowPlacement) -> NativeWindowPlacement {
+    let state = if window.is_fullscreen() {
+        2
+    } else if window.is_maximized() {
+        1
+    } else {
+        0
+    };
+    let bounds = window.window_bounds().get_bounds();
+    placement_for_bounds(previous, state, bounds)
+}
+
+fn placement_for_bounds(
+    previous: NativeWindowPlacement,
+    state: u32,
+    bounds: Bounds<gpui::Pixels>,
+) -> NativeWindowPlacement {
+    if state != 0 {
+        return NativeWindowPlacement { state, ..previous };
+    }
+    let (left, top, width, height) = (
+        f32::from(bounds.origin.x),
+        f32::from(bounds.origin.y),
+        f32::from(bounds.size.width),
+        f32::from(bounds.size.height),
+    );
+    if !left.is_finite()
+        || !top.is_finite()
+        || !width.is_finite()
+        || !height.is_finite()
+        || width <= 0.0
+        || height <= 0.0
+    {
+        return NativeWindowPlacement { state, ..previous };
+    }
+    NativeWindowPlacement {
+        left,
+        top,
+        width,
+        height,
+        state,
+        reserved: 0,
+    }
 }
 
 fn report_closed_windows(
@@ -1253,12 +1323,39 @@ fn report_closed_windows(
         .collect();
 
     for window_id in closed {
-        windows.borrow_mut().remove(&window_id);
+        let placement = windows
+            .borrow_mut()
+            .remove(&window_id)
+            .expect("registered window")
+            .placement
+            .get();
+        report_window_placement(
+            application_id,
+            window_id,
+            placement,
+            callbacks,
+            application_status,
+        );
         report_window_closed(application_id, window_id, 0, callbacks, application_status);
     }
     if windows.borrow().is_empty() {
         cx.quit();
     }
+}
+
+fn report_window_placement(
+    application_id: u64,
+    window_id: u64,
+    placement: NativeWindowPlacement,
+    callbacks: ManagedCallbacks,
+    application_status: &AtomicI32,
+) {
+    let status = unsafe {
+        callbacks
+            .window_placement
+            .expect("validated placement callback")(application_id, window_id, &placement)
+    };
+    record_status(application_status, status);
 }
 
 fn report_window_closed(
@@ -1386,6 +1483,37 @@ mod tests {
     use super::*;
     use gpui::FocusHandle;
     use gpui_base::FocusTrapElement as _;
+
+    #[test]
+    fn maximized_placement_preserves_the_last_normal_rectangle() {
+        let original = NativeWindowPlacement {
+            left: 40.0,
+            top: 50.0,
+            width: 800.0,
+            height: 600.0,
+            state: 0,
+            reserved: 0,
+        };
+        let display = Bounds::new(point(px(0.0), px(0.0)), size(px(1920.0), px(1080.0)));
+        assert_eq!(
+            placement_for_bounds(original, 1, display),
+            NativeWindowPlacement {
+                state: 1,
+                ..original
+            }
+        );
+        let resized = Bounds::new(point(px(70.0), px(80.0)), size(px(900.0), px(650.0)));
+        assert_eq!(
+            placement_for_bounds(original, 0, resized),
+            NativeWindowPlacement {
+                left: 70.0,
+                top: 80.0,
+                width: 900.0,
+                height: 650.0,
+                ..original
+            }
+        );
+    }
 
     struct FocusTrapHarness {
         trap: FocusHandle,
@@ -1804,6 +1932,7 @@ mod tests {
             window_closed: None,
             menu_action: None,
             menu_applied: None,
+            window_placement: None,
             dynamic_frame: None,
             render_completed: None,
             release_artifact: None,

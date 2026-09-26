@@ -1141,6 +1141,7 @@ mod tests {
             window_closed: None,
             menu_action: None,
             menu_applied: None,
+            window_placement: None,
         }
     }
 

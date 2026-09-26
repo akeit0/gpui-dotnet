@@ -912,6 +912,30 @@ internal static unsafe class NativeCallbacks
         }
     }
 
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe int WindowPlacement(
+        ulong applicationId,
+        ulong windowId,
+        NativeWindowPlacement* placement
+    )
+    {
+        try
+        {
+            if (
+                placement is null
+                || !NativeRegistry.Applications.TryGetValue(applicationId, out var application)
+            )
+                return -120;
+            return application.WindowPlacement(windowId, *placement);
+        }
+        catch (Exception exception)
+        {
+            if (NativeRegistry.Applications.TryGetValue(applicationId, out var application))
+                application.RecordFailure(exception);
+            return -121;
+        }
+    }
+
     private static bool IsValidUtf8(ReadOnlySpan<byte> bytes)
     {
         try

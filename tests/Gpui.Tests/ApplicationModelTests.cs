@@ -9,14 +9,49 @@ public sealed class ApplicationModelTests
     [Fact]
     public void UsesExpectedProtocolVersions()
     {
-        Assert.Equal(8u, NativeConstants.AbiVersion);
+        Assert.Equal(9u, NativeConstants.AbiVersion);
         Assert.Equal(1u, SemanticRegistry.SchemaVersion);
+    }
+
+    [Fact]
+    public void FinalPlacementSurvivesWindowClose()
+    {
+        var application = new GpuiApplication();
+        var window = application.OpenWindow(ProbeView.Spec());
+        Assert.Null(window.FinalPlacement);
+        Assert.True(
+            application.NativeWindowPlacement(
+                window.Id,
+                new GpuiWindowPlacement(40, 50, 800, 600, WindowInitialState.Maximized)
+            )
+        );
+        application.NativeWindowClosed(window.Id);
+        Assert.True(window.IsClosed);
+        Assert.Equal(
+            new GpuiWindowPlacement(40, 50, 800, 600, WindowInitialState.Maximized),
+            window.FinalPlacement
+        );
+        Assert.False(
+            application.NativeWindowPlacement(
+                window.Id,
+                new GpuiWindowPlacement(0, 0, 1, 1, WindowInitialState.Normal)
+            )
+        );
     }
 
     [Fact]
     public unsafe void AcceptanceCallbackExtendsTheNativeCallbackTable()
     {
-        Assert.Equal(13 * IntPtr.Size, sizeof(ManagedCallbacks));
+        Assert.Equal(14 * IntPtr.Size, sizeof(ManagedCallbacks));
+        Assert.Equal(
+            13 * IntPtr.Size,
+            (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.window_placement))
+        );
+        Assert.Equal(24, sizeof(NativeWindowPlacement));
+        Assert.Equal(
+            16,
+            (int)Marshal.OffsetOf<NativeWindowPlacement>(nameof(NativeWindowPlacement.state))
+        );
         Assert.Equal(
             12 * IntPtr.Size,
             (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.menu_applied))

@@ -56,11 +56,21 @@ callback table provides:
 - retained control events (Input, Slider, Dock, List/Table item events, and observer key/mouse);
 - application-started notification;
 - window-closed notification;
+- final window placement before window-closed notification;
 - application-menu action dispatch;
 - application-menu installation acknowledgement (`menu_applied(application, generation)`).
 
 The callback table starts with `struct_size`, allowing native code to validate the available prefix.
 Every callback is a Cdecl unmanaged function pointer and returns an `int32_t` status.
+
+ABI 9 appends `window_placement(application_id, window_id, const NativeWindowPlacement*)` to the
+callback table. The 24-byte record has four `f32` restore coordinates (`left`, `top`, `width`,
+`height`), `u32 state` (0 normal, 1 maximized, 2 fullscreen), and a zero `u32 reserved` word.
+Native caches the last valid normal bounds on its application thread and sends one placement
+record immediately before `window_closed` for a successfully opened window. Maximized and
+fullscreen changes keep the cached restore rectangle; ordinary resize and move notifications
+update it. Managed copies and validates the borrowed record before closing the handle. An open
+failure has no placement record.
 
 The native application is registered before the application-started callback, so managed code can
 enqueue initial windows synchronously. A window ID is also its render-session ID. Closing one window
