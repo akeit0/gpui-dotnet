@@ -420,8 +420,8 @@ back to `dotnet watch`, which restarts the application when required.
 ```text
 bindings/                 base schema and optional-extension registry
 crates/gpui-dotnet/       Rust native host
-src/Gpui/                 managed public API and runtime sources
-src/Gpui.Core/            platform-neutral package project
+src/Gpui/                 application-facing meta package and build assets
+src/Gpui.Core/            platform-neutral managed API, runtime, and package project
 src/Gpui.Editor/          optional editor schema assembly
 src/Gpui.Components/      optional gpui-component catalog schema assembly
 src/Gpui.Native/          RID-specific native package projects

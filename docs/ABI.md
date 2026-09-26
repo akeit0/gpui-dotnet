@@ -8,7 +8,7 @@ generation](BINDING_GENERATION.md) describes how to change them. Rebuild managed
 hosts together after schema changes.
 
 Rust [`abi.rs`](../crates/gpui-dotnet/src/abi.rs) defines the protocol version and layouts. The native
-build generates the [managed interop declarations](../src/Gpui/Interop/NativeMethods.g.cs).
+build generates the [managed interop declarations](../src/Gpui.Core/Interop/NativeMethods.g.cs).
 C-style signatures here illustrate the internal protocol.
 
 ## Discovery
@@ -675,7 +675,7 @@ requires process isolation.
 When changing C layouts or entry points:
 
 1. update Rust records and `GpuiDotnetApiV3` (or introduce the next table version);
-2. regenerate `src/Gpui/Interop/NativeMethods.g.cs` through the native build/csbindgen path;
+2. regenerate `src/Gpui.Core/Interop/NativeMethods.g.cs` through the native build/csbindgen path;
 3. update managed size/version checks and tests;
 4. update this document;
 5. build and test every affected RID.

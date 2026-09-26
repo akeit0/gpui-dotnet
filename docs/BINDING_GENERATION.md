@@ -6,8 +6,8 @@ The repository has two generators with separate responsibilities.
 
 `tools/Gpui.Bindings.Generator` reads `bindings/schema.json` and produces:
 
-- `src/Gpui/Rendering/Semantic.g.cs` (wire protocol: IDs and the validation registry);
-- `src/Gpui/Rendering/SemanticElements.g.cs` (managed API: tags, style enums, factories, styling);
+- `src/Gpui.Core/Rendering/Semantic.g.cs` (wire protocol: IDs and the validation registry);
+- `src/Gpui.Core/Rendering/SemanticElements.g.cs` (managed API: tags, style enums, factories, styling);
 - `crates/gpui-dotnet/src/semantic.g.rs`;
 - `docs/SEMANTIC_IDS.md` (the numeric protocol reference);
 - matching component IDs, operation IDs, capabilities, adapters, value constraints, and schema
@@ -144,7 +144,7 @@ An item renderer grows output before writes, without capacity retry, and follows
 
 ## Native C-layout generation
 
-The native Cargo build uses `csbindgen` to update `src/Gpui/Interop/NativeMethods.g.cs` from the Rust
+The native Cargo build uses `csbindgen` to update `src/Gpui.Core/Interop/NativeMethods.g.cs` from the Rust
 C-layout records and API table. Treat that file as generated. If `abi.rs` changes, run a native
 build and include the regenerated managed output in the same change.
 

@@ -303,10 +303,10 @@ as managed popover menus. Applications can bypass the helper and compose the pri
 
 ## Managed project and package split
 
-- `src/Gpui/` contains the managed API and runtime source files.
-- `src/Gpui.Core/` builds those sources as the platform-neutral `GPUI.NET.Core` package.
+- `src/Gpui.Core/` contains the managed API and runtime sources, organized by subsystem, and
+  builds them as the platform-neutral `GPUI.NET.Core` package.
 - `src/Gpui.Native/` defines the native aggregate and RID-specific packages.
-- `src/Gpui/` also defines the application-facing `GPUI.NET` meta package and analyzer payload.
+- `src/Gpui/` defines the application-facing `GPUI.NET` meta package and analyzer payload.
 - `src/Gpui.Generators/` contains the Roslyn source generator.
 - `crates/gpui-dotnet/` builds the native host library.
 

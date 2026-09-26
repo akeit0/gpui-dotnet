@@ -27,14 +27,6 @@ GPUI's single inherited foreground. The [upstream proposal](proposals/GPUI_CONTE
 records the evidence, alternatives, and acceptance criteria. Pursue upstream discussion if other
 GPUI applications need it; do not maintain a GPUI fork or expose unsupported role semantics.
 
-## Structural refactors
-
-- Move managed implementation sources into `src/Gpui.Core`, matching the project that compiles
-  them, and organize them by subsystem. Keep `src/Gpui` focused on the application package facade.
-
-Public API breaks are acceptable when they simplify these boundaries. Preserve the semantic
-batching model and native interaction ownership; these refactors require no upstream GPUI edits.
-
 ## Native host packaging
 
 - keep editor providers, grammars, and other optional runtime families exclusive to their custom
