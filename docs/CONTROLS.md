@@ -28,6 +28,8 @@ Double-click selects a Unicode word segment, including whitespace when clicked. 
 double-click extends by whole segments while keeping the original segment selected. Triple-click
 selects the entire single line. A masked password value selects as one unit on double-click.
 Pointer positions are clamped to grapheme boundaries before changing the caret or selection.
+Drag selection continues when the pointer leaves the Input bounds and applies the release position
+before ending the selection.
 
 Undo uses Command+Z on macOS or Control+Z on Windows and Linux. Redo uses Command+Shift+Z on
 macOS, and Control+Y or Control+Shift+Z on Windows and Linux. Adjacent typing forms one undo entry

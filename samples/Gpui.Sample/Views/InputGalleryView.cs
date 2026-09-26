@@ -176,7 +176,7 @@ internal sealed partial class InputGalleryView : View
                     .FontSize(Px(theme.Typography.BodySmall))
                     .TextColor(theme.Colors.TextMuted),
                 ui.Text(
-                        "Double-click selects a word; drag to extend by words. Triple-click selects all."u8
+                        "Double-click selects a word; drag beyond the field to extend. Triple-click selects all."u8
                     )
                     .FontSize(Px(theme.Typography.BodySmall))
                     .TextColor(theme.Colors.TextMuted),

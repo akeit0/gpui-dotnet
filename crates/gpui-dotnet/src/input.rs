@@ -7,12 +7,12 @@ use std::{
 };
 
 use gpui::{
-    App, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId, ElementInputHandler,
-    Entity, EntityInputHandler, FocusHandle, Focusable, GlobalElementId, IntoElement, KeyBinding,
-    LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point,
-    Render, Role, ShapedLine, SharedString, Style, Subscription, TextAlign, TextRun,
-    UTF16Selection, UnderlineStyle, Window, actions, div, fill, point, prelude::*, px, relative,
-    rgba, size,
+    App, AppContext, Bounds, ClipboardItem, Context, CursorStyle, DragMoveEvent, Element,
+    ElementId, ElementInputHandler, Empty, Entity, EntityId, EntityInputHandler, FocusHandle,
+    Focusable, GlobalElementId, IntoElement, KeyBinding, LayoutId, MouseButton, MouseDownEvent,
+    MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point, Render, Role, ShapedLine, SharedString,
+    Style, Subscription, TextAlign, TextRun, UTF16Selection, UnderlineStyle, Window, actions, div,
+    fill, point, prelude::*, px, relative, rgba, size,
 };
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -178,6 +178,15 @@ struct EditSnapshot {
     content: SharedString,
     selected_range: Range<usize>,
     selection_reversed: bool,
+}
+
+#[derive(Clone, Copy)]
+struct InputDrag(EntityId);
+
+impl Render for InputDrag {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        Empty
+    }
 }
 
 pub(crate) struct ManagedInput {
@@ -674,14 +683,32 @@ impl ManagedInput {
         }
     }
 
-    fn on_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, _: &mut Context<Self>) {
+    fn on_mouse_up(&mut self, event: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+        self.extend_pointer_selection_to(event.position, cx);
         self.is_selecting = false;
         self.drag_word_range = None;
     }
 
     fn on_mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+        self.extend_pointer_selection_to(event.position, cx);
+    }
+
+    fn on_drag_move(
+        &mut self,
+        event: &DragMoveEvent<InputDrag>,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if event.drag(cx).0 == cx.entity().entity_id()
+            && !event.bounds.contains(&event.event.position)
+        {
+            self.extend_pointer_selection_to(event.event.position, cx);
+        }
+    }
+
+    fn extend_pointer_selection_to(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
         if self.is_selecting && !self.disabled {
-            let offset = self.index_for_mouse_position(event.position);
+            let offset = self.index_for_mouse_position(position);
             if self.drag_word_range.is_some() {
                 self.select_dragged_word_to(offset, cx);
             } else {
@@ -1099,6 +1126,7 @@ impl Focusable for ManagedInput {
 impl Render for ManagedInput {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *self.theme.borrow();
+        let entity_id = cx.entity().entity_id();
         if self.focus_subscriptions.is_empty() {
             let focus = self.focus_handle.clone();
             let focused = cx.on_focus(&focus, window, |this, _, cx| {
@@ -1173,6 +1201,11 @@ impl Render for ManagedInput {
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
+            .when(!self.disabled, |element| {
+                element
+                    .on_drag(InputDrag(entity_id), |drag, _, _, cx| cx.new(|_| *drag))
+                    .on_drag_move(cx.listener(Self::on_drag_move))
+            })
             .child(TextElement { input: cx.entity() })
             .into_any_element()
     }
@@ -1512,6 +1545,16 @@ mod tests {
         })
     }
 
+    struct InputDragHost {
+        input: Entity<ManagedInput>,
+    }
+
+    impl Render for InputDragHost {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div().w(px(120.)).h(px(40.)).child(self.input.clone())
+        }
+    }
+
     fn set_value_command(data: &str) -> ResourceCommand {
         ResourceCommand {
             key: ResourceKey::new(7, "input".into()),
@@ -1671,6 +1714,41 @@ mod tests {
                 );
                 assert_eq!(input.selected_range, 0..input.content.len());
             });
+        });
+    }
+
+    #[gpui::test]
+    fn drag_selection_continues_outside_input_and_stops_on_release(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        cx.update(|cx| {
+            input.update(cx, |input, cx| {
+                input.content = shared("alpha beta gamma");
+                cx.notify();
+            });
+        });
+        let (_, cx) = cx.add_window_view(|_, _| InputDragHost {
+            input: input.clone(),
+        });
+        cx.simulate_resize(size(px(320.), px(120.)));
+        cx.update(|window, _| window.refresh());
+        let inside = point(px(10.), px(20.));
+        let outside = point(px(260.), px(20.));
+        cx.simulate_mouse_down(inside, MouseButton::Left, gpui::Modifiers::none());
+        cx.simulate_mouse_move(outside, MouseButton::Left, gpui::Modifiers::none());
+        cx.simulate_mouse_move(outside, MouseButton::Left, gpui::Modifiers::none());
+        input.update(cx, |input, _| {
+            assert!(input.is_selecting);
+            assert_eq!(input.selected_range.end, input.content.len());
+        });
+        cx.simulate_mouse_up(outside, MouseButton::Left, gpui::Modifiers::none());
+        input.update(cx, |input, _| assert!(!input.is_selecting));
+
+        cx.simulate_mouse_down(inside, MouseButton::Left, gpui::Modifiers::none());
+        cx.simulate_mouse_move(outside, MouseButton::Left, gpui::Modifiers::none());
+        cx.simulate_mouse_up(outside, MouseButton::Left, gpui::Modifiers::none());
+        input.update(cx, |input, _| {
+            assert_eq!(input.selected_range.end, input.content.len());
+            assert!(!input.is_selecting);
         });
     }
 
