@@ -4,8 +4,10 @@ Window toasts are hosted by the native window rather than declared inside a View
 `GpuiWindow.ShowToast` uses a stable ID to replace a previous toast, and `DismissToast` or
 `ClearToasts` begins dismissal. The native host keeps at most three active toasts visible, preserves
 newer ordering, pauses timeouts while the stack is hovered, and handles entry/exit transitions.
-Posting a toast does not steal focus. Their text and timeout come from C#; background, border, and text colors
-resolve from the ambient theme.
+Posting a toast does not steal focus. Its text and timeout come from C#; background, border, and
+text colors resolve from the ambient theme.
+The stack's springs follow GPUI's reduced-motion setting, which `gpui-base` initializes from the
+platform where available. Toast lifecycle phase delays still use normal timing.
 
 Windows own placement, stacking, dismissal, and focus restoration; application Views own content.
 

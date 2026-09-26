@@ -16,6 +16,19 @@ public enum WindowTitleBarStyle : ushort
     Hidden,
 }
 
+/// <summary>Native window state selected when the window first opens.</summary>
+public enum WindowInitialState : ushort
+{
+    /// <summary>Open at the requested content size and position.</summary>
+    Normal,
+
+    /// <summary>Open maximized, retaining the requested bounds for restore.</summary>
+    Maximized,
+
+    /// <summary>Open fullscreen, retaining the requested bounds for restore.</summary>
+    Fullscreen,
+}
+
 /// <summary>Initial native window placement and presentation.</summary>
 public sealed class GpuiWindowOptions
 {
@@ -26,6 +39,7 @@ public sealed class GpuiWindowOptions
     public float? Top { get; init; }
     public bool Activate { get; init; } = true;
     public WindowTitleBarStyle TitleBarStyle { get; init; } = WindowTitleBarStyle.System;
+    public WindowInitialState InitialState { get; init; } = WindowInitialState.Normal;
 
     internal GpuiWindowSnapshot ValidateAndSnapshot()
     {
@@ -35,6 +49,10 @@ public sealed class GpuiWindowOptions
         {
             throw new ArgumentOutOfRangeException(nameof(TitleBarStyle));
         }
+        if (!Enum.IsDefined(InitialState))
+        {
+            throw new ArgumentOutOfRangeException(nameof(InitialState));
+        }
         if (Left.HasValue != Top.HasValue)
         {
             throw new ArgumentException("Left and Top must either both be set or both be omitted.");
@@ -43,7 +61,16 @@ public sealed class GpuiWindowOptions
         {
             throw new ArgumentOutOfRangeException(nameof(Left));
         }
-        return new GpuiWindowSnapshot(Title, Width, Height, Left, Top, Activate, TitleBarStyle);
+        return new GpuiWindowSnapshot(
+            Title,
+            Width,
+            Height,
+            Left,
+            Top,
+            Activate,
+            TitleBarStyle,
+            InitialState
+        );
     }
 
     internal static void ValidateSize(float width, float height)
@@ -807,7 +834,8 @@ internal readonly record struct GpuiWindowSnapshot(
     float? Left,
     float? Top,
     bool Activate,
-    WindowTitleBarStyle TitleBarStyle
+    WindowTitleBarStyle TitleBarStyle,
+    WindowInitialState InitialState
 );
 
 internal readonly record struct GpuiWindowOpenRequest(

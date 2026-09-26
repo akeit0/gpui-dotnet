@@ -316,7 +316,7 @@ Current commands are:
 
 | Command | Contract |
 |---|---|
-| Open | UTF-8 title, positive size, optional position/activation, title-bar style |
+| Open | UTF-8 title, positive restore size, optional position/activation, title-bar style, initial state |
 | Close | existing window ID |
 | Activate | existing window ID |
 | Minimize | existing window ID |
@@ -332,9 +332,11 @@ Current commands are:
 | EvictImage | non-empty UTF-8 path, application-scoped broadcast |
 | ManagedCodeUpdated | empty application-scoped Hot Reload invalidation |
 
-Open flags encode optional position, activation, and `System`, `Custom`, or `Hidden` title-bar
-style. Runtime reposition is not exposed because the pinned GPUI revision has no durable
-cross-platform operation for it.
+Open flags use bit 0 for optional position, bit 1 for activation, bits 2–3 for `System`, `Custom`,
+or `Hidden` title-bar style, and bits 4–5 for initial state (`Normal`, `Maximized`, or `Fullscreen`).
+Bits 6–15 and the fourth value of either two-bit field are rejected. Width, height, and optional
+position are restore bounds when the window opens maximized or fullscreen. Runtime reposition is
+not exposed because the pinned GPUI revision has no durable cross-platform operation for it.
 
 `ShowToast` (command 13) uses the borrowed byte range as a version 1 payload. Its 24-byte header
 contains six little-endian `u32` fields: version, timeout in milliseconds, ID byte length, title

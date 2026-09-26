@@ -101,6 +101,12 @@ public sealed class ApplicationModelTests
                 new GpuiWindowOptions { TitleBarStyle = (WindowTitleBarStyle)99 }
             )
         );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            application.OpenWindow(
+                ProbeView.Spec(),
+                new GpuiWindowOptions { InitialState = (WindowInitialState)99 }
+            )
+        );
     }
 
     [Fact]
@@ -138,6 +144,7 @@ public sealed class ApplicationModelTests
         Assert.Equal(900, window.Snapshot.Width);
         Assert.Equal(600, window.Snapshot.Height);
         Assert.Equal(WindowTitleBarStyle.System, window.Snapshot.TitleBarStyle);
+        Assert.Equal(WindowInitialState.Normal, window.Snapshot.InitialState);
         Assert.Throws<InvalidOperationException>(window.Minimize);
         Assert.Throws<InvalidOperationException>(window.ToggleMaximize);
         Assert.Throws<InvalidOperationException>(window.ToggleFullscreen);
@@ -163,13 +170,18 @@ public sealed class ApplicationModelTests
         var first = application.OpenWindow(firstRoot);
         var second = application.OpenWindow(
             ProbeView.Spec(),
-            new GpuiWindowOptions { TitleBarStyle = WindowTitleBarStyle.Custom }
+            new GpuiWindowOptions
+            {
+                TitleBarStyle = WindowTitleBarStyle.Custom,
+                InitialState = WindowInitialState.Maximized,
+            }
         );
 
         Assert.NotEqual(first.Id, second.Id);
         Assert.False(first.Snapshot.Activate);
         Assert.True(second.Snapshot.Activate);
         Assert.Equal(WindowTitleBarStyle.Custom, second.Snapshot.TitleBarStyle);
+        Assert.Equal(WindowInitialState.Maximized, second.Snapshot.InitialState);
         var third = application.OpenWindow(firstRoot);
         Assert.NotEqual(first.Id, third.Id);
 

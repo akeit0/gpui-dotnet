@@ -118,12 +118,13 @@ deltas across the managed boundary while a pointer is moving.
 - keyboard navigation and roving selection for menu items;
 - disabled, checked, radio, and submenu semantics;
 - keyboard/focus-triggered tooltips;
-- reduced-motion behavior and cross-platform interaction verification for window-owned toasts;
+- immediate toast entry/exit lifecycle under reduced motion, and cross-platform interaction
+  verification;
 - broader focus and dismissal integration tests.
 
 ## Windows
 
-- minimum/maximum size and initial maximized/fullscreen options;
+- minimum/maximum size constraints;
 - bounds persistence;
 - managed application/window lifecycle events;
 - runtime repositioning if GPUI exposes a cross-platform operation;

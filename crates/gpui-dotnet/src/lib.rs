@@ -481,14 +481,16 @@ unsafe fn dispatch_application_command_inner(
     }
 
     let title_bar_style = (command.flags >> 2) & 0b11;
+    let initial_state = (command.flags >> 4) & 0b11;
     let size_valid = command.width.is_finite()
         && command.height.is_finite()
         && command.width > 0.0
         && command.height > 0.0;
     let payload_valid = match command.command {
         1 => {
-            command.flags & !0b1111 == 0
+            command.flags & !0b11_1111 == 0
                 && title_bar_style <= 2
+                && initial_state <= 2
                 && !no_title
                 && size_valid
                 && if command.flags & 1 != 0 {
@@ -534,6 +536,12 @@ unsafe fn dispatch_application_command_inner(
                 1 => app_host::WindowTitleBarStyle::Custom,
                 2 => app_host::WindowTitleBarStyle::Hidden,
                 _ => unreachable!("title-bar style was validated"),
+            },
+            initial_state: match initial_state {
+                0 => app_host::WindowInitialState::Normal,
+                1 => app_host::WindowInitialState::Maximized,
+                2 => app_host::WindowInitialState::Fullscreen,
+                _ => unreachable!("initial state was validated"),
             },
         },
         2 => app_host::ApplicationCommand::Close(command.window_id),
@@ -860,6 +868,31 @@ mod tests {
             unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
             -62
         );
+    }
+
+    #[test]
+    fn open_accepts_initial_native_window_states() {
+        let title = b"window";
+        let mut command = empty_application_command(1);
+        command.window_id = 1;
+        command.title = title.as_ptr();
+        command.title_length = title.len() as i32;
+        command.width = 800.0;
+        command.height = 600.0;
+        for flags in [0, 1 << 4, 2 << 4] {
+            command.flags = flags;
+            assert_eq!(
+                unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+                -40
+            );
+        }
+        for flags in [3 << 4, 1 << 6] {
+            command.flags = flags;
+            assert_eq!(
+                unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+                -62
+            );
+        }
     }
 
     #[test]

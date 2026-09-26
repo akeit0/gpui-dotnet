@@ -119,6 +119,7 @@ pub(crate) enum ApplicationCommand {
         height: f32,
         activate: bool,
         title_bar_style: WindowTitleBarStyle,
+        initial_state: WindowInitialState,
     },
     Close(u64),
     Activate(u64),
@@ -190,6 +191,13 @@ pub(crate) enum WindowTitleBarStyle {
     System,
     Custom,
     Hidden,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WindowInitialState {
+    Normal,
+    Maximized,
+    Fullscreen,
 }
 
 #[derive(Clone)]
@@ -986,6 +994,7 @@ fn apply_application_command(
             height,
             activate,
             title_bar_style,
+            initial_state,
         } => {
             let result = open_managed_window(
                 cx,
@@ -998,6 +1007,7 @@ fn apply_application_command(
                 height,
                 activate,
                 title_bar_style,
+                initial_state,
                 theme.clone(),
             );
             if let Err(status) = result {
@@ -1140,6 +1150,7 @@ fn open_managed_window(
     height: f32,
     activate: bool,
     title_bar_style: WindowTitleBarStyle,
+    initial_state: WindowInitialState,
     theme: SharedTheme,
 ) -> Result<(), i32> {
     if windows.borrow().contains_key(&window_id) {
@@ -1176,10 +1187,15 @@ fn open_managed_window(
     };
     let window_decorations =
         (title_bar_style != WindowTitleBarStyle::System).then_some(WindowDecorations::Client);
+    let window_bounds = match initial_state {
+        WindowInitialState::Normal => WindowBounds::Windowed(bounds),
+        WindowInitialState::Maximized => WindowBounds::Maximized(bounds),
+        WindowInitialState::Fullscreen => WindowBounds::Fullscreen(bounds),
+    };
     let handle = cx
         .open_window(
             WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                window_bounds: Some(window_bounds),
                 titlebar,
                 focus: activate,
                 window_decorations,

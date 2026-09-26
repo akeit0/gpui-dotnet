@@ -282,6 +282,8 @@ the managed View snapshot. The [sample](samples/Gpui.Sample/README.md) has inter
 
 `WindowTitleBarStyle` supports `System`, `Custom`, and `Hidden`. Custom title bars use semantic
 `WindowControlArea` regions for native drag, minimize, maximize, and close behavior.
+Set `GpuiWindowOptions.InitialState` to `Maximized` or `Fullscreen` to open in that native state;
+`Width`, `Height`, `Left`, and `Top` remain the restore bounds.
 
 Declare application commands once with `GpuiMenu[]`. macOS installs them in the global native menu
 bar. `GpuiTitleBar.RenderWindow` uses the same definitions for a minimal managed menu/title bar on

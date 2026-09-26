@@ -326,6 +326,7 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
                     (snapshot.Left.HasValue ? 1 : 0)
                     | (snapshot.Activate ? 2 : 0)
                     | ((ushort)snapshot.TitleBarStyle << 2)
+                    | ((ushort)snapshot.InitialState << 4)
                 )
             );
         }
