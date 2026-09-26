@@ -70,8 +70,9 @@ Build on the generated `Gpui.Components` schema and `gpui-dotnet-components-host
 - continue adding coherent families from the remaining upstream component inventory, prioritizing
   components whose state and event ownership fit the existing declaration/event contract;
 - generate more of the public managed option/builder surface once repeated API shapes justify it;
-- design explicit retained datasource and command contracts for collection, select, input, editor,
-  overlay, and compound state families instead of encoding callbacks or per-frame state in config;
+- design explicit retained datasource and command contracts for large or remote selection data,
+  collection, input, editor, overlay, and compound state families instead of encoding callbacks or
+  per-frame state in config;
 - add separate accessible help/error descriptions to optional form controls that currently expose
   only an accessible label, and verify announcements with desktop accessibility backends;
 - add RID runtime packages, clean-consumer coverage, accessibility tests, and cross-platform visual

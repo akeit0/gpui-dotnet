@@ -77,13 +77,24 @@ revisions, and payload layouts remain schema-owned.
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes thirty-eight catalog families plus Editor, a retained extension example. Display
+The host includes forty catalog families plus Editor, a retained extension example. Display
 and content coverage includes Spinner, Skeleton, Separator, Badge, Tag, linear and circular
 Progress, Alert, GroupBox, Label, Kbd, Avatar, Icon, ShimmerText, Attachment, Empty, StatusBar,
 Bubble, BubbleGroup, Message, MessageGroup, Marker, and DescriptionList. Interactive and
 controlled coverage includes Rating, Button, Link, Switch, Checkbox, Radio, Toggle, Pagination,
-Collapsible, Toolbar, ToolbarGroup, Breadcrumb, Tabs, and Textarea. Form batches a compound field
-layout with existing core or optional controls.
+Collapsible, Toolbar, ToolbarGroup, Breadcrumb, Tabs, Select, Combobox, and Textarea. Form batches
+a compound field layout with existing core or optional controls.
+
+`Select` and `Combobox` share batched labels, stable nonzero IDs, disabled items, and controlled
+selection. Native entities retain popup, keyboard, filtering, and scrolling state. Select requests
+one ID or clearing; Combobox requests the full selected-ID set and supports multiple selection.
+The next managed declaration decides which request to accept. Item and selection batches reconcile
+by ID without rebuilding an unchanged popup. Search mode for Select and multiple mode for Combobox
+are fixed for the lifetime of a retained key; change the key to change the mode. The catalog batch
+is limited to 4096 local items; large or remote datasets need a separate batched datasource
+contract.
+Select has an accessible name field. The current upstream Combobox facade does not expose a
+corresponding accessible-name hook.
 
 `Form` takes one control child per field and an optional full-width footer. Labels, help text,
 errors, required markers, column spans, label orientation, and grid columns form one declarative

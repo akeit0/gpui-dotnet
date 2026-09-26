@@ -79,6 +79,7 @@ use gpui_dotnet_editor_provider::EDITOR_EXTENSION;
 
 #[path = "component_schema.g.rs"]
 mod component_schema;
+mod selection;
 
 use component_schema::*;
 
@@ -175,6 +176,8 @@ impl NativeExtension for ComponentsExtension {
         match request.resource_key.component_kind() {
             COMPONENT_ATTACHMENT => attachment(request),
             COMPONENT_TEXTAREA => textarea(request, resources, window, cx),
+            COMPONENT_SELECT => selection::select(request, resources, window, cx),
+            COMPONENT_COMBOBOX => selection::combobox(request, resources, window, cx),
             COMPONENT_FORM => form(request),
             COMPONENT_EMPTY => empty(request),
             COMPONENT_TOOLBAR => toolbar(request),
@@ -341,9 +344,9 @@ fn textarea(
         );
     }
     if resource.rows.replace(config.rows) != config.rows {
-        resource
-            .state
-            .update(cx, |state, cx| state.set_auto_grow(config.rows as usize, config.rows as usize, cx));
+        resource.state.update(cx, |state, cx| {
+            state.set_auto_grow(config.rows as usize, config.rows as usize, cx)
+        });
     }
     if resource.placeholder.borrow().as_str() != config.placeholder {
         resource.state.update(cx, |state, cx| {
@@ -420,7 +423,10 @@ fn validate_form(config: &FormConfiguration, child_count: usize) -> Result<(), S
         || config.help_texts.iter().any(|text| text.contains('\0'))
         || config.error_texts.iter().any(|text| text.contains('\0'))
         || config.required.iter().any(|value| *value > 1)
-        || config.column_spans.iter().any(|span| *span == 0 || *span > config.columns)
+        || config
+            .column_spans
+            .iter()
+            .any(|span| *span == 0 || *span > config.columns)
         || count.checked_add(usize::from(config.has_footer)) != Some(child_count)
     {
         return Err("Invalid Form field batch or layout.".into());

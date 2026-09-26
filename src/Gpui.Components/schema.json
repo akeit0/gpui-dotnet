@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 14,
+  "schemaVersion": 15,
   "components": [
     {
       "kind": "attachment",
@@ -611,6 +611,55 @@
       "flags": {},
       "commands": {},
       "events": {}
+    },
+    {
+      "kind": "select",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "labels", "type": "string_list" },
+          { "name": "item_ids", "type": "u32_list" },
+          { "name": "item_disabled", "type": "u32_list" },
+          { "name": "selected_ids", "type": "u32_list" },
+          { "name": "placeholder", "type": "string" },
+          { "name": "search_placeholder", "type": "string" },
+          { "name": "accessibility_label", "type": "string" },
+          { "name": "searchable", "type": "bool" },
+          { "name": "cleanable", "type": "bool" },
+          { "name": "disabled", "type": "bool" },
+          { "name": "selected_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "selected": { "id": 1, "flags": "none", "payload": "optional u32 item ID", "revision": "none" }
+      }
+    },
+    {
+      "kind": "combobox",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "labels", "type": "string_list" },
+          { "name": "item_ids", "type": "u32_list" },
+          { "name": "item_disabled", "type": "u32_list" },
+          { "name": "selected_ids", "type": "u32_list" },
+          { "name": "placeholder", "type": "string" },
+          { "name": "search_placeholder", "type": "string" },
+          { "name": "multiple", "type": "bool" },
+          { "name": "cleanable", "type": "bool" },
+          { "name": "disabled", "type": "bool" },
+          { "name": "changed_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "changed": { "id": 1, "flags": "none", "payload": "little-endian u32 item IDs", "revision": "none" }
+      }
     },
     {
       "kind": "breadcrumb",

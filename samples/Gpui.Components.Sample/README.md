@@ -10,6 +10,10 @@ The sample loads the optional component host, which includes the gpui-kit catalo
 demonstrates display elements, controlled inputs, file presentation, a conversation, and retained
 editing. The Review form batches a core Subject input, optional Ready checkbox, and a full-width
 multiline Notes field with a shared footer. Clear notes shows the field error; typing clears it.
+The Select below the form searches review states and can clear the selected ID. The Combobox filters
+topics and keeps a selected ID set while its popup is open. Both include a disabled choice. The
+sample updates managed selection from one event per interaction; native state handles popup,
+keyboard, search, and scrolling without per-item callbacks.
 The notes field retains text, selection, and undo natively. Focus notes sends a focus command;
 Clear notes replaces the value and updates the sample's character count. The empty
 state uses the sample's `Assets/archive-box.svg` file through the native Icon

@@ -34,6 +34,8 @@ internal sealed partial class ComponentsSampleView : View
     private int _clicks;
     private uint _lastBreadcrumbClick;
     private uint _selectedTab = 1;
+    private uint? _selectedReviewState = 1;
+    private uint[] _selectedTopics = [1, 3];
     private bool _showAlert = true;
     private bool _switchChecked = true;
     private bool _checkboxChecked = true;
@@ -607,6 +609,62 @@ internal sealed partial class ComponentsSampleView : View
                             .Gap(Px(12))
                             .ItemsCenter()
                     ),
+                    ui.HStack(
+                            ui.Select(
+                                    "review-state-select",
+                                    this,
+                                    static (view, selected) =>
+                                    {
+                                        view._selectedReviewState = selected.ItemId;
+                                        view.Invalidate();
+                                    },
+                                    new ComponentSelectOptions
+                                    {
+                                        SelectedId = _selectedReviewState,
+                                        Placeholder = "Choose a review state",
+                                        SearchPlaceholder = "Find a state",
+                                        AccessibilityLabel = "Review state",
+                                        Searchable = true,
+                                        Cleanable = true,
+                                    },
+                                    [
+                                        new(1, "Ready"),
+                                        new(2, "In progress"),
+                                        new(3, "Blocked"),
+                                        new(4, "Archived", Disabled: true),
+                                    ]
+                                )
+                                .Width(Px(220)),
+                            ui.Combobox(
+                                    "review-topics-combobox",
+                                    this,
+                                    static (view, changed) =>
+                                    {
+                                        view._selectedTopics = [.. changed.ItemIds];
+                                        view.Invalidate();
+                                    },
+                                    new ComponentComboboxOptions
+                                    {
+                                        SelectedIds = _selectedTopics,
+                                        Multiple = true,
+                                        Placeholder = "Choose topics",
+                                        SearchPlaceholder = "Find a topic",
+                                        Cleanable = true,
+                                    },
+                                    [
+                                        new(1, "Design"),
+                                        new(2, "Accessibility"),
+                                        new(3, "Implementation"),
+                                        new(4, "Release", Disabled: true),
+                                    ]
+                                )
+                                .Width(Px(260)),
+                            ui.Text(
+                                $"State: {_selectedReviewState?.ToString() ?? "none"}; topics: {string.Join(", ", _selectedTopics)}"
+                            )
+                        )
+                        .Gap(Px(12))
+                        .ItemsCenter(),
                     ui.Progress(
                         "upload-progress",
                         new ComponentProgressOptions

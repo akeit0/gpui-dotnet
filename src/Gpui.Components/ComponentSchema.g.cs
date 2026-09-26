@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 14u;
-    internal const ulong SchemaHash = 0x99043981CAB38C97UL;
+    internal const uint SchemaVersion = 15u;
+    internal const ulong SchemaHash = 0x08F23B8465A20B12UL;
 
     internal static class Attachment
     {
@@ -1361,6 +1361,143 @@ internal static class ComponentSchema
             }
             var columnSpansValue = columnSpansBuilder.ToString();
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{labelAxisValue}\n{columns}\n{labelWidthPixels}\n{labelsValue}\n{helpTextsValue}\n{errorTextsValue}\n{requiredValue}\n{columnSpansValue}\n{(hasFooter ? 1 : 0)}");
+        }
+    }
+
+    internal static class Select
+    {
+        internal const string Kind = "select";
+        internal const ushort EventSelected = 1;
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal static string EncodeConfiguration(Size size, global::System.ReadOnlySpan<string> labels, global::System.ReadOnlySpan<uint> itemIds, global::System.ReadOnlySpan<uint> itemDisabled, global::System.ReadOnlySpan<uint> selectedIds, string placeholder, string searchPlaceholder, string accessibilityLabel, bool searchable, bool cleanable, bool disabled, ulong selectedEvent)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            foreach (var item in labels)
+            {
+                global::System.ArgumentNullException.ThrowIfNull(item);
+            }
+            var labelsValue = global::System.Text.Json.JsonSerializer.Serialize(labels.ToArray());
+            var itemIdsBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < itemIds.Length; index++)
+            {
+                if (index != 0)
+                    itemIdsBuilder.Append(',');
+                itemIdsBuilder.Append(itemIds[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var itemIdsValue = itemIdsBuilder.ToString();
+            var itemDisabledBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < itemDisabled.Length; index++)
+            {
+                if (index != 0)
+                    itemDisabledBuilder.Append(',');
+                itemDisabledBuilder.Append(itemDisabled[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var itemDisabledValue = itemDisabledBuilder.ToString();
+            var selectedIdsBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < selectedIds.Length; index++)
+            {
+                if (index != 0)
+                    selectedIdsBuilder.Append(',');
+                selectedIdsBuilder.Append(selectedIds[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var selectedIdsValue = selectedIdsBuilder.ToString();
+            global::System.ArgumentNullException.ThrowIfNull(placeholder);
+            if (placeholder.Contains('\0') || placeholder.Contains('\n') || placeholder.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(placeholder));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(searchPlaceholder);
+            if (searchPlaceholder.Contains('\0') || searchPlaceholder.Contains('\n') || searchPlaceholder.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(searchPlaceholder));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(accessibilityLabel);
+            if (accessibilityLabel.Contains('\0') || accessibilityLabel.Contains('\n') || accessibilityLabel.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(accessibilityLabel));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{labelsValue}\n{itemIdsValue}\n{itemDisabledValue}\n{selectedIdsValue}\n{placeholder}\n{searchPlaceholder}\n{accessibilityLabel}\n{(searchable ? 1 : 0)}\n{(cleanable ? 1 : 0)}\n{(disabled ? 1 : 0)}\n{selectedEvent}");
+        }
+    }
+
+    internal static class Combobox
+    {
+        internal const string Kind = "combobox";
+        internal const ushort EventChanged = 1;
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal static string EncodeConfiguration(Size size, global::System.ReadOnlySpan<string> labels, global::System.ReadOnlySpan<uint> itemIds, global::System.ReadOnlySpan<uint> itemDisabled, global::System.ReadOnlySpan<uint> selectedIds, string placeholder, string searchPlaceholder, bool multiple, bool cleanable, bool disabled, ulong changedEvent)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            foreach (var item in labels)
+            {
+                global::System.ArgumentNullException.ThrowIfNull(item);
+            }
+            var labelsValue = global::System.Text.Json.JsonSerializer.Serialize(labels.ToArray());
+            var itemIdsBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < itemIds.Length; index++)
+            {
+                if (index != 0)
+                    itemIdsBuilder.Append(',');
+                itemIdsBuilder.Append(itemIds[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var itemIdsValue = itemIdsBuilder.ToString();
+            var itemDisabledBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < itemDisabled.Length; index++)
+            {
+                if (index != 0)
+                    itemDisabledBuilder.Append(',');
+                itemDisabledBuilder.Append(itemDisabled[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var itemDisabledValue = itemDisabledBuilder.ToString();
+            var selectedIdsBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < selectedIds.Length; index++)
+            {
+                if (index != 0)
+                    selectedIdsBuilder.Append(',');
+                selectedIdsBuilder.Append(selectedIds[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var selectedIdsValue = selectedIdsBuilder.ToString();
+            global::System.ArgumentNullException.ThrowIfNull(placeholder);
+            if (placeholder.Contains('\0') || placeholder.Contains('\n') || placeholder.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(placeholder));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(searchPlaceholder);
+            if (searchPlaceholder.Contains('\0') || searchPlaceholder.Contains('\n') || searchPlaceholder.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(searchPlaceholder));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{labelsValue}\n{itemIdsValue}\n{itemDisabledValue}\n{selectedIdsValue}\n{placeholder}\n{searchPlaceholder}\n{(multiple ? 1 : 0)}\n{(cleanable ? 1 : 0)}\n{(disabled ? 1 : 0)}\n{changedEvent}");
         }
     }
 

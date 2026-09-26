@@ -10,9 +10,72 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(14u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(15u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
+    }
+
+    [Fact]
+    public void SelectionBatchesRequireStableDistinctIdsAndValidSelections()
+    {
+        var batch = SelectionBatch.Create(
+            [new(10, "Ready"), new(20, "Blocked", Disabled: true)],
+            [20u]
+        );
+        Assert.Equal([10u, 20u], batch.Ids);
+        Assert.Equal([0u, 1u], batch.Disabled);
+        Assert.Equal([20u], batch.Selected);
+        Assert.Throws<ArgumentException>(() =>
+            SelectionBatch.Create([new(10, "Ready"), new(10, "Again")], [])
+        );
+        Assert.Throws<ArgumentException>(() => SelectionBatch.Create([new(10, "Ready")], [20u]));
+        Assert.Throws<ArgumentException>(() => SelectionBatch.Create([new(0, "Ready")], []));
+    }
+
+    [Fact]
+    public void SelectionEventsValidateOptionalAndBatchedIds()
+    {
+        Assert.Null(
+            ComponentSelectSelectedEvent
+                .Decode(new NativeExtensionEvent(ComponentSchema.Select.EventSelected, 0, 0, []))
+                .ItemId
+        );
+        Assert.Equal(
+            10u,
+            ComponentSelectSelectedEvent
+                .Decode(
+                    new NativeExtensionEvent(
+                        ComponentSchema.Select.EventSelected,
+                        0,
+                        0,
+                        [10, 0, 0, 0]
+                    )
+                )
+                .ItemId
+        );
+        Assert.Throws<InvalidOperationException>(() =>
+            ComponentSelectSelectedEvent.Decode(
+                new NativeExtensionEvent(ComponentSchema.Select.EventSelected, 0, 0, [0, 0, 0, 0])
+            )
+        );
+        Assert.Equal(
+            [10u, 20u],
+            ComponentComboboxChangedEvent
+                .Decode(
+                    new NativeExtensionEvent(
+                        ComponentSchema.Combobox.EventChanged,
+                        0,
+                        0,
+                        [10, 0, 0, 0, 20, 0, 0, 0]
+                    )
+                )
+                .ItemIds
+        );
+        Assert.Throws<InvalidOperationException>(() =>
+            ComponentComboboxChangedEvent.Decode(
+                new NativeExtensionEvent(ComponentSchema.Combobox.EventChanged, 0, 0, [10])
+            )
+        );
     }
 
     [Fact]
