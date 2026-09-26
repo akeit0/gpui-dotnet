@@ -1,7 +1,7 @@
 use std::{borrow::Cow, cell::Cell, collections::HashSet, path::{Component as PathComponent, Path}, rc::Rc, sync::Once, time::Duration};
 
 use gpui::{
-    AnyElement, App, AssetSource, Axis, BoxShadow, FocusHandle, Hsla, InteractiveElement as _,
+    AnyElement, App, AssetSource, Axis, FocusHandle, Hsla, InteractiveElement as _,
     IntoElement as _, KeyDownEvent, Keystroke, ParentElement as _, Role, SharedString, Styled as _,
     Window, div, px, rgba,
 };
@@ -454,6 +454,8 @@ fn tabs(
     let events = request.events;
     let token = config.selected_event;
     let ring = cx.theme().ring;
+    let transparent = cx.theme().transparent;
+    // A drop shadow shows through the transparent tab bar as a solid accent fill.
     let element = div()
         .id(format!(
             "gpui-net-tabs-focus:{}:{}",
@@ -461,11 +463,9 @@ fn tabs(
             request.resource_key.key()
         ))
         .track_focus(&focus)
-        .focus_visible(move |style| {
-            let mut shadows = style.box_shadow.clone().unwrap_or_default();
-            shadows.push(BoxShadow::new(px(0.), px(0.), ring.into()).spread_radius(px(2.)));
-            style.shadow(shadows)
-        })
+        .border_1()
+        .border_color(transparent)
+        .focus_visible(move |style| style.border_color(ring))
         .on_key_down(move |event: &KeyDownEvent, window, cx| {
             if !keyboard_enabled || !focus.is_focused(window) {
                 return;
