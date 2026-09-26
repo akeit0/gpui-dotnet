@@ -67,6 +67,8 @@ public static class ComponentsExtension
     internal static NativeExtensionComponent Marker { get; } =
         Component(ComponentSchema.Marker.Kind);
     internal static NativeExtensionComponent Icon { get; } = Component(ComponentSchema.Icon.Kind);
+    internal static NativeExtensionComponent DescriptionList { get; } =
+        Component(ComponentSchema.DescriptionList.Kind);
 
     private static NativeExtensionComponent Component(string kind) => new(Requirement, kind);
 }

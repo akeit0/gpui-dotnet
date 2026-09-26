@@ -9,7 +9,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(8u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(9u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -247,6 +247,33 @@ public sealed class ComponentExtensionTests
                 ComponentSchema.Avatar.Size.Small,
                 "Alex",
                 "https://example.com/alex.png"
+            )
+        );
+    }
+
+    [Fact]
+    public void DescriptionListConfigurationEncodesAStableSpanBatch()
+    {
+        Assert.Equal(
+            "small\nhorizontal\n120\n1\n2\n1,1,0,2",
+            ComponentSchema.DescriptionList.EncodeConfiguration(
+                ComponentSchema.DescriptionList.Size.Small,
+                ComponentSchema.DescriptionList.Axis.Horizontal,
+                120,
+                true,
+                2,
+                [1, 1, 0, 2]
+            )
+        );
+        Assert.EndsWith(
+            "\n",
+            ComponentSchema.DescriptionList.EncodeConfiguration(
+                ComponentSchema.DescriptionList.Size.Medium,
+                ComponentSchema.DescriptionList.Axis.Vertical,
+                80,
+                false,
+                1,
+                []
             )
         );
     }

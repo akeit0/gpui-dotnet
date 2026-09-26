@@ -336,6 +336,31 @@ internal sealed partial class ComponentsSampleView : View
                 )
             ),
             fileRegion,
+            ui.DescriptionList(
+                "catalog-file-details",
+                new ComponentDescriptionListOptions { Columns = 2, Size = ComponentSize.Small },
+                ComponentDescriptionEntry.Item(ui.Text("File"u8), ui.Text("release-notes.pdf"u8)),
+                ComponentDescriptionEntry.Item(
+                    ui.Text("Status"u8),
+                    ui.Tag(
+                        "catalog-file-status-tag",
+                        new ComponentTagOptions
+                        {
+                            Variant =
+                                _fileStatus == ComponentAttachmentStatus.Complete
+                                    ? ComponentTagVariant.Success
+                                    : ComponentTagVariant.Info,
+                        },
+                        ui.Text(_fileStatus.ToString())
+                    )
+                ),
+                ComponentDescriptionEntry.Separator(),
+                ComponentDescriptionEntry.Item(
+                    ui.Text("Archive"u8),
+                    ui.Text(_fileArchived ? "Archived" : "Active"),
+                    span: 2
+                )
+            ),
             ui.StatusBar(
                 "catalog-status",
                 left: ui.Text("Ready"u8),

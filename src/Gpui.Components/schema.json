@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 8,
+  "schemaVersion": 9,
   "components": [
     {
       "kind": "attachment",
@@ -523,6 +523,23 @@
           { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
           { "name": "asset_path", "type": "string" },
           { "name": "color", "type": "string" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "description_list",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "axis", "type": "enum", "values": ["horizontal", "vertical"] },
+          { "name": "label_width_pixels", "type": "f32" },
+          { "name": "bordered", "type": "bool" },
+          { "name": "columns", "type": "u32" },
+          { "name": "entry_spans", "type": "u32_list" }
         ]
       },
       "flags": {},

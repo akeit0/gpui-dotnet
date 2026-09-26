@@ -111,6 +111,7 @@ internal static partial class BindingGenerator
                         "flags"
                         or "string"
                         or "u32"
+                        or "u32_list"
                         or "u64"
                         or "f32"
                         or "bool"
@@ -413,6 +414,22 @@ internal static partial class BindingGenerator
                     );
                     builder.AppendLine("            };");
                     break;
+                case "u32_list":
+                    builder.AppendLine(
+                        $"            var {name}Builder = new global::System.Text.StringBuilder();"
+                    );
+                    builder.AppendLine(
+                        $"            for (var index = 0; index < {name}.Length; index++)"
+                    );
+                    builder.AppendLine("            {");
+                    builder.AppendLine("                if (index != 0)");
+                    builder.AppendLine($"                    {name}Builder.Append(',');");
+                    builder.AppendLine(
+                        $"                {name}Builder.Append({name}[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));"
+                    );
+                    builder.AppendLine("            }");
+                    builder.AppendLine($"            var {name}Value = {name}Builder.ToString();");
+                    break;
             }
         }
         var values = fields.Select(CSharpConfigurationValue);
@@ -426,6 +443,7 @@ internal static partial class BindingGenerator
         field.Type switch
         {
             "flags" or "u32" => "uint",
+            "u32_list" => "global::System.ReadOnlySpan<uint>",
             "u64" or "event" => "ulong",
             "f32" => "float",
             "bool" => "bool",
@@ -443,6 +461,7 @@ internal static partial class BindingGenerator
         {
             "bool" => $"({name} ? 1 : 0)",
             "enum" => $"{name}Value",
+            "u32_list" => $"{name}Value",
             _ => name,
         };
     }
@@ -544,11 +563,18 @@ internal static partial class BindingGenerator
         foreach (var field in fields)
         {
             var source = $"fields.next()?";
+            if (field.Type == "u32_list")
+            {
+                builder.AppendLine($"        let {field.Name}_source = fields.next()?;");
+                source = $"{field.Name}_source";
+            }
             var parsed = field.Type switch
             {
                 "string" => source,
                 "bool" => $"match {source} {{ \"0\" => false, \"1\" => true, _ => return None }}",
                 "enum" => RustEnumParser(componentName, field, source),
+                "u32_list" =>
+                    $"if {source}.is_empty() {{ Vec::new() }} else {{ {source}.split(',').map(|item| item.parse::<u32>().ok()).collect::<Option<Vec<_>>>()? }}",
                 _ =>
                     $"{source}.parse::<{RustConfigurationType(componentName, field, borrows)}>().ok()?",
             };
@@ -592,6 +618,7 @@ internal static partial class BindingGenerator
         field.Type switch
         {
             "flags" or "u32" => "u32",
+            "u32_list" => "Vec<u32>",
             "u64" or "event" => "u64",
             "f32" => "f32",
             "bool" => "bool",

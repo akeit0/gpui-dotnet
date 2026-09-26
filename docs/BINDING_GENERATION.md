@@ -19,6 +19,9 @@ Extension IDs, versions, component kinds, flags, commands, and hashes therefore 
 truth.
 An extension component can declare zero `lines` fields when it has no configuration. Its generated
 managed encoder emits an empty string, and its native parser accepts only that empty string.
+The `u32_list` field encodes a batch of invariant decimal values in one comma-separated line;
+the generated parser rejects malformed items and returns a typed vector. The component provider
+still validates the list's own bounds and relationship to child elements.
 
 Run:
 

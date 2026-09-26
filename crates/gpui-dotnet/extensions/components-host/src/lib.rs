@@ -23,6 +23,7 @@ use gpui_component::{
     },
     checkbox::Checkbox,
     collapsible::Collapsible,
+    description_list::{DescriptionItem, DescriptionList},
     empty::{
         Empty as ComponentEmpty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia,
         EmptyMediaVariant as NativeEmptyMediaVariant, EmptyTitle,
@@ -150,6 +151,7 @@ impl NativeExtension for ComponentsExtension {
             COMPONENT_MESSAGE_GROUP => message_group(request),
             COMPONENT_MARKER => marker(request),
             COMPONENT_ICON => icon(request),
+            COMPONENT_DESCRIPTION_LIST => description_list(request),
             COMPONENT_SPINNER => spinner(request),
             COMPONENT_SKELETON => skeleton(request),
             COMPONENT_SEPARATOR => separator(request),
@@ -294,6 +296,57 @@ fn split_slots<const N: usize>(
         }
     }
     Ok(slots)
+}
+
+fn description_list(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = DescriptionListConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid DescriptionList configuration."))?;
+    if !(1..=10).contains(&config.columns) || config.label_width_pixels <= 0.0 {
+        return Err("Invalid DescriptionList layout.".into());
+    }
+    let items = description_items(&config.entry_spans, request.children, config.columns)?;
+    let mut component = DescriptionList::new()
+        .with_size(match config.size {
+            DescriptionListSize::Xsmall => gpui_component::Size::XSmall,
+            DescriptionListSize::Small => gpui_component::Size::Small,
+            DescriptionListSize::Medium => gpui_component::Size::Medium,
+            DescriptionListSize::Large => gpui_component::Size::Large,
+        })
+        .layout(match config.axis {
+            DescriptionListAxis::Horizontal => Axis::Horizontal,
+            DescriptionListAxis::Vertical => Axis::Vertical,
+        })
+        .label_width(px(config.label_width_pixels))
+        .bordered(config.bordered)
+        .columns(config.columns as usize);
+    component = component.children(items);
+    Ok(component.into_any_element())
+}
+
+fn description_items(
+    spans: &[u32],
+    children: Vec<AnyElement>,
+    columns: u32,
+) -> Result<Vec<DescriptionItem>, SharedString> {
+    if spans.iter().any(|span| *span > columns) {
+        return Err("A DescriptionList entry span exceeds its column count.".into());
+    }
+    let item_count = spans.iter().filter(|span| **span != 0).count();
+    if item_count.checked_mul(2) != Some(children.len()) {
+        return Err("DescriptionList child count does not match its entries.".into());
+    }
+    let mut children = children.into_iter();
+    let mut items = Vec::with_capacity(spans.len());
+    for span in spans {
+        if *span == 0 {
+            items.push(DescriptionItem::Separator);
+        } else {
+            let label = children.next().ok_or("Missing DescriptionList label.")?;
+            let value = children.next().ok_or("Missing DescriptionList value.")?;
+            items.push(DescriptionItem::new(label).value(value).span(*span as usize));
+        }
+    }
+    Ok(items)
 }
 
 fn toolbar(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
@@ -1266,6 +1319,11 @@ mod tests {
             .unwrap();
         assert_eq!(avatar.source, "https://example.com/alex.png");
         assert!(AvatarConfiguration::parse("small\nAlex").is_none());
+        let description =
+            DescriptionListConfiguration::parse("small\nhorizontal\n120\n1\n2\n1,1,0,2").unwrap();
+        assert_eq!(description.entry_spans, [1, 1, 0, 2]);
+        assert!(DescriptionListConfiguration::parse("small\nhorizontal\n120\n1\n2\n1,,2").is_none());
+        assert!(DescriptionListConfiguration::parse("small\nhorizontal\nNaN\n1\n2\n1").is_none());
     }
 
     #[test]
@@ -1295,6 +1353,18 @@ mod tests {
         assert!(header.is_none());
         assert!(content.is_some());
         assert!(footer.is_none());
+    }
+
+    #[test]
+    fn description_list_reconciles_span_batch_and_rich_children() {
+        let children = || vec![div().into_any_element(), div().into_any_element()];
+        let items = description_items(&[1, 0], children(), 2).unwrap();
+        assert_eq!(items.len(), 2);
+        assert!(matches!(items[0], DescriptionItem::Item { span: 1, .. }));
+        assert!(matches!(items[1], DescriptionItem::Separator));
+        assert!(description_items(&[3], children(), 2).is_err());
+        assert!(description_items(&[1], vec![], 2).is_err());
+        assert!(description_items(&[0], children(), 2).is_err());
     }
 
     #[test]

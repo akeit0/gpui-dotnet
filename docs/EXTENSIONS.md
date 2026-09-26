@@ -115,10 +115,10 @@ The accepted ownership, revision, bootstrap, command, and event design is docume
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes Editor plus thirty-three component families. Display and content coverage includes
+The host includes Editor plus thirty-four component families. Display and content coverage includes
 Spinner, Skeleton, Separator, Badge, Tag, linear and circular Progress, Alert, GroupBox, Label, Kbd,
 Avatar, Icon, ShimmerText, Attachment, Empty, StatusBar, Bubble, BubbleGroup, Message,
-MessageGroup, and Marker. Interactive and controlled coverage includes Rating,
+MessageGroup, Marker, and DescriptionList. Interactive and controlled coverage includes Rating,
 Button, Link, Switch, Checkbox, Radio, Toggle, Pagination, Collapsible, Toolbar, and ToolbarGroup.
 Editor keeps its independently versioned
 `Gpui.Editor` managed schema; applications using both schemas list both requirements, and the host
@@ -145,6 +145,12 @@ disable its child controls, which remain application-owned declarations.
 `StatusBar` accepts independent left, center, and right regions. Its native layout places the
 outer regions at the edges and aligns the center according to which outer regions are present.
 Each region can contain a managed composition of text, controls, or other elements.
+
+`DescriptionList` batches label/value elements, column spans, and full-row separators into one
+native list. Its orientation, size, border, label width, and column count are declarative. The
+extension schema's `u32_list` field gives C# and Rust a shared typed span sequence; zero marks a
+separator, and positive values mark item spans. The provider checks child count and span bounds
+before handing items to gpui-kit.
 
 `Icon` renders an SVG from the native host's asset source with semantic size and optional color.
 Asset paths prefixed with `app-assets/` resolve files beside the application executable; other

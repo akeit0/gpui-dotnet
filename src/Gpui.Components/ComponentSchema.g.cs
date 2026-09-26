@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 8u;
-    internal const ulong SchemaHash = 0xDB73BF9A1A5D2B80UL;
+    internal const uint SchemaVersion = 9u;
+    internal const ulong SchemaHash = 0x4AA5CB029A2F1FEEUL;
 
     internal static class Attachment
     {
@@ -1140,6 +1140,56 @@ internal static class ComponentSchema
                 throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(color));
             }
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{assetPath}\n{color}");
+        }
+    }
+
+    internal static class DescriptionList
+    {
+        internal const string Kind = "description_list";
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal enum Axis
+        {
+            Horizontal,
+            Vertical,
+        }
+
+        internal static string EncodeConfiguration(Size size, Axis axis, float labelWidthPixels, bool bordered, uint columns, global::System.ReadOnlySpan<uint> entrySpans)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            var axisValue = axis switch
+            {
+                Axis.Horizontal => "horizontal",
+                Axis.Vertical => "vertical",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(axis)),
+            };
+            if (!float.IsFinite(labelWidthPixels))
+            {
+                throw new global::System.ArgumentOutOfRangeException(nameof(labelWidthPixels), "Extension configuration numbers must be finite.");
+            }
+            var entrySpansBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < entrySpans.Length; index++)
+            {
+                if (index != 0)
+                    entrySpansBuilder.Append(',');
+                entrySpansBuilder.Append(entrySpans[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var entrySpansValue = entrySpansBuilder.ToString();
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{axisValue}\n{labelWidthPixels}\n{(bordered ? 1 : 0)}\n{columns}\n{entrySpansValue}");
         }
     }
 }

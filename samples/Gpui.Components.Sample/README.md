@@ -10,6 +10,8 @@ The sample loads the optional component host, which includes the gpui-kit catalo
 demonstrates display elements, controlled inputs, file presentation, a conversation, and retained
 editing. The empty state uses the sample's `Assets/archive-box.svg` file through the native Icon
 component's application asset path. The Save button uses an icon from the host's bundled assets.
+The file details use a native DescriptionList with managed text, a Tag value, a separator, and a
+two-column entry. Archive and status changes update those details.
 
 To try the file states, find `release-notes.pdf` in the broader catalog. `Finish` changes its
 status to complete, and `Restart` returns it to uploading. `Archive` moves the card into the
