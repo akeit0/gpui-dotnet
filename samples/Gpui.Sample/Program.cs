@@ -2,22 +2,42 @@ using Gpui;
 
 var stressGrowth = args.Contains("--stress-growth", StringComparer.Ordinal);
 var multiWindow = args.Contains("--multi-window", StringComparer.Ordinal);
+var persistWindow = args.Contains("--persist-window", StringComparer.Ordinal);
+var lifecycleLog = args.Contains("--lifecycle-log", StringComparer.Ordinal);
+var savedPlacement = persistWindow ? WindowPlacementStore.Load() : null;
 var application = new GpuiApplication();
+if (lifecycleLog)
+{
+    application.Ready += _ => Console.WriteLine("Application ready");
+    application.WindowOpened += window => Console.WriteLine($"Window {window.Id} opened");
+    application.WindowClosed += window => Console.WriteLine($"Window {window.Id} closed");
+    application.Stopped += _ => Console.WriteLine("Application stopped");
+}
 application.SetTheme(SampleThemes.Light);
 var options = new GpuiWindowOptions
 {
     Title = stressGrowth ? "GPUI.NET Arena Growth" : "GPUI.NET Components",
-    Width = 1040,
-    Height = 700,
+    Width = savedPlacement?.Width ?? 1040,
+    Height = savedPlacement?.Height ?? 700,
+    Left = savedPlacement?.Left,
+    Top = savedPlacement?.Top,
+    InitialState = savedPlacement?.State ?? WindowInitialState.Normal,
     TitleBarStyle =
         stressGrowth || OperatingSystem.IsMacOS()
             ? WindowTitleBarStyle.System
             : WindowTitleBarStyle.Custom,
 };
-if (stressGrowth)
-    application.OpenWindow(ArenaGrowthView.Spec(), options);
-else
-    application.OpenWindow(SampleShellView.Spec(), options);
+var primaryWindow = stressGrowth
+    ? application.OpenWindow(ArenaGrowthView.Spec(), options)
+    : application.OpenWindow(SampleShellView.Spec(), options);
+if (persistWindow)
+{
+    primaryWindow.Closed += window =>
+    {
+        if (window.FinalPlacement is { } placement)
+            WindowPlacementStore.Save(placement);
+    };
+}
 if (multiWindow)
 {
     application.OpenWindow(

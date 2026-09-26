@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using System.Text;
 using Gpui.Interop;
 
 namespace Gpui;
@@ -16,6 +17,28 @@ public enum WindowTitleBarStyle : ushort
     Hidden,
 }
 
+/// <summary>Native window state selected when the window first opens.</summary>
+public enum WindowInitialState : ushort
+{
+    /// <summary>Open at the requested content size and position.</summary>
+    Normal,
+
+    /// <summary>Open maximized, retaining the requested bounds for restore.</summary>
+    Maximized,
+
+    /// <summary>Open fullscreen, retaining the requested bounds for restore.</summary>
+    Fullscreen,
+}
+
+/// <summary>Native placement captured when a window closes. Dimensions are restore bounds.</summary>
+public readonly record struct GpuiWindowPlacement(
+    float Left,
+    float Top,
+    float Width,
+    float Height,
+    WindowInitialState State
+);
+
 /// <summary>Initial native window placement and presentation.</summary>
 public sealed class GpuiWindowOptions
 {
@@ -26,6 +49,9 @@ public sealed class GpuiWindowOptions
     public float? Top { get; init; }
     public bool Activate { get; init; } = true;
     public WindowTitleBarStyle TitleBarStyle { get; init; } = WindowTitleBarStyle.System;
+    public WindowInitialState InitialState { get; init; } = WindowInitialState.Normal;
+    public float? MinimumWidth { get; init; }
+    public float? MinimumHeight { get; init; }
 
     internal GpuiWindowSnapshot ValidateAndSnapshot()
     {
@@ -35,6 +61,10 @@ public sealed class GpuiWindowOptions
         {
             throw new ArgumentOutOfRangeException(nameof(TitleBarStyle));
         }
+        if (!Enum.IsDefined(InitialState))
+        {
+            throw new ArgumentOutOfRangeException(nameof(InitialState));
+        }
         if (Left.HasValue != Top.HasValue)
         {
             throw new ArgumentException("Left and Top must either both be set or both be omitted.");
@@ -43,7 +73,47 @@ public sealed class GpuiWindowOptions
         {
             throw new ArgumentOutOfRangeException(nameof(Left));
         }
-        return new GpuiWindowSnapshot(Title, Width, Height, Left, Top, Activate, TitleBarStyle);
+        if (MinimumWidth.HasValue != MinimumHeight.HasValue)
+        {
+            throw new ArgumentException(
+                "MinimumWidth and MinimumHeight must either both be set or both be omitted."
+            );
+        }
+        if (MinimumWidth is { } minimumWidth)
+        {
+            if (!float.IsFinite(minimumWidth) || minimumWidth <= 0)
+                throw new ArgumentOutOfRangeException(nameof(MinimumWidth));
+            if (!float.IsFinite(MinimumHeight!.Value) || MinimumHeight.Value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(MinimumHeight));
+            if (minimumWidth > Width || MinimumHeight.Value > Height)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(MinimumWidth),
+                    "The minimum size must not exceed the initial restore size."
+                );
+            }
+            if (
+                Encoding.UTF8.GetByteCount(Title) > Interop.Internal.WindowOpenPayload.MaxTitleBytes
+            )
+            {
+                throw new ArgumentException(
+                    "A window title with minimum size must fit within 4096 UTF-8 bytes.",
+                    nameof(Title)
+                );
+            }
+        }
+        return new GpuiWindowSnapshot(
+            Title,
+            Width,
+            Height,
+            Left,
+            Top,
+            Activate,
+            TitleBarStyle,
+            InitialState,
+            MinimumWidth,
+            MinimumHeight
+        );
     }
 
     internal static void ValidateSize(float width, float height)
@@ -63,7 +133,10 @@ public sealed class GpuiWindowOptions
 public sealed class GpuiWindow
 {
     private readonly GpuiApplication _application;
+    private readonly object _placementGate = new();
+    private GpuiWindowPlacement? _finalPlacement;
     internal GpuiApplication Application => _application;
+    private int _opened;
     private int _closed;
 
     internal GpuiWindow(
@@ -84,6 +157,34 @@ public sealed class GpuiWindow
 
     public bool IsClosed => Volatile.Read(ref _closed) != 0;
 
+    /// <summary>True after the native window opens and before it closes.</summary>
+    public bool IsOpen => Volatile.Read(ref _opened) != 0 && !IsClosed;
+
+    /// <summary>Raised on the GPUI application thread after native window creation.</summary>
+    public event Action<GpuiWindow>? Opened;
+
+    /// <summary>Raised on the GPUI application thread after managed View teardown.</summary>
+    public event Action<GpuiWindow>? Closed;
+
+    /// <summary>
+    /// Final native placement after this window closes successfully. Save it in application
+    /// storage and pass its bounds and state to a later <see cref="GpuiWindowOptions"/>.
+    /// </summary>
+    public GpuiWindowPlacement? FinalPlacement
+    {
+        get
+        {
+            lock (_placementGate)
+                return _finalPlacement;
+        }
+    }
+
+    internal void SetFinalPlacement(GpuiWindowPlacement placement)
+    {
+        lock (_placementGate)
+            _finalPlacement = placement;
+    }
+
     private RootViewDeclaration? _rootDeclaration;
 
     internal RootViewDeclaration TakeRootDeclaration() =>
@@ -103,6 +204,18 @@ public sealed class GpuiWindow
     /// <summary>Toggles an already-open native window between maximized and restored bounds.</summary>
     public void ToggleMaximize() => _application.ToggleMaximizeWindow(this);
 
+    /// <summary>Toggles fullscreen for an already-open native window.</summary>
+    public void ToggleFullscreen() => _application.ToggleFullscreenWindow(this);
+
+    /// <summary>Shows or replaces a window-owned notification.</summary>
+    public void ShowToast(GpuiToast toast) => _application.ShowWindowToast(this, toast);
+
+    /// <summary>Dismisses a notification by its stable ID.</summary>
+    public void DismissToast(string id) => _application.DismissWindowToast(this, id);
+
+    /// <summary>Dismisses all notifications in this window.</summary>
+    public void ClearToasts() => _application.ClearWindowToasts(this);
+
     public void SetTitle(string title) => _application.SetWindowTitle(this, title);
 
     /// <summary>Changes native window content size. Runtime repositioning is not exposed by GPUI.</summary>
@@ -113,6 +226,14 @@ public sealed class GpuiWindow
         Interlocked.Exchange(ref _rootDeclaration, null);
         Volatile.Write(ref _closed, 1);
     }
+
+    internal void MarkOpened() => Volatile.Write(ref _opened, 1);
+
+    internal void RaiseOpened() => Opened?.Invoke(this);
+
+    internal void RaiseClosed() => Closed?.Invoke(this);
+
+    internal bool WasOpened => Volatile.Read(ref _opened) != 0;
 }
 
 /// <summary>
@@ -159,6 +280,29 @@ public sealed class GpuiApplication
     private (ulong MaxBytes, ulong MaxEntries)? _imageCacheBudget;
     private IGpuiApplicationHost? _host;
     private ApplicationState _state;
+    private bool _ready;
+
+    /// <summary>True after native initialization and initial window creation until Run ends.</summary>
+    public bool IsReady
+    {
+        get
+        {
+            lock (_gate)
+                return _state == ApplicationState.Running && _ready;
+        }
+    }
+
+    /// <summary>Raised on the GPUI application thread after native initialization and initial windows.</summary>
+    public event Action<GpuiApplication>? Ready;
+
+    /// <summary>Raised on the Run execution thread after native return and managed cleanup.</summary>
+    public event Action<GpuiApplication>? Stopped;
+
+    /// <summary>Raised after any application window opens natively.</summary>
+    public event Action<GpuiWindow>? WindowOpened;
+
+    /// <summary>Raised after any opened window's managed View teardown.</summary>
+    public event Action<GpuiWindow>? WindowClosed;
 
     /// <summary>
     /// Creates an application using the package's default native host or an explicitly selected
@@ -410,11 +554,44 @@ public sealed class GpuiApplication
 
         try
         {
-            RunOnUiThread(() => NativeRuntime.Load(_runtimeOptions).Run(this));
+            RunOnUiThread(() =>
+            {
+                Exception? runFailure = null;
+                try
+                {
+                    NativeRuntime.Load(_runtimeOptions).Run(this);
+                }
+                catch (Exception exception)
+                {
+                    runFailure = exception;
+                }
+
+                try
+                {
+                    FinishRun();
+                }
+                catch (Exception exception)
+                {
+                    if (runFailure is not null)
+                        throw new AggregateException(runFailure, exception);
+                    throw;
+                }
+
+                if (runFailure is not null)
+                    ExceptionDispatchInfo.Capture(runFailure).Throw();
+            });
         }
-        finally
+        catch (Exception runFailure)
         {
-            FinishRun();
+            try
+            {
+                FinishRun();
+            }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException(runFailure, cleanupFailure);
+            }
+            throw;
         }
     }
 
@@ -424,13 +601,29 @@ public sealed class GpuiApplication
         {
             lock (_gate)
             {
+                if (_state == ApplicationState.Stopped)
+                    return;
                 _state = ApplicationState.Stopped;
+                _ready = false;
                 _host = null;
                 foreach (var window in _windows.Values)
                     window.MarkClosed();
                 _windows.Clear();
             }
         }
+        Stopped?.Invoke(this);
+    }
+
+    internal bool NativeReady()
+    {
+        lock (_gate)
+        {
+            if (_state != ApplicationState.Running || _host is null || _ready)
+                return false;
+            _ready = true;
+        }
+        Ready?.Invoke(this);
+        return true;
     }
 
     /// <summary>Runs one framework-owned root with the selected native runtime.</summary>
@@ -500,13 +693,46 @@ public sealed class GpuiApplication
 
     internal void NativeWindowClosed(ulong id)
     {
+        GpuiWindow? closedWindow;
+        bool wasOpened;
         lock (_gate)
         {
-            if (!_windows.Remove(id, out var window))
+            if (!_windows.Remove(id, out closedWindow))
             {
                 return;
             }
-            window.MarkClosed();
+            wasOpened = closedWindow.WasOpened;
+            closedWindow.MarkClosed();
+        }
+        if (wasOpened)
+        {
+            closedWindow.RaiseClosed();
+            WindowClosed?.Invoke(closedWindow);
+        }
+    }
+
+    internal bool NativeWindowOpened(ulong id)
+    {
+        GpuiWindow window;
+        lock (_gate)
+        {
+            if (!_windows.TryGetValue(id, out window!) || window.IsClosed || window.WasOpened)
+                return false;
+            window.MarkOpened();
+        }
+        window.RaiseOpened();
+        WindowOpened?.Invoke(window);
+        return true;
+    }
+
+    internal bool NativeWindowPlacement(ulong id, GpuiWindowPlacement placement)
+    {
+        lock (_gate)
+        {
+            if (!_windows.TryGetValue(id, out var window) || window.IsClosed)
+                return false;
+            window.SetFinalPlacement(placement);
+            return true;
         }
     }
 
@@ -608,6 +834,75 @@ public sealed class GpuiApplication
                     ?? throw new InvalidOperationException("The native window has not opened yet.");
             }
             host.ToggleMaximizeWindow(window.Id);
+        }
+    }
+
+    internal void ToggleFullscreenWindow(GpuiWindow window)
+    {
+        lock (_ingressGate)
+        {
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            IGpuiApplicationHost host;
+            lock (_gate)
+            {
+                ValidateOpenWindow(window);
+                host =
+                    _host
+                    ?? throw new InvalidOperationException("The native window has not opened yet.");
+            }
+            host.ToggleFullscreenWindow(window.Id);
+        }
+    }
+
+    internal void ShowWindowToast(GpuiWindow window, GpuiToast toast)
+    {
+        lock (_ingressGate)
+        {
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            IGpuiApplicationHost host;
+            lock (_gate)
+            {
+                ValidateOpenWindow(window);
+                host =
+                    _host
+                    ?? throw new InvalidOperationException("The native window has not opened yet.");
+            }
+            host.ShowWindowToast(window.Id, Interop.Internal.WindowToastPayload.Encode(toast));
+        }
+    }
+
+    internal void DismissWindowToast(GpuiWindow window, string id)
+    {
+        lock (_ingressGate)
+        {
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            IGpuiApplicationHost host;
+            lock (_gate)
+            {
+                ValidateOpenWindow(window);
+                host =
+                    _host
+                    ?? throw new InvalidOperationException("The native window has not opened yet.");
+            }
+            Interop.Internal.WindowToastPayload.ValidateId(id);
+            host.DismissWindowToast(window.Id, id);
+        }
+    }
+
+    internal void ClearWindowToasts(GpuiWindow window)
+    {
+        lock (_ingressGate)
+        {
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            IGpuiApplicationHost host;
+            lock (_gate)
+            {
+                ValidateOpenWindow(window);
+                host =
+                    _host
+                    ?? throw new InvalidOperationException("The native window has not opened yet.");
+            }
+            host.ClearWindowToasts(window.Id);
         }
     }
 
@@ -726,7 +1021,10 @@ internal readonly record struct GpuiWindowSnapshot(
     float? Left,
     float? Top,
     bool Activate,
-    WindowTitleBarStyle TitleBarStyle
+    WindowTitleBarStyle TitleBarStyle,
+    WindowInitialState InitialState,
+    float? MinimumWidth,
+    float? MinimumHeight
 );
 
 internal readonly record struct GpuiWindowOpenRequest(
@@ -745,6 +1043,10 @@ internal interface IGpuiApplicationHost
     void ActivateWindow(ulong windowId);
     void MinimizeWindow(ulong windowId);
     void ToggleMaximizeWindow(ulong windowId);
+    void ToggleFullscreenWindow(ulong windowId);
+    void ShowWindowToast(ulong windowId, byte[] payload);
+    void DismissWindowToast(ulong windowId, string id);
+    void ClearWindowToasts(ulong windowId);
     void SetWindowTitle(ulong windowId, string title);
     void ResizeWindow(ulong windowId, float width, float height);
 }

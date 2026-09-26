@@ -4,9 +4,9 @@ using Gpui.Editor;
 using static Gpui.Units;
 
 var hostName =
-    OperatingSystem.IsWindows() ? "gpui_dotnet_editor.dll"
-    : OperatingSystem.IsMacOS() ? "libgpui_dotnet_editor.dylib"
-    : "libgpui_dotnet_editor.so";
+    OperatingSystem.IsWindows() ? "gpui_dotnet_components.dll"
+    : OperatingSystem.IsMacOS() ? "libgpui_dotnet_components.dylib"
+    : "libgpui_dotnet_components.so";
 var application = new GpuiApplication(
     new NativeRuntimeOptions
     {
@@ -59,7 +59,7 @@ internal sealed partial class EditorSampleView : View
             "// This Rope, selection, undo stack, scrolling, and IME live in Rust.\n"
                 + "// Edit this document to see revisioned UTF-8 deltas in the sidebar.\n\n"
                 + "fn main() {\n"
-                + "    let message = \"Hello from the optional GPUI.NET editor host\";\n"
+                + "    let message = \"Hello from the optional GPUI.NET component host\";\n"
                 + "    println!(\"{message}\");\n"
                 + "}\n"
         );
@@ -103,7 +103,7 @@ internal sealed partial class EditorSampleView : View
                             )
                             .Gap(Px(4)),
                         ui.Spacer(),
-                        ui.Badge(ui.Text("schema v5"u8))
+                        ui.Badge(ui.Text("schema v6"u8))
                             .Background(theme.Colors.InfoBackground)
                             .TextColor(theme.Colors.Info)
                     )

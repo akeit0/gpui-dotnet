@@ -6,8 +6,8 @@ The repository has two generators with separate responsibilities.
 
 `tools/Gpui.Bindings.Generator` reads `bindings/schema.json` and produces:
 
-- `src/Gpui/Rendering/Semantic.g.cs` (wire protocol: IDs and the validation registry);
-- `src/Gpui/Rendering/SemanticElements.g.cs` (managed API: tags, style enums, factories, styling);
+- `src/Gpui.Core/Rendering/Semantic.g.cs` (wire protocol: IDs and the validation registry);
+- `src/Gpui.Core/Rendering/SemanticElements.g.cs` (managed API: tags, style enums, factories, styling);
 - `crates/gpui-dotnet/src/semantic.g.rs`;
 - `docs/SEMANTIC_IDS.md` (the numeric protocol reference);
 - matching component IDs, operation IDs, capabilities, adapters, value constraints, and schema
@@ -17,6 +17,19 @@ It also reads `bindings/extensions.json`. Each registered optional schema produc
 file in its managed schema assembly and a matching Rust constants file in its native provider.
 Extension IDs, versions, component kinds, flags, commands, and hashes therefore have one source of
 truth.
+An extension component can declare zero `lines` fields when it has no configuration. Its generated
+managed encoder emits an empty string, and its native parser accepts only that empty string.
+The `u32_list` field encodes a batch of invariant decimal values in one comma-separated line;
+the generated parser rejects malformed items and returns a typed vector. The component provider
+still validates the list's own bounds and relationship to child elements.
+The `string_list` field encodes UTF-8 text as a compact JSON array on one line, preserving
+newlines and Unicode inside each item. The generated Rust parser returns a typed string vector;
+the provider validates any cross-field item relationship and includes `serde_json` as a direct
+dependency when it uses this field.
+The `json_string` field uses a JSON string on one line for one value that may contain newlines.
+Both generated sides reject NUL; the Rust parser returns an owned `String`. Use ordinary `string`
+for short single-line fields and `json_string` only where line breaks are meaningful. This changes
+the extension schema version and hash, not the base semantic schema or C ABI.
 
 Run:
 
@@ -135,7 +148,7 @@ An item renderer grows output before writes, without capacity retry, and follows
 
 ## Native C-layout generation
 
-The native Cargo build uses `csbindgen` to update `src/Gpui/Interop/NativeMethods.g.cs` from the Rust
+The native Cargo build uses `csbindgen` to update `src/Gpui.Core/Interop/NativeMethods.g.cs` from the Rust
 C-layout records and API table. Treat that file as generated. If `abi.rs` changes, run a native
 build and include the regenerated managed output in the same change.
 

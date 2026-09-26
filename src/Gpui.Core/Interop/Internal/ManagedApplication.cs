@@ -72,6 +72,8 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
         _application.AttachHost(this);
     }
 
+    internal int Ready() => _application.NativeReady() ? 0 : -121;
+
     public void SetMenuBar(IReadOnlyList<GpuiMenu> menus)
     {
         ApplicationExecution.AssertEffectsAllowed();
@@ -314,20 +316,42 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
         try
         {
-            Dispatch(
-                1,
-                window.Id,
-                snapshot.Title,
-                snapshot.Left ?? 0,
-                snapshot.Top ?? 0,
-                snapshot.Width,
-                snapshot.Height,
-                (ushort)(
-                    (snapshot.Left.HasValue ? 1 : 0)
-                    | (snapshot.Activate ? 2 : 0)
-                    | ((ushort)snapshot.TitleBarStyle << 2)
-                )
+            var flags = (ushort)(
+                (snapshot.Left.HasValue ? 1 : 0)
+                | (snapshot.Activate ? 2 : 0)
+                | ((ushort)snapshot.TitleBarStyle << 2)
+                | ((ushort)snapshot.InitialState << 4)
             );
+            if (snapshot.MinimumWidth is { } minimumWidth)
+            {
+                DispatchBytes(
+                    16,
+                    window.Id,
+                    WindowOpenPayload.Encode(
+                        snapshot.Title,
+                        minimumWidth,
+                        snapshot.MinimumHeight!.Value
+                    ),
+                    snapshot.Left ?? 0,
+                    snapshot.Top ?? 0,
+                    snapshot.Width,
+                    snapshot.Height,
+                    flags
+                );
+            }
+            else
+            {
+                Dispatch(
+                    1,
+                    window.Id,
+                    snapshot.Title,
+                    snapshot.Left ?? 0,
+                    snapshot.Top ?? 0,
+                    snapshot.Width,
+                    snapshot.Height,
+                    flags
+                );
+            }
         }
         catch
         {
@@ -345,6 +369,15 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
     public void MinimizeWindow(ulong windowId) => Dispatch(6, windowId);
 
     public void ToggleMaximizeWindow(ulong windowId) => Dispatch(7, windowId);
+
+    public void ToggleFullscreenWindow(ulong windowId) => Dispatch(12, windowId);
+
+    public void ShowWindowToast(ulong windowId, byte[] payload) =>
+        DispatchBytes(13, windowId, payload);
+
+    public void DismissWindowToast(ulong windowId, string id) => Dispatch(14, windowId, id);
+
+    public void ClearWindowToasts(ulong windowId) => Dispatch(15, windowId);
 
     public void SetWindowTitle(ulong windowId, string title) => Dispatch(4, windowId, title);
 
@@ -379,6 +412,49 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
         return failed ? -121 : 0;
     }
 
+    internal int WindowOpened(ulong windowId)
+    {
+        if (!_sessions.TryGetValue(windowId, out var session))
+            return -121;
+        var previousContext = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(session.SynchronizationContext);
+        try
+        {
+            return _application.NativeWindowOpened(windowId) ? 0 : -121;
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previousContext);
+        }
+    }
+
+    internal int WindowPlacement(ulong windowId, NativeWindowPlacement placement)
+    {
+        if (
+            placement.reserved != 0
+            || placement.state > 2
+            || !float.IsFinite(placement.left)
+            || !float.IsFinite(placement.top)
+            || !float.IsFinite(placement.width)
+            || !float.IsFinite(placement.height)
+            || placement.width <= 0
+            || placement.height <= 0
+        )
+            return -121;
+        return _application.NativeWindowPlacement(
+            windowId,
+            new GpuiWindowPlacement(
+                placement.left,
+                placement.top,
+                placement.width,
+                placement.height,
+                (WindowInitialState)placement.state
+            )
+        )
+            ? 0
+            : -121;
+    }
+
     internal void Stop()
     {
         if (Interlocked.Exchange(ref _stopped, 1) != 0)
@@ -400,7 +476,14 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
             {
                 RecordFailure(failure);
             }
-            _application.NativeWindowClosed(windowId);
+            try
+            {
+                _application.NativeWindowClosed(windowId);
+            }
+            catch (Exception exception)
+            {
+                RecordFailure(exception);
+            }
         }
     }
 
@@ -439,8 +522,33 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
             throw new InvalidOperationException("The GPUI application is stopping.");
         }
 
-        var titleUtf8 = title is null ? Array.Empty<byte>() : Encoding.UTF8.GetBytes(title);
-        fixed (byte* titlePointer = titleUtf8)
+        DispatchBytes(
+            command,
+            windowId,
+            title is null ? Array.Empty<byte>() : Encoding.UTF8.GetBytes(title),
+            left,
+            top,
+            width,
+            height,
+            flags
+        );
+    }
+
+    private unsafe void DispatchBytes(
+        ushort command,
+        ulong windowId,
+        byte[] payload,
+        float left = 0,
+        float top = 0,
+        float width = 0,
+        float height = 0,
+        ushort flags = 0
+    )
+    {
+        ApplicationExecution.AssertEffectsAllowed();
+        if (Volatile.Read(ref _stopped) != 0)
+            throw new InvalidOperationException("The GPUI application is stopping.");
+        fixed (byte* payloadPointer = payload)
         {
             var native = new NativeApplicationCommand
             {
@@ -448,8 +556,8 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
                 command = command,
                 flags = flags,
                 reserved = 0,
-                title = titlePointer,
-                title_length = titleUtf8.Length,
+                title = payloadPointer,
+                title_length = payload.Length,
                 reserved2 = 0,
                 left = left,
                 top = top,

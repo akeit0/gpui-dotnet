@@ -7,12 +7,13 @@ use std::{
 };
 
 use gpui::{
-    App, Bounds, ClipboardItem, Context, CursorStyle, Element, ElementId, ElementInputHandler,
-    Entity, EntityInputHandler, FocusHandle, Focusable, GlobalElementId, IntoElement, KeyBinding,
-    LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point,
-    Render, Role, ShapedLine, SharedString, Style, Subscription, TextAlign, TextRun,
-    UTF16Selection, UnderlineStyle, Window, actions, div, fill, point, prelude::*, px, relative,
-    rgba, size,
+    App, AppContext, Bounds, ClipboardItem, Context, CursorStyle, DragMoveEvent, Element,
+    ElementId, ElementInputHandler, Empty, Entity, EntityId, EntityInputHandler, FocusHandle,
+    Focusable, GlobalElementId, IntoElement, KeyBinding, LayoutId, LongPressEvent, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point, Render, Role,
+    ShapedLine, SharedString, Style, Subscription, TextAlign, TextRun, TouchPhase, UTF16Selection,
+    UnderlineStyle, Window, actions, canvas, div, fill, point, prelude::*, px, relative, rgba,
+    size,
 };
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -35,14 +36,22 @@ actions!(
         Delete,
         Left,
         Right,
+        WordLeft,
+        WordRight,
         SelectLeft,
         SelectRight,
+        SelectWordLeft,
+        SelectWordRight,
+        DeleteWordLeft,
+        DeleteWordRight,
         SelectAll,
         Home,
         End,
         Paste,
         Cut,
         Copy,
+        Undo,
+        Redo,
         Submit,
     ]
 );
@@ -53,14 +62,45 @@ pub(crate) fn init(cx: &mut App) {
         KeyBinding::new("delete", Delete, Some("GpuiDotnetInput")),
         KeyBinding::new("left", Left, Some("GpuiDotnetInput")),
         KeyBinding::new("right", Right, Some("GpuiDotnetInput")),
+        #[cfg(target_os = "macos")]
+        KeyBinding::new("alt-left", WordLeft, Some("GpuiDotnetInput")),
+        #[cfg(target_os = "macos")]
+        KeyBinding::new("alt-right", WordRight, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("ctrl-left", WordLeft, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("ctrl-right", WordRight, Some("GpuiDotnetInput")),
         KeyBinding::new("shift-left", SelectLeft, Some("GpuiDotnetInput")),
         KeyBinding::new("shift-right", SelectRight, Some("GpuiDotnetInput")),
+        #[cfg(target_os = "macos")]
+        KeyBinding::new("alt-shift-left", SelectWordLeft, Some("GpuiDotnetInput")),
+        #[cfg(target_os = "macos")]
+        KeyBinding::new("alt-shift-right", SelectWordRight, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("ctrl-shift-left", SelectWordLeft, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("ctrl-shift-right", SelectWordRight, Some("GpuiDotnetInput")),
+        #[cfg(target_os = "macos")]
+        KeyBinding::new("alt-backspace", DeleteWordLeft, Some("GpuiDotnetInput")),
+        #[cfg(target_os = "macos")]
+        KeyBinding::new("alt-delete", DeleteWordRight, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("ctrl-backspace", DeleteWordLeft, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("ctrl-delete", DeleteWordRight, Some("GpuiDotnetInput")),
         KeyBinding::new("secondary-a", SelectAll, Some("GpuiDotnetInput")),
         KeyBinding::new("home", Home, Some("GpuiDotnetInput")),
         KeyBinding::new("end", End, Some("GpuiDotnetInput")),
         KeyBinding::new("secondary-v", Paste, Some("GpuiDotnetInput")),
         KeyBinding::new("secondary-x", Cut, Some("GpuiDotnetInput")),
         KeyBinding::new("secondary-c", Copy, Some("GpuiDotnetInput")),
+        KeyBinding::new("secondary-z", Undo, Some("GpuiDotnetInput")),
+        #[cfg(target_os = "macos")]
+        KeyBinding::new("secondary-shift-z", Redo, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("secondary-y", Redo, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("secondary-shift-z", Redo, Some("GpuiDotnetInput")),
         KeyBinding::new("enter", Submit, Some("GpuiDotnetInput")),
     ]);
 }
@@ -132,6 +172,24 @@ pub(crate) struct InputInitialState<'a> {
     pub(crate) bindings: InputBindings,
 }
 
+const MAX_HISTORY_ENTRIES: usize = 100;
+const MAX_HISTORY_BYTES: usize = 4 * 1024 * 1024;
+
+struct EditSnapshot {
+    content: SharedString,
+    selected_range: Range<usize>,
+    selection_reversed: bool,
+}
+
+#[derive(Clone, Copy)]
+struct InputDrag(EntityId);
+
+impl Render for InputDrag {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        Empty
+    }
+}
+
 pub(crate) struct ManagedInput {
     session_id: u64,
     callbacks: ManagedCallbacks,
@@ -143,12 +201,17 @@ pub(crate) struct ManagedInput {
     selected_range: Range<usize>,
     selection_reversed: bool,
     marked_range: Option<Range<usize>>,
+    undo_history: Vec<EditSnapshot>,
+    redo_history: Vec<EditSnapshot>,
+    composition_before: Option<EditSnapshot>,
+    last_typing_end: Option<usize>,
     last_layout: Option<ShapedLine>,
     last_bounds: Option<Bounds<Pixels>>,
     #[cfg(test)]
     pub(crate) last_paint_color: Option<gpui::Hsla>,
     scroll_x: Pixels,
     is_selecting: bool,
+    drag_word_range: Option<Range<usize>>,
     disabled: bool,
     read_only: bool,
     password: bool,
@@ -180,12 +243,17 @@ impl ManagedInput {
             selected_range: cursor..cursor,
             selection_reversed: false,
             marked_range: None,
+            undo_history: Vec::new(),
+            redo_history: Vec::new(),
+            composition_before: None,
+            last_typing_end: None,
             last_layout: None,
             last_bounds: None,
             #[cfg(test)]
             last_paint_color: None,
             scroll_x: px(0.),
             is_selecting: false,
+            drag_word_range: None,
             disabled: initial.disabled,
             read_only: initial.read_only,
             password: initial.password,
@@ -225,8 +293,10 @@ impl ManagedInput {
         self.bindings = bindings;
         if disabled {
             self.is_selecting = false;
+            self.drag_word_range = None;
         }
         if changed {
+            self.last_typing_end = None;
             cx.notify();
         }
     }
@@ -245,6 +315,7 @@ impl ManagedInput {
                 self.conditional_write(command, cx);
             }
             COMMAND_INPUT_SELECT_ALL if !self.disabled => {
+                self.last_typing_end = None;
                 self.selected_range = 0..self.content.len();
                 self.selection_reversed = false;
                 cx.notify();
@@ -303,6 +374,7 @@ impl ManagedInput {
         if self.content == content {
             return;
         }
+        self.clear_history();
         let selection = preserve_selection.then(|| self.range_to_utf16(&self.selected_range));
         self.update_text_state(content, None);
         self.last_emitted_content = self.content.clone();
@@ -338,6 +410,87 @@ impl ManagedInput {
         !self.disabled && !self.read_only
     }
 
+    fn snapshot(&self) -> EditSnapshot {
+        EditSnapshot {
+            content: self.content.clone(),
+            selected_range: self.selected_range.clone(),
+            selection_reversed: self.selection_reversed,
+        }
+    }
+
+    fn clear_history(&mut self) {
+        self.undo_history.clear();
+        self.redo_history.clear();
+        self.composition_before = None;
+        self.last_typing_end = None;
+    }
+
+    fn push_history(history: &mut Vec<EditSnapshot>, snapshot: EditSnapshot) {
+        history.push(snapshot);
+        while history.len() > MAX_HISTORY_ENTRIES
+            || (history.len() > 1
+                && history
+                    .iter()
+                    .map(|entry| entry.content.len())
+                    .sum::<usize>()
+                    > MAX_HISTORY_BYTES)
+        {
+            history.remove(0);
+        }
+    }
+
+    fn record_edit(&mut self, before: EditSnapshot, typing_end: Option<usize>) {
+        let coalesce = typing_end.is_some()
+            && before.selected_range.is_empty()
+            && self.last_typing_end == Some(before.selected_range.end);
+        if !coalesce {
+            Self::push_history(&mut self.undo_history, before);
+        }
+        self.redo_history.clear();
+        self.last_typing_end = typing_end;
+    }
+
+    fn finish_composition(&mut self) {
+        if let Some(before) = self.composition_before.take() {
+            if before.content != self.content {
+                self.record_edit(before, None);
+            } else {
+                self.last_typing_end = None;
+            }
+        }
+    }
+
+    fn apply_snapshot(&mut self, snapshot: EditSnapshot, cx: &mut Context<Self>) {
+        self.update_text_state(snapshot.content, None);
+        self.selected_range = snapshot.selected_range;
+        self.selection_reversed = snapshot.selection_reversed;
+        self.last_typing_end = None;
+        self.emit_changed_if_needed(cx);
+        cx.notify();
+    }
+
+    fn undo(&mut self, _: &Undo, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.can_edit() || self.marked_range.is_some() {
+            return;
+        }
+        if let Some(snapshot) = self.undo_history.pop() {
+            let current = self.snapshot();
+            Self::push_history(&mut self.redo_history, current);
+            self.apply_snapshot(snapshot, cx);
+        }
+    }
+
+    fn redo(&mut self, _: &Redo, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.can_edit() || self.marked_range.is_some() {
+            return;
+        }
+        if let Some(snapshot) = self.redo_history.pop() {
+            let current = self.snapshot();
+            Self::push_history(&mut self.undo_history, current);
+            self.apply_snapshot(snapshot, cx);
+        }
+    }
+
     fn left(&mut self, _: &Left, _: &mut Window, cx: &mut Context<Self>) {
         if self.disabled {
             return;
@@ -360,6 +513,20 @@ impl ManagedInput {
         }
     }
 
+    fn word_left(&mut self, _: &WordLeft, _: &mut Window, cx: &mut Context<Self>) {
+        if self.disabled {
+            return;
+        }
+        self.move_to(self.previous_word_boundary(self.cursor_offset()), cx);
+    }
+
+    fn word_right(&mut self, _: &WordRight, _: &mut Window, cx: &mut Context<Self>) {
+        if self.disabled {
+            return;
+        }
+        self.move_to(self.next_word_boundary(self.cursor_offset()), cx);
+    }
+
     fn select_left(&mut self, _: &SelectLeft, _: &mut Window, cx: &mut Context<Self>) {
         if !self.disabled {
             self.select_to(self.previous_boundary(self.cursor_offset()), cx);
@@ -372,8 +539,21 @@ impl ManagedInput {
         }
     }
 
+    fn select_word_left(&mut self, _: &SelectWordLeft, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.disabled {
+            self.select_to(self.previous_word_boundary(self.cursor_offset()), cx);
+        }
+    }
+
+    fn select_word_right(&mut self, _: &SelectWordRight, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.disabled {
+            self.select_to(self.next_word_boundary(self.cursor_offset()), cx);
+        }
+    }
+
     fn select_all(&mut self, _: &SelectAll, _: &mut Window, cx: &mut Context<Self>) {
         if !self.disabled {
+            self.last_typing_end = None;
             self.selected_range = 0..self.content.len();
             self.selection_reversed = false;
             cx.notify();
@@ -412,11 +592,42 @@ impl ManagedInput {
         self.replace_text_in_range(None, "", window, cx);
     }
 
+    fn delete_word_left(
+        &mut self,
+        _: &DeleteWordLeft,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.can_edit() {
+            return;
+        }
+        if self.selected_range.is_empty() {
+            self.select_to(self.previous_word_boundary(self.cursor_offset()), cx);
+        }
+        self.replace_text_in_range(None, "", window, cx);
+    }
+
+    fn delete_word_right(
+        &mut self,
+        _: &DeleteWordRight,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.can_edit() {
+            return;
+        }
+        if self.selected_range.is_empty() {
+            self.select_to(self.next_word_boundary(self.cursor_offset()), cx);
+        }
+        self.replace_text_in_range(None, "", window, cx);
+    }
+
     fn paste(&mut self, _: &Paste, window: &mut Window, cx: &mut Context<Self>) {
         if !self.can_edit() {
             return;
         }
         if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
+            self.last_typing_end = None;
             self.replace_text_in_range(None, single_line(&text).as_ref(), window, cx);
         }
     }
@@ -457,30 +668,185 @@ impl ManagedInput {
         self.focus_handle.focus(window, cx);
         self.is_selecting = true;
         let offset = self.index_for_mouse_position(event.position);
-        if event.modifiers.shift {
+        self.drag_word_range = None;
+        if event.click_count >= 3 {
+            self.selected_range = 0..self.content.len();
+            self.selection_reversed = false;
+            self.is_selecting = false;
+            self.last_typing_end = None;
+            cx.notify();
+        } else if event.click_count == 2 {
+            self.select_word_at(offset, cx);
+        } else if event.modifiers.shift {
             self.select_to(offset, cx);
         } else {
             self.move_to(offset, cx);
         }
     }
 
-    fn on_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, _: &mut Context<Self>) {
+    fn on_mouse_up(&mut self, event: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+        self.extend_pointer_selection_to(event.position, cx);
         self.is_selecting = false;
+        self.drag_word_range = None;
     }
 
     fn on_mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
-        if self.is_selecting && !self.disabled {
-            self.select_to(self.index_for_mouse_position(event.position), cx);
+        self.extend_pointer_selection_to(event.position, cx);
+    }
+
+    fn on_drag_move(
+        &mut self,
+        event: &DragMoveEvent<InputDrag>,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if event.drag(cx).0 == cx.entity().entity_id()
+            && !event.bounds.contains(&event.event.position)
+        {
+            self.extend_pointer_selection_to(event.event.position, cx);
         }
     }
 
+    fn on_long_press(
+        &mut self,
+        event: &LongPressEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        match event.phase {
+            TouchPhase::Started => {
+                if self.disabled {
+                    return false;
+                }
+                self.focus_handle.focus(window, cx);
+                let offset = self.index_for_mouse_position(event.start_position);
+                let range = self.word_range_at(offset).filter(|range| {
+                    self.password || !self.content[range.clone()].chars().all(char::is_whitespace)
+                });
+                if let Some(range) = range {
+                    self.selected_range = range.clone();
+                    self.drag_word_range = Some(range);
+                    self.selection_reversed = false;
+                    self.last_typing_end = None;
+                    cx.notify();
+                } else {
+                    self.drag_word_range = None;
+                    self.move_to(offset, cx);
+                }
+                self.is_selecting = true;
+                true
+            }
+            TouchPhase::Moved => {
+                if self.is_selecting {
+                    self.extend_touch_selection_to(event.position, cx);
+                }
+                true
+            }
+            TouchPhase::Ended => {
+                if self.is_selecting {
+                    self.extend_touch_selection_to(event.position, cx);
+                }
+                self.is_selecting = false;
+                self.drag_word_range = None;
+                true
+            }
+            TouchPhase::Cancelled => {
+                self.is_selecting = false;
+                self.drag_word_range = None;
+                true
+            }
+        }
+    }
+
+    fn extend_touch_selection_to(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
+        let offset = self.index_for_mouse_position(position);
+        if self.drag_word_range.is_some() {
+            self.select_dragged_word_to(offset, cx);
+        } else {
+            self.move_to(offset, cx);
+        }
+    }
+
+    fn extend_pointer_selection_to(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
+        if self.is_selecting && !self.disabled {
+            let offset = self.index_for_mouse_position(position);
+            if self.drag_word_range.is_some() {
+                self.select_dragged_word_to(offset, cx);
+            } else {
+                self.select_to(offset, cx);
+            }
+        }
+    }
+
+    fn word_range_at(&self, offset: usize) -> Option<Range<usize>> {
+        if self.content.is_empty() {
+            return None;
+        }
+        if self.password {
+            return Some(0..self.content.len());
+        }
+        let offset = if offset == self.content.len() {
+            self.previous_boundary(offset)
+        } else {
+            offset
+        };
+        self.content
+            .split_word_bound_indices()
+            .find(|(start, segment)| offset >= *start && offset < *start + segment.len())
+            .map(|(start, segment)| {
+                let end = start + segment.len();
+                let start = self
+                    .content
+                    .grapheme_indices(true)
+                    .take_while(|(index, _)| *index <= start)
+                    .last()
+                    .map_or(0, |(index, _)| index);
+                start..self.clamp_grapheme_forward(end)
+            })
+    }
+
+    fn select_word_at(&mut self, offset: usize, cx: &mut Context<Self>) {
+        if let Some(range) = self.word_range_at(offset) {
+            self.selected_range = range.clone();
+            self.drag_word_range = Some(range);
+            self.selection_reversed = false;
+            self.last_typing_end = None;
+            cx.notify();
+        } else {
+            self.move_to(offset, cx);
+        }
+    }
+
+    fn select_dragged_word_to(&mut self, offset: usize, cx: &mut Context<Self>) {
+        let Some(anchor) = self.drag_word_range.clone() else {
+            return;
+        };
+        let Some(target) = self.word_range_at(offset) else {
+            return;
+        };
+        if target.end <= anchor.start {
+            self.selected_range = target.start..anchor.end;
+            self.selection_reversed = true;
+        } else if target.start >= anchor.end {
+            self.selected_range = anchor.start..target.end;
+            self.selection_reversed = false;
+        } else {
+            self.selected_range = anchor;
+            self.selection_reversed = false;
+        }
+        self.last_typing_end = None;
+        cx.notify();
+    }
+
     fn move_to(&mut self, offset: usize, cx: &mut Context<Self>) {
+        self.last_typing_end = None;
         self.selected_range = offset..offset;
         self.selection_reversed = false;
         cx.notify();
     }
 
     fn select_to(&mut self, offset: usize, cx: &mut Context<Self>) {
+        self.last_typing_end = None;
         if self.selection_reversed {
             self.selected_range.start = offset;
         } else {
@@ -514,6 +880,34 @@ impl ManagedInput {
             .grapheme_indices(true)
             .find_map(|(index, _)| (index > offset).then_some(index))
             .unwrap_or(self.content.len())
+    }
+
+    fn previous_word_boundary(&self, offset: usize) -> usize {
+        if self.password {
+            return 0;
+        }
+        let target = self.content[..offset]
+            .split_word_bound_indices()
+            .rfind(|(_, segment)| !segment.trim_start().is_empty())
+            .map_or(0, |(index, _)| index);
+        self.content
+            .grapheme_indices(true)
+            .rev()
+            .find_map(|(index, _)| (index <= target).then_some(index))
+            .unwrap_or(0)
+    }
+
+    fn next_word_boundary(&self, offset: usize) -> usize {
+        if self.password {
+            return self.content.len();
+        }
+        let target = self.content[offset..]
+            .split_word_bound_indices()
+            .find(|(_, segment)| !segment.trim_start().is_empty())
+            .map_or(self.content.len(), |(index, segment)| {
+                offset + index + segment.len()
+            });
+        self.clamp_grapheme_forward(target)
     }
 
     fn index_for_mouse_position(&self, position: Point<Pixels>) -> usize {
@@ -554,7 +948,7 @@ impl ManagedInput {
 
     fn content_offset_for_display(&self, offset: usize) -> usize {
         if !self.password {
-            return offset.min(self.content.len());
+            return self.clamp_grapheme_forward(offset.min(self.content.len()));
         }
         let ordinal = offset / "•".len();
         self.content
@@ -660,6 +1054,7 @@ impl EntityInputHandler for ManagedInput {
             self.revision = next_input_revision();
             cx.notify();
         }
+        self.finish_composition();
         self.emit_changed_if_needed(cx);
     }
 
@@ -678,6 +1073,7 @@ impl EntityInputHandler for ManagedInput {
             .map(|range| self.range_from_utf16(range))
             .or(self.marked_range.clone())
             .unwrap_or(self.selected_range.clone());
+        let before = self.snapshot();
         let new_text = new_text.replace(['\r', '\n'], " ");
         let content = shared(
             &(self.content[..range.start].to_owned() + &new_text + &self.content[range.end..]),
@@ -686,6 +1082,17 @@ impl EntityInputHandler for ManagedInput {
         let cursor = range.start + new_text.len();
         self.selected_range = cursor..cursor;
         self.selection_reversed = false;
+        if self.composition_before.is_some() {
+            self.finish_composition();
+        } else if before.content != self.content {
+            let typing_end = (before.selected_range.is_empty()
+                && range.is_empty()
+                && new_text.graphemes(true).count() == 1)
+                .then_some(cursor);
+            self.record_edit(before, typing_end);
+        } else {
+            self.last_typing_end = None;
+        }
         self.emit_changed_if_needed(cx);
         cx.notify();
     }
@@ -706,6 +1113,10 @@ impl EntityInputHandler for ManagedInput {
             .map(|range| self.range_from_utf16(range))
             .or(self.marked_range.clone())
             .unwrap_or(self.selected_range.clone());
+        if self.composition_before.is_none() {
+            self.composition_before = Some(self.snapshot());
+            self.last_typing_end = None;
+        }
         let new_text = new_text.replace(['\r', '\n'], " ");
         let content = shared(
             &(self.content[..range.start].to_owned() + &new_text + &self.content[range.end..]),
@@ -724,6 +1135,10 @@ impl EntityInputHandler for ManagedInput {
                 cursor..cursor
             });
         self.selection_reversed = false;
+        if self.marked_range.is_none() {
+            self.finish_composition();
+            self.emit_changed_if_needed(cx);
+        }
         cx.notify();
     }
 
@@ -772,6 +1187,7 @@ impl Focusable for ManagedInput {
 impl Render for ManagedInput {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = *self.theme.borrow();
+        let entity_id = cx.entity().entity_id();
         if self.focus_subscriptions.is_empty() {
             let focus = self.focus_handle.clone();
             let focused = cx.on_focus(&focus, window, |this, _, cx| {
@@ -784,6 +1200,8 @@ impl Render for ManagedInput {
             });
             let blurred = cx.on_blur(&focus, window, |this, _, cx| {
                 this.is_selecting = false;
+                this.drag_word_range = None;
+                this.last_typing_end = None;
                 this.emit(
                     this.bindings.focus_changed,
                     EVENT_INPUT_FOCUS_CHANGED,
@@ -809,6 +1227,7 @@ impl Render for ManagedInput {
             .role(Role::TextInput)
             .map(|element| self.presentation.accessibility.apply(element))
             .size_full()
+            .relative()
             .min_w_0()
             .flex()
             .items_center()
@@ -823,22 +1242,72 @@ impl Render for ManagedInput {
             .on_action(cx.listener(Self::delete))
             .on_action(cx.listener(Self::left))
             .on_action(cx.listener(Self::right))
+            .on_action(cx.listener(Self::word_left))
+            .on_action(cx.listener(Self::word_right))
             .on_action(cx.listener(Self::select_left))
             .on_action(cx.listener(Self::select_right))
+            .on_action(cx.listener(Self::select_word_left))
+            .on_action(cx.listener(Self::select_word_right))
+            .on_action(cx.listener(Self::delete_word_left))
+            .on_action(cx.listener(Self::delete_word_right))
             .on_action(cx.listener(Self::select_all))
             .on_action(cx.listener(Self::home))
             .on_action(cx.listener(Self::end))
             .on_action(cx.listener(Self::paste))
             .on_action(cx.listener(Self::cut))
             .on_action(cx.listener(Self::copy))
+            .on_action(cx.listener(Self::undo))
+            .on_action(cx.listener(Self::redo))
             .on_action(cx.listener(Self::submit))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
+            .when(!self.disabled, |element| {
+                element
+                    .on_drag(InputDrag(entity_id), |drag, _, _, cx| cx.new(|_| *drag))
+                    .on_drag_move(cx.listener(Self::on_drag_move))
+            })
             .child(TextElement { input: cx.entity() })
+            .child(long_press_layer(cx.entity()))
             .into_any_element()
     }
+}
+
+// GPUI exposes long press through paint-time listeners; the canvas covers the full field.
+fn long_press_layer(input: Entity<ManagedInput>) -> impl IntoElement {
+    canvas(
+        |_, _, _| {},
+        move |bounds, _, window, _| {
+            window.on_mouse_event({
+                let input = input.clone();
+                move |event: &LongPressEvent, phase, window, cx| {
+                    if !phase.bubble() {
+                        return;
+                    }
+                    if event.phase == TouchPhase::Started {
+                        if window.default_prevented() || !bounds.contains(&event.start_position) {
+                            return;
+                        }
+                        if !input.update(cx, |input, cx| input.on_long_press(event, window, cx)) {
+                            return;
+                        }
+                        window.capture_long_press(&input);
+                    } else if !window.has_long_press_capture(&input) {
+                        return;
+                    } else {
+                        input.update(cx, |input, cx| {
+                            input.on_long_press(event, window, cx);
+                        });
+                    }
+                    window.prevent_default();
+                    cx.stop_propagation();
+                }
+            });
+        },
+    )
+    .absolute()
+    .size_full()
 }
 
 struct TextElement {
@@ -1141,6 +1610,9 @@ mod tests {
             window_closed: None,
             menu_action: None,
             menu_applied: None,
+            window_placement: None,
+            window_opened: None,
+            application_ready: None,
         }
     }
 
@@ -1172,6 +1644,16 @@ mod tests {
         })
     }
 
+    struct InputDragHost {
+        input: Entity<ManagedInput>,
+    }
+
+    impl Render for InputDragHost {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div().w(px(120.)).h(px(40.)).child(self.input.clone())
+        }
+    }
+
     fn set_value_command(data: &str) -> ResourceCommand {
         ResourceCommand {
             key: ResourceKey::new(7, "input".into()),
@@ -1181,6 +1663,375 @@ mod tests {
             b: 0,
             data: data.into(),
         }
+    }
+
+    #[gpui::test]
+    fn word_boundaries_follow_unicode_segments_without_splitting_graphemes(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let input = cx.update(input_entity);
+        cx.update(|cx| {
+            input.update(cx, |input, _| {
+                input.content = shared("one  café 🦊");
+                let cafe = input.content.find("café").unwrap();
+                let fox = input.content.find('🦊').unwrap();
+                assert_eq!(input.previous_word_boundary(input.content.len()), fox);
+                assert_eq!(input.previous_word_boundary(fox), cafe);
+                assert_eq!(input.previous_word_boundary(cafe), 0);
+                assert_eq!(input.next_word_boundary(0), 3);
+                assert_eq!(input.next_word_boundary(3), cafe + "café".len());
+                assert_eq!(
+                    input.next_word_boundary(cafe + "café".len()),
+                    input.content.len()
+                );
+                input.password = true;
+                assert_eq!(input.previous_word_boundary(fox), 0);
+                assert_eq!(input.next_word_boundary(0), input.content.len());
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn word_navigation_selection_and_deletion_respect_editability(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.content = shared("one two three");
+                input.selected_range = 4..4;
+                input.read_only = true;
+                let revision = input.revision;
+                input.select_word_right(&SelectWordRight, window, cx);
+                assert_eq!(input.selected_range, 4..7);
+                input.select_word_left(&SelectWordLeft, window, cx);
+                assert_eq!(input.selected_range, 4..4);
+                input.word_right(&WordRight, window, cx);
+                assert_eq!(input.selected_range, 7..7);
+                input.selected_range = 0..13;
+                input.word_left(&WordLeft, window, cx);
+                assert_eq!(input.selected_range, 8..8);
+                input.selected_range = 0..13;
+                input.selection_reversed = true;
+                input.word_right(&WordRight, window, cx);
+                assert_eq!(input.selected_range, 3..3);
+                input.delete_word_left(&DeleteWordLeft, window, cx);
+                assert_eq!(input.content.as_ref(), "one two three");
+                assert_eq!(input.revision, revision);
+                input.read_only = false;
+                input.selected_range = 8..8;
+                input.delete_word_left(&DeleteWordLeft, window, cx);
+                assert_eq!(input.content.as_ref(), "one three");
+                assert_ne!(input.revision, revision);
+                input.disabled = true;
+                input.word_left(&WordLeft, window, cx);
+                assert_eq!(input.selected_range, 4..4);
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn pointer_word_ranges_follow_unicode_and_mask_passwords(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        cx.update(|cx| {
+            input.update(cx, |input, _| {
+                input.content = shared("one  café 🦊");
+                let cafe = input.content.find("café").unwrap();
+                let fox = input.content.find('🦊').unwrap();
+                assert_eq!(input.word_range_at(0), Some(0..3));
+                assert_eq!(input.word_range_at(3), Some(3..5));
+                assert_eq!(
+                    input.word_range_at(cafe + 1),
+                    Some(cafe..cafe + "café".len())
+                );
+                assert_eq!(
+                    input.word_range_at(input.content.len()),
+                    Some(fox..input.content.len())
+                );
+                input.password = true;
+                assert_eq!(input.word_range_at(cafe), Some(0..input.content.len()));
+                input.content = shared("a\u{301} b");
+                input.password = false;
+                assert_eq!(input.word_range_at(0), Some(0.."a\u{301}".len()));
+                assert_eq!(input.content_offset_for_display(1), "a\u{301}".len());
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn double_click_word_drag_keeps_anchor_and_triple_click_selects_all(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.content = shared("one two three");
+                input.select_word_at(5, cx);
+                assert_eq!(input.selected_range, 4..7);
+                input.select_dragged_word_to(9, cx);
+                assert_eq!(input.selected_range, 4..13);
+                input.select_dragged_word_to(1, cx);
+                assert_eq!(input.selected_range, 0..7);
+                assert!(input.selection_reversed);
+                input.select_dragged_word_to(5, cx);
+                assert_eq!(input.selected_range, 4..7);
+                input.on_mouse_up(&MouseUpEvent::default(), window, cx);
+                assert!(input.drag_word_range.is_none());
+
+                input.read_only = true;
+                input.on_mouse_down(
+                    &MouseDownEvent {
+                        button: MouseButton::Left,
+                        click_count: 2,
+                        ..Default::default()
+                    },
+                    window,
+                    cx,
+                );
+                assert_eq!(input.selected_range, 0..3);
+
+                input.on_mouse_down(
+                    &MouseDownEvent {
+                        button: MouseButton::Left,
+                        click_count: 3,
+                        ..Default::default()
+                    },
+                    window,
+                    cx,
+                );
+                assert_eq!(input.selected_range, 0..input.content.len());
+                assert!(!input.is_selecting);
+                input.disabled = true;
+                input.on_mouse_down(
+                    &MouseDownEvent {
+                        button: MouseButton::Left,
+                        click_count: 2,
+                        ..Default::default()
+                    },
+                    window,
+                    cx,
+                );
+                assert_eq!(input.selected_range, 0..input.content.len());
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn drag_selection_continues_outside_input_and_stops_on_release(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        cx.update(|cx| {
+            input.update(cx, |input, cx| {
+                input.content = shared("alpha beta gamma");
+                cx.notify();
+            });
+        });
+        let (_, cx) = cx.add_window_view(|_, _| InputDragHost {
+            input: input.clone(),
+        });
+        cx.simulate_resize(size(px(320.), px(120.)));
+        cx.update(|window, _| window.refresh());
+        let inside = point(px(10.), px(20.));
+        let outside = point(px(260.), px(20.));
+        cx.simulate_mouse_down(inside, MouseButton::Left, gpui::Modifiers::none());
+        cx.simulate_mouse_move(outside, MouseButton::Left, gpui::Modifiers::none());
+        cx.simulate_mouse_move(outside, MouseButton::Left, gpui::Modifiers::none());
+        input.update(cx, |input, _| {
+            assert!(input.is_selecting);
+            assert_eq!(input.selected_range.end, input.content.len());
+        });
+        cx.simulate_mouse_up(outside, MouseButton::Left, gpui::Modifiers::none());
+        input.update(cx, |input, _| assert!(!input.is_selecting));
+
+        cx.simulate_mouse_down(inside, MouseButton::Left, gpui::Modifiers::none());
+        cx.simulate_mouse_move(outside, MouseButton::Left, gpui::Modifiers::none());
+        cx.simulate_mouse_up(outside, MouseButton::Left, gpui::Modifiers::none());
+        input.update(cx, |input, _| {
+            assert_eq!(input.selected_range.end, input.content.len());
+            assert!(!input.is_selecting);
+        });
+    }
+
+    #[gpui::test]
+    fn long_press_selects_a_word_and_extends_beyond_input(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        cx.update(|cx| {
+            input.update(cx, |input, cx| {
+                input.content = shared("alpha beta gamma");
+                cx.notify();
+            });
+        });
+        let (_, cx) = cx.add_window_view(|_, _| InputDragHost {
+            input: input.clone(),
+        });
+        cx.simulate_resize(size(px(320.), px(120.)));
+        cx.update(|window, _| window.refresh());
+        let inside = point(px(10.), px(20.));
+        let outside = point(px(260.), px(20.));
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Started,
+            start_position: inside,
+            position: inside,
+        });
+        input.update(cx, |input, _| {
+            assert_eq!(input.selected_range, 0..5);
+            assert!(input.is_selecting);
+        });
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Moved,
+            start_position: inside,
+            position: outside,
+        });
+        input.update(cx, |input, _| {
+            assert_eq!(input.selected_range.end, input.content.len());
+        });
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Ended,
+            start_position: inside,
+            position: outside,
+        });
+        input.update(cx, |input, _| {
+            assert!(!input.is_selecting);
+            assert!(input.drag_word_range.is_none());
+        });
+
+        input.update(cx, |input, cx| {
+            input.disabled = true;
+            cx.notify();
+        });
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Started,
+            start_position: inside,
+            position: inside,
+        });
+        input.update(cx, |input, _| assert!(!input.is_selecting));
+
+        input.update(cx, |input, cx| {
+            input.disabled = false;
+            input.password = true;
+            input.content = shared("   ");
+            input.selected_range = 0..0;
+            cx.notify();
+        });
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Started,
+            start_position: inside,
+            position: inside,
+        });
+        input.update(cx, |input, _| assert_eq!(input.selected_range, 0..3));
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Ended,
+            start_position: inside,
+            position: inside,
+        });
+
+        input.update(cx, |input, cx| {
+            input.password = false;
+            input.content = shared("   abc");
+            input.selected_range = 6..6;
+            cx.notify();
+        });
+        let whitespace = point(px(1.), px(20.));
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Started,
+            start_position: whitespace,
+            position: whitespace,
+        });
+        input.update(cx, |input, _| assert_eq!(input.selected_range, 0..0));
+        cx.simulate_event(LongPressEvent {
+            phase: TouchPhase::Cancelled,
+            start_position: whitespace,
+            position: whitespace,
+        });
+        input.update(cx, |input, _| assert!(!input.is_selecting));
+    }
+
+    #[gpui::test]
+    fn undo_coalesces_typing_and_new_edits_discard_redo(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.replace_text_in_range(None, "a", window, cx);
+                input.replace_text_in_range(None, "🦊", window, cx);
+                assert_eq!(input.undo_history.len(), 1);
+                let edited_revision = input.revision;
+                input.undo(&Undo, window, cx);
+                assert_eq!(input.content.as_ref(), "");
+                assert_eq!(input.selected_range, 0..0);
+                assert_ne!(input.revision, edited_revision);
+                input.redo(&Redo, window, cx);
+                assert_eq!(input.content.as_ref(), "a🦊");
+                input.undo(&Undo, window, cx);
+                input.replace_text_in_range(None, "b", window, cx);
+                assert!(input.redo_history.is_empty());
+                input.redo(&Redo, window, cx);
+                assert_eq!(input.content.as_ref(), "b");
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn ime_composition_is_one_undo_and_replay_respects_editability(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.replace_and_mark_text_in_range(None, "に", None, window, cx);
+                input.replace_and_mark_text_in_range(None, "日本", None, window, cx);
+                assert!(input.undo_history.is_empty());
+                input.undo(&Undo, window, cx);
+                assert_eq!(input.content.as_ref(), "日本");
+                input.unmark_text(window, cx);
+                assert_eq!(input.undo_history.len(), 1);
+                input.read_only = true;
+                input.undo(&Undo, window, cx);
+                assert_eq!(input.content.as_ref(), "日本");
+                input.read_only = false;
+                input.undo(&Undo, window, cx);
+                assert_eq!(input.content.as_ref(), "");
+                input.disabled = true;
+                input.redo(&Redo, window, cx);
+                assert_eq!(input.content.as_ref(), "");
+                input.disabled = false;
+                input.redo(&Redo, window, cx);
+                assert_eq!(input.content.as_ref(), "日本");
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn canceled_composition_preserves_redo(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.replace_text_in_range(None, "x", window, cx);
+                input.undo(&Undo, window, cx);
+                input.replace_and_mark_text_in_range(None, "に", None, window, cx);
+                input.replace_and_mark_text_in_range(None, "", None, window, cx);
+                assert!(input.undo_history.is_empty());
+                assert_eq!(input.redo_history.len(), 1);
+                input.redo(&Redo, window, cx);
+                assert_eq!(input.content.as_ref(), "x");
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn changed_controller_value_starts_a_fresh_undo_history(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.replace_text_in_range(None, "typed", window, cx);
+                input.set_value("typed", cx);
+                assert_eq!(input.undo_history.len(), 1);
+                input.set_value("remote", cx);
+                assert!(input.undo_history.is_empty());
+                input.undo(&Undo, window, cx);
+                assert_eq!(input.content.as_ref(), "remote");
+            });
+        });
     }
 
     #[gpui::test]

@@ -216,9 +216,7 @@ impl ManagedView {
             children,
         };
         match provider.materialize(request, self.resources.extensions(), window, cx) {
-            Ok(content) => {
-                apply_styles(div().size_full().child(content), node, snapshot).into_any_element()
-            }
+            Ok(content) => native_extension_container(content, node, snapshot).into_any_element(),
             Err(error) => div().child(error).into_any_element(),
         }
     }
@@ -1730,6 +1728,20 @@ fn apply_table_header_styles(
     header
 }
 
+fn native_extension_container(
+    content: AnyElement,
+    node: &SnapshotNode,
+    snapshot: &ValidatedSnapshot,
+) -> gpui::Div {
+    // Providers own their content geometry. Forcing this neutral style wrapper to size_full makes
+    // intrinsic controls fill their ancestor and lets animated paint escape its intended row.
+    let mut element = div().child(content);
+    if last_op(snapshot, node, OP_FLEX_GROW).is_some() {
+        element = element.min_h_0().min_w_0();
+    }
+    apply_styles(element, node, snapshot)
+}
+
 fn apply_window_control_area<T>(element: T, node: &SnapshotNode, snapshot: &ValidatedSnapshot) -> T
 where
     T: Styled + InteractiveElement,
@@ -2492,6 +2504,9 @@ mod tests {
             window_closed: None,
             menu_action: None,
             menu_applied: None,
+            window_placement: None,
+            window_opened: None,
+            application_ready: None,
             dynamic_frame: None,
             render_completed: None,
             release_artifact: None,
@@ -2545,6 +2560,49 @@ mod tests {
             a: value.to_bits() as u64,
             ..Default::default()
         }
+    }
+
+    #[gpui::test]
+    fn native_extension_wrapper_preserves_intrinsic_content_size(cx: &mut gpui::TestAppContext) {
+        use std::{cell::Cell, rc::Rc};
+
+        struct ExtensionSizingProbe {
+            snapshot: ValidatedSnapshot,
+            sibling_bounds: Rc<Cell<gpui::Bounds<gpui::Pixels>>>,
+        }
+        impl gpui::Render for ExtensionSizingProbe {
+            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+                let extension = native_extension_container(
+                    div().w(px(20.)).h(px(20.)).into_any_element(),
+                    &self.snapshot.nodes[0],
+                    &self.snapshot,
+                );
+                let sibling_bounds = self.sibling_bounds.clone();
+                div()
+                    .flex()
+                    .flex_row()
+                    .size(px(200.))
+                    .child(extension)
+                    .child(
+                        canvas(
+                            move |bounds, _, _| sibling_bounds.set(bounds),
+                            |_, _, _, _| {},
+                        )
+                        .w(px(10.))
+                        .h(px(10.)),
+                    )
+            }
+        }
+
+        let sibling_bounds = Rc::new(Cell::new(gpui::Bounds::default()));
+        let (_, cx) = cx.add_window_view(|_, _| ExtensionSizingProbe {
+            snapshot: style_snapshot(crate::semantic::COMPONENT_DIV, "", &mut []),
+            sibling_bounds: sibling_bounds.clone(),
+        });
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+
+        assert_eq!(sibling_bounds.get().origin.x, px(20.));
+        assert_eq!(sibling_bounds.get().size, gpui::size(px(10.), px(10.)));
     }
 
     #[gpui::test]

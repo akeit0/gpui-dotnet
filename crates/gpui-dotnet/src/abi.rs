@@ -1,6 +1,6 @@
 use std::mem::size_of;
 
-pub const ABI_VERSION: u32 = 8;
+pub const ABI_VERSION: u32 = 11;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -232,7 +232,11 @@ pub type ManagedAcceptArtifactFn = unsafe extern "C" fn(u64, u64, u64) -> i32;
 pub type ManagedDynamicFrameFn = unsafe extern "C" fn(u64, u32) -> i32;
 pub type ManagedControlEventFn = unsafe extern "C" fn(u64, u64, *const NativeControlEvent) -> i32;
 pub type ManagedApplicationStartedFn = unsafe extern "C" fn(u64) -> i32;
+pub type ManagedApplicationReadyFn = unsafe extern "C" fn(u64) -> i32;
 pub type ManagedWindowClosedFn = unsafe extern "C" fn(u64, u64, i32) -> i32;
+pub type ManagedWindowOpenedFn = unsafe extern "C" fn(u64, u64) -> i32;
+pub type ManagedWindowPlacementFn =
+    unsafe extern "C" fn(u64, u64, *const NativeWindowPlacement) -> i32;
 pub type ManagedMenuActionFn = unsafe extern "C" fn(u64, u64) -> i32;
 pub type ManagedMenuAppliedFn = unsafe extern "C" fn(u64, u64) -> i32;
 
@@ -252,6 +256,20 @@ pub struct ManagedCallbacks {
     pub release_artifact: Option<ManagedReleaseArtifactFn>,
     pub accept_artifact: Option<ManagedAcceptArtifactFn>,
     pub menu_applied: Option<ManagedMenuAppliedFn>,
+    pub window_placement: Option<ManagedWindowPlacementFn>,
+    pub window_opened: Option<ManagedWindowOpenedFn>,
+    pub application_ready: Option<ManagedApplicationReadyFn>,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NativeWindowPlacement {
+    pub left: f32,
+    pub top: f32,
+    pub width: f32,
+    pub height: f32,
+    pub state: u32,
+    pub reserved: u32,
 }
 
 #[cfg(test)]
@@ -261,7 +279,21 @@ mod tests {
     #[test]
     fn acceptance_callback_extends_the_callback_table() {
         let pointer_size = std::mem::size_of::<usize>();
-        assert_eq!(std::mem::size_of::<ManagedCallbacks>(), 13 * pointer_size);
+        assert_eq!(std::mem::size_of::<ManagedCallbacks>(), 16 * pointer_size);
+        assert_eq!(
+            std::mem::offset_of!(ManagedCallbacks, application_ready),
+            15 * pointer_size
+        );
+        assert_eq!(
+            std::mem::offset_of!(ManagedCallbacks, window_opened),
+            14 * pointer_size
+        );
+        assert_eq!(
+            std::mem::offset_of!(ManagedCallbacks, window_placement),
+            13 * pointer_size
+        );
+        assert_eq!(std::mem::size_of::<NativeWindowPlacement>(), 24);
+        assert_eq!(std::mem::offset_of!(NativeWindowPlacement, state), 16);
         assert_eq!(
             std::mem::offset_of!(ManagedCallbacks, menu_applied),
             12 * pointer_size
@@ -286,7 +318,7 @@ mod tests {
             std::mem::offset_of!(GpuiDotnetApiV3, invalidate_artifacts),
             16 + 8 * pointer_size
         );
-        assert_eq!(ABI_VERSION, 8);
+        assert_eq!(ABI_VERSION, 11);
     }
 
     #[test]

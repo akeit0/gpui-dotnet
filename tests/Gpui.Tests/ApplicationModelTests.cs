@@ -9,14 +9,113 @@ public sealed class ApplicationModelTests
     [Fact]
     public void UsesExpectedProtocolVersions()
     {
-        Assert.Equal(8u, NativeConstants.AbiVersion);
+        Assert.Equal(11u, NativeConstants.AbiVersion);
         Assert.Equal(1u, SemanticRegistry.SchemaVersion);
+    }
+
+    [Fact]
+    public void FinalPlacementSurvivesWindowClose()
+    {
+        var application = new GpuiApplication();
+        var window = application.OpenWindow(ProbeView.Spec());
+        Assert.Null(window.FinalPlacement);
+        Assert.True(
+            application.NativeWindowPlacement(
+                window.Id,
+                new GpuiWindowPlacement(40, 50, 800, 600, WindowInitialState.Maximized)
+            )
+        );
+        application.NativeWindowClosed(window.Id);
+        Assert.True(window.IsClosed);
+        Assert.Equal(
+            new GpuiWindowPlacement(40, 50, 800, 600, WindowInitialState.Maximized),
+            window.FinalPlacement
+        );
+        Assert.False(
+            application.NativeWindowPlacement(
+                window.Id,
+                new GpuiWindowPlacement(0, 0, 1, 1, WindowInitialState.Normal)
+            )
+        );
+    }
+
+    [Fact]
+    public void NativeWindowLifecycleNotificationsFollowCreationAndTeardown()
+    {
+        var application = new GpuiApplication();
+        var window = application.OpenWindow(ProbeView.Spec());
+        var events = new List<string>();
+        window.Opened += opened =>
+        {
+            Assert.True(opened.IsOpen);
+            events.Add("window-opened");
+        };
+        application.WindowOpened += _ => events.Add("application-opened");
+        window.Closed += closed =>
+        {
+            Assert.True(closed.IsClosed);
+            Assert.Equal(
+                new GpuiWindowPlacement(20, 30, 800, 600, WindowInitialState.Normal),
+                closed.FinalPlacement
+            );
+            events.Add("window-closed");
+        };
+        application.WindowClosed += _ => events.Add("application-closed");
+
+        Assert.False(window.IsOpen);
+        Assert.True(application.NativeWindowOpened(window.Id));
+        Assert.True(window.IsOpen);
+        Assert.False(application.NativeWindowOpened(window.Id));
+        Assert.True(
+            application.NativeWindowPlacement(
+                window.Id,
+                new GpuiWindowPlacement(20, 30, 800, 600, WindowInitialState.Normal)
+            )
+        );
+        application.NativeWindowClosed(window.Id);
+        Assert.False(window.IsOpen);
+        Assert.True(window.IsClosed);
+        application.NativeWindowClosed(window.Id);
+        Assert.Equal(
+            ["window-opened", "application-opened", "window-closed", "application-closed"],
+            events
+        );
+    }
+
+    [Fact]
+    public void CanceledPendingWindowDoesNotRaiseNativeLifecycleNotifications()
+    {
+        var application = new GpuiApplication();
+        var window = application.OpenWindow(ProbeView.Spec());
+        var raised = false;
+        window.Opened += _ => raised = true;
+        window.Closed += _ => raised = true;
+        window.Close();
+        Assert.True(window.IsClosed);
+        Assert.False(raised);
     }
 
     [Fact]
     public unsafe void AcceptanceCallbackExtendsTheNativeCallbackTable()
     {
-        Assert.Equal(13 * IntPtr.Size, sizeof(ManagedCallbacks));
+        Assert.Equal(16 * IntPtr.Size, sizeof(ManagedCallbacks));
+        Assert.Equal(
+            15 * IntPtr.Size,
+            (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.application_ready))
+        );
+        Assert.Equal(
+            14 * IntPtr.Size,
+            (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.window_opened))
+        );
+        Assert.Equal(
+            13 * IntPtr.Size,
+            (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.window_placement))
+        );
+        Assert.Equal(24, sizeof(NativeWindowPlacement));
+        Assert.Equal(
+            16,
+            (int)Marshal.OffsetOf<NativeWindowPlacement>(nameof(NativeWindowPlacement.state))
+        );
         Assert.Equal(
             12 * IntPtr.Size,
             (int)Marshal.OffsetOf<ManagedCallbacks>(nameof(ManagedCallbacks.menu_applied))
@@ -77,11 +176,31 @@ public sealed class ApplicationModelTests
         var application = new GpuiApplication(new NativeRuntimeOptions { LibraryPath = " " });
         var root = ProbeView.Spec();
         var window = application.OpenWindow(root);
+        var stopped = false;
+        application.Stopped += stoppedApplication =>
+        {
+            Assert.False(stoppedApplication.IsReady);
+            Assert.True(window.IsClosed);
+            stopped = true;
+        };
 
         Assert.Throws<ArgumentException>(application.Run);
 
         Assert.True(window.IsClosed);
+        Assert.True(stopped);
         Assert.Equal(0, ProbeView.Constructions);
+    }
+
+    [Fact]
+    public void StoppedHandlerFailurePreservesStartupFailure()
+    {
+        var application = new GpuiApplication(new NativeRuntimeOptions { LibraryPath = " " });
+        application.OpenWindow(ProbeView.Spec());
+        application.Stopped += _ => throw new InvalidOperationException("Stopped handler failed.");
+
+        var failure = Assert.Throws<AggregateException>(application.Run);
+        Assert.IsType<ArgumentException>(failure.InnerExceptions[0]);
+        Assert.IsType<InvalidOperationException>(failure.InnerExceptions[1]);
     }
 
     [Fact]
@@ -99,6 +218,32 @@ public sealed class ApplicationModelTests
             application.OpenWindow(
                 ProbeView.Spec(),
                 new GpuiWindowOptions { TitleBarStyle = (WindowTitleBarStyle)99 }
+            )
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            application.OpenWindow(
+                ProbeView.Spec(),
+                new GpuiWindowOptions { InitialState = (WindowInitialState)99 }
+            )
+        );
+        Assert.Throws<ArgumentException>(() =>
+            application.OpenWindow(ProbeView.Spec(), new GpuiWindowOptions { MinimumWidth = 400 })
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            application.OpenWindow(
+                ProbeView.Spec(),
+                new GpuiWindowOptions { MinimumWidth = 800, MinimumHeight = 300 }
+            )
+        );
+        Assert.Throws<ArgumentException>(() =>
+            application.OpenWindow(
+                ProbeView.Spec(),
+                new GpuiWindowOptions
+                {
+                    Title = new string('x', 4097),
+                    MinimumWidth = 400,
+                    MinimumHeight = 300,
+                }
             )
         );
     }
@@ -138,8 +283,16 @@ public sealed class ApplicationModelTests
         Assert.Equal(900, window.Snapshot.Width);
         Assert.Equal(600, window.Snapshot.Height);
         Assert.Equal(WindowTitleBarStyle.System, window.Snapshot.TitleBarStyle);
+        Assert.Equal(WindowInitialState.Normal, window.Snapshot.InitialState);
+        Assert.Null(window.Snapshot.MinimumWidth);
         Assert.Throws<InvalidOperationException>(window.Minimize);
         Assert.Throws<InvalidOperationException>(window.ToggleMaximize);
+        Assert.Throws<InvalidOperationException>(window.ToggleFullscreen);
+        Assert.Throws<InvalidOperationException>(() =>
+            window.ShowToast(new GpuiToast("id", "Title"))
+        );
+        Assert.Throws<InvalidOperationException>(() => window.DismissToast("id"));
+        Assert.Throws<InvalidOperationException>(window.ClearToasts);
 
         window.Close();
 
@@ -157,13 +310,22 @@ public sealed class ApplicationModelTests
         var first = application.OpenWindow(firstRoot);
         var second = application.OpenWindow(
             ProbeView.Spec(),
-            new GpuiWindowOptions { TitleBarStyle = WindowTitleBarStyle.Custom }
+            new GpuiWindowOptions
+            {
+                TitleBarStyle = WindowTitleBarStyle.Custom,
+                InitialState = WindowInitialState.Maximized,
+                MinimumWidth = 480,
+                MinimumHeight = 320,
+            }
         );
 
         Assert.NotEqual(first.Id, second.Id);
         Assert.False(first.Snapshot.Activate);
         Assert.True(second.Snapshot.Activate);
         Assert.Equal(WindowTitleBarStyle.Custom, second.Snapshot.TitleBarStyle);
+        Assert.Equal(WindowInitialState.Maximized, second.Snapshot.InitialState);
+        Assert.Equal(480, second.Snapshot.MinimumWidth);
+        Assert.Equal(320, second.Snapshot.MinimumHeight);
         var third = application.OpenWindow(firstRoot);
         Assert.NotEqual(first.Id, third.Id);
 

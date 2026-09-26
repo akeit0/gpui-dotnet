@@ -26,8 +26,8 @@ schema, and the native ABI may change before a stable release.
 - Native image decoding/caching and vector drawing with paths, fills, strokes, curves, arcs, and
   view boxes.
 - Multiple windows, application menus, system or custom title bars, and native window controls.
-- Build-time native extension hosts with independently versioned managed schemas; the optional
-  editor probe retains Rope, selection, highlighting, undo, scrolling, focus, and IME in Rust.
+- Build-time native extension hosts with independently versioned generated managed/native schemas;
+  the optional component host provides thirty-eight catalog families and a retained Editor example.
 
 ### Platform support
 
@@ -267,13 +267,34 @@ var window = application.OpenWindow(
     }
 );
 
+// Later, after the native window opens:
 window.SetTitle("Renamed document");
 window.Resize(1000, 720);
 window.Activate();
 ```
 
+Window commands such as `ToggleFullscreen()` and `ToggleMaximize()` act on an already-open
+native window.
+
+`window.ShowToast(new GpuiToast("save", "File saved"))` posts a window notification. Posting the
+same ID replaces it; `DismissToast(id)` and `ClearToasts()` close notifications without changing
+the managed View snapshot. The [sample](samples/Gpui.Sample/README.md) has interactive controls.
+
 `WindowTitleBarStyle` supports `System`, `Custom`, and `Hidden`. Custom title bars use semantic
 `WindowControlArea` regions for native drag, minimize, maximize, and close behavior.
+Set `GpuiWindowOptions.InitialState` to `Maximized` or `Fullscreen` to open in that native state;
+`Width`, `Height`, `Left`, and `Top` remain the restore bounds.
+Set `MinimumWidth` and `MinimumHeight` together to request a native minimum window size.
+After a window closes, `GpuiWindow.FinalPlacement` supplies its last normal bounds and final
+native state for application-owned persistence. A failed open leaves this value null.
+`GpuiWindow.Opened` and `Closed` and the corresponding `GpuiApplication.WindowOpened` and
+`WindowClosed` events report native window creation and post-teardown closure on the application
+thread. Window events run before their application-wide counterparts. A pending window canceled
+before native creation emits neither event.
+`GpuiApplication.Ready` runs after native initialization and initial window creation;
+`Stopped` runs after `Run()` has finished native and managed cleanup, including failure paths.
+`Ready` uses the GPUI thread; `Stopped` uses the Run execution thread, or the caller if launching
+that thread fails. `IsReady` reflects the active interval.
 
 Declare application commands once with `GpuiMenu[]`. macOS installs them in the global native menu
 bar. `GpuiTitleBar.RenderWindow` uses the same definitions for a minimal managed menu/title bar on
@@ -399,12 +420,14 @@ back to `dotnet watch`, which restarts the application when required.
 ```text
 bindings/                 base schema and optional-extension registry
 crates/gpui-dotnet/       Rust native host
-src/Gpui/                 managed public API and runtime sources
-src/Gpui.Core/            platform-neutral package project
+src/Gpui/                 application-facing meta package and build assets
+src/Gpui.Core/            platform-neutral managed API, runtime, and package project
 src/Gpui.Editor/          optional editor schema assembly
+src/Gpui.Components/      optional gpui-component catalog schema assembly
 src/Gpui.Native/          RID-specific native package projects
 src/Gpui.Generators/      Roslyn generators for views and list items
 samples/Gpui.Sample/      interactive component gallery
+samples/Gpui.Components.Sample/ optional native component-catalog sample
 tests/Gpui.Tests/         managed contract and generator tests
 tools/                    base/extension binding generator and UI driver
 eng/                      native build, staging, and packaging scripts

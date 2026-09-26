@@ -37,6 +37,8 @@ mod snapshot;
 mod theme;
 mod tooltip;
 mod trace;
+mod window_open;
+mod window_toast;
 
 use std::{mem::size_of, panic::AssertUnwindSafe, ptr};
 
@@ -465,16 +467,31 @@ unsafe fn dispatch_application_command_inner(
             },
         );
     }
+    if command.command == window_toast::POST_COMMAND {
+        let toast = match window_toast::parse_post(command) {
+            Ok(toast) => toast,
+            Err(status) => return status,
+        };
+        return app_host::dispatch_application_command(
+            application_id,
+            app_host::ApplicationCommand::ShowToast {
+                window_id: command.window_id,
+                toast,
+            },
+        );
+    }
 
     let title_bar_style = (command.flags >> 2) & 0b11;
+    let initial_state = (command.flags >> 4) & 0b11;
     let size_valid = command.width.is_finite()
         && command.height.is_finite()
         && command.width > 0.0
         && command.height > 0.0;
     let payload_valid = match command.command {
-        1 => {
-            command.flags & !0b1111 == 0
+        1 | window_open::COMMAND => {
+            command.flags & !0b11_1111 == 0
                 && title_bar_style <= 2
+                && initial_state <= 2
                 && !no_title
                 && size_valid
                 && if command.flags & 1 != 0 {
@@ -483,8 +500,11 @@ unsafe fn dispatch_application_command_inner(
                     no_position
                 }
         }
-        2 | 3 | 6 | 7 => command.flags == 0 && no_title && no_position && no_size,
+        2 | 3 | 6 | 7 | 12 | window_toast::CLEAR_COMMAND => {
+            command.flags == 0 && no_title && no_position && no_size
+        }
         4 => command.flags == 0 && !no_title && no_position && no_size,
+        window_toast::DISMISS_COMMAND => command.flags == 0 && !no_title && no_position && no_size,
         5 => command.flags == 0 && no_title && no_position && size_valid,
         11 => command.flags == 0 && command.window_id == 0 && !no_title && no_position && no_size,
         _ => false,
@@ -493,18 +513,27 @@ unsafe fn dispatch_application_command_inner(
         return -62;
     }
 
-    let title = if no_title {
-        None
+    let (title, minimum_size) = if command.command == window_open::COMMAND {
+        let payload = match window_open::parse(command) {
+            Ok(payload) => payload,
+            Err(status) => return status,
+        };
+        (
+            Some(payload.title),
+            Some((payload.minimum_width, payload.minimum_height)),
+        )
+    } else if no_title {
+        (None, None)
     } else {
         let bytes = unsafe { crate::pointer::slice(command.title, command.title_length as usize) };
         let Ok(title) = std::str::from_utf8(bytes) else {
             return -63;
         };
-        Some(title.to_owned())
+        (Some(title.to_owned()), None)
     };
 
     let message = match command.command {
-        1 => app_host::ApplicationCommand::Open {
+        1 | window_open::COMMAND => app_host::ApplicationCommand::Open {
             window_id: command.window_id,
             title: title.expect("validated open title"),
             left: (command.flags & 1 != 0).then_some(command.left),
@@ -518,11 +547,30 @@ unsafe fn dispatch_application_command_inner(
                 2 => app_host::WindowTitleBarStyle::Hidden,
                 _ => unreachable!("title-bar style was validated"),
             },
+            initial_state: match initial_state {
+                0 => app_host::WindowInitialState::Normal,
+                1 => app_host::WindowInitialState::Maximized,
+                2 => app_host::WindowInitialState::Fullscreen,
+                _ => unreachable!("initial state was validated"),
+            },
+            minimum_size,
         },
         2 => app_host::ApplicationCommand::Close(command.window_id),
         3 => app_host::ApplicationCommand::Activate(command.window_id),
         6 => app_host::ApplicationCommand::Minimize(command.window_id),
         7 => app_host::ApplicationCommand::ToggleMaximize(command.window_id),
+        12 => app_host::ApplicationCommand::ToggleFullscreen(command.window_id),
+        window_toast::DISMISS_COMMAND => {
+            let id = title.expect("validated dismiss ID");
+            if !window_toast::valid_dismiss_id(&id) {
+                return -62;
+            }
+            app_host::ApplicationCommand::DismissToast {
+                window_id: command.window_id,
+                id,
+            }
+        }
+        window_toast::CLEAR_COMMAND => app_host::ApplicationCommand::ClearToasts(command.window_id),
         4 => app_host::ApplicationCommand::SetTitle {
             window_id: command.window_id,
             title: title.expect("validated title update"),
@@ -703,6 +751,9 @@ unsafe extern "C" fn run_application(
         || callbacks.render_completed.is_none()
         || callbacks.release_artifact.is_none()
         || callbacks.accept_artifact.is_none()
+        || callbacks.window_placement.is_none()
+        || callbacks.window_opened.is_none()
+        || callbacks.application_ready.is_none()
     {
         return -21;
     }
@@ -807,6 +858,107 @@ mod tests {
         command.flags = 1;
         assert_eq!(
             unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -62
+        );
+    }
+
+    #[test]
+    fn toggle_fullscreen_requires_an_empty_window_command() {
+        let mut command = empty_application_command(12);
+        command.window_id = 1;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -40
+        );
+
+        command.flags = 1;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -62
+        );
+        command.flags = 0;
+        command.width = 1.0;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -62
+        );
+    }
+
+    #[test]
+    fn open_accepts_initial_native_window_states() {
+        let title = b"window";
+        let mut command = empty_application_command(1);
+        command.window_id = 1;
+        command.title = title.as_ptr();
+        command.title_length = title.len() as i32;
+        command.width = 800.0;
+        command.height = 600.0;
+        for flags in [0, 1 << 4, 2 << 4] {
+            command.flags = flags;
+            assert_eq!(
+                unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+                -40
+            );
+        }
+        for flags in [3 << 4, 1 << 6] {
+            command.flags = flags;
+            assert_eq!(
+                unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+                -62
+            );
+        }
+    }
+
+    #[test]
+    fn open_with_minimum_validates_before_application_dispatch() {
+        let mut payload = Vec::new();
+        for field in [1u32, 480f32.to_bits(), 320f32.to_bits(), 5, 0] {
+            payload.extend_from_slice(&field.to_le_bytes());
+        }
+        payload.extend_from_slice(b"Title");
+        let mut command = empty_application_command(window_open::COMMAND);
+        command.window_id = 1;
+        command.title = payload.as_ptr();
+        command.title_length = payload.len() as i32;
+        command.width = 800.0;
+        command.height = 600.0;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -40
+        );
+        command.flags = 1 << 6;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -62
+        );
+    }
+
+    #[test]
+    fn dismiss_and_clear_toasts_validate_window_payloads() {
+        let mut clear = empty_application_command(window_toast::CLEAR_COMMAND);
+        clear.window_id = 1;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &clear) },
+            -40
+        );
+        clear.flags = 1;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &clear) },
+            -62
+        );
+
+        let id = b"save";
+        let mut dismiss = empty_application_command(window_toast::DISMISS_COMMAND);
+        dismiss.window_id = 1;
+        dismiss.title = id.as_ptr();
+        dismiss.title_length = id.len() as i32;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &dismiss) },
+            -40
+        );
+        dismiss.title_length = 0;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &dismiss) },
             -62
         );
     }

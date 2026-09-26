@@ -46,10 +46,10 @@ dotnet run --project tools/Gpui.Bindings.Generator -- verify
 
 Never hand-edit:
 
-- `src/Gpui/Rendering/Semantic.g.cs`
-- `src/Gpui/Rendering/SemanticElements.g.cs`
+- `src/Gpui.Core/Rendering/Semantic.g.cs`
+- `src/Gpui.Core/Rendering/SemanticElements.g.cs`
 - `crates/gpui-dotnet/src/semantic.g.rs`
-- `src/Gpui/Interop/NativeMethods.g.cs`
+- `src/Gpui.Core/Interop/NativeMethods.g.cs`
 - `docs/SEMANTIC_IDS.md`
 
 The native Cargo build generates `NativeMethods.g.cs` from Rust C-layout definitions through

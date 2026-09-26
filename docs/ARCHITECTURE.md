@@ -253,6 +253,12 @@ Tab traversal, descendant precedence, and keyboard focus paint.
 One `GpuiApplication` maps to one native `gpui::Application`. Every `GpuiWindow` maps to an
 independent managed session and native root view. Window IDs are stable 64-bit values and also serve
 as render-session IDs.
+Native window-bounds observations update a cached restore rectangle and state without reverse
+callbacks during dragging. On close, a single placement callback precedes managed teardown;
+managed application code decides whether and where to persist that value.
+The managed startup callback enqueues initial window commands before GPUI starts. A separate
+ready callback follows native initialization and initial window creation. After the event loop
+returns, managed teardown marks remaining handles closed before the application stopped event.
 
 Window and resource commands may originate from managed threads, but all GPUI mutations occur on
 the native event-loop thread. The application exits after its final registered window closes. A
@@ -297,10 +303,10 @@ as managed popover menus. Applications can bypass the helper and compose the pri
 
 ## Managed project and package split
 
-- `src/Gpui/` contains the managed API and runtime source files.
-- `src/Gpui.Core/` builds those sources as the platform-neutral `GPUI.NET.Core` package.
+- `src/Gpui.Core/` contains the managed API and runtime sources, organized by subsystem, and
+  builds them as the platform-neutral `GPUI.NET.Core` package.
 - `src/Gpui.Native/` defines the native aggregate and RID-specific packages.
-- `src/Gpui/` also defines the application-facing `GPUI.NET` meta package and analyzer payload.
+- `src/Gpui/` defines the application-facing `GPUI.NET` meta package and analyzer payload.
 - `src/Gpui.Generators/` contains the Roslyn source generator.
 - `crates/gpui-dotnet/` builds the native host library.
 
@@ -312,6 +318,20 @@ Optional native component families use the generic NativeExtension envelope. The
 schema remains in a separate assembly, with its own extension ID, version, and hash. A custom host
 links the selected Rust providers with the base runtime at build time and advertises those schemas
 through ABI negotiation. GPUI/Rust objects are never passed between independently built libraries.
+
+## Application service boundary
+
+`GPUI.NET.Core` owns the managed View lifecycle, render snapshots, and window commands. The Rust
+host owns the GPUI event loop, window state, retained controls, deferred layers, and interaction
+that depends on a frame or pointer position. Optional component packages supply typed declarations
+and matching native adapters without expanding the core component vocabulary.
+
+Application file, process, and network work uses .NET services outside `Render()`. Event handlers
+or accepted effects update application state, which then invalidates Views. The toast host belongs
+to each native window and accepts coarse commands for replacement and dismissal; its timer and
+stacking stay native. It is not a component extension or a per-frame callback. If applications
+later load untrusted code, capability grants and isolation belong at that host boundary rather
+than in the renderer.
 
 ## Dependency policy
 

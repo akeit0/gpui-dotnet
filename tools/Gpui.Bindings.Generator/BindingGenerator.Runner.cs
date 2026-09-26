@@ -10,9 +10,9 @@ internal static partial class BindingGenerator
 
     private const string ExtensionManifestPath = "bindings/extensions.json";
 
-    private const string CSharpProtocolOutputPath = "src/Gpui/Rendering/Semantic.g.cs";
+    private const string CSharpProtocolOutputPath = "src/Gpui.Core/Rendering/Semantic.g.cs";
 
-    private const string CSharpElementsOutputPath = "src/Gpui/Rendering/SemanticElements.g.cs";
+    private const string CSharpElementsOutputPath = "src/Gpui.Core/Rendering/SemanticElements.g.cs";
 
     private const string RustOutputPath = "crates/gpui-dotnet/src/semantic.g.rs";
 

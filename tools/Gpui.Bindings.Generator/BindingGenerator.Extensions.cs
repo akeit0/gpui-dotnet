@@ -81,11 +81,81 @@ internal static partial class BindingGenerator
         foreach (var component in schema.Components)
         {
             ValidateName(component.Kind, "extension component kind");
-            if (string.IsNullOrWhiteSpace(component.Configuration))
+            if (
+                component.Configuration is null
+                || component.Configuration.Encoding != "lines"
+                || component.Configuration.Fields is null
+            )
             {
                 throw new InvalidOperationException(
-                    $"Extension component '{component.Kind}' needs a configuration description."
+                    $"Extension component '{component.Kind}' needs a 'lines' configuration."
                 );
+            }
+            EnsureUnique(
+                component.Configuration.Fields.Select(field => field.Name),
+                $"configuration field on extension component {component.Kind}"
+            );
+            EnsureUnique(
+                component.Configuration.Fields.Select(field => Pascal(field.Name)),
+                $"generated configuration field name on extension component {component.Kind}"
+            );
+            foreach (var field in component.Configuration.Fields)
+            {
+                ValidateName(
+                    field.Name,
+                    $"configuration field on extension component {component.Kind}"
+                );
+                if (
+                    field.Type
+                    is not (
+                        "flags"
+                        or "string"
+                        or "json_string"
+                        or "string_list"
+                        or "u32"
+                        or "u32_list"
+                        or "u64"
+                        or "f32"
+                        or "bool"
+                        or "event"
+                        or "enum"
+                    )
+                )
+                {
+                    throw new InvalidOperationException(
+                        $"Extension configuration field '{field.Name}' has unsupported type '{field.Type}'."
+                    );
+                }
+                if (field.Type == "enum")
+                {
+                    if (field.Values is not { Count: > 0 })
+                    {
+                        throw new InvalidOperationException(
+                            $"Extension enum configuration field '{field.Name}' needs values."
+                        );
+                    }
+                    EnsureUnique(field.Values, $"value on extension enum field {field.Name}");
+                    EnsureUnique(
+                        field.Values.Select(Pascal),
+                        $"generated value on extension enum field {field.Name}"
+                    );
+                    foreach (var value in field.Values)
+                    {
+                        ValidateName(value, $"value on extension enum field {field.Name}");
+                    }
+                }
+                else if (field.Values is { Count: > 0 })
+                {
+                    throw new InvalidOperationException(
+                        $"Only enum configuration fields may declare values ('{field.Name}')."
+                    );
+                }
+                if (field.Type == "flags" && component.Flags is not { Count: > 0 })
+                {
+                    throw new InvalidOperationException(
+                        $"Extension configuration field '{field.Name}' uses flags but the component declares none."
+                    );
+                }
             }
             if (component.Flags is null)
             {
@@ -259,10 +329,171 @@ internal static partial class BindingGenerator
                     builder.AppendLine($"{prefix}Flag{Pascal(flags[index])}{suffix}");
                 }
             }
+            foreach (
+                var field in component.Configuration.Fields.Where(field => field.Type == "enum")
+            )
+            {
+                builder.AppendLine();
+                builder.AppendLine($"        internal enum {Pascal(field.Name)}");
+                builder.AppendLine("        {");
+                foreach (var value in field.Values!)
+                {
+                    builder.AppendLine($"            {Pascal(value)},");
+                }
+                builder.AppendLine("        }");
+            }
+            AppendCSharpConfigurationEncoder(builder, component);
             builder.AppendLine("    }");
         }
         builder.AppendLine("}");
         return builder.ToString();
+    }
+
+    private static void AppendCSharpConfigurationEncoder(
+        StringBuilder builder,
+        ExtensionComponent component
+    )
+    {
+        var fields = component.Configuration.Fields;
+        var parameters = string.Join(
+            ", ",
+            fields.Select(field => $"{CSharpConfigurationType(field)} {Camel(field.Name)}")
+        );
+        builder.AppendLine();
+        builder.AppendLine($"        internal static string EncodeConfiguration({parameters})");
+        builder.AppendLine("        {");
+        if (fields.Count == 0)
+        {
+            builder.AppendLine("            return string.Empty;");
+            builder.AppendLine("        }");
+            return;
+        }
+        foreach (var field in fields)
+        {
+            var name = Camel(field.Name);
+            switch (field.Type)
+            {
+                case "flags":
+                    builder.AppendLine($"            if (({name} & ~KnownFlags) != 0)");
+                    builder.AppendLine("            {");
+                    builder.AppendLine(
+                        $"                throw new global::System.ArgumentOutOfRangeException(nameof({name}), \"Unknown extension flags were supplied.\");"
+                    );
+                    builder.AppendLine("            }");
+                    break;
+                case "string":
+                    builder.AppendLine(
+                        $"            global::System.ArgumentNullException.ThrowIfNull({name});"
+                    );
+                    builder.AppendLine(
+                        $"            if ({name}.Contains('\\0') || {name}.Contains('\\n') || {name}.Contains('\\r'))"
+                    );
+                    builder.AppendLine("            {");
+                    builder.AppendLine(
+                        $"                throw new global::System.ArgumentException(\"Extension configuration strings cannot contain NUL or newline characters.\", nameof({name}));"
+                    );
+                    builder.AppendLine("            }");
+                    break;
+                case "json_string":
+                    builder.AppendLine(
+                        $"            global::System.ArgumentNullException.ThrowIfNull({name});"
+                    );
+                    builder.AppendLine($"            if ({name}.Contains('\\0'))");
+                    builder.AppendLine("            {");
+                    builder.AppendLine(
+                        $"                throw new global::System.ArgumentException(\"Extension configuration strings cannot contain NUL characters.\", nameof({name}));"
+                    );
+                    builder.AppendLine("            }");
+                    builder.AppendLine(
+                        $"            var {name}Value = global::System.Text.Json.JsonSerializer.Serialize({name});"
+                    );
+                    break;
+                case "string_list":
+                    builder.AppendLine($"            foreach (var item in {name})");
+                    builder.AppendLine("            {");
+                    builder.AppendLine(
+                        "                global::System.ArgumentNullException.ThrowIfNull(item);"
+                    );
+                    builder.AppendLine("            }");
+                    builder.AppendLine(
+                        $"            var {name}Value = global::System.Text.Json.JsonSerializer.Serialize({name}.ToArray());"
+                    );
+                    break;
+                case "f32":
+                    builder.AppendLine($"            if (!float.IsFinite({name}))");
+                    builder.AppendLine("            {");
+                    builder.AppendLine(
+                        $"                throw new global::System.ArgumentOutOfRangeException(nameof({name}), \"Extension configuration numbers must be finite.\");"
+                    );
+                    builder.AppendLine("            }");
+                    break;
+                case "enum":
+                    builder.AppendLine($"            var {name}Value = {name} switch");
+                    builder.AppendLine("            {");
+                    foreach (var value in field.Values!)
+                    {
+                        builder.AppendLine(
+                            $"                {Pascal(field.Name)}.{Pascal(value)} => \"{value}\","
+                        );
+                    }
+                    builder.AppendLine(
+                        $"                _ => throw new global::System.ArgumentOutOfRangeException(nameof({name})),"
+                    );
+                    builder.AppendLine("            };");
+                    break;
+                case "u32_list":
+                    builder.AppendLine(
+                        $"            var {name}Builder = new global::System.Text.StringBuilder();"
+                    );
+                    builder.AppendLine(
+                        $"            for (var index = 0; index < {name}.Length; index++)"
+                    );
+                    builder.AppendLine("            {");
+                    builder.AppendLine("                if (index != 0)");
+                    builder.AppendLine($"                    {name}Builder.Append(',');");
+                    builder.AppendLine(
+                        $"                {name}Builder.Append({name}[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));"
+                    );
+                    builder.AppendLine("            }");
+                    builder.AppendLine($"            var {name}Value = {name}Builder.ToString();");
+                    break;
+            }
+        }
+        var values = fields.Select(CSharpConfigurationValue);
+        builder.AppendLine(
+            $"            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $\"{string.Join("\\n", values.Select(value => $"{{{value}}}"))}\");"
+        );
+        builder.AppendLine("        }");
+    }
+
+    private static string CSharpConfigurationType(ExtensionConfigurationField field) =>
+        field.Type switch
+        {
+            "flags" or "u32" => "uint",
+            "u32_list" => "global::System.ReadOnlySpan<uint>",
+            "u64" or "event" => "ulong",
+            "f32" => "float",
+            "bool" => "bool",
+            "string" or "json_string" => "string",
+            "string_list" => "global::System.ReadOnlySpan<string>",
+            "enum" => Pascal(field.Name),
+            _ => throw new InvalidOperationException(
+                $"Unknown extension field type '{field.Type}'."
+            ),
+        };
+
+    private static string CSharpConfigurationValue(ExtensionConfigurationField field)
+    {
+        var name = Camel(field.Name);
+        return field.Type switch
+        {
+            "bool" => $"({name} ? 1 : 0)",
+            "enum" => $"{name}Value",
+            "u32_list" => $"{name}Value",
+            "json_string" => $"{name}Value",
+            "string_list" => $"{name}Value",
+            _ => name,
+        };
     }
 
     private static string GenerateExtensionRust(ExtensionSchema schema, ulong hash)
@@ -312,7 +543,144 @@ internal static partial class BindingGenerator
                     );
                 }
             }
+            AppendRustConfigurationParser(builder, component);
         }
         return builder.ToString();
+    }
+
+    private static void AppendRustConfigurationParser(
+        StringBuilder builder,
+        ExtensionComponent component
+    )
+    {
+        var fields = component.Configuration.Fields;
+        var componentName = Pascal(component.Kind);
+        var borrows = fields.Any(field => field.Type == "string");
+        foreach (var field in fields.Where(field => field.Type == "enum"))
+        {
+            builder.AppendLine();
+            builder.AppendLine("#[derive(Clone, Copy, Debug, Eq, PartialEq)]");
+            builder.AppendLine($"pub enum {componentName}{Pascal(field.Name)} {{");
+            foreach (var value in field.Values!)
+            {
+                builder.AppendLine($"    {Pascal(value)},");
+            }
+            builder.AppendLine("}");
+        }
+        var lifetime = borrows ? "<'a>" : string.Empty;
+        builder.AppendLine();
+        builder.AppendLine("#[derive(Clone, Debug, PartialEq)]");
+        builder.AppendLine($"pub struct {componentName}Configuration{lifetime} {{");
+        foreach (var field in fields)
+        {
+            builder.AppendLine(
+                $"    pub {field.Name}: {RustConfigurationType(componentName, field, borrows)},"
+            );
+        }
+        builder.AppendLine("}");
+        builder.AppendLine();
+        builder.AppendLine($"impl{lifetime} {componentName}Configuration{lifetime} {{");
+        var parseLifetime = borrows ? "value: &'a str" : "value: &str";
+        builder.AppendLine($"    pub fn parse({parseLifetime}) -> Option<Self> {{");
+        if (fields.Count == 0)
+        {
+            builder.AppendLine("        if value.is_empty() { Some(Self {}) } else { None }");
+            builder.AppendLine("    }");
+            builder.AppendLine("}");
+            return;
+        }
+        builder.AppendLine("        let mut fields = value.split('\\n');");
+        foreach (var field in fields)
+        {
+            var source = $"fields.next()?";
+            if (field.Type == "u32_list")
+            {
+                builder.AppendLine($"        let {field.Name}_source = fields.next()?;");
+                source = $"{field.Name}_source";
+            }
+            var parsed = field.Type switch
+            {
+                "string" => source,
+                "json_string" => $"serde_json::from_str::<String>({source}).ok()?",
+                "bool" => $"match {source} {{ \"0\" => false, \"1\" => true, _ => return None }}",
+                "enum" => RustEnumParser(componentName, field, source),
+                "u32_list" =>
+                    $"if {source}.is_empty() {{ Vec::new() }} else {{ {source}.split(',').map(|item| item.parse::<u32>().ok()).collect::<Option<Vec<_>>>()? }}",
+                "string_list" => $"serde_json::from_str::<Vec<String>>({source}).ok()?",
+                _ =>
+                    $"{source}.parse::<{RustConfigurationType(componentName, field, borrows)}>().ok()?",
+            };
+            builder.AppendLine($"        let {field.Name} = {parsed};");
+        }
+        builder.AppendLine("        if fields.next().is_some() {");
+        builder.AppendLine("            return None;");
+        builder.AppendLine("        }");
+        foreach (var field in fields)
+        {
+            if (field.Type == "f32")
+            {
+                builder.AppendLine($"        if !{field.Name}.is_finite() {{");
+                builder.AppendLine("            return None;");
+                builder.AppendLine("        }");
+            }
+            if (field.Type == "json_string")
+            {
+                builder.AppendLine($"        if {field.Name}.contains('\\0') {{");
+                builder.AppendLine("            return None;");
+                builder.AppendLine("        }");
+            }
+            if (field.Type == "flags")
+            {
+                builder.AppendLine(
+                    $"        if {field.Name} & !{UpperSnake(component.Kind)}_KNOWN_FLAGS != 0 {{"
+                );
+                builder.AppendLine("            return None;");
+                builder.AppendLine("        }");
+            }
+        }
+        builder.AppendLine("        Some(Self {");
+        foreach (var field in fields)
+        {
+            builder.AppendLine($"            {field.Name},");
+        }
+        builder.AppendLine("        })");
+        builder.AppendLine("    }");
+        builder.AppendLine("}");
+    }
+
+    private static string RustConfigurationType(
+        string componentName,
+        ExtensionConfigurationField field,
+        bool borrows
+    ) =>
+        field.Type switch
+        {
+            "flags" or "u32" => "u32",
+            "u32_list" => "Vec<u32>",
+            "string_list" => "Vec<String>",
+            "json_string" => "String",
+            "u64" or "event" => "u64",
+            "f32" => "f32",
+            "bool" => "bool",
+            "string" => borrows ? "&'a str" : "&str",
+            "enum" => componentName + Pascal(field.Name),
+            _ => throw new InvalidOperationException(
+                $"Unknown extension field type '{field.Type}'."
+            ),
+        };
+
+    private static string RustEnumParser(
+        string componentName,
+        ExtensionConfigurationField field,
+        string source
+    )
+    {
+        var cases = string.Join(
+            ", ",
+            field.Values!.Select(value =>
+                $"\"{value}\" => {componentName}{Pascal(field.Name)}::{Pascal(value)}"
+            )
+        );
+        return $"match {source} {{ {cases}, _ => return None }}";
     }
 }

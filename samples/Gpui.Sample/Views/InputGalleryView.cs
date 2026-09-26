@@ -165,6 +165,26 @@ internal sealed partial class InputGalleryView : View
                     )
                     .FontSize(Px(theme.Typography.BodySmall))
                     .TextColor(theme.Colors.TextMuted),
+                ui.Text(
+                        "Word keys: Option+Arrow/Backspace on macOS, Ctrl+Arrow/Backspace on Windows and Linux. Add Shift to select."u8
+                    )
+                    .FontSize(Px(theme.Typography.BodySmall))
+                    .TextColor(theme.Colors.TextMuted),
+                ui.Text(
+                        "Undo/redo: Cmd+Z / Cmd+Shift+Z on macOS; Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) on Windows and Linux."u8
+                    )
+                    .FontSize(Px(theme.Typography.BodySmall))
+                    .TextColor(theme.Colors.TextMuted),
+                ui.Text(
+                        "Double-click selects a word; drag beyond the field to extend. Triple-click selects all."u8
+                    )
+                    .FontSize(Px(theme.Typography.BodySmall))
+                    .TextColor(theme.Colors.TextMuted),
+                ui.Text(
+                        "Touch: long-press a word and drag to extend; whitespace places the caret."u8
+                    )
+                    .FontSize(Px(theme.Typography.BodySmall))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.HStack(search, password).Gap(Px(14)),
                 ui.HStack(readOnly, disabled).Gap(Px(14)),
                 ui.HStack(

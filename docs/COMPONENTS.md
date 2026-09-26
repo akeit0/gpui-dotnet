@@ -9,8 +9,7 @@ Checkbox, and Radio use foundation primitives for activation, focus, keyboard, a
 disabled behavior. Dock wears a small in-repo skin over the foundation layout engine, so the
 default host links no styled component facade. Other adapters remain direct GPUI or GPUI.NET
 implementations until their behavior families meet the migration parity criteria. Broad
-`gpui-component` facilities link only into custom hosts that select them, such as the optional
-editor host.
+`gpui-component` facilities link only into the optional component host.
 
 ## Component classes
 
@@ -30,6 +29,24 @@ managed and native packages contain no extension-specific component contract. Se
 
 Choose the simplest class that satisfies the behavior. A component needs a retained resource only
 when interaction state must survive independently from managed renders.
+
+## gpui-base and gpui-component boundary
+
+Both upstream crates are native implementation inputs; neither defines the managed API. The
+default host uses `gpui-base` where its behavior fits GPUI.NET's semantics. The optional component
+host uses `gpui-component` for themed presentation and more specialized controls.
+
+| Component need | Current boundary | Protocol consequence |
+| --- | --- | --- |
+| Shared behavior such as Button activation, focus, and accessibility | Base semantic component backed by `gpui-base` | Add an operation to `bindings/schema.json` only for a reusable managed concept; the base schema hash changes. |
+| Native interaction state such as Input, Slider, Scroll, List, Table, or Dock | Keyed retained resource; selected foundation behavior where it fits | Reconcile snapshots with coarse commands and events; keep pointer, IME, and viewport updates native. |
+| Themed catalog controls and compound optional features, including retained Textarea, Select, Combobox, Tree, Calendar, DatePicker, controlled Accordion, and batched Form fields | Typed API in `Gpui.Components`, native adapter in the combined component host | Add component kinds and configuration to the optional schema; the base semantic schema and C ABI remain unchanged. |
+
+An upstream Rust builder method alone does not justify a managed operation. A C ABI layout or
+entry-point change is needed only when the semantic transport cannot express the ownership or
+batching contract; such a change updates both runtimes and [ABI.md](ABI.md). The retained Editor in
+the component host is one example of a feature that needs bootstrap, revisioned commands, and
+events beyond a render-only declaration.
 
 ## Reference by topic
 
@@ -105,6 +122,7 @@ For a retained resource, also define stable identity, configuration reconciliati
 semantics, teardown, pending-command behavior, and the high-frequency ownership boundary before
 adding public API.
 
-For an optional component family, keep its typed managed contract in a separate schema assembly,
-register that schema in `bindings/extensions.json`, and link its Rust provider into an explicit
-custom host. See [EXTENSIONS.md](EXTENSIONS.md).
+For an optional component family, keep its typed managed contract in an optional schema assembly
+and link its Rust adapter into an explicit custom host. Families may share the catalog schema;
+a separate schema is useful only when its contract genuinely needs independent ownership or
+versioning. Register each schema in `bindings/extensions.json`. See [EXTENSIONS.md](EXTENSIONS.md).

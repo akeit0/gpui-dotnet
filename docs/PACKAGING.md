@@ -35,6 +35,13 @@ exactly one native host under its `runtimes/<rid>/native` path:
 `GPUI.NET` is the application-facing meta package. It also carries the Roslyn analyzer so
 `[GpuiView]` and `[GpuiListItem]` work without an additional package reference.
 
+The package boundary follows ownership. Core carries View lifetime, semantic rendering, and
+window commands because they share one managed session and native event loop. Optional component
+schema packages such as `GPUI.NET.Components.Schema` and `GPUI.NET.Editor.Schema` depend on Core;
+their providers are linked only by a host that selects them. Application file, process, and network
+services use the .NET libraries directly and do not require native host packages. Toast hosting
+uses a coarse window API and native retained state instead of joining the component schema.
+
 The default native host is also a dependency boundary. It must not link optional provider families
 merely because their managed schema packages are separate. Its Cargo dependencies and features
 should select only the implementations required by the base semantic surface. A custom host owns
@@ -95,7 +102,8 @@ Rust crates are not published, so their versions exist only to keep diagnostics 
 share one Cargo workspace version instead of repeating it per crate:
 
 - `crates/gpui-dotnet/Cargo.toml` defines `[workspace.package] version`.
-- the root, `hosts/default`, and `extensions/editor-host` packages all use
+- the root, `hosts/default`, `extensions/editor-provider`, and `extensions/components-host`
+  packages all use
   `version.workspace = true`.
 - `crates/gpui-dotnet/Cargo.lock` is generated; refresh it with Cargo after every bump.
 

@@ -192,6 +192,20 @@ namespace Gpui.Interop
         public delegate* unmanaged[Cdecl]<ulong, ulong, ulong, int, int> release_artifact;
         public delegate* unmanaged[Cdecl]<ulong, ulong, ulong, int> accept_artifact;
         public delegate* unmanaged[Cdecl]<ulong, ulong, int> menu_applied;
+        public delegate* unmanaged[Cdecl]<ulong, ulong, NativeWindowPlacement*, int> window_placement;
+        public delegate* unmanaged[Cdecl]<ulong, ulong, int> window_opened;
+        public delegate* unmanaged[Cdecl]<ulong, int> application_ready;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal unsafe partial struct NativeWindowPlacement
+    {
+        public float left;
+        public float top;
+        public float width;
+        public float height;
+        public uint state;
+        public uint reserved;
     }
 
     [StructLayout(LayoutKind.Sequential)]

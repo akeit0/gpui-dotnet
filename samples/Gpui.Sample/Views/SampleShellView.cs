@@ -60,6 +60,37 @@ internal sealed partial class SampleShellView : View
         window.SetTitle($"GPUI.NET Custom Title Bar — Window {window.Id}");
     }
 
+    private void OpenWindowInState(WindowInitialState state)
+    {
+        Application.OpenWindow(
+            CompanionWindowView.Spec(
+                $"Opened {state.ToString().ToLowerInvariant()} from the Windows gallery"
+            ),
+            new GpuiWindowOptions
+            {
+                Title = $"GPUI.NET {state}",
+                Width = 800,
+                Height = 580,
+                InitialState = state,
+            }
+        );
+    }
+
+    private void OpenWindowWithMinimumSize()
+    {
+        Application.OpenWindow(
+            CompanionWindowView.Spec("Try resizing this window below 560 × 380."),
+            new GpuiWindowOptions
+            {
+                Title = "GPUI.NET Minimum Size",
+                Width = 760,
+                Height = 520,
+                MinimumWidth = 560,
+                MinimumHeight = 380,
+            }
+        );
+    }
+
     private void CloseWindow()
     {
         Window.Close();
@@ -381,7 +412,27 @@ internal sealed partial class SampleShellView : View
                                     .Padding(Px(8))
                             )
                             .Gap(Px(10))
-                            .ItemsCenter()
+                            .ItemsCenter(),
+                        ui.HStack(
+                                ui.Button("open-maximized", "Open maximized")
+                                    .OnClick(
+                                        this,
+                                        (view, _) =>
+                                            view.OpenWindowInState(WindowInitialState.Maximized)
+                                    )
+                                    .Padding(Px(11)),
+                                ui.Button("open-fullscreen", "Open fullscreen")
+                                    .OnClick(
+                                        this,
+                                        (view, _) =>
+                                            view.OpenWindowInState(WindowInitialState.Fullscreen)
+                                    )
+                                    .Padding(Px(11)),
+                                ui.Button("open-minimum-size", "Open minimum size")
+                                    .OnClick(this, (view, _) => view.OpenWindowWithMinimumSize())
+                                    .Padding(Px(11))
+                            )
+                            .Gap(Px(10))
                     )
                     .Gap(Px(14))
                     .Padding(Px(22))

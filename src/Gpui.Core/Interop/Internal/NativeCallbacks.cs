@@ -892,6 +892,23 @@ internal static unsafe class NativeCallbacks
     }
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    internal static int ApplicationReady(ulong applicationId)
+    {
+        try
+        {
+            if (!NativeRegistry.Applications.TryGetValue(applicationId, out var application))
+                return -120;
+            return application.Ready();
+        }
+        catch (Exception exception)
+        {
+            if (NativeRegistry.Applications.TryGetValue(applicationId, out var application))
+                application.RecordFailure(exception);
+            return -121;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     internal static int WindowClosed(ulong applicationId, ulong windowId, int nativeStatus)
     {
         try
@@ -908,6 +925,47 @@ internal static unsafe class NativeCallbacks
             {
                 application.RecordFailure(exception);
             }
+            return -121;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    internal static int WindowOpened(ulong applicationId, ulong windowId)
+    {
+        try
+        {
+            if (!NativeRegistry.Applications.TryGetValue(applicationId, out var application))
+                return -120;
+            return application.WindowOpened(windowId);
+        }
+        catch (Exception exception)
+        {
+            if (NativeRegistry.Applications.TryGetValue(applicationId, out var application))
+                application.RecordFailure(exception);
+            return -121;
+        }
+    }
+
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe int WindowPlacement(
+        ulong applicationId,
+        ulong windowId,
+        NativeWindowPlacement* placement
+    )
+    {
+        try
+        {
+            if (
+                placement is null
+                || !NativeRegistry.Applications.TryGetValue(applicationId, out var application)
+            )
+                return -120;
+            return application.WindowPlacement(windowId, *placement);
+        }
+        catch (Exception exception)
+        {
+            if (NativeRegistry.Applications.TryGetValue(applicationId, out var application))
+                application.RecordFailure(exception);
             return -121;
         }
     }

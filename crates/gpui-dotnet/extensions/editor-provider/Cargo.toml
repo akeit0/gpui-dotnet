@@ -1,12 +1,12 @@
 [package]
-name = "gpui-dotnet-editor-host"
+name = "gpui-dotnet-editor-provider"
 version.workspace = true
 edition = "2024"
 publish = false
 
 [lib]
-name = "gpui_dotnet_editor"
-crate-type = ["cdylib"]
+name = "gpui_dotnet_editor_provider"
+crate-type = ["rlib"]
 
 [dependencies]
 gpui = { package = "gpui-pre", version = "0.3.1" }

@@ -4,9 +4,16 @@ using static Gpui.Units;
 [GpuiView]
 internal sealed partial class OverlayGalleryView : View
 {
+    private readonly GpuiWindow _window;
     private OverlayDemo _open;
     private int _backgroundClicks;
     private int _contextMenuActions;
+
+    public OverlayGalleryView(ViewConstruction construction)
+        : base(construction)
+    {
+        _window = construction.Window;
+    }
 
     protected override Element Render(ref RenderContext ui)
     {
@@ -45,6 +52,41 @@ internal sealed partial class OverlayGalleryView : View
                                     view.Invalidate();
                                 }
                             )
+                            .Padding(Px(10))
+                    )
+                    .Gap(Px(10)),
+                ui.HStack(
+                        ui.Button("show-toast", "Show toast")
+                            .OnClick(
+                                this,
+                                (view, _) =>
+                                    view._window.ShowToast(
+                                        new GpuiToast(
+                                            "overlay-demo",
+                                            "File saved",
+                                            "The document is ready."
+                                        )
+                                    )
+                            )
+                            .Padding(Px(10)),
+                        ui.Button("replace-toast", "Replace toast")
+                            .OnClick(
+                                this,
+                                (view, _) =>
+                                    view._window.ShowToast(
+                                        new GpuiToast(
+                                            "overlay-demo",
+                                            "File updated",
+                                            "Same ID, new content."
+                                        )
+                                    )
+                            )
+                            .Padding(Px(10)),
+                        ui.Button("dismiss-toast", "Dismiss toast")
+                            .OnClick(this, (view, _) => view._window.DismissToast("overlay-demo"))
+                            .Padding(Px(10)),
+                        ui.Button("clear-toasts", "Clear toasts")
+                            .OnClick(this, (view, _) => view._window.ClearToasts())
                             .Padding(Px(10))
                     )
                     .Gap(Px(10)),

@@ -1,7 +1,4 @@
-using System.Buffers;
 using System.Buffers.Binary;
-using System.Buffers.Text;
-using System.Diagnostics;
 using System.Text;
 
 namespace Gpui.Editor;
@@ -427,21 +424,13 @@ public static class EditorElements
         );
     }
 
-    internal static byte[] Configuration(
+    internal static string Configuration(
         EditorOptions? options,
         ulong changedEventToken,
         ulong commandRejectedEventToken
     )
     {
         options ??= new EditorOptions();
-        ArgumentNullException.ThrowIfNull(options.Language);
-        if (options.Language.Contains('\0') || options.Language.Contains('\n'))
-        {
-            throw new ArgumentException(
-                "An editor language identifier cannot contain NUL or newline characters.",
-                nameof(options)
-            );
-        }
         uint flags = 0;
         flags |= options.Disabled ? EditorSchema.Editor.FlagDisabled : 0;
         flags |= options.ReadOnly ? EditorSchema.Editor.FlagReadOnly : 0;
@@ -457,62 +446,12 @@ public static class EditorElements
             );
         }
 
-        // Direct UTF-8 with no intermediate string: numbers format into
-        // stack buffers, the language encodes in place, and the single
-        // allocation is the returned configuration. The bytes match the
-        // historical decimal/newline layout exactly, so the native parser
-        // and the schema hash are untouched.
-        Span<byte> flagsBytes = stackalloc byte[10];
-        Span<byte> changedBytes = stackalloc byte[20];
-        Span<byte> rejectedBytes = stackalloc byte[20];
-        Span<byte> widthBytes = stackalloc byte[24];
-        if (
-            !Utf8Formatter.TryFormat(flags, flagsBytes, out var flagsLength)
-            || !Utf8Formatter.TryFormat(changedEventToken, changedBytes, out var changedLength)
-            || !Utf8Formatter.TryFormat(
-                commandRejectedEventToken,
-                rejectedBytes,
-                out var rejectedLength
-            )
-            || !Utf8Formatter.TryFormat(
-                lineNumberWidth,
-                widthBytes,
-                out var widthLength,
-                new StandardFormat('R')
-            )
-        )
-        {
-            throw new InvalidOperationException("Failed to encode the editor configuration.");
-        }
-        var languageLength = Encoding.UTF8.GetByteCount(options.Language);
-        var configuration = new byte[
-            checked(
-                flagsLength
-                + 1
-                + languageLength
-                + 1
-                + changedLength
-                + 1
-                + rejectedLength
-                + 1
-                + widthLength
-            )
-        ];
-        var destination = configuration.AsSpan();
-        flagsBytes[..flagsLength].CopyTo(destination);
-        var offset = flagsLength;
-        destination[offset++] = (byte)'\n';
-        offset += Encoding.UTF8.GetBytes(options.Language, destination[offset..]);
-        destination[offset++] = (byte)'\n';
-        changedBytes[..changedLength].CopyTo(destination[offset..]);
-        offset += changedLength;
-        destination[offset++] = (byte)'\n';
-        rejectedBytes[..rejectedLength].CopyTo(destination[offset..]);
-        offset += rejectedLength;
-        destination[offset++] = (byte)'\n';
-        widthBytes[..widthLength].CopyTo(destination[offset..]);
-        offset += widthLength;
-        Debug.Assert(offset == configuration.Length);
-        return configuration;
+        return EditorSchema.Editor.EncodeConfiguration(
+            flags,
+            options.Language,
+            changedEventToken,
+            commandRejectedEventToken,
+            lineNumberWidth
+        );
     }
 }

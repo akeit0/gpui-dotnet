@@ -24,7 +24,7 @@ elif [ "$workspace_version" != "$version" ]; then
     fail "Cargo workspace version '$workspace_version' does not match Directory.Build.props '$version'."
 fi
 
-for member in 'hosts/default' 'extensions/editor-host'; do
+for member in 'hosts/default' 'extensions/editor-provider' 'extensions/components-host'; do
     member_toml="$root/crates/gpui-dotnet/$member/Cargo.toml"
     if grep -q '^version[[:space:]]*=' "$member_toml"; then
         fail "crates/gpui-dotnet/$member/Cargo.toml sets an explicit version; use 'version.workspace = true'."
@@ -39,7 +39,7 @@ if ! grep -q '^version\.workspace[[:space:]]*=[[:space:]]*true' "$root/crates/gp
 fi
 
 lock="$root/crates/gpui-dotnet/Cargo.lock"
-for name in 'gpui-dotnet' 'gpui-dotnet-default-host' 'gpui-dotnet-editor-host'; do
+for name in 'gpui-dotnet' 'gpui-dotnet-default-host' 'gpui-dotnet-editor-provider' 'gpui-dotnet-components-host'; do
     lock_version=$(grep -A2 -F "name = \"$name\"" "$lock" | sed -n 's/^version = "\(.*\)"/\1/p' | head -n 1)
     if [ -z "${lock_version:-}" ]; then
         fail "Cargo.lock has no entry for '$name'."

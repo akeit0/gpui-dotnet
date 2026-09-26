@@ -5,8 +5,8 @@ namespace Gpui.Editor;
 internal static class EditorSchema
 {
     internal const string ExtensionId = "gpui.net.editor";
-    internal const uint SchemaVersion = 5u;
-    internal const ulong SchemaHash = 0x71E653D1D546F7FFUL;
+    internal const uint SchemaVersion = 6u;
+    internal const ulong SchemaHash = 0x5441198555E07694UL;
 
     internal static class Editor
     {
@@ -29,5 +29,23 @@ internal static class EditorSchema
             | FlagLineNumbers
             | FlagFolding
             | FlagShowWhitespace;
+
+        internal static string EncodeConfiguration(uint flags, string language, ulong changedEvent, ulong commandRejectedEvent, float lineNumberWidth)
+        {
+            if ((flags & ~KnownFlags) != 0)
+            {
+                throw new global::System.ArgumentOutOfRangeException(nameof(flags), "Unknown extension flags were supplied.");
+            }
+            global::System.ArgumentNullException.ThrowIfNull(language);
+            if (language.Contains('\0') || language.Contains('\n') || language.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(language));
+            }
+            if (!float.IsFinite(lineNumberWidth))
+            {
+                throw new global::System.ArgumentOutOfRangeException(nameof(lineNumberWidth), "Extension configuration numbers must be finite.");
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{flags}\n{language}\n{changedEvent}\n{commandRejectedEvent}\n{lineNumberWidth}");
+        }
     }
 }

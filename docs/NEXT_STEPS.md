@@ -9,7 +9,7 @@ documents.
    and retained controls. Cover pointer/keyboard transitions, theme changes, and declaration
    replacement without losing native state. Prioritize coherent behavior over additional part-color
    methods or sample variants.
-2. Input and focus foundations: word navigation, undo/redo, richer pointer selection, platform IME
+2. Input and focus foundations: touch selection handles and edit menu, platform IME
    tests, controlled-binding helpers, and composite focus entry/restoration where applications need it.
 3. Performance: optimize a measured application bottleneck. Evaluate GPUI tessellation/scene-buffer
    APIs only when workloads justify the work; its current public API consumes these buffers.
@@ -27,18 +27,9 @@ GPUI's single inherited foreground. The [upstream proposal](proposals/GPUI_CONTE
 records the evidence, alternatives, and acceptance criteria. Pursue upstream discussion if other
 GPUI applications need it; do not maintain a GPUI fork or expose unsupported role semantics.
 
-## Structural refactors
-
-- Move managed implementation sources into `src/Gpui.Core`, matching the project that compiles
-  them, and organize them by subsystem. Keep `src/Gpui` focused on the application package facade.
-
-Public API breaks are acceptable when they simplify these boundaries. Preserve the semantic
-batching model and native interaction ownership; these refactors require no upstream GPUI edits.
-
 ## Native host packaging
 
-- keep editor providers, grammars, and other optional runtime families exclusive to their custom
-  hosts;
+- keep optional providers, grammars, and assets exclusive to the custom hosts that use them;
 - evaluate Thin LTO and one release codegen unit against build time and frame-sensitive runtime
   performance before enabling them in packaging.
 
@@ -56,6 +47,8 @@ Remaining work is focused coverage, authoring, and platform verification:
 - accessible label/help/error relationships between fields and supporting elements;
 - List/Table viewport, items/rows, header, cell, and selection semantics;
 - Dock tabs, custom title-bar controls, and deferred-layer semantics;
+- optional component Tabs per-tab roving focus and screen-reader verification; the current strip
+  has one keyboard tab stop with native arrow/Home/End navigation and activation;
 - platform verification of focus, roles, values, and announcements, with backend limits documented.
 
 Reuse existing foundation and GPUI capabilities. Add missing managed semantics in coarse
@@ -63,26 +56,34 @@ declarations that compose with scoped commands and focus targets; do not restart
 
 ## Input
 
-Harden the single-line Input independently of the optional editor extension:
+Harden the single-line Input independently of the optional component Editor example:
 
-- word navigation and platform keymaps;
-- undo/redo and richer pointer selection;
-- accessible validation/help/error relationships for field compositions;
+- touch selection handles and edit menu;
+- native validation state and field help/error announcements on desktop accessibility backends;
 - a controlled-binding helper using revision-aware replacement that avoids destructive edit echoes;
 - IME and clipboard integration tests on every desktop platform.
 
-## Optional editor extension
+## Optional component extension
 
-Build on the separate `Gpui.Editor` schema and `gpui-dotnet-editor-host` runtime probe only where it
-validates reusable extension behavior:
+Build on the generated `Gpui.Components` schema and `gpui-dotnet-components-host` catalog:
 
-- optional undo/redo and multi-edit commands if an application needs them;
-- managed reconciliation helpers for applying revisioned UTF-8 edits and handling stale commands;
-- runtime language/highlighter changes and explicit unsupported-language behavior;
-- use native edit deltas for small edits if large-document measurements show full-document
-  comparison dominates; preserve revision checks and UTF-8 boundaries;
-- RID runtime packages and clean-consumer tests that never require Cargo;
-- IME, clipboard, undo, large-document, accessibility, and cross-platform behavior tests.
+- continue adding coherent families from the remaining upstream component inventory, prioritizing
+  components whose state and event ownership fit the existing declaration/event contract;
+- generate more of the public managed option/builder surface once repeated API shapes justify it;
+- design explicit retained datasource and command contracts for large or remote selection data,
+  Tree, collection, input, editor, overlay, and compound state families instead of encoding callbacks or
+  per-frame state in config;
+- add separate accessible help/error descriptions to optional form controls that currently expose
+  only an accessible label, and verify announcements with desktop accessibility backends;
+- add RID runtime packages, clean-consumer coverage, accessibility tests, and cross-platform visual
+  behavior verification.
+
+The retained Editor remains a contract example within the component host. Extend its language,
+edit-command, and large-document behavior when a consuming application requires it; the current
+probe does not set the catalog's structure or delivery priority.
+
+Do not claim inventory-complete coverage from constructor names alone. Each addition needs native
+materialization, managed semantics, theme behavior, event lifetime, and ownership tests.
 
 ## Dock
 
@@ -103,16 +104,13 @@ deltas across the managed boundary while a pointer is moving.
 - keyboard navigation and roving selection for menu items;
 - disabled, checked, radio, and submenu semantics;
 - keyboard/focus-triggered tooltips;
-- toast/notification hosting with ordering, timeout, pause, and reduced-motion behavior;
+- immediate toast entry/exit lifecycle under reduced motion, and cross-platform interaction
+  verification;
 - broader focus and dismissal integration tests.
-
-Keep stacking and dismissal window-owned in Rust while product visuals remain managed.
 
 ## Windows
 
-- minimum/maximum size and initial maximized/fullscreen options;
-- bounds persistence;
-- managed application/window lifecycle events;
+- maximum window size constraints if GPUI exposes a cross-platform option;
 - runtime repositioning if GPUI exposes a cross-platform operation;
 - platform verification for native and forced-managed title-bar modes.
 

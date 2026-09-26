@@ -2,6 +2,8 @@
 
 Input, Slider, and Dock keep interaction state in Rust while accepted declarations update their
 configuration and presentation. See [Interaction](INTERACTION.md) for custom focus targets.
+The optional `Gpui.Components` Textarea uses the same retained ownership principle through the
+component extension contract; see [Extensions](EXTENSIONS.md).
 
 ## Retained Input
 
@@ -17,6 +19,33 @@ editing does not cross into managed code. `Utf8InputOptions`, `InputEvent.Utf8Va
 controller overloads avoid unnecessary UTF-16 allocation. `InputEvent.Value` decodes lazily.
 Password inputs reject Copy and Cut without changing the clipboard, value, or selection.
 Paste and ordinary editing remain available subject to disabled and read-only settings.
+
+On macOS, Option+Left/Right moves by word, Shift+Option+Left/Right selects by word, and
+Option+Backspace/Delete removes a word. Windows and Linux use Control in place of Option. Word
+boundaries follow Unicode word segments without placing the caret inside a grapheme. In password
+fields, a word command treats the whole value as one unit rather than exposing its boundaries.
+Read-only inputs allow navigation and selection but reject deletion; disabled inputs reject both.
+
+Double-click selects a Unicode word segment, including whitespace when clicked. Dragging after a
+double-click extends by whole segments while keeping the original segment selected. Triple-click
+selects the entire single line. A masked password value selects as one unit on double-click.
+Pointer positions are clamped to grapheme boundaries before changing the caret or selection.
+Drag selection continues when the pointer leaves the Input bounds and applies the release position
+before ending the selection.
+On touch devices, a long press selects the word under the finger; dragging extends that selection
+by word even beyond the field. A long press on whitespace or an empty value places the caret, while
+a password value selects as one masked unit. Touch selection handles and an edit menu remain open
+work.
+
+Undo uses Command+Z on macOS or Control+Z on Windows and Linux. Redo uses Command+Shift+Z on
+macOS, and Control+Y or Control+Shift+Z on Windows and Linux. Adjacent typing forms one undo entry
+until selection, focus, or configuration changes; other edits form separate entries. An IME
+composition forms one entry when committed, and a canceled composition does not clear redo.
+History is bounded to 100 entries and 4 MiB of retained text per direction, keeping at least the
+most recent entry. A changed controller replacement clears history because it supplies an
+authoritative value; an identical replacement preserves it. Undo and redo advance the native
+revision and emit `OnChanged` when the value changes. Read-only and disabled inputs cannot replay
+history, and replay is unavailable during an active IME composition.
 
 `InputController` supports `Focus`, `Blur`, `SelectAll`, `SetValue`, and `SetValueIfCurrent`.
 The declarative initial value is consumed only when the native keyed resource is created.

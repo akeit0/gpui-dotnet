@@ -3,6 +3,12 @@
 Scroll, List, and Table retain viewport state natively. Virtual items are batched element snapshots,
 not mounted child Views. See [Components](COMPONENTS.md) for the authoring model.
 
+The optional [component Tree](EXTENSIONS.md) also virtualizes visible rows natively. It receives
+one bounded preorder metadata batch rather than per-row managed render callbacks. Native expansion
+and keyboard cursor state survive ordinary managed renders; application selection remains a
+separate stable ID. This local-data contract does not replace List/Table's batched datasource for
+large or remote collections.
+
 Native ownership is split between two modules. `crates/gpui-dotnet/src/collections/` owns
 collection behavior: `engine.rs` retains `ListState`, item batches, measurements, and revision
 reconciliation; `cursor.rs` owns the active index and epoch rules; `configuration.rs` decodes

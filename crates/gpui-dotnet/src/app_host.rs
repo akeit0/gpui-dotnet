@@ -1,22 +1,23 @@
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     rc::Rc,
     sync::{
         Arc, Mutex, OnceLock,
         atomic::{AtomicBool, AtomicI32, Ordering},
     },
+    time::Duration,
 };
 
 use async_channel::{Receiver, Sender, TrySendError};
 use gpui::{
     AnyWindowHandle, App, AppContext, Bounds, Context, IntoElement, Menu, MenuItem, Render,
-    TitlebarOptions, Window, WindowBounds, WindowDecorations, WindowOptions, div, point,
-    prelude::*, px, rgba, size,
+    Subscription, TitlebarOptions, Window, WindowBounds, WindowDecorations, WindowOptions, div,
+    point, prelude::*, px, rgba, size,
 };
 
 use crate::{
-    abi::ManagedCallbacks,
+    abi::{ManagedCallbacks, NativeWindowPlacement},
     arena::with_root_render_output,
     extension::NativeExtensionCommand,
     overlay::OverlayStack,
@@ -27,6 +28,7 @@ use crate::{
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
     theme::{NativeTheme, SharedTheme},
     trace,
+    window_toast::{WindowToast, WindowToastHost},
 };
 
 const INGRESS_CAPACITY: usize = 4096;
@@ -46,6 +48,9 @@ pub(crate) struct ManagedView {
     pub(crate) popover_menus: Rc<PopoverMenuGroup>,
     pub(crate) overlay_stack: Rc<OverlayStack>,
     pub(crate) theme: SharedTheme,
+    toasts: WindowToastHost,
+    toast_clock_running: bool,
+    bounds_subscription: Option<Subscription>,
 }
 
 enum ViewMessage {
@@ -115,11 +120,23 @@ pub(crate) enum ApplicationCommand {
         height: f32,
         activate: bool,
         title_bar_style: WindowTitleBarStyle,
+        initial_state: WindowInitialState,
+        minimum_size: Option<(f32, f32)>,
     },
     Close(u64),
     Activate(u64),
     Minimize(u64),
     ToggleMaximize(u64),
+    ToggleFullscreen(u64),
+    ShowToast {
+        window_id: u64,
+        toast: WindowToast,
+    },
+    DismissToast {
+        window_id: u64,
+        id: String,
+    },
+    ClearToasts(u64),
     SetTitle {
         window_id: u64,
         title: String,
@@ -178,6 +195,13 @@ pub(crate) enum WindowTitleBarStyle {
     Hidden,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WindowInitialState {
+    Normal,
+    Maximized,
+    Fullscreen,
+}
+
 #[derive(Clone)]
 struct ApplicationNotifier {
     sender: Sender<ApplicationCommand>,
@@ -214,6 +238,7 @@ impl Drop for ApplicationRegistration {
 
 struct ManagedWindowRegistration {
     handle: AnyWindowHandle,
+    placement: Rc<Cell<NativeWindowPlacement>>,
     _view_registration: ViewRegistration,
 }
 
@@ -364,6 +389,54 @@ impl ManagedView {
             popover_menus: Rc::new(PopoverMenuGroup::default()),
             overlay_stack: OverlayStack::new(),
             theme,
+            toasts: WindowToastHost::new(),
+            toast_clock_running: false,
+            bounds_subscription: None,
+        }
+    }
+
+    fn show_toast(&mut self, toast: WindowToast, window: &mut Window, cx: &mut Context<Self>) {
+        self.toasts.push(toast, cx.background_executor().now());
+        cx.notify();
+        if self.toast_clock_running {
+            return;
+        }
+        self.toast_clock_running = true;
+        cx.spawn_in(window, async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(Duration::from_millis(50))
+                    .await;
+                let Ok(continue_clock) = this.update(cx, |view, cx| {
+                    if view.toasts.advance(cx.background_executor().now()) {
+                        cx.notify();
+                    }
+                    if view.toasts.is_empty() {
+                        view.toast_clock_running = false;
+                        false
+                    } else {
+                        true
+                    }
+                }) else {
+                    break;
+                };
+                if !continue_clock {
+                    break;
+                }
+            }
+        })
+        .detach();
+    }
+
+    pub(crate) fn dismiss_toast(&mut self, id: &str, cx: &mut Context<Self>) {
+        if self.toasts.dismiss(id, cx.background_executor().now()) {
+            cx.notify();
+        }
+    }
+
+    fn clear_toasts(&mut self, cx: &mut Context<Self>) {
+        if self.toasts.clear(cx.background_executor().now()) {
+            cx.notify();
         }
     }
 
@@ -595,8 +668,14 @@ impl Render for ManagedView {
         self.schedule_dynamic_frame(dynamic_owners, window, cx);
 
         let item_tooltips = self.resources.item_tooltips.clone();
+        let toast_layer = (!self.toasts.is_empty()).then(|| self.toasts.layer(theme, cx));
+        // The managed root's Grow/Shrink styles only constrain it to the window when this host
+        // participates in flex layout. Without that contract, root scroll views expand to their
+        // full content height and never acquire an overflow range.
         div()
             .tab_group()
+            .flex()
+            .flex_col()
             .capture_key_down(cx.listener(|this, _, _, _| this.resources.shortcuts.begin()))
             .on_key_down(move |event, window, cx| {
                 item_tooltips.dismiss(window);
@@ -623,6 +702,7 @@ impl Render for ManagedView {
             .child(crate::item_tooltip::frame_end(
                 self.resources.item_tooltips.clone(),
             ))
+            .when_some(toast_layer, |root, layer| root.child(layer))
     }
 }
 
@@ -752,7 +832,7 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
     let application_status_in_app = Arc::clone(&application_status);
 
     gpui_platform::application()
-        .with_assets(())
+        .with_assets(crate::extension::NativeExtensionAssets)
         .run(move |cx: &mut App| {
             gpui_base::init(cx);
             crate::input::init(cx);
@@ -823,6 +903,15 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
             .detach();
 
             cx.activate(true);
+            let ready_status = unsafe {
+                callbacks
+                    .application_ready
+                    .expect("validated application-ready callback")(application_id)
+            };
+            if ready_status != 0 {
+                record_status(&application_status_in_app, ready_status);
+                cx.quit();
+            }
         });
 
     application_status.load(Ordering::Acquire)
@@ -918,6 +1007,8 @@ fn apply_application_command(
             height,
             activate,
             title_bar_style,
+            initial_state,
+            minimum_size,
         } => {
             let result = open_managed_window(
                 cx,
@@ -930,19 +1021,33 @@ fn apply_application_command(
                 height,
                 activate,
                 title_bar_style,
+                initial_state,
+                minimum_size,
                 theme.clone(),
             );
-            if let Err(status) = result {
-                record_status(application_status, status);
-                report_window_closed(
-                    application_id,
-                    window_id,
-                    status,
-                    callbacks,
-                    application_status,
-                );
-                if windows.borrow().is_empty() {
-                    cx.quit();
+            match result {
+                Ok(()) => {
+                    let status = unsafe {
+                        callbacks
+                            .window_opened
+                            .expect("validated window-opened callback")(
+                            application_id, window_id
+                        )
+                    };
+                    record_status(application_status, status);
+                }
+                Err(status) => {
+                    record_status(application_status, status);
+                    report_window_closed(
+                        application_id,
+                        window_id,
+                        status,
+                        callbacks,
+                        application_status,
+                    );
+                    if windows.borrow().is_empty() {
+                        cx.quit();
+                    }
                 }
             }
         }
@@ -964,6 +1069,32 @@ fn apply_application_command(
         ApplicationCommand::ToggleMaximize(window_id) => {
             if let Some(handle) = managed_window_handle(windows, window_id) {
                 let _ = handle.update(cx, |_, window, _| toggle_window_maximize(window));
+            }
+        }
+        ApplicationCommand::ToggleFullscreen(window_id) => {
+            if let Some(handle) = managed_window_handle(windows, window_id) {
+                let _ = handle.update(cx, |_, window, _| window.toggle_fullscreen());
+            }
+        }
+        ApplicationCommand::ShowToast { window_id, toast } => {
+            if let Some(handle) = managed_window_handle(windows, window_id)
+                .and_then(|handle| handle.downcast::<ManagedView>())
+            {
+                let _ = handle.update(cx, |view, window, cx| view.show_toast(toast, window, cx));
+            }
+        }
+        ApplicationCommand::DismissToast { window_id, id } => {
+            if let Some(handle) = managed_window_handle(windows, window_id)
+                .and_then(|handle| handle.downcast::<ManagedView>())
+            {
+                let _ = handle.update(cx, |view, _, cx| view.dismiss_toast(&id, cx));
+            }
+        }
+        ApplicationCommand::ClearToasts(window_id) => {
+            if let Some(handle) = managed_window_handle(windows, window_id)
+                .and_then(|handle| handle.downcast::<ManagedView>())
+            {
+                let _ = handle.update(cx, |view, _, cx| view.clear_toasts(cx));
             }
         }
         ApplicationCommand::SetTitle { window_id, title } => {
@@ -1046,6 +1177,8 @@ fn open_managed_window(
     height: f32,
     activate: bool,
     title_bar_style: WindowTitleBarStyle,
+    initial_state: WindowInitialState,
+    minimum_size: Option<(f32, f32)>,
     theme: SharedTheme,
 ) -> Result<(), i32> {
     if windows.borrow().contains_key(&window_id) {
@@ -1082,17 +1215,36 @@ fn open_managed_window(
     };
     let window_decorations =
         (title_bar_style != WindowTitleBarStyle::System).then_some(WindowDecorations::Client);
+    let window_bounds = match initial_state {
+        WindowInitialState::Normal => WindowBounds::Windowed(bounds),
+        WindowInitialState::Maximized => WindowBounds::Maximized(bounds),
+        WindowInitialState::Fullscreen => WindowBounds::Fullscreen(bounds),
+    };
+    let placement = Rc::new(Cell::new(NativeWindowPlacement {
+        left: f32::from(bounds.origin.x),
+        top: f32::from(bounds.origin.y),
+        width,
+        height,
+        state: match initial_state {
+            WindowInitialState::Normal => 0,
+            WindowInitialState::Maximized => 1,
+            WindowInitialState::Fullscreen => 2,
+        },
+        reserved: 0,
+    }));
+    let observed_placement = Rc::clone(&placement);
     let handle = cx
         .open_window(
             WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
+                window_bounds: Some(window_bounds),
                 titlebar,
                 focus: activate,
+                window_min_size: minimum_size.map(|(width, height)| size(px(width), px(height))),
                 window_decorations,
                 ..Default::default()
             },
-            move |_, cx| {
-                create_managed_view(
+            move |window, cx| {
+                let view = create_managed_view(
                     cx,
                     window_id,
                     callbacks,
@@ -1100,7 +1252,15 @@ fn open_managed_window(
                     invalidate_pending,
                     presence,
                     theme,
-                )
+                );
+                view.update(cx, |view, cx| {
+                    view.bounds_subscription =
+                        Some(cx.observe_window_bounds(window, move |_, window, _| {
+                            observed_placement
+                                .set(window_placement(window, observed_placement.get()));
+                        }));
+                });
+                view
             },
         )
         .map_err(|_| -45)?;
@@ -1110,6 +1270,7 @@ fn open_managed_window(
         window_id,
         ManagedWindowRegistration {
             handle,
+            placement,
             _view_registration: view_registration,
         },
     );
@@ -1121,6 +1282,51 @@ fn open_managed_window(
         let _ = handle.update(cx, |_, window, _| window.activate_window());
     }
     Ok(())
+}
+
+fn window_placement(window: &Window, previous: NativeWindowPlacement) -> NativeWindowPlacement {
+    let state = if window.is_fullscreen() {
+        2
+    } else if window.is_maximized() {
+        1
+    } else {
+        0
+    };
+    let bounds = window.window_bounds().get_bounds();
+    placement_for_bounds(previous, state, bounds)
+}
+
+fn placement_for_bounds(
+    previous: NativeWindowPlacement,
+    state: u32,
+    bounds: Bounds<gpui::Pixels>,
+) -> NativeWindowPlacement {
+    if state != 0 {
+        return NativeWindowPlacement { state, ..previous };
+    }
+    let (left, top, width, height) = (
+        f32::from(bounds.origin.x),
+        f32::from(bounds.origin.y),
+        f32::from(bounds.size.width),
+        f32::from(bounds.size.height),
+    );
+    if !left.is_finite()
+        || !top.is_finite()
+        || !width.is_finite()
+        || !height.is_finite()
+        || width <= 0.0
+        || height <= 0.0
+    {
+        return NativeWindowPlacement { state, ..previous };
+    }
+    NativeWindowPlacement {
+        left,
+        top,
+        width,
+        height,
+        state,
+        reserved: 0,
+    }
 }
 
 fn report_closed_windows(
@@ -1138,12 +1344,39 @@ fn report_closed_windows(
         .collect();
 
     for window_id in closed {
-        windows.borrow_mut().remove(&window_id);
+        let placement = windows
+            .borrow_mut()
+            .remove(&window_id)
+            .expect("registered window")
+            .placement
+            .get();
+        report_window_placement(
+            application_id,
+            window_id,
+            placement,
+            callbacks,
+            application_status,
+        );
         report_window_closed(application_id, window_id, 0, callbacks, application_status);
     }
     if windows.borrow().is_empty() {
         cx.quit();
     }
+}
+
+fn report_window_placement(
+    application_id: u64,
+    window_id: u64,
+    placement: NativeWindowPlacement,
+    callbacks: ManagedCallbacks,
+    application_status: &AtomicI32,
+) {
+    let status = unsafe {
+        callbacks
+            .window_placement
+            .expect("validated placement callback")(application_id, window_id, &placement)
+    };
+    record_status(application_status, status);
 }
 
 fn report_window_closed(
@@ -1272,6 +1505,37 @@ mod tests {
     use gpui::FocusHandle;
     use gpui_base::FocusTrapElement as _;
 
+    #[test]
+    fn maximized_placement_preserves_the_last_normal_rectangle() {
+        let original = NativeWindowPlacement {
+            left: 40.0,
+            top: 50.0,
+            width: 800.0,
+            height: 600.0,
+            state: 0,
+            reserved: 0,
+        };
+        let display = Bounds::new(point(px(0.0), px(0.0)), size(px(1920.0), px(1080.0)));
+        assert_eq!(
+            placement_for_bounds(original, 1, display),
+            NativeWindowPlacement {
+                state: 1,
+                ..original
+            }
+        );
+        let resized = Bounds::new(point(px(70.0), px(80.0)), size(px(900.0), px(650.0)));
+        assert_eq!(
+            placement_for_bounds(original, 0, resized),
+            NativeWindowPlacement {
+                left: 70.0,
+                top: 80.0,
+                width: 900.0,
+                height: 650.0,
+                ..original
+            }
+        );
+    }
+
     struct FocusTrapHarness {
         trap: FocusHandle,
         first: FocusHandle,
@@ -1301,6 +1565,51 @@ mod tests {
             assert!(cx.has_global::<gpui_base::Theme>());
             assert!(cx.has_global::<gpui_base::GlobalState>());
         });
+    }
+
+    #[gpui::test]
+    fn managed_root_is_a_flex_viewport_for_growing_scroll_content(cx: &mut gpui::TestAppContext) {
+        use crate::{
+            native_workloads::WorkloadArena,
+            resources::ResourceKey,
+            semantic::{
+                COMPONENT_DIV, COMPONENT_SCROLL, OP_FLEX_GROW, OP_HEIGHT_PX, OP_RESOURCE_OWNER,
+                OP_V_STACK, OP_WIDTH_PERCENT,
+            },
+        };
+
+        let mut arena = WorkloadArena::default();
+        let root = arena.node(COMPONENT_DIV, None);
+        arena.op(root, OP_V_STACK, 0);
+        arena.op(root, OP_FLEX_GROW, 1f32.to_bits() as u64);
+        arena.op(root, OP_WIDTH_PERCENT, 100f32.to_bits() as u64);
+        let scroll = arena.node_with_data(COMPONENT_SCROLL, Some(root), "catalog-scroll");
+        arena.op(scroll, OP_RESOURCE_OWNER, 1);
+        arena.op(scroll, OP_FLEX_GROW, 1f32.to_bits() as u64);
+        arena.op(scroll, OP_WIDTH_PERCENT, 100f32.to_bits() as u64);
+        let body = arena.node(COMPONENT_DIV, Some(scroll));
+        arena.op(body, OP_V_STACK, 0);
+        for _ in 0..8 {
+            let row = arena.node(COMPONENT_DIV, Some(body));
+            arena.op(row, OP_HEIGHT_PX, 100f32.to_bits() as u64);
+        }
+        let snapshot = arena.decode();
+        let (view, cx) = cx.add_window_view(move |_, _| {
+            let callbacks = unsafe { std::mem::zeroed() };
+            let mut view = ManagedView::new(1, callbacks, Default::default(), Default::default());
+            view.snapshot = snapshot;
+            view.has_snapshot = true;
+            view.dirty = false;
+            view
+        });
+        cx.simulate_resize(gpui::size(px(320.), px(240.)));
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+
+        let resource = view.read_with(cx, |view, _| {
+            view.resources
+                .scroll_resource(&ResourceKey::new(1, "catalog-scroll".into()))
+        });
+        assert!(resource.handle.max_offset().y > px(0.));
     }
 
     #[gpui::test]
@@ -1644,6 +1953,9 @@ mod tests {
             window_closed: None,
             menu_action: None,
             menu_applied: None,
+            window_placement: None,
+            window_opened: None,
+            application_ready: None,
             dynamic_frame: None,
             render_completed: None,
             release_artifact: None,

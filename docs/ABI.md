@@ -8,7 +8,7 @@ generation](BINDING_GENERATION.md) describes how to change them. Rebuild managed
 hosts together after schema changes.
 
 Rust [`abi.rs`](../crates/gpui-dotnet/src/abi.rs) defines the protocol version and layouts. The native
-build generates the [managed interop declarations](../src/Gpui/Interop/NativeMethods.g.cs).
+build generates the [managed interop declarations](../src/Gpui.Core/Interop/NativeMethods.g.cs).
 C-style signatures here illustrate the internal protocol.
 
 ## Discovery
@@ -55,12 +55,36 @@ callback table provides:
 - owner-view preparation for a requested dynamic frame;
 - retained control events (Input, Slider, Dock, List/Table item events, and observer key/mouse);
 - application-started notification;
+- application-ready notification after GPUI initialization and initial window creation;
+- window-opened notification after native creation;
 - window-closed notification;
+- final window placement before window-closed notification;
 - application-menu action dispatch;
 - application-menu installation acknowledgement (`menu_applied(application, generation)`).
 
 The callback table starts with `struct_size`, allowing native code to validate the available prefix.
 Every callback is a Cdecl unmanaged function pointer and returns an `int32_t` status.
+
+ABI 9 appends `window_placement(application_id, window_id, const NativeWindowPlacement*)` to the
+callback table. The 24-byte record has four `f32` restore coordinates (`left`, `top`, `width`,
+`height`), `u32 state` (0 normal, 1 maximized, 2 fullscreen), and a zero `u32 reserved` word.
+Native caches the last valid normal bounds on its application thread and sends one placement
+record immediately before `window_closed` for a successfully opened window. Maximized and
+fullscreen changes keep the cached restore rectangle; ordinary resize and move notifications
+update it. Managed copies and validates the borrowed record before closing the handle. An open
+failure has no placement record.
+
+ABI 10 appends `window_opened(application_id, window_id)` to the callback table. Native calls it
+once after inserting a successfully created window into the application registry. A failed open
+receives only the existing `window_closed` failure callback. Managed lifecycle events execute from
+these notifications; `window_placement` still precedes a successful close callback.
+
+ABI 11 appends `application_ready(application_id)`. The existing `application_started` callback
+still runs before GPUI creates its `App` and is used to enqueue initial windows. Native invokes
+`application_ready` once after GPUI initialization, processing initial Open commands, and activating
+the application, provided at least one window opened. A nonzero callback status requests native
+shutdown and is returned through the normal application failure path. Managed `Stopped` notification
+is local to `GpuiApplication.Run()` after native return and managed cleanup; it has no ABI callback.
 
 The native application is registered before the application-started callback, so managed code can
 enqueue initial windows synchronously. A window ID is also its render-session ID. Closing one window
@@ -316,11 +340,16 @@ Current commands are:
 
 | Command | Contract |
 |---|---|
-| Open | UTF-8 title, positive size, optional position/activation, title-bar style |
+| Open | UTF-8 title, positive restore size, optional position/activation, title-bar style, initial state |
+| OpenWithMinimumSize | versioned UTF-8 title and positive minimum size, plus the Open geometry and flags |
 | Close | existing window ID |
 | Activate | existing window ID |
 | Minimize | existing window ID |
 | ToggleMaximize | existing window ID |
+| ToggleFullscreen | existing window ID |
+| ShowToast | versioned UTF-8 toast payload, existing window ID |
+| DismissToast | non-empty UTF-8 toast ID, existing window ID |
+| ClearToasts | empty payload, existing window ID |
 | SetTitle | non-empty UTF-8 title |
 | Resize | positive finite width and height |
 | SetTheme | versioned appearance and resolved semantic palette, application-scoped |
@@ -328,9 +357,28 @@ Current commands are:
 | EvictImage | non-empty UTF-8 path, application-scoped broadcast |
 | ManagedCodeUpdated | empty application-scoped Hot Reload invalidation |
 
-Open flags encode optional position, activation, and `System`, `Custom`, or `Hidden` title-bar
-style. Runtime reposition is not exposed because the pinned GPUI revision has no durable
-cross-platform operation for it.
+Open flags use bit 0 for optional position, bit 1 for activation, bits 2–3 for `System`, `Custom`,
+or `Hidden` title-bar style, and bits 4–5 for initial state (`Normal`, `Maximized`, or `Fullscreen`).
+Bits 6–15 and the fourth value of either two-bit field are rejected. Width, height, and optional
+position are restore bounds when the window opens maximized or fullscreen. Runtime reposition is
+not exposed because the pinned GPUI revision has no durable cross-platform operation for it.
+
+`OpenWithMinimumSize` (command 16) keeps the Open flags and geometry fields. Its borrowed byte
+range contains a 20-byte header: version (`u32`, currently 1), minimum width and height (`f32`),
+title byte length (`u32`), and reserved zero (`u32`), all little-endian. The non-empty UTF-8 title
+follows the header and is limited to 4096 bytes. Both minimum dimensions must be finite, positive,
+and no greater than the restore dimensions. The native entry point validates and copies the entire
+payload before enqueueing a window-open command. Plain Open remains valid for windows with no
+minimum size; no C struct or entry point changes.
+
+`ShowToast` (command 13) uses the borrowed byte range as a version 1 payload. Its 24-byte header
+contains six little-endian `u32` fields: version, timeout in milliseconds, ID byte length, title
+byte length, description byte length, and reserved zero. The UTF-8 fields follow in that order,
+with no terminators. ID and title must be non-empty; their limits are 256 and 4096 bytes, and the
+description limit is 16384 bytes. Timeout zero is persistent; the maximum is one day. The native
+entry point checks exact length, bounds, UTF-8, version, and reserved fields before copying the
+toast into the application command queue. `DismissToast` (14) accepts at most 256 UTF-8 bytes;
+`ClearToasts` (15) has no payload. All three commands target one open window.
 
 The theme command uses the command record's byte pointer as a private fixed-size payload. Payload
 version 2 is 20 sequential little-endian `u32` values: version, appearance (`0` Light or `1` Dark),
@@ -627,7 +675,7 @@ requires process isolation.
 When changing C layouts or entry points:
 
 1. update Rust records and `GpuiDotnetApiV3` (or introduce the next table version);
-2. regenerate `src/Gpui/Interop/NativeMethods.g.cs` through the native build/csbindgen path;
+2. regenerate `src/Gpui.Core/Interop/NativeMethods.g.cs` through the native build/csbindgen path;
 3. update managed size/version checks and tests;
 4. update this document;
 5. build and test every affected RID.
