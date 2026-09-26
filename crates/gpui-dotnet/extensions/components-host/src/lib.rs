@@ -271,7 +271,8 @@ fn textarea(
     let resource = resources.get_or_insert_with(&request.resource_key, || {
         let state = cx.new(|cx| {
             TextareaState::new(window, cx)
-                .rows(config.rows as usize)
+                // Plain rows leave the outer input at a one-line minimum height.
+                .auto_grow(config.rows as usize, config.rows as usize)
                 .placeholder(config.placeholder.to_owned())
                 .default_value(config.initial_value.clone())
         });
@@ -340,7 +341,7 @@ fn textarea(
     if resource.rows.replace(config.rows) != config.rows {
         resource
             .state
-            .update(cx, |state, cx| state.set_rows(config.rows as usize, cx));
+            .update(cx, |state, cx| state.set_auto_grow(config.rows as usize, config.rows as usize, cx));
     }
     if resource.placeholder.borrow().as_str() != config.placeholder {
         resource.state.update(cx, |state, cx| {

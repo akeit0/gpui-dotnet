@@ -9,6 +9,8 @@ public sealed record ComponentTextareaOptions
     public string InitialValue { get; init; } = string.Empty;
 
     public string Placeholder { get; init; } = string.Empty;
+
+    /// <summary>Visible row count and native viewport height.</summary>
     public uint Rows { get; init; } = 3;
     public bool Disabled { get; init; }
     public bool ReadOnly { get; init; }

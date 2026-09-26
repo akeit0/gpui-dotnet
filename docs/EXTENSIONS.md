@@ -87,7 +87,8 @@ Collapsible, Toolbar, ToolbarGroup, Breadcrumb, Tabs, and Textarea.
 `Textarea` is an ordinary multiline field with keyed native value, selection, IME, undo, and
 scrolling state. Its initial value is consumed when the resource is created; subsequent declarations
 update placeholder, row count, disabled/read-only state, accessibility label, and callback binding.
-User edits can emit a copied UTF-8 value with a native revision. `Focus` and `SetValue` are coarse
+`Rows` sets the visible field height and its native text viewport. User edits can emit a copied
+UTF-8 value with a native revision. `Focus` and `SetValue` are coarse
 commands; a changed replacement clears selection, scroll, and undo history without emitting a
 change event, while an identical replacement preserves them. It uses the existing component host
 and generic extension transport.
