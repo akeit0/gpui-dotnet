@@ -30,6 +30,30 @@ managed and native packages contain no extension-specific component contract. Se
 Choose the simplest class that satisfies the behavior. A component needs a retained resource only
 when interaction state must survive independently from managed renders.
 
+## Foundation and facade boundary
+
+The upstream `gpui-base` and `gpui-component` crates are implementation inputs, not managed API
+layers. Their Rust module hierarchy does not determine GPUI.NET's semantic or extension schema.
+
+| Need | Current implementation | Managed and ABI boundary |
+| --- | --- | --- |
+| Basic activation, focus, and accessibility | `gpui-base` Button, Checkbox, Radio | Base semantic nodes and click callbacks |
+| Scrollbar interaction and Dock layout | Selected `gpui-base` facilities with GPUI.NET adapters | Base retained resources and coarse commands/events |
+| Single-line Input, Slider, List, Table | GPUI.NET retained engines, with selected foundation behavior | Base retained resources; native pointer, edit, and viewport state |
+| Styled display and controlled catalog controls | `gpui-component` in the optional component host | `Gpui.Components` schema and generic extension envelope |
+| Rich Editor | Separate `gpui-component` provider, linked with host feature `editor` | `Gpui.Editor` schema, revisioned commands and edit events |
+
+The default host links `gpui-base` but not `gpui-component`. The component host always registers
+the component catalog; its `editor` Cargo feature adds the independently versioned Editor schema
+and provider. A managed application lists only the extension requirements it uses. Host negotiation
+rejects a missing provider or mismatched schema before startup.
+
+Choose a base semantic operation for behavior shared across applications, a retained base resource
+when native state must survive snapshots, and an extension schema for an optional product family.
+Keep high-frequency interaction and collection item state native in each case. Do not add a base
+operation merely because an upstream Rust builder exposes a method; do not encode a retained
+datasource or editor as a sequence of property strings.
+
 ## Reference by topic
 
 | Topic | Reference |

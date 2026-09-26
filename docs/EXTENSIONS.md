@@ -71,28 +71,12 @@ revisions, and payload layouts remain schema-owned.
 
 `src/Gpui.Editor` is a separate managed schema project. The
 `gpui-dotnet-editor-provider` crate contains the retained `gpui-component` Editor provider. The
-single `gpui-dotnet-components-host` registers it alongside the broader component catalog; there is
-no editor-only native host. Neither managed schema project is referenced by the `GPUI.NET` or
-`GPUI.NET.Core` package graph.
+`gpui-dotnet-components-host` links it only with Cargo feature `editor`; its default build registers
+the component catalog alone. There is no editor-only native host. Neither managed schema project is
+referenced by the `GPUI.NET` or `GPUI.NET.Core` package graph.
 
-The sample proves build-time composition and startup negotiation:
-
-```sh
-dotnet run --project samples/Gpui.Editor.Sample/Gpui.Editor.Sample.csproj
-```
-
-Its project builds the custom host, copies the uniquely named native library beside the executable,
-and selects it explicitly:
-
-```csharp
-var application = new GpuiApplication(
-    new NativeRuntimeOptions
-    {
-        LibraryPath = Path.Combine(AppContext.BaseDirectory, "gpui_dotnet_components.dll"),
-        Extensions = [EditorExtension.Requirement],
-    }
-);
-```
+The [editor sample](../samples/Gpui.Editor.Sample/README.md) shows the host build and startup
+selection.
 
 The Editor component retains native Rope, incremental Tree-sitter parse state, selection, scrolling,
 highlighting, undo, focus, and IME state. The component host currently bundles only the Rust grammar;
@@ -115,15 +99,16 @@ The accepted ownership, revision, bootstrap, command, and event design is docume
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes Editor plus thirty-six component families. Display and content coverage includes
+The host's default build includes thirty-six component families. Display and content coverage includes
 Spinner, Skeleton, Separator, Badge, Tag, linear and circular Progress, Alert, GroupBox, Label, Kbd,
 Avatar, Icon, ShimmerText, Attachment, Empty, StatusBar, Bubble, BubbleGroup, Message,
 MessageGroup, Marker, and DescriptionList. Interactive and controlled coverage includes Rating,
 Button, Link, Switch, Checkbox, Radio, Toggle, Pagination, Collapsible, Toolbar, ToolbarGroup,
 Breadcrumb, and Tabs.
 Editor keeps its independently versioned
-`Gpui.Editor` managed schema; applications using both schemas list both requirements, and the host
-advertises and serves both. Parent-capable controls receive one batched managed child list. Native
+`Gpui.Editor` managed schema; applications using both schemas build the host with `--features editor`
+and list both requirements. The host advertises only compiled providers. Parent-capable controls
+receive one batched managed child list. Native
 callbacks use schema-owned event IDs and payloads, while current values remain managed-authoritative.
 Resolved GPUI.NET theme roles are projected into the component theme on startup and every theme
 change.

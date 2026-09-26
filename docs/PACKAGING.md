@@ -46,6 +46,8 @@ The default native host is also a dependency boundary. It must not link optional
 merely because their managed schema packages are separate. Its Cargo dependencies and features
 should select only the implementations required by the base semantic surface. A custom host owns
 the additional component crates, parsers, grammars, and assets selected by its extension set.
+The component host's `editor` Cargo feature links the editor provider and its grammar. Without
+that feature, the component host advertises only the component catalog.
 Release packaging should record native artifact sizes and inspect the resolved dependency or link
 graph so accidental provider leakage is visible. The current Dock-related size work and reference
 measurements are tracked in

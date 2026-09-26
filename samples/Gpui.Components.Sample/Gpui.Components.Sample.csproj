@@ -36,7 +36,7 @@
 
     <Target Name="BuildComponentsNativeHost" BeforeTargets="CoreCompile">
         <Exec
-            Command="cargo build --manifest-path &quot;$(ComponentsHostManifest)&quot; --package gpui-dotnet-components-host $(ComponentsHostCargoArgument)"
+            Command="cargo build --manifest-path &quot;$(ComponentsHostManifest)&quot; --package gpui-dotnet-components-host --features editor $(ComponentsHostCargoArgument)"
             Condition="'$(GpuiNativePrebuilt)' != 'true'"
         />
         <Copy
