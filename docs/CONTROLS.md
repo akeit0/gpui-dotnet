@@ -18,6 +18,12 @@ controller overloads avoid unnecessary UTF-16 allocation. `InputEvent.Value` dec
 Password inputs reject Copy and Cut without changing the clipboard, value, or selection.
 Paste and ordinary editing remain available subject to disabled and read-only settings.
 
+On macOS, Option+Left/Right moves by word, Shift+Option+Left/Right selects by word, and
+Option+Backspace/Delete removes a word. Windows and Linux use Control in place of Option. Word
+boundaries follow Unicode word segments without placing the caret inside a grapheme. In password
+fields, a word command treats the whole value as one unit rather than exposing its boundaries.
+Read-only inputs allow navigation and selection but reject deletion; disabled inputs reject both.
+
 `InputController` supports `Focus`, `Blur`, `SelectAll`, `SetValue`, and `SetValueIfCurrent`.
 The declarative initial value is consumed only when the native keyed resource is created.
 `SetValue` normalizes line breaks to spaces. If the resulting value already matches, it preserves

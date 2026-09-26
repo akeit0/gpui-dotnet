@@ -35,8 +35,14 @@ actions!(
         Delete,
         Left,
         Right,
+        WordLeft,
+        WordRight,
         SelectLeft,
         SelectRight,
+        SelectWordLeft,
+        SelectWordRight,
+        DeleteWordLeft,
+        DeleteWordRight,
         SelectAll,
         Home,
         End,
@@ -53,8 +59,32 @@ pub(crate) fn init(cx: &mut App) {
         KeyBinding::new("delete", Delete, Some("GpuiDotnetInput")),
         KeyBinding::new("left", Left, Some("GpuiDotnetInput")),
         KeyBinding::new("right", Right, Some("GpuiDotnetInput")),
+        #[cfg(target_os = "macos")]
+        KeyBinding::new("alt-left", WordLeft, Some("GpuiDotnetInput")),
+        #[cfg(target_os = "macos")]
+        KeyBinding::new("alt-right", WordRight, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("ctrl-left", WordLeft, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("ctrl-right", WordRight, Some("GpuiDotnetInput")),
         KeyBinding::new("shift-left", SelectLeft, Some("GpuiDotnetInput")),
         KeyBinding::new("shift-right", SelectRight, Some("GpuiDotnetInput")),
+        #[cfg(target_os = "macos")]
+        KeyBinding::new("alt-shift-left", SelectWordLeft, Some("GpuiDotnetInput")),
+        #[cfg(target_os = "macos")]
+        KeyBinding::new("alt-shift-right", SelectWordRight, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("ctrl-shift-left", SelectWordLeft, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("ctrl-shift-right", SelectWordRight, Some("GpuiDotnetInput")),
+        #[cfg(target_os = "macos")]
+        KeyBinding::new("alt-backspace", DeleteWordLeft, Some("GpuiDotnetInput")),
+        #[cfg(target_os = "macos")]
+        KeyBinding::new("alt-delete", DeleteWordRight, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("ctrl-backspace", DeleteWordLeft, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("ctrl-delete", DeleteWordRight, Some("GpuiDotnetInput")),
         KeyBinding::new("secondary-a", SelectAll, Some("GpuiDotnetInput")),
         KeyBinding::new("home", Home, Some("GpuiDotnetInput")),
         KeyBinding::new("end", End, Some("GpuiDotnetInput")),
@@ -360,6 +390,20 @@ impl ManagedInput {
         }
     }
 
+    fn word_left(&mut self, _: &WordLeft, _: &mut Window, cx: &mut Context<Self>) {
+        if self.disabled {
+            return;
+        }
+        self.move_to(self.previous_word_boundary(self.cursor_offset()), cx);
+    }
+
+    fn word_right(&mut self, _: &WordRight, _: &mut Window, cx: &mut Context<Self>) {
+        if self.disabled {
+            return;
+        }
+        self.move_to(self.next_word_boundary(self.cursor_offset()), cx);
+    }
+
     fn select_left(&mut self, _: &SelectLeft, _: &mut Window, cx: &mut Context<Self>) {
         if !self.disabled {
             self.select_to(self.previous_boundary(self.cursor_offset()), cx);
@@ -369,6 +413,18 @@ impl ManagedInput {
     fn select_right(&mut self, _: &SelectRight, _: &mut Window, cx: &mut Context<Self>) {
         if !self.disabled {
             self.select_to(self.next_boundary(self.cursor_offset()), cx);
+        }
+    }
+
+    fn select_word_left(&mut self, _: &SelectWordLeft, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.disabled {
+            self.select_to(self.previous_word_boundary(self.cursor_offset()), cx);
+        }
+    }
+
+    fn select_word_right(&mut self, _: &SelectWordRight, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.disabled {
+            self.select_to(self.next_word_boundary(self.cursor_offset()), cx);
         }
     }
 
@@ -408,6 +464,36 @@ impl ManagedInput {
         }
         if self.selected_range.is_empty() {
             self.select_to(self.next_boundary(self.cursor_offset()), cx);
+        }
+        self.replace_text_in_range(None, "", window, cx);
+    }
+
+    fn delete_word_left(
+        &mut self,
+        _: &DeleteWordLeft,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.can_edit() {
+            return;
+        }
+        if self.selected_range.is_empty() {
+            self.select_to(self.previous_word_boundary(self.cursor_offset()), cx);
+        }
+        self.replace_text_in_range(None, "", window, cx);
+    }
+
+    fn delete_word_right(
+        &mut self,
+        _: &DeleteWordRight,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if !self.can_edit() {
+            return;
+        }
+        if self.selected_range.is_empty() {
+            self.select_to(self.next_word_boundary(self.cursor_offset()), cx);
         }
         self.replace_text_in_range(None, "", window, cx);
     }
@@ -514,6 +600,34 @@ impl ManagedInput {
             .grapheme_indices(true)
             .find_map(|(index, _)| (index > offset).then_some(index))
             .unwrap_or(self.content.len())
+    }
+
+    fn previous_word_boundary(&self, offset: usize) -> usize {
+        if self.password {
+            return 0;
+        }
+        let target = self.content[..offset]
+            .split_word_bound_indices()
+            .rfind(|(_, segment)| !segment.trim_start().is_empty())
+            .map_or(0, |(index, _)| index);
+        self.content
+            .grapheme_indices(true)
+            .rev()
+            .find_map(|(index, _)| (index <= target).then_some(index))
+            .unwrap_or(0)
+    }
+
+    fn next_word_boundary(&self, offset: usize) -> usize {
+        if self.password {
+            return self.content.len();
+        }
+        let target = self.content[offset..]
+            .split_word_bound_indices()
+            .find(|(_, segment)| !segment.trim_start().is_empty())
+            .map_or(self.content.len(), |(index, segment)| {
+                offset + index + segment.len()
+            });
+        self.clamp_grapheme_forward(target)
     }
 
     fn index_for_mouse_position(&self, position: Point<Pixels>) -> usize {
@@ -823,8 +937,14 @@ impl Render for ManagedInput {
             .on_action(cx.listener(Self::delete))
             .on_action(cx.listener(Self::left))
             .on_action(cx.listener(Self::right))
+            .on_action(cx.listener(Self::word_left))
+            .on_action(cx.listener(Self::word_right))
             .on_action(cx.listener(Self::select_left))
             .on_action(cx.listener(Self::select_right))
+            .on_action(cx.listener(Self::select_word_left))
+            .on_action(cx.listener(Self::select_word_right))
+            .on_action(cx.listener(Self::delete_word_left))
+            .on_action(cx.listener(Self::delete_word_right))
             .on_action(cx.listener(Self::select_all))
             .on_action(cx.listener(Self::home))
             .on_action(cx.listener(Self::end))
@@ -1184,6 +1304,70 @@ mod tests {
             b: 0,
             data: data.into(),
         }
+    }
+
+    #[gpui::test]
+    fn word_boundaries_follow_unicode_segments_without_splitting_graphemes(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        let input = cx.update(input_entity);
+        cx.update(|cx| {
+            input.update(cx, |input, _| {
+                input.content = shared("one  café 🦊");
+                let cafe = input.content.find("café").unwrap();
+                let fox = input.content.find('🦊').unwrap();
+                assert_eq!(input.previous_word_boundary(input.content.len()), fox);
+                assert_eq!(input.previous_word_boundary(fox), cafe);
+                assert_eq!(input.previous_word_boundary(cafe), 0);
+                assert_eq!(input.next_word_boundary(0), 3);
+                assert_eq!(input.next_word_boundary(3), cafe + "café".len());
+                assert_eq!(
+                    input.next_word_boundary(cafe + "café".len()),
+                    input.content.len()
+                );
+                input.password = true;
+                assert_eq!(input.previous_word_boundary(fox), 0);
+                assert_eq!(input.next_word_boundary(0), input.content.len());
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn word_navigation_selection_and_deletion_respect_editability(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.content = shared("one two three");
+                input.selected_range = 4..4;
+                input.read_only = true;
+                let revision = input.revision;
+                input.select_word_right(&SelectWordRight, window, cx);
+                assert_eq!(input.selected_range, 4..7);
+                input.select_word_left(&SelectWordLeft, window, cx);
+                assert_eq!(input.selected_range, 4..4);
+                input.word_right(&WordRight, window, cx);
+                assert_eq!(input.selected_range, 7..7);
+                input.selected_range = 0..13;
+                input.word_left(&WordLeft, window, cx);
+                assert_eq!(input.selected_range, 8..8);
+                input.selected_range = 0..13;
+                input.selection_reversed = true;
+                input.word_right(&WordRight, window, cx);
+                assert_eq!(input.selected_range, 3..3);
+                input.delete_word_left(&DeleteWordLeft, window, cx);
+                assert_eq!(input.content.as_ref(), "one two three");
+                assert_eq!(input.revision, revision);
+                input.read_only = false;
+                input.selected_range = 8..8;
+                input.delete_word_left(&DeleteWordLeft, window, cx);
+                assert_eq!(input.content.as_ref(), "one three");
+                assert_ne!(input.revision, revision);
+                input.disabled = true;
+                input.word_left(&WordLeft, window, cx);
+                assert_eq!(input.selected_range, 4..4);
+            });
+        });
     }
 
     #[gpui::test]
