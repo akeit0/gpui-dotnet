@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 11u;
-    internal const ulong SchemaHash = 0x16EDFAA83481B83FUL;
+    internal const uint SchemaVersion = 12u;
+    internal const ulong SchemaHash = 0x1819D8A9591D88B9UL;
 
     internal static class Attachment
     {
@@ -67,16 +67,17 @@ internal static class ComponentSchema
                 throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(title));
             }
             global::System.ArgumentNullException.ThrowIfNull(description);
-            if (description.Contains('\0') || description.Contains('\n') || description.Contains('\r'))
+            if (description.Contains('\0'))
             {
-                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(description));
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL characters.", nameof(description));
             }
+            var descriptionValue = global::System.Text.Json.JsonSerializer.Serialize(description);
             global::System.ArgumentNullException.ThrowIfNull(previewSource);
             if (previewSource.Contains('\0') || previewSource.Contains('\n') || previewSource.Contains('\r'))
             {
                 throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(previewSource));
             }
-            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{axisValue}\n{statusValue}\n{title}\n{description}\n{previewSource}\n{(mediaChild ? 1 : 0)}\n{(contentChild ? 1 : 0)}\n{(hasActions ? 1 : 0)}\n{clickedEvent}");
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{axisValue}\n{statusValue}\n{title}\n{descriptionValue}\n{previewSource}\n{(mediaChild ? 1 : 0)}\n{(contentChild ? 1 : 0)}\n{(hasActions ? 1 : 0)}\n{clickedEvent}");
         }
     }
 
@@ -489,11 +490,12 @@ internal static class ComponentSchema
                 throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(title));
             }
             global::System.ArgumentNullException.ThrowIfNull(message);
-            if (message.Contains('\0') || message.Contains('\n') || message.Contains('\r'))
+            if (message.Contains('\0'))
             {
-                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(message));
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL characters.", nameof(message));
             }
-            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{variantValue}\n{title}\n{message}\n{(banner ? 1 : 0)}\n{closedEvent}");
+            var messageValue = global::System.Text.Json.JsonSerializer.Serialize(message);
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{variantValue}\n{title}\n{messageValue}\n{(banner ? 1 : 0)}\n{closedEvent}");
         }
     }
 
@@ -879,11 +881,12 @@ internal static class ComponentSchema
                 throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(title));
             }
             global::System.ArgumentNullException.ThrowIfNull(description);
-            if (description.Contains('\0') || description.Contains('\n') || description.Contains('\r'))
+            if (description.Contains('\0'))
             {
-                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(description));
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL characters.", nameof(description));
             }
-            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{mediaVariantValue}\n{title}\n{description}\n{(hasMedia ? 1 : 0)}\n{(hasContent ? 1 : 0)}\n{(hasFooter ? 1 : 0)}");
+            var descriptionValue = global::System.Text.Json.JsonSerializer.Serialize(description);
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{mediaVariantValue}\n{title}\n{descriptionValue}\n{(hasMedia ? 1 : 0)}\n{(hasContent ? 1 : 0)}\n{(hasFooter ? 1 : 0)}");
         }
     }
 

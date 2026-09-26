@@ -29,6 +29,8 @@ shared identity, component-kind, flag, command, and event constants. A component
 configuration fields also generate an invariant managed encoder plus the matching validating Rust
 parser and enum types. Hand-maintained protocol numbers and duplicate configuration parsers are not
 part of an extension implementation.
+JSON-encoded string fields allow multiline content within the line-based configuration envelope;
+both generated sides reject NUL, which is reserved by the generic node transport.
 
 Rust providers implement `gpui_dotnet::extension::NativeExtension`. A custom host calls
 `install_native_extensions` once and delegates its `gpui_dotnet_get_api` export to

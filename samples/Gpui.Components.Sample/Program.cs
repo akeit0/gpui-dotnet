@@ -177,7 +177,7 @@ internal sealed partial class ComponentsSampleView : View
                             new ComponentEmptyOptions
                             {
                                 Title = "No archived files",
-                                Description = "Archive the file above to see it here.",
+                                Description = "Archive the file above\nto see it here.",
                                 MediaVariant = ComponentEmptyMediaVariant.Icon,
                             },
                             media: ui.Icon(

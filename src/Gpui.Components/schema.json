@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 11,
+  "schemaVersion": 12,
   "components": [
     {
       "kind": "attachment",
@@ -11,7 +11,7 @@
           { "name": "axis", "type": "enum", "values": ["horizontal", "vertical"] },
           { "name": "status", "type": "enum", "values": ["pending", "uploading", "processing", "failed", "complete"] },
           { "name": "title", "type": "string" },
-          { "name": "description", "type": "string" },
+          { "name": "description", "type": "json_string" },
           { "name": "preview_source", "type": "string" },
           { "name": "media_child", "type": "bool" },
           { "name": "content_child", "type": "bool" },
@@ -180,7 +180,7 @@
           { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
           { "name": "variant", "type": "enum", "values": ["default", "info", "success", "warning", "error"] },
           { "name": "title", "type": "string" },
-          { "name": "message", "type": "string" },
+          { "name": "message", "type": "json_string" },
           { "name": "banner", "type": "bool" },
           { "name": "closed_event", "type": "event" }
         ]
@@ -400,7 +400,7 @@
         "fields": [
           { "name": "media_variant", "type": "enum", "values": ["default", "icon"] },
           { "name": "title", "type": "string" },
-          { "name": "description", "type": "string" },
+          { "name": "description", "type": "json_string" },
           { "name": "has_media", "type": "bool" },
           { "name": "has_content", "type": "bool" },
           { "name": "has_footer", "type": "bool" }

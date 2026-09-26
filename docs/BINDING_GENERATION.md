@@ -26,6 +26,10 @@ The `string_list` field encodes UTF-8 text as a compact JSON array on one line, 
 newlines and Unicode inside each item. The generated Rust parser returns a typed string vector;
 the provider validates any cross-field item relationship and includes `serde_json` as a direct
 dependency when it uses this field.
+The `json_string` field uses a JSON string on one line for one value that may contain newlines.
+Both generated sides reject NUL; the Rust parser returns an owned `String`. Use ordinary `string`
+for short single-line fields and `json_string` only where line breaks are meaningful. This changes
+the extension schema version and hash, not the base semantic schema or C ABI.
 
 Run:
 

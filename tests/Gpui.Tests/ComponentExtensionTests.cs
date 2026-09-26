@@ -9,7 +9,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(11u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(12u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -128,7 +128,7 @@ public sealed class ComponentExtensionTests
     public void AttachmentConfigurationAndClickEventUseTheGeneratedContract()
     {
         Assert.Equal(
-            "small\nvertical\nuploading\nreport.pdf\nUploading\n\n1\n1\n1\n17",
+            "small\nvertical\nuploading\nreport.pdf\n\"Uploading\"\n\n1\n1\n1\n17",
             ComponentSchema.Attachment.EncodeConfiguration(
                 ComponentSchema.Attachment.Size.Small,
                 ComponentSchema.Attachment.Axis.Vertical,
@@ -156,7 +156,7 @@ public sealed class ComponentExtensionTests
     public void EmptyConfigurationKeepsTheNamedSlotPresence()
     {
         Assert.Equal(
-            "icon\nNo files\nAdd a file to begin.\n1\n0\n1",
+            "icon\nNo files\n\"Add a file to begin.\"\n1\n0\n1",
             ComponentSchema.Empty.EncodeConfiguration(
                 ComponentSchema.Empty.MediaVariant.Icon,
                 "No files",
@@ -164,6 +164,32 @@ public sealed class ComponentExtensionTests
                 true,
                 false,
                 true
+            )
+        );
+    }
+
+    [Fact]
+    public void MultilineConfigurationTextStaysOneSchemaField()
+    {
+        Assert.Equal(
+            "icon\nNo files\n\"First line\\nSecond line\"\n0\n0\n0",
+            ComponentSchema.Empty.EncodeConfiguration(
+                ComponentSchema.Empty.MediaVariant.Icon,
+                "No files",
+                "First line\nSecond line",
+                false,
+                false,
+                false
+            )
+        );
+        Assert.Throws<ArgumentException>(() =>
+            ComponentSchema.Empty.EncodeConfiguration(
+                ComponentSchema.Empty.MediaVariant.Icon,
+                "No files",
+                "Invalid\0text",
+                false,
+                false,
+                false
             )
         );
     }

@@ -1493,7 +1493,7 @@ mod tests {
         assert!(PaginationConfiguration::parse("medium\n3\n10\n5\n0\n0\n23").is_some());
         assert!(CollapsibleConfiguration::parse("1\n1").is_some());
         let attachment = AttachmentConfiguration::parse(
-            "small\nvertical\nuploading\nreport.pdf\nUploading\n\n1\n1\n1\n17",
+            "small\nvertical\nuploading\nreport.pdf\n\"Uploading\"\n\n1\n1\n1\n17",
         )
         .unwrap();
         assert_eq!(attachment.status, AttachmentStatus::Uploading);
@@ -1501,15 +1501,18 @@ mod tests {
         assert!(attachment.content_child);
         assert!(attachment.has_actions);
         assert!(AttachmentConfiguration::parse(
-            "small\nvertical\nunknown\nreport.pdf\nUploading\n\n1\n1\n1\n17"
+            "small\nvertical\nunknown\nreport.pdf\n\"Uploading\"\n\n1\n1\n1\n17"
         )
         .is_none());
-        let empty = EmptyConfiguration::parse("icon\nNo files\nAdd a file to begin.\n1\n0\n1")
+        let empty = EmptyConfiguration::parse("icon\nNo files\n\"Add a file to begin.\"\n1\n0\n1")
             .unwrap();
         assert_eq!(empty.media_variant, EmptyMediaVariant::Icon);
         assert!(empty.has_media);
         assert!(!empty.has_content);
         assert!(empty.has_footer);
+        let multiline = EmptyConfiguration::parse("icon\nNo files\n\"First line\\nSecond line\"\n0\n0\n0").unwrap();
+        assert_eq!(multiline.description, "First line\nSecond line");
+        assert!(EmptyConfiguration::parse("icon\nNo files\n\"Invalid\\u0000text\"\n0\n0\n0").is_none());
         let toolbar = ToolbarConfiguration::parse("small\n1").unwrap();
         assert_eq!(toolbar.size, ToolbarSize::Small);
         assert!(toolbar.disabled);
