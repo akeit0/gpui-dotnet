@@ -24,6 +24,16 @@ boundaries follow Unicode word segments without placing the caret inside a graph
 fields, a word command treats the whole value as one unit rather than exposing its boundaries.
 Read-only inputs allow navigation and selection but reject deletion; disabled inputs reject both.
 
+Undo uses Command+Z on macOS or Control+Z on Windows and Linux. Redo uses Command+Shift+Z on
+macOS, and Control+Y or Control+Shift+Z on Windows and Linux. Adjacent typing forms one undo entry
+until selection, focus, or configuration changes; other edits form separate entries. An IME
+composition forms one entry when committed, and a canceled composition does not clear redo.
+History is bounded to 100 entries and 4 MiB of retained text per direction, keeping at least the
+most recent entry. A changed controller replacement clears history because it supplies an
+authoritative value; an identical replacement preserves it. Undo and redo advance the native
+revision and emit `OnChanged` when the value changes. Read-only and disabled inputs cannot replay
+history, and replay is unavailable during an active IME composition.
+
 `InputController` supports `Focus`, `Blur`, `SelectAll`, `SetValue`, and `SetValueIfCurrent`.
 The declarative initial value is consumed only when the native keyed resource is created.
 `SetValue` normalizes line breaks to spaces. If the resulting value already matches, it preserves

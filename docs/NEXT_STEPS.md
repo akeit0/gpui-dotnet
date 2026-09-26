@@ -9,7 +9,7 @@ documents.
    and retained controls. Cover pointer/keyboard transitions, theme changes, and declaration
    replacement without losing native state. Prioritize coherent behavior over additional part-color
    methods or sample variants.
-2. Input and focus foundations: undo/redo, richer pointer selection, platform IME
+2. Input and focus foundations: richer pointer selection, platform IME
    tests, controlled-binding helpers, and composite focus entry/restoration where applications need it.
 3. Performance: optimize a measured application bottleneck. Evaluate GPUI tessellation/scene-buffer
    APIs only when workloads justify the work; its current public API consumes these buffers.
@@ -59,7 +59,7 @@ declarations that compose with scoped commands and focus targets; do not restart
 
 Harden the single-line Input independently of the optional editor extension:
 
-- undo/redo and richer pointer selection;
+- richer pointer selection;
 - accessible validation/help/error relationships for field compositions;
 - a controlled-binding helper using revision-aware replacement that avoids destructive edit echoes;
 - IME and clipboard integration tests on every desktop platform.

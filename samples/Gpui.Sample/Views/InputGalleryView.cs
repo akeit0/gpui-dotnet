@@ -170,6 +170,11 @@ internal sealed partial class InputGalleryView : View
                     )
                     .FontSize(Px(theme.Typography.BodySmall))
                     .TextColor(theme.Colors.TextMuted),
+                ui.Text(
+                        "Undo/redo: Cmd+Z / Cmd+Shift+Z on macOS; Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z) on Windows and Linux."u8
+                    )
+                    .FontSize(Px(theme.Typography.BodySmall))
+                    .TextColor(theme.Colors.TextMuted),
                 ui.HStack(search, password).Gap(Px(14)),
                 ui.HStack(readOnly, disabled).Gap(Px(14)),
                 ui.HStack(

@@ -49,6 +49,8 @@ actions!(
         Paste,
         Cut,
         Copy,
+        Undo,
+        Redo,
         Submit,
     ]
 );
@@ -91,6 +93,13 @@ pub(crate) fn init(cx: &mut App) {
         KeyBinding::new("secondary-v", Paste, Some("GpuiDotnetInput")),
         KeyBinding::new("secondary-x", Cut, Some("GpuiDotnetInput")),
         KeyBinding::new("secondary-c", Copy, Some("GpuiDotnetInput")),
+        KeyBinding::new("secondary-z", Undo, Some("GpuiDotnetInput")),
+        #[cfg(target_os = "macos")]
+        KeyBinding::new("secondary-shift-z", Redo, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("secondary-y", Redo, Some("GpuiDotnetInput")),
+        #[cfg(not(target_os = "macos"))]
+        KeyBinding::new("secondary-shift-z", Redo, Some("GpuiDotnetInput")),
         KeyBinding::new("enter", Submit, Some("GpuiDotnetInput")),
     ]);
 }
@@ -162,6 +171,15 @@ pub(crate) struct InputInitialState<'a> {
     pub(crate) bindings: InputBindings,
 }
 
+const MAX_HISTORY_ENTRIES: usize = 100;
+const MAX_HISTORY_BYTES: usize = 4 * 1024 * 1024;
+
+struct EditSnapshot {
+    content: SharedString,
+    selected_range: Range<usize>,
+    selection_reversed: bool,
+}
+
 pub(crate) struct ManagedInput {
     session_id: u64,
     callbacks: ManagedCallbacks,
@@ -173,6 +191,10 @@ pub(crate) struct ManagedInput {
     selected_range: Range<usize>,
     selection_reversed: bool,
     marked_range: Option<Range<usize>>,
+    undo_history: Vec<EditSnapshot>,
+    redo_history: Vec<EditSnapshot>,
+    composition_before: Option<EditSnapshot>,
+    last_typing_end: Option<usize>,
     last_layout: Option<ShapedLine>,
     last_bounds: Option<Bounds<Pixels>>,
     #[cfg(test)]
@@ -210,6 +232,10 @@ impl ManagedInput {
             selected_range: cursor..cursor,
             selection_reversed: false,
             marked_range: None,
+            undo_history: Vec::new(),
+            redo_history: Vec::new(),
+            composition_before: None,
+            last_typing_end: None,
             last_layout: None,
             last_bounds: None,
             #[cfg(test)]
@@ -257,6 +283,7 @@ impl ManagedInput {
             self.is_selecting = false;
         }
         if changed {
+            self.last_typing_end = None;
             cx.notify();
         }
     }
@@ -275,6 +302,7 @@ impl ManagedInput {
                 self.conditional_write(command, cx);
             }
             COMMAND_INPUT_SELECT_ALL if !self.disabled => {
+                self.last_typing_end = None;
                 self.selected_range = 0..self.content.len();
                 self.selection_reversed = false;
                 cx.notify();
@@ -333,6 +361,7 @@ impl ManagedInput {
         if self.content == content {
             return;
         }
+        self.clear_history();
         let selection = preserve_selection.then(|| self.range_to_utf16(&self.selected_range));
         self.update_text_state(content, None);
         self.last_emitted_content = self.content.clone();
@@ -366,6 +395,87 @@ impl ManagedInput {
 
     fn can_edit(&self) -> bool {
         !self.disabled && !self.read_only
+    }
+
+    fn snapshot(&self) -> EditSnapshot {
+        EditSnapshot {
+            content: self.content.clone(),
+            selected_range: self.selected_range.clone(),
+            selection_reversed: self.selection_reversed,
+        }
+    }
+
+    fn clear_history(&mut self) {
+        self.undo_history.clear();
+        self.redo_history.clear();
+        self.composition_before = None;
+        self.last_typing_end = None;
+    }
+
+    fn push_history(history: &mut Vec<EditSnapshot>, snapshot: EditSnapshot) {
+        history.push(snapshot);
+        while history.len() > MAX_HISTORY_ENTRIES
+            || (history.len() > 1
+                && history
+                    .iter()
+                    .map(|entry| entry.content.len())
+                    .sum::<usize>()
+                    > MAX_HISTORY_BYTES)
+        {
+            history.remove(0);
+        }
+    }
+
+    fn record_edit(&mut self, before: EditSnapshot, typing_end: Option<usize>) {
+        let coalesce = typing_end.is_some()
+            && before.selected_range.is_empty()
+            && self.last_typing_end == Some(before.selected_range.end);
+        if !coalesce {
+            Self::push_history(&mut self.undo_history, before);
+        }
+        self.redo_history.clear();
+        self.last_typing_end = typing_end;
+    }
+
+    fn finish_composition(&mut self) {
+        if let Some(before) = self.composition_before.take() {
+            if before.content != self.content {
+                self.record_edit(before, None);
+            } else {
+                self.last_typing_end = None;
+            }
+        }
+    }
+
+    fn apply_snapshot(&mut self, snapshot: EditSnapshot, cx: &mut Context<Self>) {
+        self.update_text_state(snapshot.content, None);
+        self.selected_range = snapshot.selected_range;
+        self.selection_reversed = snapshot.selection_reversed;
+        self.last_typing_end = None;
+        self.emit_changed_if_needed(cx);
+        cx.notify();
+    }
+
+    fn undo(&mut self, _: &Undo, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.can_edit() || self.marked_range.is_some() {
+            return;
+        }
+        if let Some(snapshot) = self.undo_history.pop() {
+            let current = self.snapshot();
+            Self::push_history(&mut self.redo_history, current);
+            self.apply_snapshot(snapshot, cx);
+        }
+    }
+
+    fn redo(&mut self, _: &Redo, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.can_edit() || self.marked_range.is_some() {
+            return;
+        }
+        if let Some(snapshot) = self.redo_history.pop() {
+            let current = self.snapshot();
+            Self::push_history(&mut self.undo_history, current);
+            self.apply_snapshot(snapshot, cx);
+        }
     }
 
     fn left(&mut self, _: &Left, _: &mut Window, cx: &mut Context<Self>) {
@@ -430,6 +540,7 @@ impl ManagedInput {
 
     fn select_all(&mut self, _: &SelectAll, _: &mut Window, cx: &mut Context<Self>) {
         if !self.disabled {
+            self.last_typing_end = None;
             self.selected_range = 0..self.content.len();
             self.selection_reversed = false;
             cx.notify();
@@ -503,6 +614,7 @@ impl ManagedInput {
             return;
         }
         if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
+            self.last_typing_end = None;
             self.replace_text_in_range(None, single_line(&text).as_ref(), window, cx);
         }
     }
@@ -561,12 +673,14 @@ impl ManagedInput {
     }
 
     fn move_to(&mut self, offset: usize, cx: &mut Context<Self>) {
+        self.last_typing_end = None;
         self.selected_range = offset..offset;
         self.selection_reversed = false;
         cx.notify();
     }
 
     fn select_to(&mut self, offset: usize, cx: &mut Context<Self>) {
+        self.last_typing_end = None;
         if self.selection_reversed {
             self.selected_range.start = offset;
         } else {
@@ -774,6 +888,7 @@ impl EntityInputHandler for ManagedInput {
             self.revision = next_input_revision();
             cx.notify();
         }
+        self.finish_composition();
         self.emit_changed_if_needed(cx);
     }
 
@@ -792,6 +907,7 @@ impl EntityInputHandler for ManagedInput {
             .map(|range| self.range_from_utf16(range))
             .or(self.marked_range.clone())
             .unwrap_or(self.selected_range.clone());
+        let before = self.snapshot();
         let new_text = new_text.replace(['\r', '\n'], " ");
         let content = shared(
             &(self.content[..range.start].to_owned() + &new_text + &self.content[range.end..]),
@@ -800,6 +916,17 @@ impl EntityInputHandler for ManagedInput {
         let cursor = range.start + new_text.len();
         self.selected_range = cursor..cursor;
         self.selection_reversed = false;
+        if self.composition_before.is_some() {
+            self.finish_composition();
+        } else if before.content != self.content {
+            let typing_end = (before.selected_range.is_empty()
+                && range.is_empty()
+                && new_text.graphemes(true).count() == 1)
+                .then_some(cursor);
+            self.record_edit(before, typing_end);
+        } else {
+            self.last_typing_end = None;
+        }
         self.emit_changed_if_needed(cx);
         cx.notify();
     }
@@ -820,6 +947,10 @@ impl EntityInputHandler for ManagedInput {
             .map(|range| self.range_from_utf16(range))
             .or(self.marked_range.clone())
             .unwrap_or(self.selected_range.clone());
+        if self.composition_before.is_none() {
+            self.composition_before = Some(self.snapshot());
+            self.last_typing_end = None;
+        }
         let new_text = new_text.replace(['\r', '\n'], " ");
         let content = shared(
             &(self.content[..range.start].to_owned() + &new_text + &self.content[range.end..]),
@@ -838,6 +969,10 @@ impl EntityInputHandler for ManagedInput {
                 cursor..cursor
             });
         self.selection_reversed = false;
+        if self.marked_range.is_none() {
+            self.finish_composition();
+            self.emit_changed_if_needed(cx);
+        }
         cx.notify();
     }
 
@@ -898,6 +1033,7 @@ impl Render for ManagedInput {
             });
             let blurred = cx.on_blur(&focus, window, |this, _, cx| {
                 this.is_selecting = false;
+                this.last_typing_end = None;
                 this.emit(
                     this.bindings.focus_changed,
                     EVENT_INPUT_FOCUS_CHANGED,
@@ -951,6 +1087,8 @@ impl Render for ManagedInput {
             .on_action(cx.listener(Self::paste))
             .on_action(cx.listener(Self::cut))
             .on_action(cx.listener(Self::copy))
+            .on_action(cx.listener(Self::undo))
+            .on_action(cx.listener(Self::redo))
             .on_action(cx.listener(Self::submit))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
@@ -1366,6 +1504,95 @@ mod tests {
                 input.disabled = true;
                 input.word_left(&WordLeft, window, cx);
                 assert_eq!(input.selected_range, 4..4);
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn undo_coalesces_typing_and_new_edits_discard_redo(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.replace_text_in_range(None, "a", window, cx);
+                input.replace_text_in_range(None, "🦊", window, cx);
+                assert_eq!(input.undo_history.len(), 1);
+                let edited_revision = input.revision;
+                input.undo(&Undo, window, cx);
+                assert_eq!(input.content.as_ref(), "");
+                assert_eq!(input.selected_range, 0..0);
+                assert_ne!(input.revision, edited_revision);
+                input.redo(&Redo, window, cx);
+                assert_eq!(input.content.as_ref(), "a🦊");
+                input.undo(&Undo, window, cx);
+                input.replace_text_in_range(None, "b", window, cx);
+                assert!(input.redo_history.is_empty());
+                input.redo(&Redo, window, cx);
+                assert_eq!(input.content.as_ref(), "b");
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn ime_composition_is_one_undo_and_replay_respects_editability(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.replace_and_mark_text_in_range(None, "に", None, window, cx);
+                input.replace_and_mark_text_in_range(None, "日本", None, window, cx);
+                assert!(input.undo_history.is_empty());
+                input.undo(&Undo, window, cx);
+                assert_eq!(input.content.as_ref(), "日本");
+                input.unmark_text(window, cx);
+                assert_eq!(input.undo_history.len(), 1);
+                input.read_only = true;
+                input.undo(&Undo, window, cx);
+                assert_eq!(input.content.as_ref(), "日本");
+                input.read_only = false;
+                input.undo(&Undo, window, cx);
+                assert_eq!(input.content.as_ref(), "");
+                input.disabled = true;
+                input.redo(&Redo, window, cx);
+                assert_eq!(input.content.as_ref(), "");
+                input.disabled = false;
+                input.redo(&Redo, window, cx);
+                assert_eq!(input.content.as_ref(), "日本");
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn canceled_composition_preserves_redo(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.replace_text_in_range(None, "x", window, cx);
+                input.undo(&Undo, window, cx);
+                input.replace_and_mark_text_in_range(None, "に", None, window, cx);
+                input.replace_and_mark_text_in_range(None, "", None, window, cx);
+                assert!(input.undo_history.is_empty());
+                assert_eq!(input.redo_history.len(), 1);
+                input.redo(&Redo, window, cx);
+                assert_eq!(input.content.as_ref(), "x");
+            });
+        });
+    }
+
+    #[gpui::test]
+    fn changed_controller_value_starts_a_fresh_undo_history(cx: &mut gpui::TestAppContext) {
+        let input = cx.update(input_entity);
+        let (_, cx) = cx.add_window_view(|_, _| gpui::Empty);
+        cx.update(|window, cx| {
+            input.update(cx, |input, cx| {
+                input.replace_text_in_range(None, "typed", window, cx);
+                input.set_value("typed", cx);
+                assert_eq!(input.undo_history.len(), 1);
+                input.set_value("remote", cx);
+                assert!(input.undo_history.is_empty());
+                input.undo(&Undo, window, cx);
+                assert_eq!(input.content.as_ref(), "remote");
             });
         });
     }
