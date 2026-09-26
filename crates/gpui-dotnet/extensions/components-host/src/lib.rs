@@ -77,6 +77,7 @@ use gpui_dotnet::{
 };
 use gpui_dotnet_editor_provider::EDITOR_EXTENSION;
 
+mod accordion;
 #[path = "component_schema.g.rs"]
 mod component_schema;
 mod selection;
@@ -180,6 +181,7 @@ impl NativeExtension for ComponentsExtension {
             COMPONENT_SELECT => selection::select(request, resources, window, cx),
             COMPONENT_COMBOBOX => selection::combobox(request, resources, window, cx),
             COMPONENT_TREE => tree::tree(request, resources, window, cx),
+            COMPONENT_ACCORDION => accordion::accordion(request, resources, window, cx),
             COMPONENT_FORM => form(request),
             COMPONENT_EMPTY => empty(request),
             COMPONENT_TOOLBAR => toolbar(request),
@@ -1779,6 +1781,12 @@ mod tests {
         assert_eq!(checkbox.changed_event, 19);
         assert!(PaginationConfiguration::parse("medium\n3\n10\n5\n0\n0\n23").is_some());
         assert!(CollapsibleConfiguration::parse("1\n1").is_some());
+        let accordion = AccordionConfiguration::parse(
+            "medium\n10,20\n[\"First\",\"Second\"]\n0,1\n10\n0\n1\n0\n23",
+        )
+        .unwrap();
+        assert_eq!(accordion.item_ids, [10, 20]);
+        assert_eq!(accordion.open_ids, [10]);
         let attachment = AttachmentConfiguration::parse(
             "small\nvertical\nuploading\nreport.pdf\n\"Uploading\"\n\n1\n1\n1\n17",
         )

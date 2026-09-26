@@ -18,6 +18,11 @@ The file Tree below the selection controls starts with two expanded folders. Cli
 selection, use Up/Down to move the native cursor, Left/Right to collapse or expand, and Space to
 request the cursor's ID. Expansion persists when unrelated sample state changes. The disabled
 README row cannot be activated.
+The Accordion below the Tree starts with Review guidance open. Reorder sections to see the open
+section follow its ID, switch between single and multiple open modes, and try the disabled
+Archived policy header. Click the button inside the Review guidance panel to check that panel
+content does not toggle its header. With keyboard focus on the group, Up/Down or Home/End chooses
+an enabled header and Enter/Space requests its next open state.
 The notes field retains text, selection, and undo natively. Focus notes sends a focus command;
 Clear notes replaces the value and updates the sample's character count. The empty
 state uses the sample's `Assets/archive-box.svg` file through the native Icon

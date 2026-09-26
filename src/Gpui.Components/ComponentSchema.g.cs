@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 16u;
-    internal const ulong SchemaHash = 0x07C4EF8A2C1E4A01UL;
+    internal const uint SchemaVersion = 17u;
+    internal const ulong SchemaHash = 0x0861F749BF4266A7UL;
 
     internal static class Attachment
     {
@@ -854,6 +854,62 @@ internal static class ComponentSchema
         internal static string EncodeConfiguration(bool open, bool animated)
         {
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{(open ? 1 : 0)}\n{(animated ? 1 : 0)}");
+        }
+    }
+
+    internal static class Accordion
+    {
+        internal const string Kind = "accordion";
+        internal const ushort EventChanged = 1;
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal static string EncodeConfiguration(Size size, global::System.ReadOnlySpan<uint> itemIds, global::System.ReadOnlySpan<string> titles, global::System.ReadOnlySpan<uint> itemDisabled, global::System.ReadOnlySpan<uint> openIds, bool multiple, bool bordered, bool disabled, ulong changedEvent)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            var itemIdsBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < itemIds.Length; index++)
+            {
+                if (index != 0)
+                    itemIdsBuilder.Append(',');
+                itemIdsBuilder.Append(itemIds[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var itemIdsValue = itemIdsBuilder.ToString();
+            foreach (var item in titles)
+            {
+                global::System.ArgumentNullException.ThrowIfNull(item);
+            }
+            var titlesValue = global::System.Text.Json.JsonSerializer.Serialize(titles.ToArray());
+            var itemDisabledBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < itemDisabled.Length; index++)
+            {
+                if (index != 0)
+                    itemDisabledBuilder.Append(',');
+                itemDisabledBuilder.Append(itemDisabled[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var itemDisabledValue = itemDisabledBuilder.ToString();
+            var openIdsBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < openIds.Length; index++)
+            {
+                if (index != 0)
+                    openIdsBuilder.Append(',');
+                openIdsBuilder.Append(openIds[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var openIdsValue = openIdsBuilder.ToString();
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{itemIdsValue}\n{titlesValue}\n{itemDisabledValue}\n{openIdsValue}\n{(multiple ? 1 : 0)}\n{(bordered ? 1 : 0)}\n{(disabled ? 1 : 0)}\n{changedEvent}");
         }
     }
 

@@ -38,6 +38,10 @@ internal sealed partial class ComponentsSampleView : View
     private uint[] _selectedTopics = [1, 3];
     private string? _selectedTreeNode = "src/Program.cs";
     private string _treeActivity = "File tree ready";
+    private uint[] _openSections = [1];
+    private bool _multipleSections;
+    private bool _reverseSections;
+    private int _sectionActions;
     private bool _showAlert = true;
     private bool _switchChecked = true;
     private bool _checkboxChecked = true;
@@ -95,6 +99,34 @@ internal sealed partial class ComponentsSampleView : View
             },
             new ComponentRatingOptions { Value = _rating }
         );
+        ComponentAccordionItem[] sections =
+        [
+            new(
+                1,
+                "Review guidance",
+                ui.VStack(
+                        ui.Text("Check the attachment and record what needs revision."u8),
+                        ui.Button(
+                            "section-action",
+                            this,
+                            static (view, _) =>
+                            {
+                                view._sectionActions++;
+                                view.Invalidate();
+                            },
+                            new ComponentButtonOptions
+                            {
+                                Label = $"Reviewed {_sectionActions} times",
+                            }
+                        )
+                    )
+                    .Gap(Px(8))
+            ),
+            new(2, "Delivery", ui.Text("Send the reviewed file to the release team."u8)),
+            new(3, "Archived policy", ui.Text("This section cannot be toggled."u8), Disabled: true),
+        ];
+        if (_reverseSections)
+            Array.Reverse(sections);
         Element alert = _showAlert
             ? ui.Alert(
                 "component-alert",
@@ -710,6 +742,60 @@ internal sealed partial class ComponentsSampleView : View
                                 .Gap(Px(8))
                         )
                         .Gap(Px(20)),
+                    ui.VStack(
+                            ui.HStack(
+                                    ui.Button(
+                                        "reorder-sections",
+                                        this,
+                                        static (view, _) =>
+                                        {
+                                            view._reverseSections = !view._reverseSections;
+                                            view.Invalidate();
+                                        },
+                                        new ComponentButtonOptions { Label = "Reorder sections" }
+                                    ),
+                                    ui.Button(
+                                        "section-mode",
+                                        this,
+                                        static (view, _) =>
+                                        {
+                                            view._multipleSections = !view._multipleSections;
+                                            if (
+                                                !view._multipleSections
+                                                && view._openSections.Length > 1
+                                            )
+                                                view._openSections = [view._openSections[0]];
+                                            view.Invalidate();
+                                        },
+                                        new ComponentButtonOptions
+                                        {
+                                            Label = _multipleSections
+                                                ? "Multiple open"
+                                                : "Single open",
+                                        }
+                                    ),
+                                    ui.Text($"Open IDs: {string.Join(", ", _openSections)}")
+                                )
+                                .Gap(Px(12))
+                                .ItemsCenter(),
+                            ui.Accordion(
+                                    "review-sections",
+                                    this,
+                                    static (view, changed) =>
+                                    {
+                                        view._openSections = [.. changed.OpenIds];
+                                        view.Invalidate();
+                                    },
+                                    new ComponentAccordionOptions
+                                    {
+                                        OpenIds = _openSections,
+                                        Multiple = _multipleSections,
+                                    },
+                                    sections
+                                )
+                                .Width(Percent(100))
+                        )
+                        .Gap(Px(10)),
                     ui.Progress(
                         "upload-progress",
                         new ComponentProgressOptions

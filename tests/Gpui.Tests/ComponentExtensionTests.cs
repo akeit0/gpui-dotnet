@@ -10,7 +10,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(16u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(17u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -124,6 +124,64 @@ public sealed class ComponentExtensionTests
         Assert.Throws<InvalidOperationException>(() =>
             ComponentTreeEvent.Decode(
                 new NativeExtensionEvent(ComponentSchema.Tree.EventSelectionRequested, 1, 0, [65])
+            )
+        );
+    }
+
+    [Fact]
+    public void AccordionBatchesRequireStableIdsAndControlledOpenSet()
+    {
+        var batch = AccordionBatch.Create(
+            [new(10, "First", default), new(20, "Second", default, Disabled: true)],
+            [20u],
+            false
+        );
+        Assert.Equal([10u, 20u], batch.Ids);
+        Assert.Equal([0u, 1u], batch.Disabled);
+        Assert.Equal([20u], batch.OpenIds);
+        Assert.Throws<ArgumentException>(() =>
+            AccordionBatch.Create([new(10, "First", default), new(10, "Again", default)], [], true)
+        );
+        Assert.Throws<ArgumentException>(() =>
+            AccordionBatch.Create([new(10, "First", default)], [20u], true)
+        );
+        Assert.Throws<ArgumentException>(() =>
+            AccordionBatch.Create(
+                [new(10, "First", default), new(20, "Second", default)],
+                [10u, 20u],
+                false
+            )
+        );
+        Assert.Throws<ArgumentException>(() =>
+            AccordionBatch.Create([new(10, "\uD800", default)], [], false)
+        );
+    }
+
+    [Fact]
+    public void AccordionEventsDecodeTheCompleteOpenSet()
+    {
+        var changed = ComponentAccordionChangedEvent.Decode(
+            new NativeExtensionEvent(
+                ComponentSchema.Accordion.EventChanged,
+                0,
+                0,
+                [10, 0, 0, 0, 20, 0, 0, 0]
+            )
+        );
+        Assert.Equal([10u, 20u], changed.OpenIds);
+        Assert.Throws<InvalidOperationException>(() =>
+            ComponentAccordionChangedEvent.Decode(
+                new NativeExtensionEvent(ComponentSchema.Accordion.EventChanged, 0, 0, [10])
+            )
+        );
+        Assert.Throws<InvalidOperationException>(() =>
+            ComponentAccordionChangedEvent.Decode(
+                new NativeExtensionEvent(
+                    ComponentSchema.Accordion.EventChanged,
+                    0,
+                    0,
+                    [10, 0, 0, 0, 10, 0, 0, 0]
+                )
             )
         );
     }

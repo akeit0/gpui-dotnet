@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 16,
+  "schemaVersion": 17,
   "components": [
     {
       "kind": "attachment",
@@ -392,6 +392,28 @@
       "flags": {},
       "commands": {},
       "events": {}
+    },
+    {
+      "kind": "accordion",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "item_ids", "type": "u32_list" },
+          { "name": "titles", "type": "string_list" },
+          { "name": "item_disabled", "type": "u32_list" },
+          { "name": "open_ids", "type": "u32_list" },
+          { "name": "multiple", "type": "bool" },
+          { "name": "bordered", "type": "bool" },
+          { "name": "disabled", "type": "bool" },
+          { "name": "changed_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "changed": { "id": 1, "flags": "none", "payload": "little-endian u32 open item IDs", "revision": "none" }
+      }
     },
     {
       "kind": "empty",

@@ -2296,6 +2296,7 @@ dependencies = [
 name = "gpui-dotnet-components-host"
 version = "0.3.0-preview.1"
 dependencies = [
+ "gpui-base",
  "gpui-component",
  "gpui-dotnet",
  "gpui-dotnet-editor-provider",

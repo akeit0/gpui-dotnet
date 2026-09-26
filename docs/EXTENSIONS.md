@@ -77,13 +77,21 @@ revisions, and payload layouts remain schema-owned.
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes forty-one catalog families plus Editor, a retained extension example. Display
+The host includes forty-two catalog families plus Editor, a retained extension example. Display
 and content coverage includes Spinner, Skeleton, Separator, Badge, Tag, linear and circular
 Progress, Alert, GroupBox, Label, Kbd, Avatar, Icon, ShimmerText, Attachment, Empty, StatusBar,
 Bubble, BubbleGroup, Message, MessageGroup, Marker, and DescriptionList. Interactive and
 controlled coverage includes Rating, Button, Link, Switch, Checkbox, Radio, Toggle, Pagination,
-Collapsible, Toolbar, ToolbarGroup, Breadcrumb, Tabs, Select, Combobox, Tree, and Textarea. Form batches
+Collapsible, Accordion, Toolbar, ToolbarGroup, Breadcrumb, Tabs, Select, Combobox, Tree, and Textarea. Form batches
 a compound field layout with existing core or optional controls.
+
+`Accordion` groups managed content sections with stable numeric IDs. C# supplies the complete
+open-ID set and single or multiple policy on each declaration; one event requests the next full
+set. Native `gpui-base` headings, triggers, and panels provide structural accessibility, while
+the optional host supplies themed presentation, keyed panel motion, and keyboard navigation.
+Up/Down and Home/End move the native cursor among enabled sections; Enter/Space request a toggle.
+Reordering sections preserves ID-based open state and motion identity. The local batch is limited
+to 256 sections, each with one managed content element.
 
 `Tree` uses `gpui-base::TreeState` for native expansion, keyboard cursor, and virtual row rendering;
 the optional component layer supplies themed rows. A single preorder batch carries stable string
