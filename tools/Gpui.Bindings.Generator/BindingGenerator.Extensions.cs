@@ -84,11 +84,11 @@ internal static partial class BindingGenerator
             if (
                 component.Configuration is null
                 || component.Configuration.Encoding != "lines"
-                || component.Configuration.Fields is not { Count: > 0 }
+                || component.Configuration.Fields is null
             )
             {
                 throw new InvalidOperationException(
-                    $"Extension component '{component.Kind}' needs a non-empty 'lines' configuration."
+                    $"Extension component '{component.Kind}' needs a 'lines' configuration."
                 );
             }
             EnsureUnique(
@@ -359,6 +359,12 @@ internal static partial class BindingGenerator
         builder.AppendLine();
         builder.AppendLine($"        internal static string EncodeConfiguration({parameters})");
         builder.AppendLine("        {");
+        if (fields.Count == 0)
+        {
+            builder.AppendLine("            return string.Empty;");
+            builder.AppendLine("        }");
+            return;
+        }
         foreach (var field in fields)
         {
             var name = Camel(field.Name);
@@ -527,6 +533,13 @@ internal static partial class BindingGenerator
         builder.AppendLine($"impl{lifetime} {componentName}Configuration{lifetime} {{");
         var parseLifetime = borrows ? "value: &'a str" : "value: &str";
         builder.AppendLine($"    pub fn parse({parseLifetime}) -> Option<Self> {{");
+        if (fields.Count == 0)
+        {
+            builder.AppendLine("        if value.is_empty() { Some(Self {}) } else { None }");
+            builder.AppendLine("    }");
+            builder.AppendLine("}");
+            return;
+        }
         builder.AppendLine("        let mut fields = value.split('\\n');");
         foreach (var field in fields)
         {

@@ -115,9 +115,10 @@ The accepted ownership, revision, bootstrap, command, and event design is docume
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes Editor plus twenty-seven component families. Display and content coverage includes
+The host includes Editor plus thirty-two component families. Display and content coverage includes
 Spinner, Skeleton, Separator, Badge, Tag, linear and circular Progress, Alert, GroupBox, Label, Kbd,
-Avatar, ShimmerText, Attachment, Empty, and StatusBar. Interactive and controlled coverage includes Rating,
+Avatar, ShimmerText, Attachment, Empty, StatusBar, Bubble, BubbleGroup, Message, MessageGroup, and
+Marker. Interactive and controlled coverage includes Rating,
 Button, Link, Switch, Checkbox, Radio, Toggle, Pagination, Collapsible, Toolbar, and ToolbarGroup.
 Editor keeps its independently versioned
 `Gpui.Editor` managed schema; applications using both schemas list both requirements, and the host
@@ -144,6 +145,14 @@ disable its child controls, which remain application-owned declarations.
 `StatusBar` accepts independent left, center, and right regions. Its native layout places the
 outer regions at the edges and aligns the center according to which outer regions are present.
 Each region can contain a managed composition of text, controls, or other elements.
+
+Conversation composition uses `Bubble` for a themed content surface and optional reaction slot,
+`Message` for avatar/header/body/footer alignment, `Marker` for separators and loading/status rows,
+and the two group elements for spacing. The application owns message data and all actions. A
+Message can request a list-item accessibility role, and a Marker can request a status role. Ghost
+bubbles need `ContentHasGhostSurface` on their containing Message so header/footer insets match the
+unstyled body. These elements accept batched child declarations; they do not add message storage or
+per-item managed callbacks to the native host.
 
 The sample proves the generated configuration contract and custom-host composition:
 

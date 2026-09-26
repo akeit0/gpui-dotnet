@@ -1,7 +1,7 @@
 use std::{sync::Once, time::Duration};
 
 use gpui::{
-    AnyElement, App, Axis, Hsla, IntoElement as _, Keystroke, ParentElement as _, SharedString,
+    AnyElement, App, Axis, Hsla, IntoElement as _, Keystroke, ParentElement as _, Role, SharedString,
     Styled as _, Window, div, px, rgba,
 };
 use gpui_component::{
@@ -13,6 +13,10 @@ use gpui_component::{
     },
     avatar::Avatar,
     badge::Badge,
+    bubble::{
+        Bubble, BubbleGroup, BubbleReactionSide as NativeBubbleReactionSide, BubbleReactions,
+        BubbleVariant as NativeBubbleVariant,
+    },
     button::{
         Button, ButtonVariant as NativeButtonVariant, ButtonVariants as _, Toggle,
         ToggleVariant as NativeToggleVariant, ToggleVariants as _,
@@ -27,6 +31,14 @@ use gpui_component::{
     kbd::Kbd,
     label::{HighlightsMatch, Label},
     link::Link,
+    marker::{
+        Marker, MarkerAlignment as NativeMarkerAlignment, MarkerContent, MarkerIcon,
+        MarkerLoadingStyle as NativeMarkerLoadingStyle, MarkerVariant as NativeMarkerVariant,
+    },
+    message::{
+        Message, MessageAlignment as NativeMessageAlignment, MessageAvatar, MessageContent,
+        MessageFooter, MessageGroup, MessageHeader,
+    },
     pagination::Pagination,
     progress::{Progress, ProgressCircle},
     radio::Radio,
@@ -97,6 +109,11 @@ impl NativeExtension for ComponentsExtension {
             COMPONENT_TOOLBAR => toolbar(request),
             COMPONENT_TOOLBAR_GROUP => toolbar_group(request),
             COMPONENT_STATUS_BAR => status_bar(request),
+            COMPONENT_BUBBLE => bubble(request),
+            COMPONENT_BUBBLE_GROUP => bubble_group(request),
+            COMPONENT_MESSAGE => message(request),
+            COMPONENT_MESSAGE_GROUP => message_group(request),
+            COMPONENT_MARKER => marker(request),
             COMPONENT_SPINNER => spinner(request),
             COMPONENT_SKELETON => skeleton(request),
             COMPONENT_SEPARATOR => separator(request),
@@ -226,15 +243,15 @@ fn empty(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
     Ok(component.into_any_element())
 }
 
-fn split_slots(
+fn split_slots<const N: usize>(
     children: Vec<AnyElement>,
-    present: [bool; 3],
-) -> Result<[Option<AnyElement>; 3], SharedString> {
+    present: [bool; N],
+) -> Result<[Option<AnyElement>; N], SharedString> {
     if children.len() != present.into_iter().filter(|value| *value).count() {
         return Err("Component slot count does not match its configuration.".into());
     }
     let mut children = children.into_iter();
-    let mut slots = [None, None, None];
+    let mut slots = std::array::from_fn(|_| None);
     for (slot, present) in slots.iter_mut().zip(present) {
         if present {
             *slot = children.next();
@@ -284,6 +301,140 @@ fn status_bar(request: NativeExtensionRequest) -> Result<AnyElement, SharedStrin
     if let Some(right) = right {
         component = component.right(right);
     }
+    Ok(component.into_any_element())
+}
+
+fn bubble(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = BubbleConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Bubble configuration."))?;
+    let [content, reactions] = split_slots(
+        request.children,
+        [config.has_content, config.has_reactions],
+    )?;
+    let mut component = Bubble::new().with_variant(match config.variant {
+        BubbleVariant::Filled => NativeBubbleVariant::Filled,
+        BubbleVariant::Secondary => NativeBubbleVariant::Secondary,
+        BubbleVariant::Muted => NativeBubbleVariant::Muted,
+        BubbleVariant::Tinted => NativeBubbleVariant::Tinted,
+        BubbleVariant::Outline => NativeBubbleVariant::Outline,
+        BubbleVariant::Ghost => NativeBubbleVariant::Ghost,
+        BubbleVariant::Destructive => NativeBubbleVariant::Destructive,
+    });
+    component = match config.alignment {
+        BubbleAlignment::Inherit => component,
+        BubbleAlignment::Start => component.alignment(NativeMessageAlignment::Start),
+        BubbleAlignment::End => component.alignment(NativeMessageAlignment::End),
+    };
+    component.extend(content);
+    if let Some(reactions) = reactions {
+        let mut region = BubbleReactions::new()
+            .side(match config.reaction_side {
+                BubbleReactionSide::Top => NativeBubbleReactionSide::Top,
+                BubbleReactionSide::Bottom => NativeBubbleReactionSide::Bottom,
+            })
+            .alignment(match config.reaction_alignment {
+                BubbleReactionAlignment::Start => NativeMessageAlignment::Start,
+                BubbleReactionAlignment::End => NativeMessageAlignment::End,
+            });
+        region.extend([reactions]);
+        component = component.reactions(region);
+    }
+    Ok(component.into_any_element())
+}
+
+fn bubble_group(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    BubbleGroupConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid BubbleGroup configuration."))?;
+    let mut component = BubbleGroup::new();
+    component.extend(request.children);
+    Ok(component.into_any_element())
+}
+
+fn message(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = MessageConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Message configuration."))?;
+    let [avatar, header, content, footer] = split_slots(
+        request.children,
+        [
+            config.has_avatar,
+            config.has_header,
+            config.has_content,
+            config.has_footer,
+        ],
+    )?;
+    let mut component = Message::new()
+        .id(request.resource_key.key().to_owned())
+        .alignment(match config.alignment {
+            MessageAlignment::Start => NativeMessageAlignment::Start,
+            MessageAlignment::End => NativeMessageAlignment::End,
+        });
+    if config.accessible_list_item {
+        component = component.role(Role::ListItem);
+    }
+    if let Some(avatar) = avatar {
+        let mut slot = MessageAvatar::new();
+        slot.extend([avatar]);
+        component = component.avatar_slot(slot);
+    }
+    if let Some(header) = header {
+        let mut slot = MessageHeader::new().content_inset(!config.content_has_ghost_surface);
+        slot.extend([header]);
+        component = component.header(slot);
+    }
+    if let Some(content) = content {
+        let mut slot = MessageContent::new();
+        slot.extend([content]);
+        component = component.content(slot);
+    }
+    if let Some(footer) = footer {
+        let mut slot = MessageFooter::new().content_inset(!config.content_has_ghost_surface);
+        slot.extend([footer]);
+        component = component.footer(slot);
+    }
+    Ok(component.into_any_element())
+}
+
+fn message_group(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    MessageGroupConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid MessageGroup configuration."))?;
+    let mut component = MessageGroup::new();
+    component.extend(request.children);
+    Ok(component.into_any_element())
+}
+
+fn marker(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = MarkerConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Marker configuration."))?;
+    let [icon, extra] = split_slots(request.children, [config.has_icon, config.has_extra])?;
+    let mut component = Marker::new()
+        .with_variant(match config.variant {
+            MarkerVariant::Plain => NativeMarkerVariant::Plain,
+            MarkerVariant::Separator => NativeMarkerVariant::Separator,
+            MarkerVariant::Border => NativeMarkerVariant::Border,
+        })
+        .loading(config.loading)
+        .with_loading_style(match config.loading_style {
+            MarkerLoadingStyle::Spinner => NativeMarkerLoadingStyle::Spinner,
+            MarkerLoadingStyle::Shimmer => NativeMarkerLoadingStyle::Shimmer,
+        });
+    component = match config.alignment {
+        MarkerAlignment::Inherit => component,
+        MarkerAlignment::Start => component.alignment(NativeMarkerAlignment::Start),
+        MarkerAlignment::Center => component.alignment(NativeMarkerAlignment::Center),
+        MarkerAlignment::End => component.alignment(NativeMarkerAlignment::End),
+    };
+    if config.status_role {
+        component = component.id(request.resource_key.key().to_owned()).role(Role::Status);
+    }
+    if let Some(icon) = icon {
+        let mut slot = MarkerIcon::new();
+        slot.extend([icon]);
+        component = component.icon(slot);
+    }
+    if !config.text.is_empty() {
+        component = component.content(MarkerContent::new().text(config.text.to_owned()));
+    }
+    component.extend(extra);
     Ok(component.into_any_element())
 }
 
@@ -1030,6 +1181,22 @@ mod tests {
         assert!(status_bar.has_left);
         assert!(!status_bar.has_center);
         assert!(status_bar.has_right);
+        assert!(BubbleGroupConfiguration::parse("").is_some());
+        assert!(BubbleGroupConfiguration::parse("unexpected").is_none());
+        let bubble = BubbleConfiguration::parse("ghost\nend\ntop\nstart\n1\n1").unwrap();
+        assert_eq!(bubble.variant, BubbleVariant::Ghost);
+        assert_eq!(bubble.alignment, BubbleAlignment::End);
+        assert!(bubble.has_reactions);
+        assert!(MessageGroupConfiguration::parse("").is_some());
+        let message = MessageConfiguration::parse("end\n1\n0\n1\n1\n1\n0").unwrap();
+        assert_eq!(message.alignment, MessageAlignment::End);
+        assert!(message.accessible_list_item);
+        assert!(message.has_avatar);
+        assert!(!message.has_footer);
+        let marker = MarkerConfiguration::parse("separator\ncenter\n1\nshimmer\n1\nLoading\n0\n0")
+            .unwrap();
+        assert_eq!(marker.variant, MarkerVariant::Separator);
+        assert_eq!(marker.loading_style, MarkerLoadingStyle::Shimmer);
     }
 
     #[test]
@@ -1041,6 +1208,15 @@ mod tests {
         assert!(footer.is_none());
         assert!(split_slots(vec![], [true, false, false]).is_err());
         assert!(split_slots(vec![div().into_any_element()], [false, false, false]).is_err());
+        let [avatar, header, content, footer] = split_slots(
+            vec![div().into_any_element(), div().into_any_element()],
+            [true, false, true, false],
+        )
+        .unwrap();
+        assert!(avatar.is_some());
+        assert!(header.is_none());
+        assert!(content.is_some());
+        assert!(footer.is_none());
     }
 
     #[test]

@@ -119,7 +119,7 @@ internal sealed partial class ComponentsSampleView : View
                         new ComponentLabelOptions
                         {
                             Text = "Generated semantic adapters",
-                            Secondary = "27 families",
+                            Secondary = "32 families",
                             Highlight = "semantic",
                         }
                     ),
@@ -302,6 +302,57 @@ internal sealed partial class ComponentsSampleView : View
                 left: ui.Text("Ready"u8),
                 center: ui.Text($"Actions: {_clicks}"),
                 right: ui.Text("UTF-8"u8)
+            ),
+            ui.MessageGroup(
+                "catalog-conversation",
+                ui.Message(
+                    "catalog-message-in",
+                    new ComponentMessageOptions { AccessibleListItem = true },
+                    avatar: ui.Avatar(
+                        "catalog-message-avatar",
+                        new ComponentAvatarOptions { Name = "GPUI Kit" }
+                    ),
+                    header: ui.Text("GPUI Kit · 09:41"u8),
+                    content: ui.BubbleGroup(
+                        "catalog-bubble-group",
+                        ui.Bubble(
+                            "catalog-bubble-in",
+                            new ComponentBubbleOptions
+                            {
+                                Variant = ComponentBubbleVariant.Secondary,
+                            },
+                            content: ui.Text("The file is ready for review."u8)
+                        )
+                    ),
+                    footer: ui.Text("Received"u8)
+                ),
+                ui.Marker(
+                    "catalog-marker",
+                    new ComponentMarkerOptions
+                    {
+                        Variant = ComponentMarkerVariant.Separator,
+                        Text = "Today",
+                    }
+                ),
+                ui.Message(
+                    "catalog-message-out",
+                    new ComponentMessageOptions
+                    {
+                        Alignment = ComponentMessageAlignment.End,
+                        AccessibleListItem = true,
+                    },
+                    content: ui.Bubble(
+                        "catalog-bubble-out",
+                        new ComponentBubbleOptions
+                        {
+                            Variant = ComponentBubbleVariant.Filled,
+                            Alignment = ComponentMessageAlignment.End,
+                        },
+                        content: ui.Text("I’ll check the attachment."u8),
+                        reactions: ui.Text("★ 2"u8)
+                    ),
+                    footer: ui.Text("Sent"u8)
+                )
             ),
             ui.Collapsible(
                 "catalog-collapsible",

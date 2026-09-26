@@ -9,7 +9,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(6u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(7u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -183,5 +183,48 @@ public sealed class ComponentExtensionTests
     public void StatusBarConfigurationKeepsAllThreeRegions()
     {
         Assert.Equal("1\n0\n1", ComponentSchema.StatusBar.EncodeConfiguration(true, false, true));
+    }
+
+    [Fact]
+    public void ConversationConfigurationsSupportNamedSlotsAndEmptyGroups()
+    {
+        Assert.Equal(string.Empty, ComponentSchema.BubbleGroup.EncodeConfiguration());
+        Assert.Equal(string.Empty, ComponentSchema.MessageGroup.EncodeConfiguration());
+        Assert.Equal(
+            "ghost\nend\ntop\nstart\n1\n1",
+            ComponentSchema.Bubble.EncodeConfiguration(
+                ComponentSchema.Bubble.Variant.Ghost,
+                ComponentSchema.Bubble.Alignment.End,
+                ComponentSchema.Bubble.ReactionSide.Top,
+                ComponentSchema.Bubble.ReactionAlignment.Start,
+                true,
+                true
+            )
+        );
+        Assert.Equal(
+            "end\n1\n0\n1\n1\n1\n0",
+            ComponentSchema.Message.EncodeConfiguration(
+                ComponentSchema.Message.Alignment.End,
+                true,
+                false,
+                true,
+                true,
+                true,
+                false
+            )
+        );
+        Assert.Equal(
+            "separator\ncenter\n1\nshimmer\n1\nLoading\n0\n0",
+            ComponentSchema.Marker.EncodeConfiguration(
+                ComponentSchema.Marker.Variant.Separator,
+                ComponentSchema.Marker.Alignment.Center,
+                true,
+                ComponentSchema.Marker.LoadingStyle.Shimmer,
+                true,
+                "Loading",
+                false,
+                false
+            )
+        );
     }
 }

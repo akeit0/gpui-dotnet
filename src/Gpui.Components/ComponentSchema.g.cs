@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 6u;
-    internal const ulong SchemaHash = 0xE0C58E5CC83CA49AUL;
+    internal const uint SchemaVersion = 7u;
+    internal const ulong SchemaHash = 0x91B9D80440F5A196UL;
 
     internal static class Attachment
     {
@@ -925,6 +925,175 @@ internal static class ComponentSchema
         internal static string EncodeConfiguration(bool hasLeft, bool hasCenter, bool hasRight)
         {
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{(hasLeft ? 1 : 0)}\n{(hasCenter ? 1 : 0)}\n{(hasRight ? 1 : 0)}");
+        }
+    }
+
+    internal static class Bubble
+    {
+        internal const string Kind = "bubble";
+
+        internal enum Variant
+        {
+            Filled,
+            Secondary,
+            Muted,
+            Tinted,
+            Outline,
+            Ghost,
+            Destructive,
+        }
+
+        internal enum Alignment
+        {
+            Inherit,
+            Start,
+            End,
+        }
+
+        internal enum ReactionSide
+        {
+            Top,
+            Bottom,
+        }
+
+        internal enum ReactionAlignment
+        {
+            Start,
+            End,
+        }
+
+        internal static string EncodeConfiguration(Variant variant, Alignment alignment, ReactionSide reactionSide, ReactionAlignment reactionAlignment, bool hasContent, bool hasReactions)
+        {
+            var variantValue = variant switch
+            {
+                Variant.Filled => "filled",
+                Variant.Secondary => "secondary",
+                Variant.Muted => "muted",
+                Variant.Tinted => "tinted",
+                Variant.Outline => "outline",
+                Variant.Ghost => "ghost",
+                Variant.Destructive => "destructive",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(variant)),
+            };
+            var alignmentValue = alignment switch
+            {
+                Alignment.Inherit => "inherit",
+                Alignment.Start => "start",
+                Alignment.End => "end",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(alignment)),
+            };
+            var reactionSideValue = reactionSide switch
+            {
+                ReactionSide.Top => "top",
+                ReactionSide.Bottom => "bottom",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(reactionSide)),
+            };
+            var reactionAlignmentValue = reactionAlignment switch
+            {
+                ReactionAlignment.Start => "start",
+                ReactionAlignment.End => "end",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(reactionAlignment)),
+            };
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{variantValue}\n{alignmentValue}\n{reactionSideValue}\n{reactionAlignmentValue}\n{(hasContent ? 1 : 0)}\n{(hasReactions ? 1 : 0)}");
+        }
+    }
+
+    internal static class BubbleGroup
+    {
+        internal const string Kind = "bubble_group";
+
+        internal static string EncodeConfiguration()
+        {
+            return string.Empty;
+        }
+    }
+
+    internal static class Message
+    {
+        internal const string Kind = "message";
+
+        internal enum Alignment
+        {
+            Start,
+            End,
+        }
+
+        internal static string EncodeConfiguration(Alignment alignment, bool accessibleListItem, bool contentHasGhostSurface, bool hasAvatar, bool hasHeader, bool hasContent, bool hasFooter)
+        {
+            var alignmentValue = alignment switch
+            {
+                Alignment.Start => "start",
+                Alignment.End => "end",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(alignment)),
+            };
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{alignmentValue}\n{(accessibleListItem ? 1 : 0)}\n{(contentHasGhostSurface ? 1 : 0)}\n{(hasAvatar ? 1 : 0)}\n{(hasHeader ? 1 : 0)}\n{(hasContent ? 1 : 0)}\n{(hasFooter ? 1 : 0)}");
+        }
+    }
+
+    internal static class MessageGroup
+    {
+        internal const string Kind = "message_group";
+
+        internal static string EncodeConfiguration()
+        {
+            return string.Empty;
+        }
+    }
+
+    internal static class Marker
+    {
+        internal const string Kind = "marker";
+
+        internal enum Variant
+        {
+            Plain,
+            Separator,
+            Border,
+        }
+
+        internal enum Alignment
+        {
+            Inherit,
+            Start,
+            Center,
+            End,
+        }
+
+        internal enum LoadingStyle
+        {
+            Spinner,
+            Shimmer,
+        }
+
+        internal static string EncodeConfiguration(Variant variant, Alignment alignment, bool loading, LoadingStyle loadingStyle, bool statusRole, string text, bool hasIcon, bool hasExtra)
+        {
+            var variantValue = variant switch
+            {
+                Variant.Plain => "plain",
+                Variant.Separator => "separator",
+                Variant.Border => "border",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(variant)),
+            };
+            var alignmentValue = alignment switch
+            {
+                Alignment.Inherit => "inherit",
+                Alignment.Start => "start",
+                Alignment.Center => "center",
+                Alignment.End => "end",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(alignment)),
+            };
+            var loadingStyleValue = loadingStyle switch
+            {
+                LoadingStyle.Spinner => "spinner",
+                LoadingStyle.Shimmer => "shimmer",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(loadingStyle)),
+            };
+            global::System.ArgumentNullException.ThrowIfNull(text);
+            if (text.Contains('\0') || text.Contains('\n') || text.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(text));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{variantValue}\n{alignmentValue}\n{(loading ? 1 : 0)}\n{loadingStyleValue}\n{(statusRole ? 1 : 0)}\n{text}\n{(hasIcon ? 1 : 0)}\n{(hasExtra ? 1 : 0)}");
         }
     }
 }

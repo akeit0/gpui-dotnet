@@ -17,6 +17,8 @@ It also reads `bindings/extensions.json`. Each registered optional schema produc
 file in its managed schema assembly and a matching Rust constants file in its native provider.
 Extension IDs, versions, component kinds, flags, commands, and hashes therefore have one source of
 truth.
+An extension component can declare zero `lines` fields when it has no configuration. Its generated
+managed encoder emits an empty string, and its native parser accepts only that empty string.
 
 Run:
 

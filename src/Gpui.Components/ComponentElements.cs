@@ -56,6 +56,16 @@ public static class ComponentsExtension
         Component(ComponentSchema.ToolbarGroup.Kind);
     internal static NativeExtensionComponent StatusBar { get; } =
         Component(ComponentSchema.StatusBar.Kind);
+    internal static NativeExtensionComponent Bubble { get; } =
+        Component(ComponentSchema.Bubble.Kind);
+    internal static NativeExtensionComponent BubbleGroup { get; } =
+        Component(ComponentSchema.BubbleGroup.Kind);
+    internal static NativeExtensionComponent Message { get; } =
+        Component(ComponentSchema.Message.Kind);
+    internal static NativeExtensionComponent MessageGroup { get; } =
+        Component(ComponentSchema.MessageGroup.Kind);
+    internal static NativeExtensionComponent Marker { get; } =
+        Component(ComponentSchema.Marker.Kind);
 
     private static NativeExtensionComponent Component(string kind) => new(Requirement, kind);
 }

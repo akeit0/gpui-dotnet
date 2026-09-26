@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "components": [
     {
       "kind": "attachment",
@@ -439,6 +439,74 @@
           { "name": "has_left", "type": "bool" },
           { "name": "has_center", "type": "bool" },
           { "name": "has_right", "type": "bool" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "bubble",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "variant", "type": "enum", "values": ["filled", "secondary", "muted", "tinted", "outline", "ghost", "destructive"] },
+          { "name": "alignment", "type": "enum", "values": ["inherit", "start", "end"] },
+          { "name": "reaction_side", "type": "enum", "values": ["top", "bottom"] },
+          { "name": "reaction_alignment", "type": "enum", "values": ["start", "end"] },
+          { "name": "has_content", "type": "bool" },
+          { "name": "has_reactions", "type": "bool" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "bubble_group",
+      "configuration": { "encoding": "lines", "fields": [] },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "message",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "alignment", "type": "enum", "values": ["start", "end"] },
+          { "name": "accessible_list_item", "type": "bool" },
+          { "name": "content_has_ghost_surface", "type": "bool" },
+          { "name": "has_avatar", "type": "bool" },
+          { "name": "has_header", "type": "bool" },
+          { "name": "has_content", "type": "bool" },
+          { "name": "has_footer", "type": "bool" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "message_group",
+      "configuration": { "encoding": "lines", "fields": [] },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "marker",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "variant", "type": "enum", "values": ["plain", "separator", "border"] },
+          { "name": "alignment", "type": "enum", "values": ["inherit", "start", "center", "end"] },
+          { "name": "loading", "type": "bool" },
+          { "name": "loading_style", "type": "enum", "values": ["spinner", "shimmer"] },
+          { "name": "status_role", "type": "bool" },
+          { "name": "text", "type": "string" },
+          { "name": "has_icon", "type": "bool" },
+          { "name": "has_extra", "type": "bool" }
         ]
       },
       "flags": {},
