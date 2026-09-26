@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 10,
+  "schemaVersion": 11,
   "components": [
     {
       "kind": "attachment",
@@ -545,6 +545,28 @@
       "flags": {},
       "commands": {},
       "events": {}
+    },
+    {
+      "kind": "tabs",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "variant", "type": "enum", "values": ["tab", "outline", "pill", "segmented", "underline"] },
+          { "name": "labels", "type": "string_list" },
+          { "name": "item_ids", "type": "u32_list" },
+          { "name": "item_disabled", "type": "u32_list" },
+          { "name": "selected_id", "type": "u32" },
+          { "name": "has_selection", "type": "bool" },
+          { "name": "overflow_menu", "type": "bool" },
+          { "name": "selected_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "selected": { "id": 1, "flags": "none", "payload": "u32 item ID", "revision": "none" }
+      }
     },
     {
       "kind": "breadcrumb",

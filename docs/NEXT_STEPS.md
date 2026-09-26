@@ -56,6 +56,7 @@ Remaining work is focused coverage, authoring, and platform verification:
 - accessible label/help/error relationships between fields and supporting elements;
 - List/Table viewport, items/rows, header, cell, and selection semantics;
 - Dock tabs, custom title-bar controls, and deferred-layer semantics;
+- optional component Tabs roving focus, arrow/Home/End navigation, and keyboard activation;
 - platform verification of focus, roles, values, and announcements, with backend limits documented.
 
 Reuse existing foundation and GPUI capabilities. Add missing managed semantics in coarse

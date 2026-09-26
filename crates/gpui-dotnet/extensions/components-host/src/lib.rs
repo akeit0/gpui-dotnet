@@ -52,6 +52,7 @@ use gpui_component::{
     status_bar::StatusBar,
     switch::Switch,
     tag::{Tag, TagVariant as NativeTagVariant},
+    tab::{Tab, TabBar, TabVariant as NativeTabVariant},
     toolbar::{Toolbar, ToolbarGroup},
     Icon, try_parse_color,
 };
@@ -154,6 +155,7 @@ impl NativeExtension for ComponentsExtension {
             COMPONENT_ICON => icon(request),
             COMPONENT_DESCRIPTION_LIST => description_list(request),
             COMPONENT_BREADCRUMB => breadcrumb(request),
+            COMPONENT_TABS => tabs(request),
             COMPONENT_SPINNER => spinner(request),
             COMPONENT_SKELETON => skeleton(request),
             COMPONENT_SEPARATOR => separator(request),
@@ -375,6 +377,72 @@ fn breadcrumb(request: NativeExtensionRequest) -> Result<AnyElement, SharedStrin
         component = component.child(item);
     }
     Ok(component.into_any_element())
+}
+
+fn tabs(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = TabsConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Tabs configuration."))?;
+    validate_tabs(&config)?;
+    let selected_index = config
+        .has_selection
+        .then(|| config.item_ids.iter().position(|id| *id == config.selected_id))
+        .flatten();
+    let mut component = TabBar::new(request.resource_key.key().to_owned())
+        .with_size(match config.size {
+            TabsSize::Xsmall => gpui_component::Size::XSmall,
+            TabsSize::Small => gpui_component::Size::Small,
+            TabsSize::Medium => gpui_component::Size::Medium,
+            TabsSize::Large => gpui_component::Size::Large,
+        })
+        .with_variant(match config.variant {
+            TabsVariant::Tab => NativeTabVariant::Tab,
+            TabsVariant::Outline => NativeTabVariant::Outline,
+            TabsVariant::Pill => NativeTabVariant::Pill,
+            TabsVariant::Segmented => NativeTabVariant::Segmented,
+            TabsVariant::Underline => NativeTabVariant::Underline,
+        })
+        .menu(config.overflow_menu);
+    if let Some(index) = selected_index {
+        component = component.selected_index(index);
+    }
+    if config.selected_event != 0 {
+        let ids = config.item_ids.clone();
+        let events = request.events;
+        let token = config.selected_event;
+        component = component.on_click(move |index, _, _| {
+            if let Some(id) = ids.get(*index) {
+                let payload = id.to_le_bytes();
+                let _ = events.emit(token, TABS_EVENT_SELECTED, 0, 0, &payload);
+            }
+        });
+    }
+    for (label, disabled) in config.labels.into_iter().zip(config.item_disabled) {
+        component = component.child(Tab::new().label(label).disabled(disabled != 0));
+    }
+    Ok(component.into_any_element())
+}
+
+fn validate_tabs(config: &TabsConfiguration) -> Result<(), SharedString> {
+    let len = config.labels.len();
+    if config.item_ids.len() != len || config.item_disabled.len() != len {
+        return Err("Tab item batches have different lengths.".into());
+    }
+    let mut ids = HashSet::with_capacity(len);
+    for ((label, id), disabled) in config
+        .labels
+        .iter()
+        .zip(&config.item_ids)
+        .zip(&config.item_disabled)
+    {
+        if label.trim().is_empty() || *disabled > 1 || !ids.insert(*id) {
+            return Err("Tabs contain an invalid label, ID, or disabled flag.".into());
+        }
+    }
+    if config.has_selection && !ids.contains(&config.selected_id) {
+        return Err("The selected tab ID is absent from the items.".into());
+    }
+    Ok(())
 }
 
 fn validate_breadcrumb(config: &BreadcrumbConfiguration) -> Result<(), SharedString> {
@@ -1376,6 +1444,12 @@ mod tests {
         assert_eq!(breadcrumb.labels[1], "Résumé\n2026");
         assert!(validate_breadcrumb(&breadcrumb).is_ok());
         assert!(BreadcrumbConfiguration::parse("[\"Files\",]\n1\n0\n42").is_none());
+        let tabs = TabsConfiguration::parse(
+            "medium\nunderline\n[\"Overview\",\"Résumé\"]\n1,7\n0,1\n1\n1\n1\n42",
+        )
+        .unwrap();
+        assert!(validate_tabs(&tabs).is_ok());
+        assert_eq!(tabs.selected_id, 1);
     }
 
     #[test]
@@ -1426,6 +1500,16 @@ mod tests {
         assert!(validate_breadcrumb(&parse("[\"Files\",\"Archive\"]\n1,1\n0,0\n0")).is_err());
         assert!(validate_breadcrumb(&parse("[\"Files\"]\n1\n2\n0")).is_err());
         assert!(validate_breadcrumb(&parse("[\"\"]\n1\n0\n0")).is_err());
+    }
+
+    #[test]
+    fn tabs_reject_mismatched_or_ambiguous_selection_batches() {
+        let parse = |value| TabsConfiguration::parse(value).unwrap();
+        assert!(validate_tabs(&parse("medium\ntab\n[\"A\"]\n1,2\n0\n1\n1\n0\n0")).is_err());
+        assert!(validate_tabs(&parse("medium\ntab\n[\"A\",\"B\"]\n1,1\n0,0\n1\n1\n0\n0")).is_err());
+        assert!(validate_tabs(&parse("medium\ntab\n[\"A\"]\n1\n2\n1\n1\n0\n0")).is_err());
+        assert!(validate_tabs(&parse("medium\ntab\n[\"A\"]\n1\n0\n2\n1\n0\n0")).is_err());
+        assert!(validate_tabs(&parse("medium\ntab\n[\"\"]\n1\n0\n1\n1\n0\n0")).is_err());
     }
 
     #[test]

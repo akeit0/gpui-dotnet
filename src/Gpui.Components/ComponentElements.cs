@@ -71,6 +71,7 @@ public static class ComponentsExtension
         Component(ComponentSchema.DescriptionList.Kind);
     internal static NativeExtensionComponent Breadcrumb { get; } =
         Component(ComponentSchema.Breadcrumb.Kind);
+    internal static NativeExtensionComponent Tabs { get; } = Component(ComponentSchema.Tabs.Kind);
 
     private static NativeExtensionComponent Component(string kind) => new(Requirement, kind);
 }

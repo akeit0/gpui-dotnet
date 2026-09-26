@@ -9,7 +9,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(10u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(11u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -303,6 +303,38 @@ public sealed class ComponentExtensionTests
         Assert.Throws<InvalidOperationException>(() =>
             ComponentBreadcrumbClickedEvent.Decode(
                 new NativeExtensionEvent(ComponentSchema.Breadcrumb.EventClicked, 0, 0, [])
+            )
+        );
+    }
+
+    [Fact]
+    public void TabsConfigurationBatchesControlledSelectionAndStableIds()
+    {
+        Assert.Equal(
+            "medium\nunderline\n[\"Overview\",\"R\\u00E9sum\\u00E9\"]\n1,7\n0,1\n1\n1\n1\n42",
+            ComponentSchema.Tabs.EncodeConfiguration(
+                ComponentSchema.Tabs.Size.Medium,
+                ComponentSchema.Tabs.Variant.Underline,
+                ["Overview", "Résumé"],
+                [1, 7],
+                [0, 1],
+                1,
+                true,
+                true,
+                42
+            )
+        );
+        var payload = new byte[sizeof(uint)];
+        BinaryPrimitives.WriteUInt32LittleEndian(payload, 7);
+        Assert.Equal(
+            7u,
+            ComponentTabSelectedEvent
+                .Decode(new NativeExtensionEvent(ComponentSchema.Tabs.EventSelected, 0, 0, payload))
+                .ItemId
+        );
+        Assert.Throws<InvalidOperationException>(() =>
+            ComponentTabSelectedEvent.Decode(
+                new NativeExtensionEvent(ComponentSchema.Tabs.EventSelected, 0, 0, [])
             )
         );
     }

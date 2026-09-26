@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 10u;
-    internal const ulong SchemaHash = 0x0417F5EE2511D1EFUL;
+    internal const uint SchemaVersion = 11u;
+    internal const ulong SchemaHash = 0x16EDFAA83481B83FUL;
 
     internal static class Attachment
     {
@@ -1190,6 +1190,72 @@ internal static class ComponentSchema
             }
             var entrySpansValue = entrySpansBuilder.ToString();
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{axisValue}\n{labelWidthPixels}\n{(bordered ? 1 : 0)}\n{columns}\n{entrySpansValue}");
+        }
+    }
+
+    internal static class Tabs
+    {
+        internal const string Kind = "tabs";
+        internal const ushort EventSelected = 1;
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal enum Variant
+        {
+            Tab,
+            Outline,
+            Pill,
+            Segmented,
+            Underline,
+        }
+
+        internal static string EncodeConfiguration(Size size, Variant variant, global::System.ReadOnlySpan<string> labels, global::System.ReadOnlySpan<uint> itemIds, global::System.ReadOnlySpan<uint> itemDisabled, uint selectedId, bool hasSelection, bool overflowMenu, ulong selectedEvent)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            var variantValue = variant switch
+            {
+                Variant.Tab => "tab",
+                Variant.Outline => "outline",
+                Variant.Pill => "pill",
+                Variant.Segmented => "segmented",
+                Variant.Underline => "underline",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(variant)),
+            };
+            foreach (var item in labels)
+            {
+                global::System.ArgumentNullException.ThrowIfNull(item);
+            }
+            var labelsValue = global::System.Text.Json.JsonSerializer.Serialize(labels.ToArray());
+            var itemIdsBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < itemIds.Length; index++)
+            {
+                if (index != 0)
+                    itemIdsBuilder.Append(',');
+                itemIdsBuilder.Append(itemIds[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var itemIdsValue = itemIdsBuilder.ToString();
+            var itemDisabledBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < itemDisabled.Length; index++)
+            {
+                if (index != 0)
+                    itemDisabledBuilder.Append(',');
+                itemDisabledBuilder.Append(itemDisabled[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var itemDisabledValue = itemDisabledBuilder.ToString();
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{variantValue}\n{labelsValue}\n{itemIdsValue}\n{itemDisabledValue}\n{selectedId}\n{(hasSelection ? 1 : 0)}\n{(overflowMenu ? 1 : 0)}\n{selectedEvent}");
         }
     }
 

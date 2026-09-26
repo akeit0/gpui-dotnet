@@ -33,6 +33,7 @@ internal sealed partial class ComponentsSampleView : View
     private uint _page = 3;
     private int _clicks;
     private uint _lastBreadcrumbClick;
+    private uint _selectedTab = 1;
     private bool _showAlert = true;
     private bool _switchChecked = true;
     private bool _checkboxChecked = true;
@@ -460,6 +461,35 @@ internal sealed partial class ComponentsSampleView : View
                     )
                     .Gap(Px(20))
                     .ItemsCenter(),
+                ui.Tabs(
+                    "catalog-tabs",
+                    this,
+                    static (view, selected) =>
+                    {
+                        view._selectedTab = selected.ItemId;
+                        view.Invalidate();
+                    },
+                    new ComponentTabsOptions
+                    {
+                        SelectedId = _selectedTab,
+                        Variant = ComponentTabVariant.Underline,
+                        OverflowMenu = true,
+                    },
+                    new ComponentTabItem(1, "Overview"),
+                    new ComponentTabItem(2, "Activity"),
+                    new ComponentTabItem(3, "Settings")
+                ),
+                ui.Text(
+                        _selectedTab switch
+                        {
+                            1 => "Overview: a controlled native tab bar",
+                            2 => "Activity: selection returns a stable tab ID",
+                            _ => "Settings: content belongs to the managed View",
+                        }
+                    )
+                    .Padding(Px(12))
+                    .Background(theme.Colors.ElementBackground)
+                    .Radius(Px(8)),
                 alert,
                 ui.GroupBox(
                     "status-group",
