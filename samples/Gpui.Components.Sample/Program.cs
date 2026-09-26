@@ -32,6 +32,7 @@ internal sealed partial class ComponentsSampleView : View
     private uint _rating = 3;
     private uint _page = 3;
     private int _clicks;
+    private uint _lastBreadcrumbClick;
     private bool _showAlert = true;
     private bool _switchChecked = true;
     private bool _checkboxChecked = true;
@@ -435,6 +436,30 @@ internal sealed partial class ComponentsSampleView : View
                 ui.Text("Optional gpui-component catalog"u8)
                     .FontSize(Px(theme.Typography.Heading))
                     .TextColor(theme.Colors.Text),
+                ui.HStack(
+                        ui.Breadcrumb(
+                            "catalog-path",
+                            this,
+                            static (view, clicked) =>
+                            {
+                                view._lastBreadcrumbClick = clicked.ItemId;
+                                view.Invalidate();
+                            },
+                            new ComponentBreadcrumbItem(1, "Catalog"),
+                            new ComponentBreadcrumbItem(2, "Files"),
+                            new ComponentBreadcrumbItem(3, "release-notes.pdf", Disabled: true)
+                        ),
+                        ui.Text(
+                            _lastBreadcrumbClick switch
+                            {
+                                1 => "Selected: Catalog",
+                                2 => "Selected: Files",
+                                _ => "Select a path segment",
+                            }
+                        )
+                    )
+                    .Gap(Px(20))
+                    .ItemsCenter(),
                 alert,
                 ui.GroupBox(
                     "status-group",

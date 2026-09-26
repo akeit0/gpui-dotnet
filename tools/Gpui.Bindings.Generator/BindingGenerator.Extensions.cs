@@ -110,6 +110,7 @@ internal static partial class BindingGenerator
                     is not (
                         "flags"
                         or "string"
+                        or "string_list"
                         or "u32"
                         or "u32_list"
                         or "u64"
@@ -392,6 +393,17 @@ internal static partial class BindingGenerator
                     );
                     builder.AppendLine("            }");
                     break;
+                case "string_list":
+                    builder.AppendLine($"            foreach (var item in {name})");
+                    builder.AppendLine("            {");
+                    builder.AppendLine(
+                        "                global::System.ArgumentNullException.ThrowIfNull(item);"
+                    );
+                    builder.AppendLine("            }");
+                    builder.AppendLine(
+                        $"            var {name}Value = global::System.Text.Json.JsonSerializer.Serialize({name}.ToArray());"
+                    );
+                    break;
                 case "f32":
                     builder.AppendLine($"            if (!float.IsFinite({name}))");
                     builder.AppendLine("            {");
@@ -448,6 +460,7 @@ internal static partial class BindingGenerator
             "f32" => "float",
             "bool" => "bool",
             "string" => "string",
+            "string_list" => "global::System.ReadOnlySpan<string>",
             "enum" => Pascal(field.Name),
             _ => throw new InvalidOperationException(
                 $"Unknown extension field type '{field.Type}'."
@@ -462,6 +475,7 @@ internal static partial class BindingGenerator
             "bool" => $"({name} ? 1 : 0)",
             "enum" => $"{name}Value",
             "u32_list" => $"{name}Value",
+            "string_list" => $"{name}Value",
             _ => name,
         };
     }
@@ -575,6 +589,7 @@ internal static partial class BindingGenerator
                 "enum" => RustEnumParser(componentName, field, source),
                 "u32_list" =>
                     $"if {source}.is_empty() {{ Vec::new() }} else {{ {source}.split(',').map(|item| item.parse::<u32>().ok()).collect::<Option<Vec<_>>>()? }}",
+                "string_list" => $"serde_json::from_str::<Vec<String>>({source}).ok()?",
                 _ =>
                     $"{source}.parse::<{RustConfigurationType(componentName, field, borrows)}>().ok()?",
             };
@@ -619,6 +634,7 @@ internal static partial class BindingGenerator
         {
             "flags" or "u32" => "u32",
             "u32_list" => "Vec<u32>",
+            "string_list" => "Vec<String>",
             "u64" or "event" => "u64",
             "f32" => "f32",
             "bool" => "bool",

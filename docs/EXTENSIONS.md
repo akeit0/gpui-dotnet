@@ -115,11 +115,12 @@ The accepted ownership, revision, bootstrap, command, and event design is docume
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes Editor plus thirty-four component families. Display and content coverage includes
+The host includes Editor plus thirty-five component families. Display and content coverage includes
 Spinner, Skeleton, Separator, Badge, Tag, linear and circular Progress, Alert, GroupBox, Label, Kbd,
 Avatar, Icon, ShimmerText, Attachment, Empty, StatusBar, Bubble, BubbleGroup, Message,
 MessageGroup, Marker, and DescriptionList. Interactive and controlled coverage includes Rating,
-Button, Link, Switch, Checkbox, Radio, Toggle, Pagination, Collapsible, Toolbar, and ToolbarGroup.
+Button, Link, Switch, Checkbox, Radio, Toggle, Pagination, Collapsible, Toolbar, ToolbarGroup,
+and Breadcrumb.
 Editor keeps its independently versioned
 `Gpui.Editor` managed schema; applications using both schemas list both requirements, and the host
 advertises and serves both. Parent-capable controls receive one batched managed child list. Native
@@ -151,6 +152,10 @@ native list. Its orientation, size, border, label width, and column count are de
 extension schema's `u32_list` field gives C# and Rust a shared typed span sequence; zero marks a
 separator, and positive values mark item spans. The provider checks child count and span bounds
 before handing items to gpui-kit.
+
+`Breadcrumb` batches labels, stable item IDs, and disabled flags. The native component owns its
+link roles, separators, and click behavior. One render-scoped event route returns the selected
+item ID; applications own navigation and decide how the path changes.
 
 `Icon` renders an SVG from the native host's asset source with semantic size and optional color.
 Asset paths prefixed with `app-assets/` resolve files beside the application executable; other

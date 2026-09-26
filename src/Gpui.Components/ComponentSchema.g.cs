@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 9u;
-    internal const ulong SchemaHash = 0x4AA5CB029A2F1FEEUL;
+    internal const uint SchemaVersion = 10u;
+    internal const ulong SchemaHash = 0x0417F5EE2511D1EFUL;
 
     internal static class Attachment
     {
@@ -1190,6 +1190,38 @@ internal static class ComponentSchema
             }
             var entrySpansValue = entrySpansBuilder.ToString();
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{axisValue}\n{labelWidthPixels}\n{(bordered ? 1 : 0)}\n{columns}\n{entrySpansValue}");
+        }
+    }
+
+    internal static class Breadcrumb
+    {
+        internal const string Kind = "breadcrumb";
+        internal const ushort EventClicked = 1;
+
+        internal static string EncodeConfiguration(global::System.ReadOnlySpan<string> labels, global::System.ReadOnlySpan<uint> itemIds, global::System.ReadOnlySpan<uint> itemDisabled, ulong clickedEvent)
+        {
+            foreach (var item in labels)
+            {
+                global::System.ArgumentNullException.ThrowIfNull(item);
+            }
+            var labelsValue = global::System.Text.Json.JsonSerializer.Serialize(labels.ToArray());
+            var itemIdsBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < itemIds.Length; index++)
+            {
+                if (index != 0)
+                    itemIdsBuilder.Append(',');
+                itemIdsBuilder.Append(itemIds[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var itemIdsValue = itemIdsBuilder.ToString();
+            var itemDisabledBuilder = new global::System.Text.StringBuilder();
+            for (var index = 0; index < itemDisabled.Length; index++)
+            {
+                if (index != 0)
+                    itemDisabledBuilder.Append(',');
+                itemDisabledBuilder.Append(itemDisabled[index].ToString(global::System.Globalization.CultureInfo.InvariantCulture));
+            }
+            var itemDisabledValue = itemDisabledBuilder.ToString();
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{labelsValue}\n{itemIdsValue}\n{itemDisabledValue}\n{clickedEvent}");
         }
     }
 }

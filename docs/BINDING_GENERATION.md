@@ -22,6 +22,10 @@ managed encoder emits an empty string, and its native parser accepts only that e
 The `u32_list` field encodes a batch of invariant decimal values in one comma-separated line;
 the generated parser rejects malformed items and returns a typed vector. The component provider
 still validates the list's own bounds and relationship to child elements.
+The `string_list` field encodes UTF-8 text as a compact JSON array on one line, preserving
+newlines and Unicode inside each item. The generated Rust parser returns a typed string vector;
+the provider validates any cross-field item relationship and includes `serde_json` as a direct
+dependency when it uses this field.
 
 Run:
 

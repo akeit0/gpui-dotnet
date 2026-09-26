@@ -1,4 +1,4 @@
-use std::{borrow::Cow, path::{Component as PathComponent, Path}, sync::Once, time::Duration};
+use std::{borrow::Cow, collections::HashSet, path::{Component as PathComponent, Path}, sync::Once, time::Duration};
 
 use gpui::{
     AnyElement, App, AssetSource, Axis, Hsla, IntoElement as _, Keystroke, ParentElement as _, Role, SharedString,
@@ -13,6 +13,7 @@ use gpui_component::{
     },
     avatar::Avatar,
     badge::Badge,
+    breadcrumb::{Breadcrumb, BreadcrumbItem},
     bubble::{
         Bubble, BubbleGroup, BubbleReactionSide as NativeBubbleReactionSide, BubbleReactions,
         BubbleVariant as NativeBubbleVariant,
@@ -152,6 +153,7 @@ impl NativeExtension for ComponentsExtension {
             COMPONENT_MARKER => marker(request),
             COMPONENT_ICON => icon(request),
             COMPONENT_DESCRIPTION_LIST => description_list(request),
+            COMPONENT_BREADCRUMB => breadcrumb(request),
             COMPONENT_SPINNER => spinner(request),
             COMPONENT_SKELETON => skeleton(request),
             COMPONENT_SEPARATOR => separator(request),
@@ -347,6 +349,51 @@ fn description_items(
         }
     }
     Ok(items)
+}
+
+fn breadcrumb(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = BreadcrumbConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Breadcrumb configuration."))?;
+    validate_breadcrumb(&config)?;
+    let mut component = Breadcrumb::new();
+    for ((label, id), disabled) in config
+        .labels
+        .into_iter()
+        .zip(config.item_ids)
+        .zip(config.item_disabled)
+    {
+        let mut item = BreadcrumbItem::new(label).disabled(disabled != 0);
+        if config.clicked_event != 0 {
+            let events = request.events;
+            let token = config.clicked_event;
+            item = item.on_click(move |_, _, _| {
+                let payload = id.to_le_bytes();
+                let _ = events.emit(token, BREADCRUMB_EVENT_CLICKED, 0, 0, &payload);
+            });
+        }
+        component = component.child(item);
+    }
+    Ok(component.into_any_element())
+}
+
+fn validate_breadcrumb(config: &BreadcrumbConfiguration) -> Result<(), SharedString> {
+    let len = config.labels.len();
+    if config.item_ids.len() != len || config.item_disabled.len() != len {
+        return Err("Breadcrumb item batches have different lengths.".into());
+    }
+    let mut ids = HashSet::with_capacity(len);
+    for ((label, id), disabled) in config
+        .labels
+        .iter()
+        .zip(&config.item_ids)
+        .zip(&config.item_disabled)
+    {
+        if label.trim().is_empty() || *disabled > 1 || !ids.insert(*id) {
+            return Err("Breadcrumb items contain an invalid label, ID, or disabled flag.".into());
+        }
+    }
+    Ok(())
 }
 
 fn toolbar(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
@@ -1324,6 +1371,11 @@ mod tests {
         assert_eq!(description.entry_spans, [1, 1, 0, 2]);
         assert!(DescriptionListConfiguration::parse("small\nhorizontal\n120\n1\n2\n1,,2").is_none());
         assert!(DescriptionListConfiguration::parse("small\nhorizontal\nNaN\n1\n2\n1").is_none());
+        let breadcrumb = BreadcrumbConfiguration::parse("[\"Files\",\"R\\u00e9sum\\u00e9\\n2026\"]\n1,7\n0,1\n42")
+            .unwrap();
+        assert_eq!(breadcrumb.labels[1], "Résumé\n2026");
+        assert!(validate_breadcrumb(&breadcrumb).is_ok());
+        assert!(BreadcrumbConfiguration::parse("[\"Files\",]\n1\n0\n42").is_none());
     }
 
     #[test]
@@ -1365,6 +1417,15 @@ mod tests {
         assert!(description_items(&[3], children(), 2).is_err());
         assert!(description_items(&[1], vec![], 2).is_err());
         assert!(description_items(&[0], children(), 2).is_err());
+    }
+
+    #[test]
+    fn breadcrumb_rejects_mismatched_and_ambiguous_item_batches() {
+        let parse = |value| BreadcrumbConfiguration::parse(value).unwrap();
+        assert!(validate_breadcrumb(&parse("[\"Files\"]\n1,2\n0\n0")).is_err());
+        assert!(validate_breadcrumb(&parse("[\"Files\",\"Archive\"]\n1,1\n0,0\n0")).is_err());
+        assert!(validate_breadcrumb(&parse("[\"Files\"]\n1\n2\n0")).is_err());
+        assert!(validate_breadcrumb(&parse("[\"\"]\n1\n0\n0")).is_err());
     }
 
     #[test]

@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 9,
+  "schemaVersion": 10,
   "components": [
     {
       "kind": "attachment",
@@ -545,6 +545,23 @@
       "flags": {},
       "commands": {},
       "events": {}
+    },
+    {
+      "kind": "breadcrumb",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "labels", "type": "string_list" },
+          { "name": "item_ids", "type": "u32_list" },
+          { "name": "item_disabled", "type": "u32_list" },
+          { "name": "clicked_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "clicked": { "id": 1, "flags": "none", "payload": "u32 item ID", "revision": "none" }
+      }
     }
   ]
 }

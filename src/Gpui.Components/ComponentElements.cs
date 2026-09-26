@@ -69,6 +69,8 @@ public static class ComponentsExtension
     internal static NativeExtensionComponent Icon { get; } = Component(ComponentSchema.Icon.Kind);
     internal static NativeExtensionComponent DescriptionList { get; } =
         Component(ComponentSchema.DescriptionList.Kind);
+    internal static NativeExtensionComponent Breadcrumb { get; } =
+        Component(ComponentSchema.Breadcrumb.Kind);
 
     private static NativeExtensionComponent Component(string kind) => new(Requirement, kind);
 }

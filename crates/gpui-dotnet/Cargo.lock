@@ -2301,6 +2301,7 @@ dependencies = [
  "gpui-dotnet-editor-provider",
  "gpui-kit-assets",
  "gpui-pre",
+ "serde_json",
 ]
 
 [[package]]

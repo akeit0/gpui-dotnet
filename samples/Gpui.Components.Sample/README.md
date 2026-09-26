@@ -12,6 +12,8 @@ editing. The empty state uses the sample's `Assets/archive-box.svg` file through
 component's application asset path. The Save button uses an icon from the host's bundled assets.
 The file details use a native DescriptionList with managed text, a Tag value, a separator, and a
 two-column entry. Archive and status changes update those details.
+The breadcrumb at the top batches three path items; clicking Catalog or Files reports its stable
+item ID through one managed callback. The current file item is disabled.
 
 To try the file states, find `release-notes.pdf` in the broader catalog. `Finish` changes its
 status to complete, and `Restart` returns it to uploading. `Archive` moves the card into the

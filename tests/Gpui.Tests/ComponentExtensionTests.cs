@@ -9,7 +9,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(9u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(10u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -274,6 +274,35 @@ public sealed class ComponentExtensionTests
                 false,
                 1,
                 []
+            )
+        );
+    }
+
+    [Fact]
+    public void BreadcrumbConfigurationBatchesUnicodeAndStableIds()
+    {
+        Assert.Equal(
+            "[\"Files\",\"R\\u00E9sum\\u00E9\\n2026\"]\n1,7\n0,1\n42",
+            ComponentSchema.Breadcrumb.EncodeConfiguration(
+                ["Files", "Résumé\n2026"],
+                [1, 7],
+                [0, 1],
+                42
+            )
+        );
+        var payload = new byte[sizeof(uint)];
+        BinaryPrimitives.WriteUInt32LittleEndian(payload, 7);
+        Assert.Equal(
+            7u,
+            ComponentBreadcrumbClickedEvent
+                .Decode(
+                    new NativeExtensionEvent(ComponentSchema.Breadcrumb.EventClicked, 0, 0, payload)
+                )
+                .ItemId
+        );
+        Assert.Throws<InvalidOperationException>(() =>
+            ComponentBreadcrumbClickedEvent.Decode(
+                new NativeExtensionEvent(ComponentSchema.Breadcrumb.EventClicked, 0, 0, [])
             )
         );
     }
