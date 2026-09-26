@@ -119,7 +119,7 @@ internal sealed partial class ComponentsSampleView : View
                         new ComponentLabelOptions
                         {
                             Text = "Generated semantic adapters",
-                            Secondary = "24 families",
+                            Secondary = "26 families",
                             Highlight = "semantic",
                         }
                     ),
@@ -211,6 +211,34 @@ internal sealed partial class ComponentsSampleView : View
                     TotalPages = 12,
                     VisiblePages = 5,
                 }
+            ),
+            ui.Toolbar(
+                "catalog-toolbar",
+                new ComponentToolbarOptions { Size = ComponentSize.Small },
+                ui.ToolbarGroup(
+                    "catalog-toolbar-actions",
+                    new ComponentToolbarGroupOptions { Label = "Document actions" },
+                    ui.Button(
+                        "toolbar-open",
+                        this,
+                        static (view, _) =>
+                        {
+                            view._clicks++;
+                            view.Invalidate();
+                        },
+                        new ComponentButtonOptions { Label = "Open", Size = ComponentSize.Small }
+                    ),
+                    ui.Button(
+                        "toolbar-save",
+                        this,
+                        static (view, _) =>
+                        {
+                            view._clicks++;
+                            view.Invalidate();
+                        },
+                        new ComponentButtonOptions { Label = "Save", Size = ComponentSize.Small }
+                    )
+                )
             ),
             ui.Attachment(
                 "catalog-file",

@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 4u;
-    internal const ulong SchemaHash = 0x5BF948476C47A72FUL;
+    internal const uint SchemaVersion = 5u;
+    internal const ulong SchemaHash = 0x5C5E68FC71438D1CUL;
 
     internal static class Attachment
     {
@@ -874,6 +874,47 @@ internal static class ComponentSchema
                 throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(description));
             }
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{mediaVariantValue}\n{title}\n{description}\n{(hasMedia ? 1 : 0)}\n{(hasContent ? 1 : 0)}\n{(hasFooter ? 1 : 0)}");
+        }
+    }
+
+    internal static class Toolbar
+    {
+        internal const string Kind = "toolbar";
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal static string EncodeConfiguration(Size size, bool disabled)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{(disabled ? 1 : 0)}");
+        }
+    }
+
+    internal static class ToolbarGroup
+    {
+        internal const string Kind = "toolbar_group";
+
+        internal static string EncodeConfiguration(string label)
+        {
+            global::System.ArgumentNullException.ThrowIfNull(label);
+            if (label.Contains('\0') || label.Contains('\n') || label.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(label));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{label}");
         }
     }
 }

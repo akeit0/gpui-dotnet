@@ -50,6 +50,10 @@ public static class ComponentsExtension
     internal static NativeExtensionComponent Attachment { get; } =
         Component(ComponentSchema.Attachment.Kind);
     internal static NativeExtensionComponent Empty { get; } = Component(ComponentSchema.Empty.Kind);
+    internal static NativeExtensionComponent Toolbar { get; } =
+        Component(ComponentSchema.Toolbar.Kind);
+    internal static NativeExtensionComponent ToolbarGroup { get; } =
+        Component(ComponentSchema.ToolbarGroup.Kind);
 
     private static NativeExtensionComponent Component(string kind) => new(Requirement, kind);
 }

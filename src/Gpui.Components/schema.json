@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 4,
+  "schemaVersion": 5,
   "components": [
     {
       "kind": "attachment",
@@ -403,6 +403,29 @@
           { "name": "has_content", "type": "bool" },
           { "name": "has_footer", "type": "bool" }
         ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "toolbar",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "disabled", "type": "bool" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "toolbar_group",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [{ "name": "label", "type": "string" }]
       },
       "flags": {},
       "commands": {},

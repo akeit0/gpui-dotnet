@@ -37,6 +37,7 @@ use gpui_component::{
     spinner::Spinner,
     switch::Switch,
     tag::{Tag, TagVariant as NativeTagVariant},
+    toolbar::{Toolbar, ToolbarGroup},
     try_parse_color,
 };
 use gpui_dotnet::{
@@ -92,6 +93,8 @@ impl NativeExtension for ComponentsExtension {
         match request.resource_key.component_kind() {
             COMPONENT_ATTACHMENT => attachment(request),
             COMPONENT_EMPTY => empty(request),
+            COMPONENT_TOOLBAR => toolbar(request),
+            COMPONENT_TOOLBAR_GROUP => toolbar_group(request),
             COMPONENT_SPINNER => spinner(request),
             COMPONENT_SKELETON => skeleton(request),
             COMPONENT_SEPARATOR => separator(request),
@@ -236,6 +239,32 @@ fn split_slots(
         }
     }
     Ok(slots)
+}
+
+fn toolbar(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = ToolbarConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Toolbar configuration."))?;
+    let component = Toolbar::new(request.resource_key.key().to_owned())
+        .with_size(match config.size {
+            ToolbarSize::Xsmall => gpui_component::Size::XSmall,
+            ToolbarSize::Small => gpui_component::Size::Small,
+            ToolbarSize::Medium => gpui_component::Size::Medium,
+            ToolbarSize::Large => gpui_component::Size::Large,
+        })
+        .disabled(config.disabled)
+        .contents(request.children);
+    Ok(component.into_any_element())
+}
+
+fn toolbar_group(mut request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = ToolbarGroupConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid ToolbarGroup configuration."))?;
+    let mut component = ToolbarGroup::new(request.resource_key.key().to_owned());
+    if !config.label.is_empty() {
+        component = component.label(config.label.to_owned());
+    }
+    component.extend(request.children.drain(..));
+    Ok(component.into_any_element())
 }
 
 fn no_children(request: &NativeExtensionRequest) -> Result<(), SharedString> {
@@ -967,6 +996,16 @@ mod tests {
         assert!(empty.has_media);
         assert!(!empty.has_content);
         assert!(empty.has_footer);
+        let toolbar = ToolbarConfiguration::parse("small\n1").unwrap();
+        assert_eq!(toolbar.size, ToolbarSize::Small);
+        assert!(toolbar.disabled);
+        assert!(ToolbarConfiguration::parse("huge\n0").is_none());
+        assert_eq!(
+            ToolbarGroupConfiguration::parse("Document actions")
+                .unwrap()
+                .label,
+            "Document actions"
+        );
     }
 
     #[test]
