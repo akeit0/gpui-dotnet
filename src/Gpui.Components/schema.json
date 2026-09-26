@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 7,
+  "schemaVersion": 8,
   "components": [
     {
       "kind": "attachment",
@@ -162,6 +162,7 @@
           { "name": "loading", "type": "bool" },
           { "name": "outline", "type": "bool" },
           { "name": "compact", "type": "bool" },
+          { "name": "icon_asset_path", "type": "string" },
           { "name": "clicked_event", "type": "event" }
         ]
       },
@@ -254,7 +255,8 @@
         "encoding": "lines",
         "fields": [
           { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
-          { "name": "name", "type": "string" }
+          { "name": "name", "type": "string" },
+          { "name": "source", "type": "string" }
         ]
       },
       "flags": {},
@@ -507,6 +509,20 @@
           { "name": "text", "type": "string" },
           { "name": "has_icon", "type": "bool" },
           { "name": "has_extra", "type": "bool" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "icon",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "asset_path", "type": "string" },
+          { "name": "color", "type": "string" }
         ]
       },
       "flags": {},

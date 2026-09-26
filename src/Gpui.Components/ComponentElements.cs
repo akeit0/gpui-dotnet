@@ -66,6 +66,7 @@ public static class ComponentsExtension
         Component(ComponentSchema.MessageGroup.Kind);
     internal static NativeExtensionComponent Marker { get; } =
         Component(ComponentSchema.Marker.Kind);
+    internal static NativeExtensionComponent Icon { get; } = Component(ComponentSchema.Icon.Kind);
 
     private static NativeExtensionComponent Component(string kind) => new(Requirement, kind);
 }
@@ -205,6 +206,7 @@ public sealed record ComponentButtonOptions
     public bool Loading { get; init; }
     public bool Outline { get; init; }
     public bool Compact { get; init; }
+    public string IconAssetPath { get; init; } = string.Empty;
 }
 
 public sealed record ComponentAlertOptions
@@ -568,6 +570,7 @@ public static partial class ComponentElements
                 options.Loading,
                 options.Outline,
                 options.Compact,
+                options.IconAssetPath,
                 token
             ),
             children

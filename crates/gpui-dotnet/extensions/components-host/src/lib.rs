@@ -51,7 +51,7 @@ use gpui_component::{
     switch::Switch,
     tag::{Tag, TagVariant as NativeTagVariant},
     toolbar::{Toolbar, ToolbarGroup},
-    try_parse_color,
+    Icon, try_parse_color,
 };
 use gpui_dotnet::{
     abi::GpuiDotnetApiV3,
@@ -114,6 +114,7 @@ impl NativeExtension for ComponentsExtension {
             COMPONENT_MESSAGE => message(request),
             COMPONENT_MESSAGE_GROUP => message_group(request),
             COMPONENT_MARKER => marker(request),
+            COMPONENT_ICON => icon(request),
             COMPONENT_SPINNER => spinner(request),
             COMPONENT_SKELETON => skeleton(request),
             COMPONENT_SEPARATOR => separator(request),
@@ -630,6 +631,9 @@ fn button(mut request: NativeExtensionRequest) -> Result<AnyElement, SharedStrin
     if !config.accessibility_label.is_empty() {
         component = component.accessibility_label(config.accessibility_label.to_owned());
     }
+    if !config.icon_asset_path.is_empty() {
+        component = component.icon(Icon::default().path(config.icon_asset_path.to_owned()));
+    }
     if config.outline {
         component = component.outline();
     }
@@ -743,6 +747,30 @@ fn avatar(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
     let mut component = Avatar::new().with_size(avatar_size(config.size));
     if !config.name.is_empty() {
         component = component.name(config.name.to_owned());
+    }
+    if !config.source.is_empty() {
+        component = component.src(config.source.to_owned());
+    }
+    Ok(component.into_any_element())
+}
+
+fn icon(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    no_children(&request)?;
+    let config = IconConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Icon configuration."))?;
+    if config.asset_path.is_empty() {
+        return Err("Icon asset path cannot be empty.".into());
+    }
+    let mut component = Icon::default()
+        .path(config.asset_path.to_owned())
+        .with_size(match config.size {
+            IconSize::Xsmall => gpui_component::Size::XSmall,
+            IconSize::Small => gpui_component::Size::Small,
+            IconSize::Medium => gpui_component::Size::Medium,
+            IconSize::Large => gpui_component::Size::Large,
+        });
+    if let Some(color) = optional_color(config.color)? {
+        component = component.text_color(color);
     }
     Ok(component.into_any_element())
 }
@@ -1131,8 +1159,8 @@ mod tests {
     #[test]
     fn generated_parsers_cover_the_catalog_contract() {
         assert!(SpinnerConfiguration::parse("medium\nloader\nlinear\n").is_some());
-        assert!(ButtonConfiguration::parse("medium\nprimary\nSave\n\n0\n0\n0\n0\n0\n42").is_some());
-        assert!(ButtonConfiguration::parse("medium\nunknown\nSave\n\n0\n0\n0\n0\n0\n42").is_none());
+        assert!(ButtonConfiguration::parse("medium\nprimary\nSave\n\n0\n0\n0\n0\n0\nicons/save.svg\n42").is_some());
+        assert!(ButtonConfiguration::parse("medium\nunknown\nSave\n\n0\n0\n0\n0\n0\n\n42").is_none());
         assert!(ProgressConfiguration::parse("medium\nNaN\n0\n\nUpload").is_none());
         let circle =
             ProgressCircleConfiguration::parse("large\n80\n68\n0\n\nUpload progress").unwrap();
@@ -1197,6 +1225,14 @@ mod tests {
             .unwrap();
         assert_eq!(marker.variant, MarkerVariant::Separator);
         assert_eq!(marker.loading_style, MarkerLoadingStyle::Shimmer);
+        let icon = IconConfiguration::parse("large\nicons/archive.svg\n#ffffff").unwrap();
+        assert_eq!(icon.size, IconSize::Large);
+        assert_eq!(icon.asset_path, "icons/archive.svg");
+        assert!(IconConfiguration::parse("huge\nicons/archive.svg\n#ffffff").is_none());
+        let avatar = AvatarConfiguration::parse("small\nAlex\nhttps://example.com/alex.png")
+            .unwrap();
+        assert_eq!(avatar.source, "https://example.com/alex.png");
+        assert!(AvatarConfiguration::parse("small\nAlex").is_none());
     }
 
     #[test]

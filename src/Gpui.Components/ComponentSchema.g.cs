@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 7u;
-    internal const ulong SchemaHash = 0x91B9D80440F5A196UL;
+    internal const uint SchemaVersion = 8u;
+    internal const ulong SchemaHash = 0xDB73BF9A1A5D2B80UL;
 
     internal static class Attachment
     {
@@ -399,7 +399,7 @@ internal static class ComponentSchema
             Text,
         }
 
-        internal static string EncodeConfiguration(Size size, Variant variant, string label, string accessibilityLabel, bool disabled, bool selected, bool loading, bool outline, bool compact, ulong clickedEvent)
+        internal static string EncodeConfiguration(Size size, Variant variant, string label, string accessibilityLabel, bool disabled, bool selected, bool loading, bool outline, bool compact, string iconAssetPath, ulong clickedEvent)
         {
             var sizeValue = size switch
             {
@@ -433,7 +433,12 @@ internal static class ComponentSchema
             {
                 throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(accessibilityLabel));
             }
-            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{variantValue}\n{label}\n{accessibilityLabel}\n{(disabled ? 1 : 0)}\n{(selected ? 1 : 0)}\n{(loading ? 1 : 0)}\n{(outline ? 1 : 0)}\n{(compact ? 1 : 0)}\n{clickedEvent}");
+            global::System.ArgumentNullException.ThrowIfNull(iconAssetPath);
+            if (iconAssetPath.Contains('\0') || iconAssetPath.Contains('\n') || iconAssetPath.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(iconAssetPath));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{variantValue}\n{label}\n{accessibilityLabel}\n{(disabled ? 1 : 0)}\n{(selected ? 1 : 0)}\n{(loading ? 1 : 0)}\n{(outline ? 1 : 0)}\n{(compact ? 1 : 0)}\n{iconAssetPath}\n{clickedEvent}");
         }
     }
 
@@ -589,7 +594,7 @@ internal static class ComponentSchema
             Large,
         }
 
-        internal static string EncodeConfiguration(Size size, string name)
+        internal static string EncodeConfiguration(Size size, string name, string source)
         {
             var sizeValue = size switch
             {
@@ -604,7 +609,12 @@ internal static class ComponentSchema
             {
                 throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(name));
             }
-            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{name}");
+            global::System.ArgumentNullException.ThrowIfNull(source);
+            if (source.Contains('\0') || source.Contains('\n') || source.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(source));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{name}\n{source}");
         }
     }
 
@@ -1094,6 +1104,42 @@ internal static class ComponentSchema
                 throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(text));
             }
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{variantValue}\n{alignmentValue}\n{(loading ? 1 : 0)}\n{loadingStyleValue}\n{(statusRole ? 1 : 0)}\n{text}\n{(hasIcon ? 1 : 0)}\n{(hasExtra ? 1 : 0)}");
+        }
+    }
+
+    internal static class Icon
+    {
+        internal const string Kind = "icon";
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal static string EncodeConfiguration(Size size, string assetPath, string color)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            global::System.ArgumentNullException.ThrowIfNull(assetPath);
+            if (assetPath.Contains('\0') || assetPath.Contains('\n') || assetPath.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(assetPath));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(color);
+            if (color.Contains('\0') || color.Contains('\n') || color.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(color));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{assetPath}\n{color}");
         }
     }
 }

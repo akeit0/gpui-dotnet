@@ -33,6 +33,15 @@ public sealed record ComponentAvatarOptions
 {
     public ComponentSize Size { get; init; } = ComponentSize.Medium;
     public string Name { get; init; } = string.Empty;
+    public string Source { get; init; } = string.Empty;
+}
+
+/// <summary>An SVG asset provided by the selected native component host.</summary>
+public sealed record ComponentIconOptions
+{
+    public ComponentSize Size { get; init; } = ComponentSize.Medium;
+    public string AssetPath { get; init; } = string.Empty;
+    public string Color { get; init; } = string.Empty;
 }
 
 public sealed record ComponentShimmerTextOptions
@@ -250,7 +259,27 @@ public static partial class ComponentElements
             key,
             ComponentSchema.Avatar.EncodeConfiguration(
                 (ComponentSchema.Avatar.Size)(int)options.Size,
-                options.Name
+                options.Name,
+                options.Source
+            )
+        );
+    }
+
+    public static Element<NativeExtensionTag> Icon(
+        this RenderContext ui,
+        ReadOnlySpan<char> key,
+        ComponentIconOptions options
+    )
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrEmpty(options.AssetPath);
+        return ui.NativeExtension(
+            ComponentsExtension.Icon,
+            key,
+            ComponentSchema.Icon.EncodeConfiguration(
+                (ComponentSchema.Icon.Size)(int)options.Size,
+                options.AssetPath,
+                options.Color
             )
         );
     }

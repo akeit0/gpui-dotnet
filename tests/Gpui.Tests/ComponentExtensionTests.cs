@@ -9,7 +9,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(7u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(8u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -18,7 +18,7 @@ public sealed class ComponentExtensionTests
     public void GeneratedConfigurationEncoderUsesStableInvariantFields()
     {
         Assert.Equal(
-            "medium\nprimary\nSave\nSave document\n0\n1\n0\n1\n0\n42",
+            "medium\nprimary\nSave\nSave document\n0\n1\n0\n1\n0\nicons/save.svg\n42",
             ComponentSchema.Button.EncodeConfiguration(
                 ComponentSchema.Button.Size.Medium,
                 ComponentSchema.Button.Variant.Primary,
@@ -29,6 +29,7 @@ public sealed class ComponentExtensionTests
                 false,
                 true,
                 false,
+                "icons/save.svg",
                 42
             )
         );
@@ -54,6 +55,7 @@ public sealed class ComponentExtensionTests
                 false,
                 false,
                 false,
+                string.Empty,
                 0
             )
         );
@@ -224,6 +226,27 @@ public sealed class ComponentExtensionTests
                 "Loading",
                 false,
                 false
+            )
+        );
+    }
+
+    [Fact]
+    public void IconAndAvatarConfigurationsCarryNativeMediaSources()
+    {
+        Assert.Equal(
+            "large\nicons/archive.svg\n#ffffff",
+            ComponentSchema.Icon.EncodeConfiguration(
+                ComponentSchema.Icon.Size.Large,
+                "icons/archive.svg",
+                "#ffffff"
+            )
+        );
+        Assert.Equal(
+            "small\nAlex\nhttps://example.com/alex.png",
+            ComponentSchema.Avatar.EncodeConfiguration(
+                ComponentSchema.Avatar.Size.Small,
+                "Alex",
+                "https://example.com/alex.png"
             )
         );
     }

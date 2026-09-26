@@ -115,10 +115,10 @@ The accepted ownership, revision, bootstrap, command, and event design is docume
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes Editor plus thirty-two component families. Display and content coverage includes
+The host includes Editor plus thirty-three component families. Display and content coverage includes
 Spinner, Skeleton, Separator, Badge, Tag, linear and circular Progress, Alert, GroupBox, Label, Kbd,
-Avatar, ShimmerText, Attachment, Empty, StatusBar, Bubble, BubbleGroup, Message, MessageGroup, and
-Marker. Interactive and controlled coverage includes Rating,
+Avatar, Icon, ShimmerText, Attachment, Empty, StatusBar, Bubble, BubbleGroup, Message,
+MessageGroup, and Marker. Interactive and controlled coverage includes Rating,
 Button, Link, Switch, Checkbox, Radio, Toggle, Pagination, Collapsible, Toolbar, and ToolbarGroup.
 Editor keeps its independently versioned
 `Gpui.Editor` managed schema; applications using both schemas list both requirements, and the host
@@ -146,6 +146,10 @@ disable its child controls, which remain application-owned declarations.
 outer regions at the edges and aligns the center according to which outer regions are present.
 Each region can contain a managed composition of text, controls, or other elements.
 
+`Icon` renders an SVG from the native host's asset source with semantic size and optional color.
+`Avatar` accepts a name fallback and optional image source; the host retains image loading and
+rendering behavior. Button can use the same asset paths for a leading icon.
+
 Conversation composition uses `Bubble` for a themed content surface and optional reaction slot,
 `Message` for avatar/header/body/footer alignment, `Marker` for separators and loading/status rows,
 and the two group elements for spacing. The application owns message data and all actions. A
@@ -154,15 +158,8 @@ bubbles need `ContentHasGhostSurface` on their containing Message so header/foot
 unstyled body. These elements accept batched child declarations; they do not add message storage or
 per-item managed callbacks to the native host.
 
-The sample proves the generated configuration contract and custom-host composition:
-
-```sh
-dotnet run --project samples/Gpui.Components.Sample/Gpui.Components.Sample.csproj
-```
-
-In the sample, click `Archive` on `release-notes.pdf` to replace the empty state with the archived
-file. Click `Restore` on that card to return to the empty state. `Finish` and `Restart` separately
-demonstrate its file lifecycle status.
+The [component sample](../samples/Gpui.Components.Sample/README.md) demonstrates the generated
+contract and custom-host composition.
 
 This is deliberately a semantic catalog, not a mirror of every Rust builder method. Broader
 coverage should add coherent component families to the schema and provider. Retained data sources,

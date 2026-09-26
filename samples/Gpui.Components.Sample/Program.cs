@@ -178,7 +178,14 @@ internal sealed partial class ComponentsSampleView : View
                                 Description = "Archive the file above to see it here.",
                                 MediaVariant = ComponentEmptyMediaVariant.Icon,
                             },
-                            media: ui.Text("□"u8),
+                            media: ui.Icon(
+                                "catalog-empty-icon",
+                                new ComponentIconOptions
+                                {
+                                    AssetPath = "icons/archive.svg",
+                                    Size = ComponentSize.Large,
+                                }
+                            ),
                             footer: ui.Text("Empty state presentation from gpui-component."u8)
                         )
                         .Height(Px(180))
@@ -202,7 +209,7 @@ internal sealed partial class ComponentsSampleView : View
                         new ComponentLabelOptions
                         {
                             Text = "Generated semantic adapters",
-                            Secondary = "32 families",
+                            Secondary = "33 families",
                             Highlight = "semantic",
                         }
                     ),
@@ -319,7 +326,12 @@ internal sealed partial class ComponentsSampleView : View
                             view._clicks++;
                             view.Invalidate();
                         },
-                        new ComponentButtonOptions { Label = "Save", Size = ComponentSize.Small }
+                        new ComponentButtonOptions
+                        {
+                            Label = "Save",
+                            Size = ComponentSize.Small,
+                            IconAssetPath = "icons/save.svg",
+                        }
                     )
                 )
             ),
