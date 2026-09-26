@@ -81,17 +81,6 @@ public static partial class ComponentElements
     )
     {
         options ??= new();
-        var count =
-            (media.HasValue ? 1 : 0) + (content.HasValue ? 1 : 0) + (actions.HasValue ? 1 : 0);
-        var children = new Element[count];
-        var index = 0;
-        if (media.HasValue)
-            children[index++] = media.Value;
-        if (content.HasValue)
-            children[index++] = content.Value;
-        if (actions.HasValue)
-            children[index] = actions.Value;
-
         return ui.NativeExtension(
             ComponentsExtension.Attachment,
             key,
@@ -107,7 +96,7 @@ public static partial class ComponentElements
                 actions.HasValue,
                 token
             ),
-            children
+            ComponentSlots.Pack(media, content, actions)
         );
     }
 }

@@ -49,6 +49,7 @@ public static class ComponentsExtension
         Component(ComponentSchema.Collapsible.Kind);
     internal static NativeExtensionComponent Attachment { get; } =
         Component(ComponentSchema.Attachment.Kind);
+    internal static NativeExtensionComponent Empty { get; } = Component(ComponentSchema.Empty.Kind);
 
     private static NativeExtensionComponent Component(string kind) => new(Requirement, kind);
 }

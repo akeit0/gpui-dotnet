@@ -115,9 +115,9 @@ The accepted ownership, revision, bootstrap, command, and event design is docume
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes Editor plus twenty-three component families. Display and content coverage includes
+The host includes Editor plus twenty-four component families. Display and content coverage includes
 Spinner, Skeleton, Separator, Badge, Tag, linear and circular Progress, Alert, GroupBox, Label, Kbd,
-Avatar, ShimmerText, and Attachment. Interactive and controlled coverage includes Rating, Button, Link, Switch,
+Avatar, ShimmerText, Attachment, and Empty. Interactive and controlled coverage includes Rating, Button, Link, Switch,
 Checkbox, Radio, Toggle, Pagination, and Collapsible. Editor keeps its independently versioned
 `Gpui.Editor` managed schema; applications using both schemas list both requirements, and the host
 advertises and serves both. Parent-capable controls receive one batched managed child list. Native
@@ -130,6 +130,10 @@ preview source, size, orientation, and lifecycle status are declarative; the app
 model and upload work. A card click emits a typed event. Existing controls in the actions slot retain
 their own event routes without activating the card. Use GPUI.NET's Scroll for attachment collections;
 the attachment declaration does not create a separate managed file resource or datasource.
+
+`Empty` provides themed media, title, description, content, and footer slots. Applications decide
+when to show it and supply any controls in its content slot. The shared optional-slot transport keeps
+each named child in its declared position even when earlier slots are absent.
 
 The sample proves the generated configuration contract and custom-host composition:
 

@@ -119,7 +119,7 @@ internal sealed partial class ComponentsSampleView : View
                         new ComponentLabelOptions
                         {
                             Text = "Generated semantic adapters",
-                            Secondary = "23 families",
+                            Secondary = "24 families",
                             Highlight = "semantic",
                         }
                     ),
@@ -257,6 +257,18 @@ internal sealed partial class ComponentsSampleView : View
                     }
                 )
             ),
+            ui.Empty(
+                    "catalog-empty",
+                    new ComponentEmptyOptions
+                    {
+                        Title = "No archived files",
+                        Description = "Archived attachments will appear here.",
+                        MediaVariant = ComponentEmptyMediaVariant.Icon,
+                    },
+                    media: ui.Text("□"u8),
+                    footer: ui.Text("Empty state presentation from gpui-component."u8)
+                )
+                .Height(Px(180)),
             ui.Collapsible(
                 "catalog-collapsible",
                 new ComponentCollapsibleOptions { Open = _switchChecked },

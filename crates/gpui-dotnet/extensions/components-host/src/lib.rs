@@ -19,6 +19,10 @@ use gpui_component::{
     },
     checkbox::Checkbox,
     collapsible::Collapsible,
+    empty::{
+        Empty as ComponentEmpty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia,
+        EmptyMediaVariant as NativeEmptyMediaVariant, EmptyTitle,
+    },
     group_box::{GroupBox, GroupBoxVariant as NativeGroupBoxVariant, GroupBoxVariants as _},
     kbd::Kbd,
     label::{HighlightsMatch, Label},
@@ -87,6 +91,7 @@ impl NativeExtension for ComponentsExtension {
         }
         match request.resource_key.component_kind() {
             COMPONENT_ATTACHMENT => attachment(request),
+            COMPONENT_EMPTY => empty(request),
             COMPONENT_SPINNER => spinner(request),
             COMPONENT_SKELETON => skeleton(request),
             COMPONENT_SEPARATOR => separator(request),
@@ -117,29 +122,10 @@ impl NativeExtension for ComponentsExtension {
 fn attachment(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
     let config = AttachmentConfiguration::parse(&request.configuration)
         .ok_or_else(|| SharedString::from("Invalid Attachment configuration."))?;
-    let expected = usize::from(config.media_child)
-        + usize::from(config.content_child)
-        + usize::from(config.has_actions);
-    if request.children.len() != expected {
-        return Err("Attachment slot count does not match its configuration.".into());
-    }
-
-    let mut children = request.children.into_iter();
-    let media_child = if config.media_child {
-        children.next()
-    } else {
-        None
-    };
-    let content_child = if config.content_child {
-        children.next()
-    } else {
-        None
-    };
-    let actions_child = if config.has_actions {
-        children.next()
-    } else {
-        None
-    };
+    let [media_child, content_child, actions_child] = split_slots(
+        request.children,
+        [config.media_child, config.content_child, config.has_actions],
+    )?;
     let mut component = Attachment::new()
         .with_size(match config.size {
             AttachmentSize::Xsmall => gpui_component::Size::XSmall,
@@ -193,6 +179,63 @@ fn attachment(request: NativeExtensionRequest) -> Result<AnyElement, SharedStrin
             });
     }
     Ok(component.into_any_element())
+}
+
+fn empty(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = EmptyConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Empty configuration."))?;
+    let [media_child, content_child, footer_child] = split_slots(
+        request.children,
+        [config.has_media, config.has_content, config.has_footer],
+    )?;
+
+    let mut component = ComponentEmpty::new();
+    if media_child.is_some() || !config.title.is_empty() || !config.description.is_empty() {
+        let mut header = EmptyHeader::new();
+        if let Some(media_child) = media_child {
+            let mut media = EmptyMedia::new().with_variant(match config.media_variant {
+                EmptyMediaVariant::Default => NativeEmptyMediaVariant::Default,
+                EmptyMediaVariant::Icon => NativeEmptyMediaVariant::Icon,
+            });
+            media.extend([media_child]);
+            header = header.media(media);
+        }
+        if !config.title.is_empty() {
+            let mut title = EmptyTitle::new();
+            title.extend([config.title.to_owned().into_any_element()]);
+            header = header.title(title);
+        }
+        if !config.description.is_empty() {
+            let mut description = EmptyDescription::new();
+            description.extend([config.description.to_owned().into_any_element()]);
+            header = header.description(description);
+        }
+        component = component.header(header);
+    }
+    if let Some(content_child) = content_child {
+        let mut content = EmptyContent::new();
+        content.extend([content_child]);
+        component = component.content(content);
+    }
+    component.extend(footer_child);
+    Ok(component.into_any_element())
+}
+
+fn split_slots(
+    children: Vec<AnyElement>,
+    present: [bool; 3],
+) -> Result<[Option<AnyElement>; 3], SharedString> {
+    if children.len() != present.into_iter().filter(|value| *value).count() {
+        return Err("Component slot count does not match its configuration.".into());
+    }
+    let mut children = children.into_iter();
+    let mut slots = [None, None, None];
+    for (slot, present) in slots.iter_mut().zip(present) {
+        if present {
+            *slot = children.next();
+        }
+    }
+    Ok(slots)
 }
 
 fn no_children(request: &NativeExtensionRequest) -> Result<(), SharedString> {
@@ -918,6 +961,23 @@ mod tests {
             "small\nvertical\nunknown\nreport.pdf\nUploading\n\n1\n1\n1\n17"
         )
         .is_none());
+        let empty = EmptyConfiguration::parse("icon\nNo files\nAdd a file to begin.\n1\n0\n1")
+            .unwrap();
+        assert_eq!(empty.media_variant, EmptyMediaVariant::Icon);
+        assert!(empty.has_media);
+        assert!(!empty.has_content);
+        assert!(empty.has_footer);
+    }
+
+    #[test]
+    fn optional_slots_keep_their_named_positions_and_reject_mismatches() {
+        let [media, content, footer] =
+            split_slots(vec![div().into_any_element()], [false, true, false]).unwrap();
+        assert!(media.is_none());
+        assert!(content.is_some());
+        assert!(footer.is_none());
+        assert!(split_slots(vec![], [true, false, false]).is_err());
+        assert!(split_slots(vec![div().into_any_element()], [false, false, false]).is_err());
     }
 
     #[test]

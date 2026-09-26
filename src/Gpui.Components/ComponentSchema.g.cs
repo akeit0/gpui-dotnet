@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 3u;
-    internal const ulong SchemaHash = 0xDE819560E2FA5BF9UL;
+    internal const uint SchemaVersion = 4u;
+    internal const ulong SchemaHash = 0x5BF948476C47A72FUL;
 
     internal static class Attachment
     {
@@ -842,6 +842,38 @@ internal static class ComponentSchema
         internal static string EncodeConfiguration(bool open, bool animated)
         {
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{(open ? 1 : 0)}\n{(animated ? 1 : 0)}");
+        }
+    }
+
+    internal static class Empty
+    {
+        internal const string Kind = "empty";
+
+        internal enum MediaVariant
+        {
+            Default,
+            Icon,
+        }
+
+        internal static string EncodeConfiguration(MediaVariant mediaVariant, string title, string description, bool hasMedia, bool hasContent, bool hasFooter)
+        {
+            var mediaVariantValue = mediaVariant switch
+            {
+                MediaVariant.Default => "default",
+                MediaVariant.Icon => "icon",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(mediaVariant)),
+            };
+            global::System.ArgumentNullException.ThrowIfNull(title);
+            if (title.Contains('\0') || title.Contains('\n') || title.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(title));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(description);
+            if (description.Contains('\0') || description.Contains('\n') || description.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(description));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{mediaVariantValue}\n{title}\n{description}\n{(hasMedia ? 1 : 0)}\n{(hasContent ? 1 : 0)}\n{(hasFooter ? 1 : 0)}");
         }
     }
 }

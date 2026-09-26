@@ -9,7 +9,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(3u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(4u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -146,6 +146,22 @@ public sealed class ComponentExtensionTests
         Assert.Throws<InvalidOperationException>(() =>
             ComponentAttachmentClickedEvent.Decode(
                 new NativeExtensionEvent(ComponentSchema.Attachment.EventClicked, 0, 0, [1])
+            )
+        );
+    }
+
+    [Fact]
+    public void EmptyConfigurationKeepsTheNamedSlotPresence()
+    {
+        Assert.Equal(
+            "icon\nNo files\nAdd a file to begin.\n1\n0\n1",
+            ComponentSchema.Empty.EncodeConfiguration(
+                ComponentSchema.Empty.MediaVariant.Icon,
+                "No files",
+                "Add a file to begin.",
+                true,
+                false,
+                true
             )
         );
     }

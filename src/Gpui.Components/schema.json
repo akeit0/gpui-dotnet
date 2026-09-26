@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "components": [
     {
       "kind": "attachment",
@@ -385,6 +385,23 @@
         "fields": [
           { "name": "open", "type": "bool" },
           { "name": "animated", "type": "bool" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {}
+    },
+    {
+      "kind": "empty",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "media_variant", "type": "enum", "values": ["default", "icon"] },
+          { "name": "title", "type": "string" },
+          { "name": "description", "type": "string" },
+          { "name": "has_media", "type": "bool" },
+          { "name": "has_content", "type": "bool" },
+          { "name": "has_footer", "type": "bool" }
         ]
       },
       "flags": {},
