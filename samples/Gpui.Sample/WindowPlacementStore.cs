@@ -1,5 +1,9 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Gpui;
+
+[JsonSerializable(typeof(GpuiWindowPlacement))]
+internal partial class WindowPlacementJsonContext : JsonSerializerContext { }
 
 internal static class WindowPlacementStore
 {
@@ -16,7 +20,8 @@ internal static class WindowPlacementStore
         try
         {
             var placement = JsonSerializer.Deserialize<GpuiWindowPlacement>(
-                File.ReadAllText(PathName)
+                File.ReadAllText(PathName),
+                WindowPlacementJsonContext.Default.GpuiWindowPlacement
             );
             if (
                 float.IsFinite(placement.Left)
@@ -43,6 +48,12 @@ internal static class WindowPlacementStore
     internal static void Save(GpuiWindowPlacement placement)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(PathName)!);
-        File.WriteAllText(PathName, JsonSerializer.Serialize(placement));
+        File.WriteAllText(
+            PathName,
+            JsonSerializer.Serialize(
+                placement,
+                WindowPlacementJsonContext.Default.GpuiWindowPlacement
+            )
+        );
     }
 }
