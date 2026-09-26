@@ -37,6 +37,7 @@ mod snapshot;
 mod theme;
 mod tooltip;
 mod trace;
+mod window_toast;
 
 use std::{mem::size_of, panic::AssertUnwindSafe, ptr};
 
@@ -465,6 +466,19 @@ unsafe fn dispatch_application_command_inner(
             },
         );
     }
+    if command.command == window_toast::POST_COMMAND {
+        let toast = match window_toast::parse_post(command) {
+            Ok(toast) => toast,
+            Err(status) => return status,
+        };
+        return app_host::dispatch_application_command(
+            application_id,
+            app_host::ApplicationCommand::ShowToast {
+                window_id: command.window_id,
+                toast,
+            },
+        );
+    }
 
     let title_bar_style = (command.flags >> 2) & 0b11;
     let size_valid = command.width.is_finite()
@@ -483,8 +497,11 @@ unsafe fn dispatch_application_command_inner(
                     no_position
                 }
         }
-        2 | 3 | 6 | 7 | 12 => command.flags == 0 && no_title && no_position && no_size,
+        2 | 3 | 6 | 7 | 12 | window_toast::CLEAR_COMMAND => {
+            command.flags == 0 && no_title && no_position && no_size
+        }
         4 => command.flags == 0 && !no_title && no_position && no_size,
+        window_toast::DISMISS_COMMAND => command.flags == 0 && !no_title && no_position && no_size,
         5 => command.flags == 0 && no_title && no_position && size_valid,
         11 => command.flags == 0 && command.window_id == 0 && !no_title && no_position && no_size,
         _ => false,
@@ -524,6 +541,17 @@ unsafe fn dispatch_application_command_inner(
         6 => app_host::ApplicationCommand::Minimize(command.window_id),
         7 => app_host::ApplicationCommand::ToggleMaximize(command.window_id),
         12 => app_host::ApplicationCommand::ToggleFullscreen(command.window_id),
+        window_toast::DISMISS_COMMAND => {
+            let id = title.expect("validated dismiss ID");
+            if !window_toast::valid_dismiss_id(&id) {
+                return -62;
+            }
+            app_host::ApplicationCommand::DismissToast {
+                window_id: command.window_id,
+                id,
+            }
+        }
+        window_toast::CLEAR_COMMAND => app_host::ApplicationCommand::ClearToasts(command.window_id),
         4 => app_host::ApplicationCommand::SetTitle {
             window_id: command.window_id,
             title: title.expect("validated title update"),
@@ -830,6 +858,36 @@ mod tests {
         command.width = 1.0;
         assert_eq!(
             unsafe { dispatch_application_command_inner(u64::MAX - 1, &command) },
+            -62
+        );
+    }
+
+    #[test]
+    fn dismiss_and_clear_toasts_validate_window_payloads() {
+        let mut clear = empty_application_command(window_toast::CLEAR_COMMAND);
+        clear.window_id = 1;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &clear) },
+            -40
+        );
+        clear.flags = 1;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &clear) },
+            -62
+        );
+
+        let id = b"save";
+        let mut dismiss = empty_application_command(window_toast::DISMISS_COMMAND);
+        dismiss.window_id = 1;
+        dismiss.title = id.as_ptr();
+        dismiss.title_length = id.len() as i32;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &dismiss) },
+            -40
+        );
+        dismiss.title_length = 0;
+        assert_eq!(
+            unsafe { dispatch_application_command_inner(u64::MAX - 1, &dismiss) },
             -62
         );
     }

@@ -118,11 +118,8 @@ deltas across the managed boundary while a pointer is moving.
 - keyboard navigation and roving selection for menu items;
 - disabled, checked, radio, and submenu semantics;
 - keyboard/focus-triggered tooltips;
-- window-owned toast/notification hosting with stable IDs, replacement, ordering, timeout, pause,
-  and reduced-motion behavior, driven by coarse managed commands;
+- reduced-motion behavior and cross-platform interaction verification for window-owned toasts;
 - broader focus and dismissal integration tests.
-
-Keep stacking and dismissal window-owned in Rust while product visuals remain managed.
 
 ## Windows
 

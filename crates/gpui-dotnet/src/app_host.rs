@@ -6,6 +6,7 @@ use std::{
         Arc, Mutex, OnceLock,
         atomic::{AtomicBool, AtomicI32, Ordering},
     },
+    time::Duration,
 };
 
 use async_channel::{Receiver, Sender, TrySendError};
@@ -27,6 +28,7 @@ use crate::{
     snapshot::{RetainedStrings, SnapshotScratch, ValidatedSnapshot},
     theme::{NativeTheme, SharedTheme},
     trace,
+    window_toast::{WindowToast, WindowToastHost},
 };
 
 const INGRESS_CAPACITY: usize = 4096;
@@ -46,6 +48,8 @@ pub(crate) struct ManagedView {
     pub(crate) popover_menus: Rc<PopoverMenuGroup>,
     pub(crate) overlay_stack: Rc<OverlayStack>,
     pub(crate) theme: SharedTheme,
+    toasts: WindowToastHost,
+    toast_clock_running: bool,
 }
 
 enum ViewMessage {
@@ -121,6 +125,15 @@ pub(crate) enum ApplicationCommand {
     Minimize(u64),
     ToggleMaximize(u64),
     ToggleFullscreen(u64),
+    ShowToast {
+        window_id: u64,
+        toast: WindowToast,
+    },
+    DismissToast {
+        window_id: u64,
+        id: String,
+    },
+    ClearToasts(u64),
     SetTitle {
         window_id: u64,
         title: String,
@@ -365,6 +378,53 @@ impl ManagedView {
             popover_menus: Rc::new(PopoverMenuGroup::default()),
             overlay_stack: OverlayStack::new(),
             theme,
+            toasts: WindowToastHost::new(),
+            toast_clock_running: false,
+        }
+    }
+
+    fn show_toast(&mut self, toast: WindowToast, window: &mut Window, cx: &mut Context<Self>) {
+        self.toasts.push(toast, cx.background_executor().now());
+        cx.notify();
+        if self.toast_clock_running {
+            return;
+        }
+        self.toast_clock_running = true;
+        cx.spawn_in(window, async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(Duration::from_millis(50))
+                    .await;
+                let Ok(continue_clock) = this.update(cx, |view, cx| {
+                    if view.toasts.advance(cx.background_executor().now()) {
+                        cx.notify();
+                    }
+                    if view.toasts.is_empty() {
+                        view.toast_clock_running = false;
+                        false
+                    } else {
+                        true
+                    }
+                }) else {
+                    break;
+                };
+                if !continue_clock {
+                    break;
+                }
+            }
+        })
+        .detach();
+    }
+
+    pub(crate) fn dismiss_toast(&mut self, id: &str, cx: &mut Context<Self>) {
+        if self.toasts.dismiss(id, cx.background_executor().now()) {
+            cx.notify();
+        }
+    }
+
+    fn clear_toasts(&mut self, cx: &mut Context<Self>) {
+        if self.toasts.clear(cx.background_executor().now()) {
+            cx.notify();
         }
     }
 
@@ -596,6 +656,7 @@ impl Render for ManagedView {
         self.schedule_dynamic_frame(dynamic_owners, window, cx);
 
         let item_tooltips = self.resources.item_tooltips.clone();
+        let toast_layer = (!self.toasts.is_empty()).then(|| self.toasts.layer(theme, cx));
         // The managed root's Grow/Shrink styles only constrain it to the window when this host
         // participates in flex layout. Without that contract, root scroll views expand to their
         // full content height and never acquire an overflow range.
@@ -629,6 +690,7 @@ impl Render for ManagedView {
             .child(crate::item_tooltip::frame_end(
                 self.resources.item_tooltips.clone(),
             ))
+            .when_some(toast_layer, |root, layer| root.child(layer))
     }
 }
 
@@ -975,6 +1037,27 @@ fn apply_application_command(
         ApplicationCommand::ToggleFullscreen(window_id) => {
             if let Some(handle) = managed_window_handle(windows, window_id) {
                 let _ = handle.update(cx, |_, window, _| window.toggle_fullscreen());
+            }
+        }
+        ApplicationCommand::ShowToast { window_id, toast } => {
+            if let Some(handle) = managed_window_handle(windows, window_id)
+                .and_then(|handle| handle.downcast::<ManagedView>())
+            {
+                let _ = handle.update(cx, |view, window, cx| view.show_toast(toast, window, cx));
+            }
+        }
+        ApplicationCommand::DismissToast { window_id, id } => {
+            if let Some(handle) = managed_window_handle(windows, window_id)
+                .and_then(|handle| handle.downcast::<ManagedView>())
+            {
+                let _ = handle.update(cx, |view, _, cx| view.dismiss_toast(&id, cx));
+            }
+        }
+        ApplicationCommand::ClearToasts(window_id) => {
+            if let Some(handle) = managed_window_handle(windows, window_id)
+                .and_then(|handle| handle.downcast::<ManagedView>())
+            {
+                let _ = handle.update(cx, |view, _, cx| view.clear_toasts(cx));
             }
         }
         ApplicationCommand::SetTitle { window_id, title } => {

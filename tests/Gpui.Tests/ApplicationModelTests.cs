@@ -141,6 +141,11 @@ public sealed class ApplicationModelTests
         Assert.Throws<InvalidOperationException>(window.Minimize);
         Assert.Throws<InvalidOperationException>(window.ToggleMaximize);
         Assert.Throws<InvalidOperationException>(window.ToggleFullscreen);
+        Assert.Throws<InvalidOperationException>(() =>
+            window.ShowToast(new GpuiToast("id", "Title"))
+        );
+        Assert.Throws<InvalidOperationException>(() => window.DismissToast("id"));
+        Assert.Throws<InvalidOperationException>(window.ClearToasts);
 
         window.Close();
 

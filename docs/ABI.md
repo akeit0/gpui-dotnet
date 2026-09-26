@@ -322,6 +322,9 @@ Current commands are:
 | Minimize | existing window ID |
 | ToggleMaximize | existing window ID |
 | ToggleFullscreen | existing window ID |
+| ShowToast | versioned UTF-8 toast payload, existing window ID |
+| DismissToast | non-empty UTF-8 toast ID, existing window ID |
+| ClearToasts | empty payload, existing window ID |
 | SetTitle | non-empty UTF-8 title |
 | Resize | positive finite width and height |
 | SetTheme | versioned appearance and resolved semantic palette, application-scoped |
@@ -332,6 +335,15 @@ Current commands are:
 Open flags encode optional position, activation, and `System`, `Custom`, or `Hidden` title-bar
 style. Runtime reposition is not exposed because the pinned GPUI revision has no durable
 cross-platform operation for it.
+
+`ShowToast` (command 13) uses the borrowed byte range as a version 1 payload. Its 24-byte header
+contains six little-endian `u32` fields: version, timeout in milliseconds, ID byte length, title
+byte length, description byte length, and reserved zero. The UTF-8 fields follow in that order,
+with no terminators. ID and title must be non-empty; their limits are 256 and 4096 bytes, and the
+description limit is 16384 bytes. Timeout zero is persistent; the maximum is one day. The native
+entry point checks exact length, bounds, UTF-8, version, and reserved fields before copying the
+toast into the application command queue. `DismissToast` (14) accepts at most 256 UTF-8 bytes;
+`ClearToasts` (15) has no payload. All three commands target one open window.
 
 The theme command uses the command record's byte pointer as a private fixed-size payload. Payload
 version 2 is 20 sequential little-endian `u32` values: version, appearance (`0` Light or `1` Dark),

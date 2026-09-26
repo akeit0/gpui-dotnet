@@ -321,10 +321,11 @@ that depends on a frame or pointer position. Optional component packages supply 
 and matching native adapters without expanding the core component vocabulary.
 
 Application file, process, and network work uses .NET services outside `Render()`. Event handlers
-or accepted effects update application state, which then invalidates Views. A window-level
-notification host belongs with the native window and should accept coarse managed declarations;
-it is not a component extension or a per-frame callback. If applications later load untrusted
-code, capability grants and isolation belong at that host boundary rather than in the renderer.
+or accepted effects update application state, which then invalidates Views. The toast host belongs
+to each native window and accepts coarse commands for replacement and dismissal; its timer and
+stacking stay native. It is not a component extension or a per-frame callback. If applications
+later load untrusted code, capability grants and isolation belong at that host boundary rather
+than in the renderer.
 
 ## Dependency policy
 

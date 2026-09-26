@@ -106,6 +106,15 @@ public sealed class GpuiWindow
     /// <summary>Toggles fullscreen for an already-open native window.</summary>
     public void ToggleFullscreen() => _application.ToggleFullscreenWindow(this);
 
+    /// <summary>Shows or replaces a window-owned notification.</summary>
+    public void ShowToast(GpuiToast toast) => _application.ShowWindowToast(this, toast);
+
+    /// <summary>Dismisses a notification by its stable ID.</summary>
+    public void DismissToast(string id) => _application.DismissWindowToast(this, id);
+
+    /// <summary>Dismisses all notifications in this window.</summary>
+    public void ClearToasts() => _application.ClearWindowToasts(this);
+
     public void SetTitle(string title) => _application.SetWindowTitle(this, title);
 
     /// <summary>Changes native window content size. Runtime repositioning is not exposed by GPUI.</summary>
@@ -631,6 +640,58 @@ public sealed class GpuiApplication
         }
     }
 
+    internal void ShowWindowToast(GpuiWindow window, GpuiToast toast)
+    {
+        lock (_ingressGate)
+        {
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            IGpuiApplicationHost host;
+            lock (_gate)
+            {
+                ValidateOpenWindow(window);
+                host =
+                    _host
+                    ?? throw new InvalidOperationException("The native window has not opened yet.");
+            }
+            host.ShowWindowToast(window.Id, Interop.Internal.WindowToastPayload.Encode(toast));
+        }
+    }
+
+    internal void DismissWindowToast(GpuiWindow window, string id)
+    {
+        lock (_ingressGate)
+        {
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            IGpuiApplicationHost host;
+            lock (_gate)
+            {
+                ValidateOpenWindow(window);
+                host =
+                    _host
+                    ?? throw new InvalidOperationException("The native window has not opened yet.");
+            }
+            Interop.Internal.WindowToastPayload.ValidateId(id);
+            host.DismissWindowToast(window.Id, id);
+        }
+    }
+
+    internal void ClearWindowToasts(GpuiWindow window)
+    {
+        lock (_ingressGate)
+        {
+            Interop.Internal.ApplicationExecution.AssertEffectsAllowed();
+            IGpuiApplicationHost host;
+            lock (_gate)
+            {
+                ValidateOpenWindow(window);
+                host =
+                    _host
+                    ?? throw new InvalidOperationException("The native window has not opened yet.");
+            }
+            host.ClearWindowToasts(window.Id);
+        }
+    }
+
     internal void SetWindowTitle(GpuiWindow window, string title)
     {
         lock (_ingressGate)
@@ -766,6 +827,9 @@ internal interface IGpuiApplicationHost
     void MinimizeWindow(ulong windowId);
     void ToggleMaximizeWindow(ulong windowId);
     void ToggleFullscreenWindow(ulong windowId);
+    void ShowWindowToast(ulong windowId, byte[] payload);
+    void DismissWindowToast(ulong windowId, string id);
+    void ClearWindowToasts(ulong windowId);
     void SetWindowTitle(ulong windowId, string title);
     void ResizeWindow(ulong windowId, float width, float height);
 }

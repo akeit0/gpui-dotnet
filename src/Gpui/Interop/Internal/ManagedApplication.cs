@@ -348,6 +348,13 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
 
     public void ToggleFullscreenWindow(ulong windowId) => Dispatch(12, windowId);
 
+    public void ShowWindowToast(ulong windowId, byte[] payload) =>
+        DispatchBytes(13, windowId, payload);
+
+    public void DismissWindowToast(ulong windowId, string id) => Dispatch(14, windowId, id);
+
+    public void ClearWindowToasts(ulong windowId) => Dispatch(15, windowId);
+
     public void SetWindowTitle(ulong windowId, string title) => Dispatch(4, windowId, title);
 
     public void EvictImage(string path) => Dispatch(11, 0, path);
@@ -441,8 +448,33 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
             throw new InvalidOperationException("The GPUI application is stopping.");
         }
 
-        var titleUtf8 = title is null ? Array.Empty<byte>() : Encoding.UTF8.GetBytes(title);
-        fixed (byte* titlePointer = titleUtf8)
+        DispatchBytes(
+            command,
+            windowId,
+            title is null ? Array.Empty<byte>() : Encoding.UTF8.GetBytes(title),
+            left,
+            top,
+            width,
+            height,
+            flags
+        );
+    }
+
+    private unsafe void DispatchBytes(
+        ushort command,
+        ulong windowId,
+        byte[] payload,
+        float left = 0,
+        float top = 0,
+        float width = 0,
+        float height = 0,
+        ushort flags = 0
+    )
+    {
+        ApplicationExecution.AssertEffectsAllowed();
+        if (Volatile.Read(ref _stopped) != 0)
+            throw new InvalidOperationException("The GPUI application is stopping.");
+        fixed (byte* payloadPointer = payload)
         {
             var native = new NativeApplicationCommand
             {
@@ -450,8 +482,8 @@ internal sealed class ManagedApplication : IGpuiApplicationHost
                 command = command,
                 flags = flags,
                 reserved = 0,
-                title = titlePointer,
-                title_length = titleUtf8.Length,
+                title = payloadPointer,
+                title_length = payload.Length,
                 reserved2 = 0,
                 left = left,
                 top = top,

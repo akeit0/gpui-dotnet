@@ -276,6 +276,10 @@ window.Activate();
 Window commands such as `ToggleFullscreen()` and `ToggleMaximize()` act on an already-open
 native window.
 
+`window.ShowToast(new GpuiToast("save", "File saved"))` posts a window notification. Posting the
+same ID replaces it; `DismissToast(id)` and `ClearToasts()` close notifications without changing
+the managed View snapshot. The [sample](samples/Gpui.Sample/README.md) has interactive controls.
+
 `WindowTitleBarStyle` supports `System`, `Custom`, and `Hidden`. Custom title bars use semantic
 `WindowControlArea` regions for native drag, minimize, maximize, and close behavior.
 

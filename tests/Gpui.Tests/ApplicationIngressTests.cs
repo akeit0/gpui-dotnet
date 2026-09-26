@@ -44,6 +44,9 @@ public sealed class ApplicationIngressTests
                     second.Resize(900, 600);
                     second.Activate();
                     second.ToggleFullscreen();
+                    second.ShowToast(new GpuiToast("save", "Saved"));
+                    second.DismissToast("save");
+                    second.ClearToasts();
                     application.SetImageCacheBudget(200, 8);
                     application.SetTheme(GpuiTheme.Default);
                     second.Close();
@@ -69,6 +72,9 @@ public sealed class ApplicationIngressTests
                 $"size:{second.Id}",
                 $"activate:{second.Id}",
                 $"fullscreen:{second.Id}",
+                $"toast:{second.Id}",
+                $"dismiss-toast:{second.Id}:save",
+                $"clear-toasts:{second.Id}",
                 "budget:200:8",
                 "theme",
                 $"close:{second.Id}",
@@ -168,6 +174,13 @@ public sealed class ApplicationIngressTests
         public void ToggleMaximizeWindow(ulong id) { }
 
         public void ToggleFullscreenWindow(ulong id) => Commands.Enqueue($"fullscreen:{id}");
+
+        public void ShowWindowToast(ulong id, byte[] payload) => Commands.Enqueue($"toast:{id}");
+
+        public void DismissWindowToast(ulong id, string toastId) =>
+            Commands.Enqueue($"dismiss-toast:{id}:{toastId}");
+
+        public void ClearWindowToasts(ulong id) => Commands.Enqueue($"clear-toasts:{id}");
     }
 
     private sealed class Probe(ViewConstruction construction)
