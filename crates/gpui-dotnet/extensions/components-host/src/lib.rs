@@ -1,7 +1,7 @@
-use std::{sync::Once, time::Duration};
+use std::{borrow::Cow, path::{Component as PathComponent, Path}, sync::Once, time::Duration};
 
 use gpui::{
-    AnyElement, App, Axis, Hsla, IntoElement as _, Keystroke, ParentElement as _, Role, SharedString,
+    AnyElement, App, AssetSource, Axis, Hsla, IntoElement as _, Keystroke, ParentElement as _, Role, SharedString,
     Styled as _, Window, div, px, rgba,
 };
 use gpui_component::{
@@ -68,6 +68,41 @@ mod component_schema;
 use component_schema::*;
 
 struct ComponentsExtension;
+struct ComponentsAssets;
+
+static COMPONENTS_ASSETS: ComponentsAssets = ComponentsAssets;
+
+impl AssetSource for ComponentsAssets {
+    fn load(&self, path: &str) -> gpui::Result<Option<Cow<'static, [u8]>>> {
+        if let Some(relative) = path.strip_prefix("app-assets/") {
+            if !valid_app_asset_path(relative) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "Invalid application asset path.",
+                )
+                .into());
+            }
+            let executable = std::env::current_exe()?;
+            let directory = executable
+                .parent()
+                .ok_or_else(|| std::io::Error::other("Executable has no parent directory."))?;
+            return Ok(Some(Cow::Owned(std::fs::read(directory.join(relative))?)));
+        }
+        gpui_kit_assets::Assets.load(path)
+    }
+
+    fn list(&self, path: &str) -> gpui::Result<Vec<SharedString>> {
+        gpui_kit_assets::Assets.list(path)
+    }
+}
+
+fn valid_app_asset_path(relative: &str) -> bool {
+    !relative.is_empty()
+        && !relative.contains('\\')
+        && Path::new(relative)
+            .components()
+            .all(|component| matches!(component, PathComponent::Normal(_)))
+}
 
 impl NativeExtension for ComponentsExtension {
     fn descriptor(&self) -> NativeExtensionDescriptor {
@@ -79,7 +114,7 @@ impl NativeExtension for ComponentsExtension {
     }
 
     fn asset_source(&self) -> Option<&'static dyn gpui::AssetSource> {
-        Some(&gpui_kit_assets::Assets)
+        Some(&COMPONENTS_ASSETS)
     }
 
     fn initialize(&self, cx: &mut App) {
@@ -761,9 +796,7 @@ fn icon(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
     if config.asset_path.is_empty() {
         return Err("Icon asset path cannot be empty.".into());
     }
-    let mut component = Icon::default()
-        .path(config.asset_path.to_owned())
-        .with_size(match config.size {
+    let mut component = Icon::default().path(config.asset_path.to_owned()).with_size(match config.size {
             IconSize::Xsmall => gpui_component::Size::XSmall,
             IconSize::Small => gpui_component::Size::Small,
             IconSize::Medium => gpui_component::Size::Medium,
@@ -1233,6 +1266,15 @@ mod tests {
             .unwrap();
         assert_eq!(avatar.source, "https://example.com/alex.png");
         assert!(AvatarConfiguration::parse("small\nAlex").is_none());
+    }
+
+    #[test]
+    fn application_asset_paths_are_relative_and_scoped() {
+        assert!(valid_app_asset_path("Assets/archive-box.svg"));
+        assert!(!valid_app_asset_path(""));
+        assert!(!valid_app_asset_path("../archive-box.svg"));
+        assert!(!valid_app_asset_path("Assets/../archive-box.svg"));
+        assert!(!valid_app_asset_path("Assets\\archive-box.svg"));
     }
 
     #[test]

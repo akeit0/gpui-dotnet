@@ -182,7 +182,7 @@ internal sealed partial class ComponentsSampleView : View
                                 "catalog-empty-icon",
                                 new ComponentIconOptions
                                 {
-                                    AssetPath = "icons/archive.svg",
+                                    AssetPath = "app-assets/Assets/archive-box.svg",
                                     Size = ComponentSize.Large,
                                 }
                             ),

@@ -20,6 +20,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <Content Include="Assets/archive-box.svg" CopyToOutputDirectory="PreserveNewest" />
         <ProjectReference
             Include="../../src/Gpui.Core/Gpui.Core.csproj"
             AdditionalProperties="BuildGpuiNative=false"

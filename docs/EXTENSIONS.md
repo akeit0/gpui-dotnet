@@ -147,6 +147,8 @@ outer regions at the edges and aligns the center according to which outer region
 Each region can contain a managed composition of text, controls, or other elements.
 
 `Icon` renders an SVG from the native host's asset source with semantic size and optional color.
+Asset paths prefixed with `app-assets/` resolve files beside the application executable; other
+paths use the host's bundled gpui-kit assets.
 `Avatar` accepts a name fallback and optional image source; the host retains image loading and
 rendering behavior. Button can use the same asset paths for a leading icon.
 
