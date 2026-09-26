@@ -65,7 +65,6 @@ use gpui_dotnet::{
         ResolvedTheme, install_native_extensions,
     },
 };
-#[cfg(feature = "editor")]
 use gpui_dotnet_editor_provider::EDITOR_EXTENSION;
 
 #[path = "component_schema.g.rs"]
@@ -1456,10 +1455,7 @@ fn project_theme(theme: ResolvedTheme, cx: &mut App) {
 }
 
 static COMPONENTS_EXTENSION: ComponentsExtension = ComponentsExtension;
-#[cfg(feature = "editor")]
 static EXTENSIONS: [&dyn NativeExtension; 2] = [&COMPONENTS_EXTENSION, &EDITOR_EXTENSION];
-#[cfg(not(feature = "editor"))]
-static EXTENSIONS: [&dyn NativeExtension; 1] = [&COMPONENTS_EXTENSION];
 static INSTALL: Once = Once::new();
 
 #[unsafe(no_mangle)]
@@ -1650,7 +1646,7 @@ mod tests {
     }
 
     #[test]
-    fn component_host_advertises_selected_schemas() {
+    fn component_host_advertises_all_bundled_schemas() {
         let api = gpui_dotnet_get_api(gpui_dotnet::abi::ABI_VERSION);
         assert!(!api.is_null());
         let api = unsafe { &*api };
@@ -1672,9 +1668,7 @@ mod tests {
             -82
         );
 
-        #[cfg(feature = "editor")]
         let editor_id = gpui_dotnet_editor_provider::EXTENSION_ID.as_bytes();
-        #[cfg(feature = "editor")]
         assert_eq!(
             unsafe {
                 supports(
@@ -1685,11 +1679,6 @@ mod tests {
                 )
             },
             0
-        );
-        #[cfg(not(feature = "editor"))]
-        assert_eq!(
-            unsafe { supports(b"gpui.net.editor".as_ptr(), 15, 1, 1) },
-            -81
         );
     }
 

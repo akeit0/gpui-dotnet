@@ -81,9 +81,6 @@ where it validates reusable extension behavior:
 
 Build on the generated `Gpui.Components` schema and `gpui-dotnet-components-host` catalog:
 
-- assess whether the single catalog schema and hash should be split into coherent independently
-  versioned families before growing it substantially; an additive field currently requires every
-  catalog consumer and provider to share the new hash;
 - continue adding coherent families from the remaining upstream component inventory, prioritizing
   components whose state and event ownership fit the existing declaration/event contract;
 - generate more of the public managed option/builder surface once repeated API shapes justify it;
