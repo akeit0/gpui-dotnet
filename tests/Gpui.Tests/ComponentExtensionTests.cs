@@ -10,7 +10,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(17u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(18u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -182,6 +182,72 @@ public sealed class ComponentExtensionTests
                     0,
                     [10, 0, 0, 0, 10, 0, 0, 0]
                 )
+            )
+        );
+    }
+
+    [Fact]
+    public void DateBatchesValidateModesLimitsAndDisabledWeekdays()
+    {
+        var date = new DateOnly(2026, 9, 28);
+        var batch = DateBatch.Create(
+            new ComponentCalendarOptions
+            {
+                Value = ComponentDateValue.Single(date),
+                MinimumDate = new(2026, 9, 1),
+                MaximumDate = new(2026, 9, 30),
+                DisabledWeekdays = [DayOfWeek.Saturday, DayOfWeek.Sunday],
+            }
+        );
+        Assert.Equal((uint)date.DayNumber, batch.StartDay);
+        Assert.Equal(uint.MaxValue, batch.EndDay);
+        Assert.Equal((1u << 0) | (1u << 6), batch.DisabledWeekdays);
+        Assert.Throws<ArgumentException>(() =>
+            DateBatch.Create(new ComponentCalendarOptions { Value = new(false, date, date) })
+        );
+        Assert.Throws<ArgumentException>(() =>
+            DateBatch.Create(
+                new ComponentCalendarOptions
+                {
+                    Value = ComponentDateValue.Range(new(2026, 10, 2), new(2026, 10, 1)),
+                }
+            )
+        );
+        Assert.Throws<ArgumentException>(() =>
+            DateBatch.Create(
+                new ComponentCalendarOptions
+                {
+                    Value = ComponentDateValue.Single(new(2026, 9, 26)),
+                    DisabledWeekdays = [DayOfWeek.Saturday],
+                }
+            )
+        );
+    }
+
+    [Fact]
+    public void DateEventsDecodeSingleRangeAndClearing()
+    {
+        var single = ComponentDateChangedEvent.Decode(
+            new NativeExtensionEvent(
+                ComponentSchema.Calendar.EventChanged,
+                0,
+                0,
+                [0, 0, 0, 0, 0, 255, 255, 255, 255]
+            )
+        );
+        Assert.Equal(ComponentDateValue.Single(DateOnly.MinValue), single.Value);
+        var cleared = ComponentDateChangedEvent.Decode(
+            new NativeExtensionEvent(
+                ComponentSchema.DatePicker.EventChanged,
+                0,
+                0,
+                [1, 255, 255, 255, 255, 255, 255, 255, 255]
+            )
+        );
+        Assert.Equal(ComponentDateValue.Range(null, null), cleared.Value);
+        Assert.Throws<InvalidOperationException>(() =>
+            ComponentDateChangedEvent.Decode(
+                new NativeExtensionEvent(ComponentSchema.Calendar.EventChanged, 0, 0, [0])
             )
         );
     }

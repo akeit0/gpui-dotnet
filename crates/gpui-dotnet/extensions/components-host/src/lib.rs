@@ -80,6 +80,7 @@ use gpui_dotnet_editor_provider::EDITOR_EXTENSION;
 mod accordion;
 #[path = "component_schema.g.rs"]
 mod component_schema;
+mod dates;
 mod selection;
 mod tree;
 
@@ -182,6 +183,8 @@ impl NativeExtension for ComponentsExtension {
             COMPONENT_COMBOBOX => selection::combobox(request, resources, window, cx),
             COMPONENT_TREE => tree::tree(request, resources, window, cx),
             COMPONENT_ACCORDION => accordion::accordion(request, resources, window, cx),
+            COMPONENT_CALENDAR => dates::calendar(request, resources, window, cx),
+            COMPONENT_DATE_PICKER => dates::date_picker(request, resources, window, cx),
             COMPONENT_FORM => form(request),
             COMPONENT_EMPTY => empty(request),
             COMPONENT_TOOLBAR => toolbar(request),
@@ -1787,6 +1790,15 @@ mod tests {
         .unwrap();
         assert_eq!(accordion.item_ids, [10, 20]);
         assert_eq!(accordion.open_ids, [10]);
+        let calendar = CalendarConfiguration::parse(
+            "medium\n739522\n4294967295\n0\n4294967295\n4294967295\n65\n1\n2\n1900\n2100\n23",
+        )
+        .unwrap();
+        assert_eq!(calendar.number_of_months, 2);
+        assert_eq!(calendar.disabled_weekdays, 65);
+        assert!(DatePickerConfiguration::parse(
+            "medium\n739522\n4294967295\n0\n4294967295\n4294967295\n65\n1\n1\n1900\n2100\nDelivery\n1\n0\n23"
+        ).is_some());
         let attachment = AttachmentConfiguration::parse(
             "small\nvertical\nuploading\nreport.pdf\n\"Uploading\"\n\n1\n1\n1\n17",
         )

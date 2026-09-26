@@ -77,13 +77,24 @@ revisions, and payload layouts remain schema-owned.
 tree, product state, options, and callbacks; Rust owns native rendering and frame-sensitive
 interaction.
 
-The host includes forty-two catalog families plus Editor, a retained extension example. Display
+The host includes forty-four catalog families plus Editor, a retained extension example. Display
 and content coverage includes Spinner, Skeleton, Separator, Badge, Tag, linear and circular
 Progress, Alert, GroupBox, Label, Kbd, Avatar, Icon, ShimmerText, Attachment, Empty, StatusBar,
 Bubble, BubbleGroup, Message, MessageGroup, Marker, and DescriptionList. Interactive and
 controlled coverage includes Rating, Button, Link, Switch, Checkbox, Radio, Toggle, Pagination,
-Collapsible, Accordion, Toolbar, ToolbarGroup, Breadcrumb, Tabs, Select, Combobox, Tree, and Textarea. Form batches
+Collapsible, Accordion, Toolbar, ToolbarGroup, Breadcrumb, Tabs, Select, Combobox, Tree,
+Calendar, DatePicker, and Textarea. Form batches
 a compound field layout with existing core or optional controls.
+
+`Calendar` and `DatePicker` share a controlled `ComponentDateValue` for a single date or ordered
+range. Native retained state owns visible month navigation, incomplete range selection, focus,
+and the DatePicker popup. C# receives one event for a completed selection or clearing and supplies
+the committed value in the next declaration. Minimum/maximum dates and disabled weekdays are
+native constraints; they can change without a per-day managed callback. Both controls support
+one or two months and an inclusive year chooser range. Single/range mode is fixed for a retained
+key; DatePicker also fixes the first weekday for that key. Changing constraints discards an
+incomplete range and closes an open DatePicker popup. The upstream DatePicker facade currently
+offers no explicit accessible-name hook.
 
 `Accordion` groups managed content sections with stable numeric IDs. C# supplies the complete
 open-ID set and single or multiple policy on each declaration; one event requests the next full

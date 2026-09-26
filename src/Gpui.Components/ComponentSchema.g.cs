@@ -5,8 +5,8 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 17u;
-    internal const ulong SchemaHash = 0x0861F749BF4266A7UL;
+    internal const uint SchemaVersion = 18u;
+    internal const ulong SchemaHash = 0x695767F36B1F1F53UL;
 
     internal static class Attachment
     {
@@ -910,6 +910,65 @@ internal static class ComponentSchema
             }
             var openIdsValue = openIdsBuilder.ToString();
             return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{itemIdsValue}\n{titlesValue}\n{itemDisabledValue}\n{openIdsValue}\n{(multiple ? 1 : 0)}\n{(bordered ? 1 : 0)}\n{(disabled ? 1 : 0)}\n{changedEvent}");
+        }
+    }
+
+    internal static class Calendar
+    {
+        internal const string Kind = "calendar";
+        internal const ushort EventChanged = 1;
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal static string EncodeConfiguration(Size size, uint startDay, uint endDay, bool range, uint minimumDay, uint maximumDay, uint disabledWeekdays, uint firstDayOfWeek, uint numberOfMonths, uint firstYear, uint lastYear, ulong changedEvent)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{startDay}\n{endDay}\n{(range ? 1 : 0)}\n{minimumDay}\n{maximumDay}\n{disabledWeekdays}\n{firstDayOfWeek}\n{numberOfMonths}\n{firstYear}\n{lastYear}\n{changedEvent}");
+        }
+    }
+
+    internal static class DatePicker
+    {
+        internal const string Kind = "date_picker";
+        internal const ushort EventChanged = 1;
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal static string EncodeConfiguration(Size size, uint startDay, uint endDay, bool range, uint minimumDay, uint maximumDay, uint disabledWeekdays, uint firstDayOfWeek, uint numberOfMonths, uint firstYear, uint lastYear, string placeholder, bool cleanable, bool disabled, ulong changedEvent)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            global::System.ArgumentNullException.ThrowIfNull(placeholder);
+            if (placeholder.Contains('\0') || placeholder.Contains('\n') || placeholder.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(placeholder));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{startDay}\n{endDay}\n{(range ? 1 : 0)}\n{minimumDay}\n{maximumDay}\n{disabledWeekdays}\n{firstDayOfWeek}\n{numberOfMonths}\n{firstYear}\n{lastYear}\n{placeholder}\n{(cleanable ? 1 : 0)}\n{(disabled ? 1 : 0)}\n{changedEvent}");
         }
     }
 

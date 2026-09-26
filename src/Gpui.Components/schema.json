@@ -1,6 +1,6 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 17,
+  "schemaVersion": 18,
   "components": [
     {
       "kind": "attachment",
@@ -413,6 +413,59 @@
       "commands": {},
       "events": {
         "changed": { "id": 1, "flags": "none", "payload": "little-endian u32 open item IDs", "revision": "none" }
+      }
+    },
+    {
+      "kind": "calendar",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "start_day", "type": "u32" },
+          { "name": "end_day", "type": "u32" },
+          { "name": "range", "type": "bool" },
+          { "name": "minimum_day", "type": "u32" },
+          { "name": "maximum_day", "type": "u32" },
+          { "name": "disabled_weekdays", "type": "u32" },
+          { "name": "first_day_of_week", "type": "u32" },
+          { "name": "number_of_months", "type": "u32" },
+          { "name": "first_year", "type": "u32" },
+          { "name": "last_year", "type": "u32" },
+          { "name": "changed_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "changed": { "id": 1, "flags": "none", "payload": "u8 range and two little-endian u32 day numbers (u32 max means absent)", "revision": "none" }
+      }
+    },
+    {
+      "kind": "date_picker",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "start_day", "type": "u32" },
+          { "name": "end_day", "type": "u32" },
+          { "name": "range", "type": "bool" },
+          { "name": "minimum_day", "type": "u32" },
+          { "name": "maximum_day", "type": "u32" },
+          { "name": "disabled_weekdays", "type": "u32" },
+          { "name": "first_day_of_week", "type": "u32" },
+          { "name": "number_of_months", "type": "u32" },
+          { "name": "first_year", "type": "u32" },
+          { "name": "last_year", "type": "u32" },
+          { "name": "placeholder", "type": "string" },
+          { "name": "cleanable", "type": "bool" },
+          { "name": "disabled", "type": "bool" },
+          { "name": "changed_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "changed": { "id": 1, "flags": "none", "payload": "u8 range and two little-endian u32 day numbers (u32 max means absent)", "revision": "none" }
       }
     },
     {

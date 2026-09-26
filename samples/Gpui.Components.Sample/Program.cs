@@ -42,6 +42,11 @@ internal sealed partial class ComponentsSampleView : View
     private bool _multipleSections;
     private bool _reverseSections;
     private int _sectionActions;
+    private ComponentDateValue _reviewDates = ComponentDateValue.Range(
+        new DateOnly(2026, 9, 29),
+        new DateOnly(2026, 10, 6)
+    );
+    private ComponentDateValue _deliveryDate = ComponentDateValue.Single(new DateOnly(2026, 10, 7));
     private bool _showAlert = true;
     private bool _switchChecked = true;
     private bool _checkboxChecked = true;
@@ -53,12 +58,14 @@ internal sealed partial class ComponentsSampleView : View
     private bool _reviewReady;
     private string _notes = "Review notes:\n- Check the attachment";
     private readonly ComponentTextareaController _textarea;
+    private readonly GpuiApplication _application;
     private readonly EditorController _editor;
     private readonly Effect<NoProps> _bootstrapEditor;
 
     public ComponentsSampleView(ViewConstruction context)
         : base(context)
     {
+        _application = context.Application;
         _textarea = context.CreateTextareaController("catalog-notes");
         _editor = context.CreateEditorController("catalog-editor");
         _bootstrapEditor = context.Effect<NoProps>(BootstrapEditor);
@@ -796,6 +803,76 @@ internal sealed partial class ComponentsSampleView : View
                                 .Width(Percent(100))
                         )
                         .Gap(Px(10)),
+                    ui.HStack(
+                            ui.Calendar(
+                                    "review-calendar",
+                                    this,
+                                    static (view, changed) =>
+                                    {
+                                        view._reviewDates = changed.Value;
+                                        view.Invalidate();
+                                    },
+                                    new ComponentCalendarOptions
+                                    {
+                                        Value = _reviewDates,
+                                        NumberOfMonths = 2,
+                                        MinimumDate = new DateOnly(2026, 9, 1),
+                                        MaximumDate = new DateOnly(2026, 12, 31),
+                                        DisabledWeekdays = [DayOfWeek.Saturday, DayOfWeek.Sunday],
+                                    }
+                                )
+                                .Width(Px(530)),
+                            ui.VStack(
+                                    ui.Text("Review range (weekends disabled)"u8),
+                                    ui.Text(
+                                        $"{_reviewDates.Start:yyyy-MM-dd} → {_reviewDates.End:yyyy-MM-dd}"
+                                    ),
+                                    ui.DatePicker(
+                                            "delivery-date",
+                                            this,
+                                            static (view, changed) =>
+                                            {
+                                                view._deliveryDate = changed.Value;
+                                                view.Invalidate();
+                                            },
+                                            new ComponentDatePickerOptions
+                                            {
+                                                Value = _deliveryDate,
+                                                Placeholder = "Select delivery date",
+                                                Cleanable = true,
+                                                MinimumDate = new DateOnly(2026, 9, 1),
+                                                MaximumDate = new DateOnly(2026, 12, 31),
+                                                DisabledWeekdays =
+                                                [
+                                                    DayOfWeek.Saturday,
+                                                    DayOfWeek.Sunday,
+                                                ],
+                                            }
+                                        )
+                                        .Width(Px(250)),
+                                    ui.Text(
+                                        $"Delivery: {_deliveryDate.Start?.ToString("yyyy-MM-dd") ?? "none"}"
+                                    ),
+                                    ui.Button(
+                                        "date-theme",
+                                        this,
+                                        static (view, _) =>
+                                        {
+                                            var app = view._application;
+                                            app.SetTheme(
+                                                GpuiTheme.CreateDefault(
+                                                    app.Theme.Appearance == GpuiThemeAppearance.Dark
+                                                        ? GpuiThemeAppearance.Light
+                                                        : GpuiThemeAppearance.Dark
+                                                )
+                                            );
+                                        },
+                                        new ComponentButtonOptions { Label = "Switch theme" }
+                                    )
+                                )
+                                .Gap(Px(12))
+                        )
+                        .Gap(Px(20)),
                     ui.Progress(
                         "upload-progress",
                         new ComponentProgressOptions

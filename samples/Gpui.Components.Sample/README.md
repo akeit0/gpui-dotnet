@@ -23,6 +23,10 @@ section follow its ID, switch between single and multiple open modes, and try th
 Archived policy header. Click the button inside the Review guidance panel to check that panel
 content does not toggle its header. With keyboard focus on the group, Up/Down or Home/End chooses
 an enabled header and Enter/Space requests its next open state.
+The two-month Calendar below it selects a review range. Weekend endpoints and dates outside
+September–December 2026 are disabled. The adjacent DatePicker selects or clears one delivery
+date with the same limits. Switch theme while the calendar is visible or the picker is open to
+check native theme projection without resetting the committed dates.
 The notes field retains text, selection, and undo natively. Focus notes sends a focus command;
 Clear notes replaces the value and updates the sample's character count. The empty
 state uses the sample's `Assets/archive-box.svg` file through the native Icon
