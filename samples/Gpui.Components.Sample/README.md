@@ -17,6 +17,8 @@ item ID through one managed callback. The current file item is disabled.
 The tab bar below it uses a controlled selected ID. Click Overview, Activity, or Settings to
 replace the panel from managed state. The native component presents the selected tab and can
 show an overflow menu when the window narrows.
+Press Tab to focus the strip, then Left/Right or Home/End to switch panels; Enter and Space
+activate the current tab. Disabled tabs are skipped.
 
 To try the file states, find `release-notes.pdf` in the broader catalog. `Finish` changes its
 status to complete, and `Restart` returns it to uploading. `Archive` moves the card into the

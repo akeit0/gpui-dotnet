@@ -477,7 +477,8 @@ internal sealed partial class ComponentsSampleView : View
                     },
                     new ComponentTabItem(1, "Overview"),
                     new ComponentTabItem(2, "Activity"),
-                    new ComponentTabItem(3, "Settings")
+                    new ComponentTabItem(3, "Settings"),
+                    new ComponentTabItem(4, "Locked", Disabled: true)
                 ),
                 ui.Text(
                         _selectedTab switch

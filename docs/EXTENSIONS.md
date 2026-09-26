@@ -159,7 +159,10 @@ item ID; applications own navigation and decide how the path changes.
 
 `Tabs` batches labeled items and stable IDs with a controlled selected ID. The native tab bar
 owns tab presentation and optional overflow; one event route returns the activated ID. The
-application owns the selected content and updates the declaration after activation.
+application owns the selected content and updates the declaration after activation. The strip has
+a keyboard tab stop: Left/Right wrap across enabled tabs, Home/End choose the first/last enabled
+tab, and Enter/Space activate the current tab. Keyboard navigation emits the same selected-ID event
+as a click; the next managed declaration is authoritative.
 
 `Icon` renders an SVG from the native host's asset source with semantic size and optional color.
 Asset paths prefixed with `app-assets/` resolve files beside the application executable; other

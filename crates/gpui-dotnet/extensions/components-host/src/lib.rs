@@ -1,10 +1,12 @@
-use std::{borrow::Cow, collections::HashSet, path::{Component as PathComponent, Path}, sync::Once, time::Duration};
+use std::{borrow::Cow, cell::Cell, collections::HashSet, path::{Component as PathComponent, Path}, rc::Rc, sync::Once, time::Duration};
 
 use gpui::{
-    AnyElement, App, AssetSource, Axis, Hsla, IntoElement as _, Keystroke, ParentElement as _, Role, SharedString,
-    Styled as _, Window, div, px, rgba,
+    AnyElement, App, AssetSource, Axis, BoxShadow, FocusHandle, Hsla, InteractiveElement as _,
+    IntoElement as _, KeyDownEvent, Keystroke, ParentElement as _, Role, SharedString, Styled as _,
+    Window, div, px, rgba,
 };
 use gpui_component::{
+    ActiveTheme as _,
     Disableable as _, Selectable as _, Sizable as _,
     alert::{Alert, AlertVariant as NativeAlertVariant},
     attachment::{
@@ -134,9 +136,9 @@ impl NativeExtension for ComponentsExtension {
     fn materialize(
         &self,
         request: NativeExtensionRequest,
-        _resources: &NativeExtensionStore,
+        resources: &NativeExtensionStore,
         _window: &mut Window,
-        _cx: &mut App,
+        cx: &mut App,
     ) -> Result<AnyElement, SharedString> {
         if !request.commands.is_empty() {
             return Err("The component catalog does not define imperative commands.".into());
@@ -155,7 +157,7 @@ impl NativeExtension for ComponentsExtension {
             COMPONENT_ICON => icon(request),
             COMPONENT_DESCRIPTION_LIST => description_list(request),
             COMPONENT_BREADCRUMB => breadcrumb(request),
-            COMPONENT_TABS => tabs(request),
+            COMPONENT_TABS => tabs(request, resources, cx),
             COMPONENT_SPINNER => spinner(request),
             COMPONENT_SKELETON => skeleton(request),
             COMPONENT_SEPARATOR => separator(request),
@@ -379,16 +381,40 @@ fn breadcrumb(request: NativeExtensionRequest) -> Result<AnyElement, SharedStrin
     Ok(component.into_any_element())
 }
 
-fn tabs(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+struct TabsInteraction {
+    focus: FocusHandle,
+    // Key repeats advance locally until the next managed selection snapshot is accepted.
+    cursor: Cell<Option<u32>>,
+}
+
+fn tabs(
+    request: NativeExtensionRequest,
+    resources: &NativeExtensionStore,
+    cx: &mut App,
+) -> Result<AnyElement, SharedString> {
     no_children(&request)?;
     let config = TabsConfiguration::parse(&request.configuration)
         .ok_or_else(|| SharedString::from("Invalid Tabs configuration."))?;
     validate_tabs(&config)?;
+    let interaction = resources.get_or_insert_with(&request.resource_key, || {
+        Rc::new(TabsInteraction {
+            focus: cx.focus_handle(),
+            cursor: Cell::new(None),
+        })
+    });
+    let selected_id = config.has_selection.then_some(config.selected_id);
+    interaction.cursor.set(selected_id);
+    let keyboard_enabled = config.selected_event != 0 && config.item_disabled.contains(&0);
+    let focus = interaction.focus.clone().tab_stop(keyboard_enabled);
     let selected_index = config
         .has_selection
         .then(|| config.item_ids.iter().position(|id| *id == config.selected_id))
         .flatten();
-    let mut component = TabBar::new(request.resource_key.key().to_owned())
+    let mut component = TabBar::new(format!(
+        "gpui-net-tabs:{}:{}",
+        request.resource_key.owner_view(),
+        request.resource_key.key()
+    ))
         .with_size(match config.size {
             TabsSize::Xsmall => gpui_component::Size::XSmall,
             TabsSize::Small => gpui_component::Size::Small,
@@ -410,17 +436,105 @@ fn tabs(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
         let ids = config.item_ids.clone();
         let events = request.events;
         let token = config.selected_event;
-        component = component.on_click(move |index, _, _| {
+        let interaction = interaction.clone();
+        component = component.on_click(move |index, window, cx| {
             if let Some(id) = ids.get(*index) {
+                interaction.cursor.set(Some(*id));
+                interaction.focus.focus(window, cx);
                 let payload = id.to_le_bytes();
                 let _ = events.emit(token, TABS_EVENT_SELECTED, 0, 0, &payload);
             }
         });
     }
-    for (label, disabled) in config.labels.into_iter().zip(config.item_disabled) {
-        component = component.child(Tab::new().label(label).disabled(disabled != 0));
+    let ids = config.item_ids;
+    let disabled_items = config.item_disabled;
+    for (label, disabled) in config.labels.into_iter().zip(&disabled_items) {
+        component = component.child(Tab::new().label(label).disabled(*disabled != 0));
     }
-    Ok(component.into_any_element())
+    let events = request.events;
+    let token = config.selected_event;
+    let ring = cx.theme().ring;
+    let element = div()
+        .id(format!(
+            "gpui-net-tabs-focus:{}:{}",
+            request.resource_key.owner_view(),
+            request.resource_key.key()
+        ))
+        .track_focus(&focus)
+        .focus_visible(move |style| {
+            let mut shadows = style.box_shadow.clone().unwrap_or_default();
+            shadows.push(BoxShadow::new(px(0.), px(0.), ring.into()).spread_radius(px(2.)));
+            style.shadow(shadows)
+        })
+        .on_key_down(move |event: &KeyDownEvent, window, cx| {
+            if !keyboard_enabled || !focus.is_focused(window) {
+                return;
+            }
+            let modifiers = event.keystroke.modifiers;
+            if modifiers.control || modifiers.alt || modifiers.platform || modifiers.function || modifiers.shift {
+                return;
+            }
+            let current = interaction.cursor.get();
+            let Some(id) = tabs_key_target(
+                event.keystroke.key.as_str(),
+                current,
+                &ids,
+                &disabled_items,
+            ) else {
+                return;
+            };
+            cx.stop_propagation();
+            if current == Some(id) && !matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                return;
+            }
+            interaction.cursor.set(Some(id));
+            let payload = id.to_le_bytes();
+            let _ = events.emit(token, TABS_EVENT_SELECTED, 0, 0, &payload);
+        })
+        .child(component);
+    Ok(element.into_any_element())
+}
+
+fn tabs_key_target(key: &str, current: Option<u32>, ids: &[u32], disabled: &[u32]) -> Option<u32> {
+    if ids.len() != disabled.len() || ids.is_empty() {
+        return None;
+    }
+    match key {
+        "home" => ids.iter().zip(disabled).find(|(_, disabled)| **disabled == 0).map(|(id, _)| *id),
+        "end" => ids.iter().zip(disabled).rfind(|(_, disabled)| **disabled == 0).map(|(id, _)| *id),
+        "enter" | "space" => match current {
+            Some(id) => ids
+                .iter()
+                .position(|item| *item == id)
+                .filter(|index| disabled[*index] == 0)
+                .map(|_| id),
+            None => tabs_key_target("home", None, ids, disabled),
+        },
+        "left" | "right" => {
+            let forward = key == "right";
+            let Some(mut index) = current.and_then(|id| ids.iter().position(|item| *item == id)) else {
+                return if forward {
+                    tabs_key_target("home", current, ids, disabled)
+                } else {
+                    tabs_key_target("end", current, ids, disabled)
+                };
+            };
+            for _ in 0..ids.len() {
+                index = if forward {
+                    (index + 1) % ids.len()
+                } else if index == 0 {
+                    ids.len() - 1
+                } else {
+                    index - 1
+                };
+                if disabled[index] == 0 {
+                    return Some(ids[index]);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
 }
 
 fn validate_tabs(config: &TabsConfiguration) -> Result<(), SharedString> {
@@ -1510,6 +1624,25 @@ mod tests {
         assert!(validate_tabs(&parse("medium\ntab\n[\"A\"]\n1\n2\n1\n1\n0\n0")).is_err());
         assert!(validate_tabs(&parse("medium\ntab\n[\"A\"]\n1\n0\n2\n1\n0\n0")).is_err());
         assert!(validate_tabs(&parse("medium\ntab\n[\"\"]\n1\n0\n1\n1\n0\n0")).is_err());
+    }
+
+    #[test]
+    fn tabs_keyboard_navigation_skips_disabled_items_and_wraps() {
+        let ids = [10, 20, 30, 40];
+        let disabled = [0, 1, 0, 0];
+        assert_eq!(tabs_key_target("right", Some(10), &ids, &disabled), Some(30));
+        assert_eq!(tabs_key_target("right", Some(40), &ids, &disabled), Some(10));
+        assert_eq!(tabs_key_target("left", Some(10), &ids, &disabled), Some(40));
+        assert_eq!(tabs_key_target("right", None, &ids, &disabled), Some(10));
+        assert_eq!(tabs_key_target("left", None, &ids, &disabled), Some(40));
+        assert_eq!(tabs_key_target("home", Some(40), &ids, &disabled), Some(10));
+        assert_eq!(tabs_key_target("end", Some(10), &ids, &disabled), Some(40));
+        assert_eq!(tabs_key_target("enter", Some(30), &ids, &disabled), Some(30));
+        assert_eq!(tabs_key_target("enter", None, &ids, &disabled), Some(10));
+        assert_eq!(tabs_key_target("space", Some(20), &ids, &disabled), None);
+        assert_eq!(tabs_key_target("up", Some(10), &ids, &disabled), None);
+        assert_eq!(tabs_key_target("right", Some(10), &[10], &[1]), None);
+        assert_eq!(tabs_key_target("right", None, &[], &[]), None);
     }
 
     #[test]
