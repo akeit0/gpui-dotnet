@@ -5,8 +5,80 @@ namespace Gpui.Components;
 internal static class ComponentSchema
 {
     internal const string ExtensionId = "gpui.net.components";
-    internal const uint SchemaVersion = 2u;
-    internal const ulong SchemaHash = 0x76070B245D3F22ACUL;
+    internal const uint SchemaVersion = 3u;
+    internal const ulong SchemaHash = 0xDE819560E2FA5BF9UL;
+
+    internal static class Attachment
+    {
+        internal const string Kind = "attachment";
+        internal const ushort EventClicked = 1;
+
+        internal enum Size
+        {
+            Xsmall,
+            Small,
+            Medium,
+            Large,
+        }
+
+        internal enum Axis
+        {
+            Horizontal,
+            Vertical,
+        }
+
+        internal enum Status
+        {
+            Pending,
+            Uploading,
+            Processing,
+            Failed,
+            Complete,
+        }
+
+        internal static string EncodeConfiguration(Size size, Axis axis, Status status, string title, string description, string previewSource, bool mediaChild, bool contentChild, bool hasActions, ulong clickedEvent)
+        {
+            var sizeValue = size switch
+            {
+                Size.Xsmall => "xsmall",
+                Size.Small => "small",
+                Size.Medium => "medium",
+                Size.Large => "large",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(size)),
+            };
+            var axisValue = axis switch
+            {
+                Axis.Horizontal => "horizontal",
+                Axis.Vertical => "vertical",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(axis)),
+            };
+            var statusValue = status switch
+            {
+                Status.Pending => "pending",
+                Status.Uploading => "uploading",
+                Status.Processing => "processing",
+                Status.Failed => "failed",
+                Status.Complete => "complete",
+                _ => throw new global::System.ArgumentOutOfRangeException(nameof(status)),
+            };
+            global::System.ArgumentNullException.ThrowIfNull(title);
+            if (title.Contains('\0') || title.Contains('\n') || title.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(title));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(description);
+            if (description.Contains('\0') || description.Contains('\n') || description.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(description));
+            }
+            global::System.ArgumentNullException.ThrowIfNull(previewSource);
+            if (previewSource.Contains('\0') || previewSource.Contains('\n') || previewSource.Contains('\r'))
+            {
+                throw new global::System.ArgumentException("Extension configuration strings cannot contain NUL or newline characters.", nameof(previewSource));
+            }
+            return global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $"{sizeValue}\n{axisValue}\n{statusValue}\n{title}\n{description}\n{previewSource}\n{(mediaChild ? 1 : 0)}\n{(contentChild ? 1 : 0)}\n{(hasActions ? 1 : 0)}\n{clickedEvent}");
+        }
+    }
 
     internal static class Spinner
     {

@@ -47,6 +47,8 @@ public static class ComponentsExtension
         Component(ComponentSchema.Pagination.Kind);
     internal static NativeExtensionComponent Collapsible { get; } =
         Component(ComponentSchema.Collapsible.Kind);
+    internal static NativeExtensionComponent Attachment { get; } =
+        Component(ComponentSchema.Attachment.Kind);
 
     private static NativeExtensionComponent Component(string kind) => new(Requirement, kind);
 }

@@ -1,7 +1,30 @@
 {
   "extensionId": "gpui.net.components",
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "components": [
+    {
+      "kind": "attachment",
+      "configuration": {
+        "encoding": "lines",
+        "fields": [
+          { "name": "size", "type": "enum", "values": ["xsmall", "small", "medium", "large"] },
+          { "name": "axis", "type": "enum", "values": ["horizontal", "vertical"] },
+          { "name": "status", "type": "enum", "values": ["pending", "uploading", "processing", "failed", "complete"] },
+          { "name": "title", "type": "string" },
+          { "name": "description", "type": "string" },
+          { "name": "preview_source", "type": "string" },
+          { "name": "media_child", "type": "bool" },
+          { "name": "content_child", "type": "bool" },
+          { "name": "has_actions", "type": "bool" },
+          { "name": "clicked_event", "type": "event" }
+        ]
+      },
+      "flags": {},
+      "commands": {},
+      "events": {
+        "clicked": { "id": 1, "flags": "none", "payload": "none", "revision": "none" }
+      }
+    },
     {
       "kind": "spinner",
       "configuration": {

@@ -37,6 +37,8 @@ internal sealed partial class ComponentsSampleView : View
     private bool _checkboxChecked = true;
     private bool _radioChecked;
     private bool _toggleChecked;
+    private ComponentAttachmentStatus _fileStatus = ComponentAttachmentStatus.Uploading;
+    private int _fileOpens;
     private readonly EditorController _editor;
     private readonly Effect<NoProps> _bootstrapEditor;
 
@@ -117,7 +119,7 @@ internal sealed partial class ComponentsSampleView : View
                         new ComponentLabelOptions
                         {
                             Text = "Generated semantic adapters",
-                            Secondary = "22 families",
+                            Secondary = "23 families",
                             Highlight = "semantic",
                         }
                     ),
@@ -209,6 +211,51 @@ internal sealed partial class ComponentsSampleView : View
                     TotalPages = 12,
                     VisiblePages = 5,
                 }
+            ),
+            ui.Attachment(
+                "catalog-file",
+                this,
+                static (view, _) =>
+                {
+                    view._fileOpens++;
+                    view.Invalidate();
+                },
+                new ComponentAttachmentOptions
+                {
+                    Title = "release-notes.pdf",
+                    Description = $"{_fileStatus} · opened {_fileOpens} times",
+                    Status = _fileStatus,
+                },
+                media: ui.Text("PDF"u8),
+                content: ui.Progress(
+                    "file-progress",
+                    new ComponentProgressOptions
+                    {
+                        Value = _fileStatus == ComponentAttachmentStatus.Complete ? 100 : 68,
+                        AccessibilityLabel = "File upload progress",
+                    }
+                ),
+                actions: ui.Button(
+                    "file-action",
+                    this,
+                    static (view, _) =>
+                    {
+                        view._fileStatus =
+                            view._fileStatus == ComponentAttachmentStatus.Complete
+                                ? ComponentAttachmentStatus.Uploading
+                                : ComponentAttachmentStatus.Complete;
+                        view.Invalidate();
+                    },
+                    new ComponentButtonOptions
+                    {
+                        Label =
+                            _fileStatus == ComponentAttachmentStatus.Complete
+                                ? "Restart"
+                                : "Finish",
+                        Variant = ComponentButtonVariant.Secondary,
+                        Size = ComponentSize.Small,
+                    }
+                )
             ),
             ui.Collapsible(
                 "catalog-collapsible",

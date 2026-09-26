@@ -1,12 +1,16 @@
 use std::{sync::Once, time::Duration};
 
 use gpui::{
-    AnyElement, App, Hsla, IntoElement as _, Keystroke, ParentElement as _, SharedString,
+    AnyElement, App, Axis, Hsla, IntoElement as _, Keystroke, ParentElement as _, SharedString,
     Styled as _, Window, div, px, rgba,
 };
 use gpui_component::{
     Disableable as _, Selectable as _, Sizable as _,
     alert::{Alert, AlertVariant as NativeAlertVariant},
+    attachment::{
+        Attachment, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentMedia,
+        AttachmentStatus as NativeAttachmentStatus, AttachmentTitle,
+    },
     avatar::Avatar,
     badge::Badge,
     button::{
@@ -82,6 +86,7 @@ impl NativeExtension for ComponentsExtension {
             return Err("The component catalog does not define imperative commands.".into());
         }
         match request.resource_key.component_kind() {
+            COMPONENT_ATTACHMENT => attachment(request),
             COMPONENT_SPINNER => spinner(request),
             COMPONENT_SKELETON => skeleton(request),
             COMPONENT_SEPARATOR => separator(request),
@@ -107,6 +112,87 @@ impl NativeExtension for ComponentsExtension {
             _ => Err("The component host received an unknown component kind.".into()),
         }
     }
+}
+
+fn attachment(request: NativeExtensionRequest) -> Result<AnyElement, SharedString> {
+    let config = AttachmentConfiguration::parse(&request.configuration)
+        .ok_or_else(|| SharedString::from("Invalid Attachment configuration."))?;
+    let expected = usize::from(config.media_child)
+        + usize::from(config.content_child)
+        + usize::from(config.has_actions);
+    if request.children.len() != expected {
+        return Err("Attachment slot count does not match its configuration.".into());
+    }
+
+    let mut children = request.children.into_iter();
+    let media_child = if config.media_child {
+        children.next()
+    } else {
+        None
+    };
+    let content_child = if config.content_child {
+        children.next()
+    } else {
+        None
+    };
+    let actions_child = if config.has_actions {
+        children.next()
+    } else {
+        None
+    };
+    let mut component = Attachment::new()
+        .with_size(match config.size {
+            AttachmentSize::Xsmall => gpui_component::Size::XSmall,
+            AttachmentSize::Small => gpui_component::Size::Small,
+            AttachmentSize::Medium => gpui_component::Size::Medium,
+            AttachmentSize::Large => gpui_component::Size::Large,
+        })
+        .axis(match config.axis {
+            AttachmentAxis::Horizontal => Axis::Horizontal,
+            AttachmentAxis::Vertical => Axis::Vertical,
+        })
+        .status(match config.status {
+            AttachmentStatus::Pending => NativeAttachmentStatus::Pending,
+            AttachmentStatus::Uploading => NativeAttachmentStatus::Uploading,
+            AttachmentStatus::Processing => NativeAttachmentStatus::Processing,
+            AttachmentStatus::Failed => NativeAttachmentStatus::Failed,
+            AttachmentStatus::Complete => NativeAttachmentStatus::Complete,
+        });
+
+    if !config.preview_source.is_empty() || media_child.is_some() {
+        let mut media = AttachmentMedia::new();
+        if !config.preview_source.is_empty() {
+            media = media.src(config.preview_source.to_owned());
+        }
+        media.extend(media_child);
+        component = component.media(media);
+    }
+    if !config.title.is_empty() || !config.description.is_empty() || content_child.is_some() {
+        let mut content = AttachmentContent::new();
+        if !config.title.is_empty() {
+            content = content.title(AttachmentTitle::new(config.title.to_owned()));
+        }
+        if !config.description.is_empty() {
+            content = content.description(AttachmentDescription::new(config.description.to_owned()));
+        }
+        content.extend(content_child);
+        component = component.content(content);
+    }
+    if let Some(actions_child) = actions_child {
+        let mut actions = AttachmentActions::new();
+        actions.extend([actions_child]);
+        component = component.actions(actions);
+    }
+    if config.clicked_event != 0 {
+        let token = config.clicked_event;
+        let events = request.events;
+        component = component
+            .id(request.resource_key.key().to_owned())
+            .on_click(move |_, _, _| {
+                let _ = events.emit(token, ATTACHMENT_EVENT_CLICKED, 0, 0, &[]);
+            });
+    }
+    Ok(component.into_any_element())
 }
 
 fn no_children(request: &NativeExtensionRequest) -> Result<(), SharedString> {
@@ -820,6 +906,18 @@ mod tests {
         assert_eq!(checkbox.changed_event, 19);
         assert!(PaginationConfiguration::parse("medium\n3\n10\n5\n0\n0\n23").is_some());
         assert!(CollapsibleConfiguration::parse("1\n1").is_some());
+        let attachment = AttachmentConfiguration::parse(
+            "small\nvertical\nuploading\nreport.pdf\nUploading\n\n1\n1\n1\n17",
+        )
+        .unwrap();
+        assert_eq!(attachment.status, AttachmentStatus::Uploading);
+        assert!(attachment.media_child);
+        assert!(attachment.content_child);
+        assert!(attachment.has_actions);
+        assert!(AttachmentConfiguration::parse(
+            "small\nvertical\nunknown\nreport.pdf\nUploading\n\n1\n1\n1\n17"
+        )
+        .is_none());
     }
 
     #[test]

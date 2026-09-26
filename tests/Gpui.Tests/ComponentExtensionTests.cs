@@ -9,7 +9,7 @@ public sealed class ComponentExtensionTests
     public void ComponentSchemaIdentityIsIndependentFromEditor()
     {
         Assert.Equal("gpui.net.components", ComponentsExtension.Requirement.Id);
-        Assert.Equal(2u, ComponentsExtension.Requirement.Version);
+        Assert.Equal(3u, ComponentsExtension.Requirement.Version);
         Assert.Equal(ComponentSchema.SchemaHash, ComponentsExtension.SchemaHash);
         Assert.NotEqual(Gpui.Editor.EditorExtension.SchemaHash, ComponentsExtension.SchemaHash);
     }
@@ -119,6 +119,34 @@ public sealed class ComponentExtensionTests
                     new NativeExtensionEvent(ComponentSchema.Pagination.EventChanged, 0, 0, page)
                 )
                 .Page
+        );
+    }
+
+    [Fact]
+    public void AttachmentConfigurationAndClickEventUseTheGeneratedContract()
+    {
+        Assert.Equal(
+            "small\nvertical\nuploading\nreport.pdf\nUploading\n\n1\n1\n1\n17",
+            ComponentSchema.Attachment.EncodeConfiguration(
+                ComponentSchema.Attachment.Size.Small,
+                ComponentSchema.Attachment.Axis.Vertical,
+                ComponentSchema.Attachment.Status.Uploading,
+                "report.pdf",
+                "Uploading",
+                string.Empty,
+                true,
+                true,
+                true,
+                17
+            )
+        );
+        _ = ComponentAttachmentClickedEvent.Decode(
+            new NativeExtensionEvent(ComponentSchema.Attachment.EventClicked, 0, 0, [])
+        );
+        Assert.Throws<InvalidOperationException>(() =>
+            ComponentAttachmentClickedEvent.Decode(
+                new NativeExtensionEvent(ComponentSchema.Attachment.EventClicked, 0, 0, [1])
+            )
         );
     }
 }
