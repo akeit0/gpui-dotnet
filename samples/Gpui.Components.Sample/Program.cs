@@ -341,16 +341,19 @@ internal sealed partial class ComponentsSampleView : View
                         Alignment = ComponentMessageAlignment.End,
                         AccessibleListItem = true,
                     },
-                    content: ui.Bubble(
-                        "catalog-bubble-out",
-                        new ComponentBubbleOptions
-                        {
-                            Variant = ComponentBubbleVariant.Filled,
-                            Alignment = ComponentMessageAlignment.End,
-                        },
-                        content: ui.Text("I’ll check the attachment."u8),
-                        reactions: ui.Text("★ 2"u8)
-                    ),
+                    content: ui.VStack(
+                            ui.Bubble(
+                                "catalog-bubble-out",
+                                new ComponentBubbleOptions
+                                {
+                                    Variant = ComponentBubbleVariant.Filled,
+                                    Alignment = ComponentMessageAlignment.End,
+                                },
+                                content: ui.Text("I’ll check the attachment."u8),
+                                reactions: ui.Text("★ 2"u8)
+                            )
+                        )
+                        .PaddingBottom(Px(20)),
                     footer: ui.Text("Sent"u8)
                 )
             ),
