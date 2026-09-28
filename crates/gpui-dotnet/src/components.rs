@@ -1,6 +1,7 @@
 use gpui::{Div, ParentElement, Styled, div, px, rgba};
 
 use crate::{
+    platform_compat::StyledCompat,
     semantic::{NativeAdapter, OP_CHECKED},
     snapshot::{SnapshotNode, ValidatedSnapshot},
     theme::NativeTheme,
@@ -35,7 +36,7 @@ pub(crate) fn apply_defaults(
             .text_color(rgba(theme.info))
             .text_xs(),
         NativeAdapter::Divider => element.h(px(1.)).w_full().bg(rgba(theme.border_variant)),
-        NativeAdapter::Spacer => element.flex_grow(),
+        NativeAdapter::Spacer => element.flex_grow_compat(),
         NativeAdapter::Div
         | NativeAdapter::Text
         | NativeAdapter::Scroll

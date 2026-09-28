@@ -10,8 +10,8 @@ use std::{
 
 use async_channel::{Receiver, Sender, TrySendError};
 use gpui::{
-    AnyWindowHandle, App, AppContext, Application, Bounds, Context, IntoElement, Menu, MenuItem,
-    Render, TitlebarOptions, Window, WindowBounds, WindowDecorations, WindowOptions, div, point,
+    AnyWindowHandle, App, AppContext, Bounds, Context, IntoElement, Menu, MenuItem, Render,
+    TitlebarOptions, Window, WindowBounds, WindowDecorations, WindowOptions, div, point,
     prelude::*, px, rgba, size,
 };
 
@@ -462,6 +462,8 @@ fn active_dynamic_owners(snapshot: &ValidatedSnapshot) -> Vec<u32> {
 }
 
 pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
+    #[cfg(target_os = "ios")]
+    crate::ios_log::init();
     trace::init_from_env();
     let (sender, receiver) = async_channel::unbounded();
     let Ok(_application_registration) =
@@ -482,7 +484,7 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
     let application_status = Arc::new(AtomicI32::new(0));
     let application_status_in_app = Arc::clone(&application_status);
 
-    Application::new().run(move |cx: &mut App| {
+    let launch = move |cx: &mut App| {
         crate::input::init(cx);
         let windows: ManagedWindows = Rc::new(RefCell::new(HashMap::new()));
         let theme: SharedTheme = Rc::new(RefCell::new(NativeTheme::default()));
@@ -502,7 +504,19 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
 
         let closed_windows = Rc::clone(&windows);
         let closed_status = Arc::clone(&application_status_in_app);
+        #[cfg(not(target_os = "ios"))]
         cx.on_window_closed(move |cx| {
+            report_closed_windows(
+                cx,
+                application_id,
+                callbacks,
+                &closed_windows,
+                &closed_status,
+            );
+        })
+        .detach();
+        #[cfg(target_os = "ios")]
+        cx.on_window_closed(move |cx, _| {
             report_closed_windows(
                 cx,
                 application_id,
@@ -536,6 +550,7 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
         let command_status = Arc::clone(&application_status_in_app);
         cx.spawn(async move |cx| {
             while let Ok(command) = receiver.recv().await {
+                #[cfg(not(target_os = "ios"))]
                 if cx
                     .update(|cx| {
                         apply_application_command(
@@ -552,14 +567,42 @@ pub fn run(application_id: u64, callbacks: ManagedCallbacks) -> i32 {
                 {
                     break;
                 }
+                #[cfg(target_os = "ios")]
+                cx.update(|cx| {
+                    apply_application_command(
+                        command,
+                        cx,
+                        application_id,
+                        callbacks,
+                        &command_windows,
+                        &command_theme,
+                        &command_status,
+                    );
+                });
             }
         })
         .detach();
 
         cx.activate(true);
-    });
+    };
 
-    application_status.load(Ordering::Acquire)
+    #[cfg(not(target_os = "ios"))]
+    gpui::Application::new().run(launch);
+    #[cfg(target_os = "ios")]
+    {
+        gpui_mobile::ios::ffi::set_app_callback(Box::new(launch));
+        gpui_mobile::ios::ffi::run_app();
+    }
+
+    let status = application_status.load(Ordering::Acquire);
+    #[cfg(target_os = "ios")]
+    if status == 0 {
+        // Embedded iOS startup returns after handing control back to UIKit. Keep
+        // the command route alive for the process lifetime, matching the
+        // managed application's retained embedded registration.
+        std::mem::forget(_application_registration);
+    }
+    status
 }
 
 fn apply_application_command(
@@ -573,7 +616,12 @@ fn apply_application_command(
 ) {
     match command {
         ApplicationCommand::SetMenuBar(menus) => {
-            cx.set_menus(menus.into_iter().map(|menu| convert_menu(menu)).collect());
+            cx.set_menus(
+                menus
+                    .into_iter()
+                    .map(|menu| convert_menu(menu))
+                    .collect::<Vec<_>>(),
+            );
         }
         ApplicationCommand::SetTheme(next) => {
             *theme.borrow_mut() = next;
@@ -680,6 +728,8 @@ fn convert_menu(menu: ManagedMenu) -> Menu {
     Menu {
         name: menu.title.into(),
         items: menu.items.into_iter().map(convert_menu_item).collect(),
+        #[cfg(target_os = "ios")]
+        disabled: false,
     }
 }
 

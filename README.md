@@ -21,6 +21,11 @@ The repository contains native package targets for `win-x64`, `osx-x64`, `osx-ar
 GPUI runtime shaders, so the Apple command-line development tools are sufficient for shader
 compilation.
 
+Experimental iOS support is available from source through
+[gpui-mobile](https://github.com/longbridge/gpui-mobile). It requires Xcode, the .NET iOS workload,
+and the Rust `aarch64-apple-ios-sim` or `aarch64-apple-ios` target. iOS is not yet included in the
+NuGet native package matrix.
+
 ## Build and run
 
 From the repository root:
@@ -35,6 +40,28 @@ dotnet run --project samples/Gpui.Sample
 The managed build compiles the native host for the current machine and copies it beside the
 managed output. The sample demonstrates themes, native and managed title bars, menus, multiple
 windows, retained controls, virtual lists and tables, images, and overlays.
+
+### Experimental iOS sample
+
+The iOS sample embeds GPUI's view controller in a UIKit scene. C# still owns the application,
+theme, View state, and event handlers; the Rust host is linked as a static archive and renders with
+Metal:
+
+```sh
+dotnet workload install ios
+dotnet build samples/Gpui.Sample.Ios/Gpui.Sample.Ios.csproj \
+  -p:RuntimeIdentifier=iossimulator-arm64
+
+xcrun simctl boot "iPhone 18 Pro"
+xcrun simctl install booted \
+  samples/Gpui.Sample.Ios/bin/Debug/net10.0-ios/iossimulator-arm64/Gpui.Sample.Ios.app
+xcrun simctl launch booted dev.gpuidotnet.sample.ios
+```
+
+Use any installed simulator device name in place of `iPhone 18 Pro`; omit the boot command when a
+simulator is already running. The project adds the Rust target automatically. The physical-device
+`ios-arm64` path requires the application's normal Apple signing setup and has been exercised on an
+iPhone 14 with Personal Team development signing.
 
 ## Small application
 
@@ -291,6 +318,7 @@ src/Gpui.Core/            platform-neutral package project
 src/Gpui.Native/          RID-specific native package projects
 src/Gpui.Generators/      Roslyn generators for views and list rows
 samples/Gpui.Sample/      interactive component gallery
+samples/Gpui.Sample.Ios/  experimental UIKit-hosted iOS sample
 tests/Gpui.Tests/         managed contract and generator tests
 tools/                    semantic binding generator and UI driver
 eng/                      native build, staging, and packaging scripts

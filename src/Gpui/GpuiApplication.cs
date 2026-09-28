@@ -277,6 +277,13 @@ public sealed class GpuiApplication
     /// <summary>Runs until the last application-owned window closes.</summary>
     public void Run()
     {
+        if (OperatingSystem.IsIOS())
+        {
+            throw new PlatformNotSupportedException(
+                "iOS owns the UIKit event loop. Use StartEmbedded() during UIKit scene setup."
+            );
+        }
+
         lock (_gate)
         {
             if (_state != ApplicationState.Created)
@@ -324,6 +331,51 @@ public sealed class GpuiApplication
                 "Multiple Views failed during application cleanup.",
                 cleanupFailures
             );
+        }
+    }
+
+    /// <summary>
+    /// Starts GPUI inside the host platform's existing event loop and returns after the initial
+    /// windows have been created.
+    /// </summary>
+    /// <remarks>
+    /// This experimental entry point currently supports iOS. The application and its root Views
+    /// remain mounted for the process lifetime; UIKit owns presentation and frame delivery.
+    /// </remarks>
+    public void StartEmbedded()
+    {
+        if (!OperatingSystem.IsIOS())
+        {
+            throw new PlatformNotSupportedException(
+                "Embedded GPUI startup is currently available only on iOS."
+            );
+        }
+
+        lock (_gate)
+        {
+            if (_state != ApplicationState.Created)
+            {
+                throw new InvalidOperationException(
+                    "A GpuiApplication instance can run only once."
+                );
+            }
+            if (_windows.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    "Open at least one window before starting the application."
+                );
+            }
+            _state = ApplicationState.Running;
+        }
+
+        try
+        {
+            NativeRuntime.Load(_runtimeOptions).StartEmbedded(this);
+        }
+        catch
+        {
+            _ = FinishRun();
+            throw;
         }
     }
 

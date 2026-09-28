@@ -6,6 +6,7 @@ use gpui::{
     point, px, quad, rgba, size, transparent_black,
 };
 
+use crate::platform_compat::{max_offset_height, max_offset_width};
 use crate::resources::{
     ManagedListResource, ManagedScrollResource, ScrollInteraction, ScrollbarDrag,
 };
@@ -355,8 +356,12 @@ fn apply_scroll_delta(resource: &ManagedScrollResource, delta: Point<Pixels>) {
     let current = resource.handle.offset();
     let max = resource.handle.max_offset();
     resource.handle.set_offset(point(
-        (current.x + delta.x).max(-max.width).min(px(0.)),
-        (current.y + delta.y).max(-max.height).min(px(0.)),
+        (current.x + delta.x)
+            .max(-max_offset_width(max))
+            .min(px(0.)),
+        (current.y + delta.y)
+            .max(-max_offset_height(max))
+            .min(px(0.)),
     ));
 }
 
@@ -370,10 +375,10 @@ fn scroll_geometry(
     let max = resource.handle.max_offset();
     ScrollbarGeometry {
         vertical: (axis != 1)
-            .then(|| vertical_geometry(bounds, offset.y, max.height, metrics))
+            .then(|| vertical_geometry(bounds, offset.y, max_offset_height(max), metrics))
             .flatten(),
         horizontal: (axis != 0)
-            .then(|| horizontal_geometry(bounds, offset.x, max.width, metrics))
+            .then(|| horizontal_geometry(bounds, offset.x, max_offset_width(max), metrics))
             .flatten(),
     }
 }
@@ -581,7 +586,7 @@ fn update_scroll_drag(
             };
             resource
                 .handle
-                .set_offset(point(current.x, -(max.height * progress)));
+                .set_offset(point(current.x, -(max_offset_height(max) * progress)));
         }
         Some(ScrollbarDrag::Horizontal { pointer_offset }) => {
             let Some(axis) = geometry.horizontal else {
@@ -595,7 +600,7 @@ fn update_scroll_drag(
             };
             resource
                 .handle
-                .set_offset(point(-(max.width * progress), current.y));
+                .set_offset(point(-(max_offset_width(max) * progress), current.y));
         }
         None => {}
     }

@@ -11,6 +11,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     abi::{ManagedCallbacks, NativeControlEvent},
+    platform_compat,
     resources::ResourceCommand,
     theme::SharedTheme,
 };
@@ -168,8 +169,8 @@ impl ManagedInput {
         cx: &mut Context<Self>,
     ) {
         match command.command {
-            20 if !self.disabled => self.focus_handle.focus(window),
-            21 if self.focus_handle.is_focused(window) => window.blur(),
+            20 if !self.disabled => platform_compat::focus(&self.focus_handle, window, cx),
+            21 if self.focus_handle.is_focused(window) => platform_compat::blur(window, cx),
             22 => self.set_value(command.data.as_ref(), cx),
             23 if !self.disabled => {
                 self.selected_range = 0..self.content.len();
@@ -312,7 +313,7 @@ impl ManagedInput {
         if self.disabled {
             return;
         }
-        self.focus_handle.focus(window);
+        platform_compat::focus(&self.focus_handle, window, cx);
         self.is_selecting = true;
         let offset = self.index_for_mouse_position(event.position);
         if event.modifiers.shift {
@@ -891,6 +892,17 @@ impl Element for TextElement {
             .line
             .take()
             .expect("line was shaped during prepaint");
+        #[cfg(target_os = "ios")]
+        line.paint(
+            point(bounds.left() - prepaint.scroll_x, bounds.top()),
+            window.line_height(),
+            gpui::TextAlign::default(),
+            None,
+            window,
+            cx,
+        )
+        .expect("input line paint failed");
+        #[cfg(not(target_os = "ios"))]
         line.paint(
             point(bounds.left() - prepaint.scroll_x, bounds.top()),
             window.line_height(),

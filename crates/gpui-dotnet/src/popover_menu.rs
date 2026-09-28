@@ -13,6 +13,7 @@ use gpui::{
 use crate::{
     app_host::ManagedView,
     overlay::{OverlayStack, OverlayToken},
+    platform_compat,
     resources::ResourceKey,
 };
 
@@ -207,7 +208,7 @@ fn open_popover_menu(
         cx.notify();
     });
     group.set_active(state);
-    focus.focus(window);
+    platform_compat::focus(focus, window, cx);
     window.refresh();
 }
 
@@ -233,9 +234,9 @@ fn close_popover_menu(
         return;
     }
     if let Some(previous_focus) = previous_focus.and_then(|focus| focus.upgrade()) {
-        previous_focus.focus(window);
+        platform_compat::focus(&previous_focus, window, cx);
     } else {
-        window.blur();
+        platform_compat::blur(window, cx);
     }
     window.refresh();
 }

@@ -38,7 +38,10 @@ public sealed unsafe class NativeRuntime
     {
         if (options is null || options.LibraryPath is null)
         {
-            return CreateValidated(NativeMethods.gpui_dotnet_get_api(NativeConstants.AbiVersion));
+            var api = OperatingSystem.IsIOS()
+                ? IosNativeMethods.gpui_dotnet_get_api(NativeConstants.AbiVersion)
+                : NativeMethods.gpui_dotnet_get_api(NativeConstants.AbiVersion);
+            return CreateValidated(api);
         }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(options.LibraryPath);
@@ -138,18 +141,7 @@ public sealed unsafe class NativeRuntime
         var status = 0;
         try
         {
-            var callbacks = new ManagedCallbacks
-            {
-                struct_size = (uint)sizeof(ManagedCallbacks),
-                render = &NativeCallbacks.Render,
-                click = &NativeCallbacks.Click,
-                list_render_range = &NativeCallbacks.ListRenderRange,
-                dynamic_frame = &NativeCallbacks.DynamicFrame,
-                control_event = &NativeCallbacks.ControlEvent,
-                application_started = &NativeCallbacks.ApplicationStarted,
-                window_closed = &NativeCallbacks.WindowClosed,
-                menu_action = &NativeCallbacks.MenuAction,
-            };
+            var callbacks = CreateCallbacks();
             status = _api->run_application(id, &callbacks);
         }
         finally
@@ -174,6 +166,45 @@ public sealed unsafe class NativeRuntime
             );
         }
     }
+
+    internal void StartEmbedded(GpuiApplication application)
+    {
+        ArgumentNullException.ThrowIfNull(application);
+        var id = checked((ulong)Interlocked.Increment(ref NativeRegistry.NextApplicationId));
+        var managedApplication = new ManagedApplication(this, id, application);
+        if (!NativeRegistry.Applications.TryAdd(id, managedApplication))
+        {
+            throw new InvalidOperationException("Failed to register the managed GPUI application.");
+        }
+
+        var callbacks = CreateCallbacks();
+        var status = _api->run_application(id, &callbacks);
+        if (status == 0 && managedApplication.Failure is null)
+        {
+            return;
+        }
+
+        managedApplication.Stop();
+        NativeRegistry.Applications.TryRemove(id, out _);
+        throw new InvalidOperationException(
+            $"The embedded native GPUI application failed to start with status {status}.",
+            managedApplication.Failure
+        );
+    }
+
+    private static ManagedCallbacks CreateCallbacks() =>
+        new()
+        {
+            struct_size = (uint)sizeof(ManagedCallbacks),
+            render = &NativeCallbacks.Render,
+            click = &NativeCallbacks.Click,
+            list_render_range = &NativeCallbacks.ListRenderRange,
+            dynamic_frame = &NativeCallbacks.DynamicFrame,
+            control_event = &NativeCallbacks.ControlEvent,
+            application_started = &NativeCallbacks.ApplicationStarted,
+            window_closed = &NativeCallbacks.WindowClosed,
+            menu_action = &NativeCallbacks.MenuAction,
+        };
 
     internal void NotifyView(ulong sessionId)
     {
@@ -206,5 +237,16 @@ public sealed unsafe class NativeRuntime
             NativeLibrary.Free(handle);
             return true;
         }
+    }
+
+    private static class IosNativeMethods
+    {
+        [DllImport(
+            "__Internal",
+            EntryPoint = "gpui_dotnet_get_api",
+            CallingConvention = CallingConvention.Cdecl,
+            ExactSpelling = true
+        )]
+        internal static extern GpuiDotnetApiV1* gpui_dotnet_get_api(uint requestedVersion);
     }
 }

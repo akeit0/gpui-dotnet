@@ -5,6 +5,7 @@ use gpui::{
     Styled, Window, canvas, div, prelude::FluentBuilder, px, relative, rgba,
 };
 
+use crate::platform_compat;
 use crate::{
     abi::{ManagedCallbacks, NativeControlEvent},
     resources::{ResourceCommand, SliderBindings, SliderConfiguration},
@@ -334,7 +335,7 @@ impl ManagedSlider {
         };
         self.active_thumb_is_start = is_start;
         self.keyboard_active = false;
-        self.focus_handle.focus(window);
+        platform_compat::focus(&self.focus_handle, window, cx);
         self.update_value_by_position(event.position, is_start, cx);
     }
 
@@ -347,7 +348,7 @@ impl ManagedSlider {
     ) {
         self.active_thumb_is_start = is_start;
         self.keyboard_active = false;
-        self.focus_handle.focus(window);
+        platform_compat::focus(&self.focus_handle, window, cx);
         cx.stop_propagation();
     }
 

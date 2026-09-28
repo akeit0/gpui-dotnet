@@ -1,11 +1,19 @@
+#[cfg(not(target_os = "ios"))]
+extern crate gpui_desktop as gpui;
+#[cfg(target_os = "ios")]
+extern crate gpui_mobile_core as gpui;
+
 mod abi;
 mod app_host;
 mod arena;
 mod components;
 mod context_menu;
 mod input;
+#[cfg(target_os = "ios")]
+mod ios_log;
 mod materializer;
 mod overlay;
+mod platform_compat;
 mod popover_menu;
 mod resources;
 mod scrolling;

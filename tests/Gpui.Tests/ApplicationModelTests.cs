@@ -21,6 +21,17 @@ public sealed class ApplicationModelTests
     }
 
     [Fact]
+    public void EmbeddedStartupIsRejectedOutsideIos()
+    {
+        if (OperatingSystem.IsIOS())
+        {
+            return;
+        }
+
+        Assert.Throws<PlatformNotSupportedException>(new GpuiApplication().StartEmbedded);
+    }
+
+    [Fact]
     public void NativeRuntimeRejectsAnEmptyExplicitNativeLibraryPath()
     {
         Assert.Throws<ArgumentException>(() =>

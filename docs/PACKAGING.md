@@ -32,6 +32,13 @@ exactly one native host under its `runtimes/<rid>/native` path:
 | `osx-x64` | `libgpui_dotnet.dylib` |
 | `osx-arm64` | `libgpui_dotnet.dylib` |
 
+Experimental iOS support is source-only and is not part of this package graph. The
+`samples/Gpui.Sample.Ios` project compiles `gpui-dotnet` as a Rust static library, links it into the
+.NET iOS application, and resolves the C ABI through `__Internal`. This avoids dynamic-library
+loading on iOS. The source sample has been validated on a development-signed physical device. A
+distributable iOS package still needs release-signing validation and a deliberate XCFramework or
+static-library packaging contract before it joins the release matrix.
+
 `GPUI.NET` is the application-facing meta package. It also carries the Roslyn analyzer so
 `[GpuiView]` and `[GpuiListItem]` work without an additional package reference.
 

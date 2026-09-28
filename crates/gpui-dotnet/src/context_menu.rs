@@ -9,6 +9,7 @@ use gpui::{
 use crate::{
     app_host::ManagedView,
     overlay::{OverlayStack, OverlayToken},
+    platform_compat,
     resources::ResourceKey,
 };
 
@@ -70,7 +71,7 @@ pub(crate) fn context_menu(
                     }
                     cx.notify();
                 });
-                open_focus.focus(window);
+                platform_compat::focus(&open_focus, window, cx);
                 window.refresh();
             },
         )
@@ -180,9 +181,9 @@ fn close_context_menu(state: &Entity<ContextMenuState>, window: &mut Window, cx:
         return;
     }
     if let Some(previous_focus) = previous_focus.and_then(|focus| focus.upgrade()) {
-        previous_focus.focus(window);
+        platform_compat::focus(&previous_focus, window, cx);
     } else {
-        window.blur();
+        platform_compat::blur(window, cx);
     }
     window.refresh();
 }

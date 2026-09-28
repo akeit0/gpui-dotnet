@@ -34,6 +34,13 @@ reconciliation, and unmounting therefore stay serialized on that thread once a V
 mounting. A root retired before its first native render has never mounted, so neither lifecycle
 hook runs.
 
+On desktop, `GpuiApplication.Run()` owns that foreground loop until shutdown. In the iOS embedded
+host, UIKit owns the main run loop and the application delegate calls
+`GpuiApplication.StartEmbedded()` on the main thread before the scene contains the resulting view
+controller. Startup returns after gpui-mobile has registered its application callback; subsequent
+renders, events, invalidations, and commands still execute through the same foreground-thread
+contract. The embedded application is retained for the process lifetime.
+
 During native callbacks, the binding installs a per-window `GpuiSynchronizationContext`. Normal
 `await` continuations from an event handler are posted to that session and drained at the start of
 a later root-render callback. `ConfigureAwait(false)` deliberately leaves this context; code

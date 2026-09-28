@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0-ios</TargetFramework>
+        <OutputType>Exe</OutputType>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>true</ImplicitUsings>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <SupportedOSPlatformVersion>16.0</SupportedOSPlatformVersion>
+        <!-- This sample is validated with Xcode 27 while the installed .NET iOS workload targets 26.x. -->
+        <ValidateXcodeVersion>false</ValidateXcodeVersion>
+        <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">iossimulator-arm64</RuntimeIdentifier>
+        <RustTarget Condition="'$(RuntimeIdentifier)' == 'iossimulator-arm64'">aarch64-apple-ios-sim</RustTarget>
+        <RustTarget Condition="'$(RuntimeIdentifier)' == 'ios-arm64'">aarch64-apple-ios</RustTarget>
+        <RustProfile Condition="'$(Configuration)' == 'Release'">release</RustProfile>
+        <RustProfile Condition="'$(RustProfile)' == ''">debug</RustProfile>
+        <CargoConfigurationArg Condition="'$(Configuration)' == 'Release'">--release</CargoConfigurationArg>
+        <NativeArchive>$(MSBuildThisFileDirectory)../../crates/gpui-dotnet/target/$(RustTarget)/$(RustProfile)/libgpui_dotnet.a</NativeArchive>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InterfaceDefinition Include="LaunchScreen.storyboard" />
+        <PartialAppManifest Include="SceneManifest.plist" />
+        <ProjectReference Include="../../src/Gpui.Core/Gpui.Core.csproj" AdditionalProperties="BuildGpuiNative=false" />
+        <ProjectReference
+            Include="../../src/Gpui.Generators/Gpui.Generators.csproj"
+            OutputItemType="Analyzer"
+            ReferenceOutputAssembly="false"
+        />
+        <NativeReference Include="$(NativeArchive)" Condition="'$(RustTarget)' != ''">
+            <Kind>Static</Kind>
+            <ForceLoad>true</ForceLoad>
+            <SmartLink>false</SmartLink>
+            <Frameworks>UIKit Metal MetalKit QuartzCore CoreGraphics CoreText CoreFoundation Foundation Security SystemConfiguration AudioToolbox WebKit CoreMedia AVFoundation LocalAuthentication Contacts EventKit StoreKit CoreMotion</Frameworks>
+            <LinkerFlags>-lc++ -ObjC</LinkerFlags>
+        </NativeReference>
+    </ItemGroup>
+
+    <Target Name="BuildGpuiIosNative" BeforeTargets="ResolveNativeReferences" Condition="'$(RustTarget)' != ''">
+        <Exec Command="rustup target add $(RustTarget)" />
+        <Exec Command="cargo build --manifest-path &quot;$(MSBuildThisFileDirectory)../../crates/gpui-dotnet/Cargo.toml&quot; --target $(RustTarget) --lib $(CargoConfigurationArg)" />
+    </Target>
+</Project>

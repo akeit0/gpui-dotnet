@@ -130,7 +130,11 @@ viewport and measurement state survive either invalidation.
 
 One `GpuiApplication` maps to one native `gpui::Application`. Every `GpuiWindow` maps to an
 independent managed session and native root view. Window IDs are stable 64-bit values and also serve
-as render-session IDs.
+as render-session IDs. Desktop applications call the blocking `Run()` entry point and let GPUI own
+the platform event loop. An embedded iOS host instead lets UIKit own the scene lifecycle, calls
+`StartEmbedded()` during application launch, and contains gpui-mobile's view controller in the
+scene's controller tree. The embedded application and its command registration then live for the
+process lifetime.
 
 Window and resource commands may originate from managed threads, but all GPUI mutations occur on
 the native event-loop thread. The application exits after its final registered window closes. A
@@ -173,7 +177,8 @@ schema hash, and required entry points.
 
 ## Dependency policy
 
-The native crate pins a specific Zed/GPUI revision. Zed and GPUI Component are design and behavior
+The native crate pins a specific Zed/GPUI revision for desktop targets. iOS uses the compatible
+`gpui-pre` core with a pinned gpui-mobile revision. Zed and GPUI Component are design and behavior
 references, not ABI dependencies. Platform-specific implementation remains in Rust; C# APIs should
 express durable application semantics rather than backend details.
 
